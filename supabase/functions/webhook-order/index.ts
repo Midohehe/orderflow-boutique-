@@ -277,6 +277,25 @@ Deno.serve(async (req) => {
             li.warehouse_code = String(whMap[matchedVariantKey]);
           }
         }
+        // Self-heal: update variant_easyorders_ids for products whose name-matched key
+        // resolved a fresh EO variant id different from the stored one.
+        const updates = new Map<string, Record<string, string>>();
+        for (const li of lineItems) {
+          if (!li.product_id || !li.easyorders_variant_id) continue;
+          const lp2 = byEoId.get(li.easyorders_product_id || "");
+          if (!lp2) continue;
+          const key = [li.selected_color, li.selected_size].filter(Boolean).join(" - ")
+            || li.selected_color || li.selected_size || li.selected_product_code || "";
+          if (!key) continue;
+          const map2 = (lp2.variant_easyorders_ids || {}) as Record<string, string>;
+          if (map2[key] === li.easyorders_variant_id) continue;
+          const merged = updates.get(lp2.id) || { ...map2 };
+          merged[key] = li.easyorders_variant_id;
+          updates.set(lp2.id, merged);
+        }
+        for (const [pid, merged] of updates.entries()) {
+          await supabase.from("products").update({ variant_easyorders_ids: merged }).eq("id", pid);
+        }
       }
     }
 
