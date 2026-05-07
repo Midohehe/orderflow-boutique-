@@ -65,6 +65,36 @@ export type Database = {
         }
         Relationships: []
       }
+      carrier_status_mappings: {
+        Row: {
+          color: string
+          created_at: string
+          custom_label: string
+          id: string
+          owner_id: string
+          status_code: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          custom_label: string
+          id?: string
+          owner_id: string
+          status_code: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          custom_label?: string
+          id?: string
+          owner_id?: string
+          status_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       city_corrections: {
         Row: {
           area: string
