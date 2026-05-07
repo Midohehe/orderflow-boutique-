@@ -29,6 +29,15 @@ function findByName(list: string[] | null | undefined, value: string | null): st
   if (!value || !list || list.length === 0) return null;
   const n = norm(value);
   for (const x of list) if (norm(x) === n) return x;
+  const tokens = n.split(/[\s\-_/،,]+/).filter(Boolean);
+  for (const x of list) {
+    const xn = norm(x);
+    if (xn && tokens.includes(xn)) return x;
+  }
+  for (const x of list) {
+    const xn = norm(x);
+    if (xn && (n === xn || n.startsWith(xn + " "))) return x;
+  }
   return null;
 }
 
@@ -213,37 +222,41 @@ Deno.serve(async (req) => {
           const map2 = (lp2.variant_easyorders_ids || {}) as Record<string, string>;
           const whMap = (lp2.variant_warehouse_codes || {}) as Record<string, string>;
           let matchedVariantKey: string | null = null;
-          if (li.easyorders_variant_id) {
+
+          // PRIMARY: name-based resolution (token-aware), more reliable than stored map
+          const colorMatch = findByName(lp2.colors, li.selected_color);
+          const sizeMatch = findByName(lp2.sizes, li.selected_size);
+          if (colorMatch) li.selected_color = colorMatch;
+          if (sizeMatch) li.selected_size = sizeMatch;
+
+          const keyCandidates = [
+            [li.selected_color, li.selected_size].filter(Boolean).join(" - "),
+            li.selected_color || "",
+            li.selected_size || "",
+            li.selected_product_code || "",
+          ].filter(Boolean) as string[];
+          for (const k of keyCandidates) {
+            if (whMap[k] || map2[k]) { matchedVariantKey = k; break; }
+          }
+
+          if (!matchedVariantKey && li.easyorders_variant_id) {
             for (const [variantKey, eoId] of Object.entries(map2)) {
               if (String(eoId) === li.easyorders_variant_id) {
+                matchedVariantKey = variantKey;
                 const parts = variantKey.split(" - ").map((x) => x.trim());
                 const colors = (lp2.colors || []) as string[];
                 const sizes = (lp2.sizes || []) as string[];
                 const codes = (lp2.product_codes || []) as string[];
                 for (const part of parts) {
-                  if (colors.includes(part)) li.selected_color = part;
-                  else if (sizes.includes(part)) li.selected_size = part;
-                  else if (codes.includes(part)) li.selected_product_code = part;
+                  if (colors.includes(part) && !li.selected_color) li.selected_color = part;
+                  else if (sizes.includes(part) && !li.selected_size) li.selected_size = part;
+                  else if (codes.includes(part) && !li.selected_product_code) li.selected_product_code = part;
                 }
-                matchedVariantKey = variantKey;
                 break;
               }
             }
           }
-          const colorMatch = findByName(lp2.colors, li.selected_color);
-          const sizeMatch = findByName(lp2.sizes, li.selected_size);
-          if (colorMatch) li.selected_color = colorMatch;
-          if (sizeMatch) li.selected_size = sizeMatch;
-          if (!matchedVariantKey) {
-            const candidates = [
-              [li.selected_color, li.selected_size].filter(Boolean).join(" - "),
-              li.selected_color || "",
-              li.selected_size || "",
-            ].filter(Boolean);
-            for (const k of candidates) {
-              if (whMap[k as string]) { matchedVariantKey = k as string; break; }
-            }
-          }
+
           if (matchedVariantKey && whMap[matchedVariantKey]) {
             li.warehouse_code = String(whMap[matchedVariantKey]);
           }
