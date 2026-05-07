@@ -220,6 +220,48 @@ Deno.serve(async (req) => {
         .select("id, easyorders_product_id, variant_easyorders_ids, colors, sizes, product_codes, variant_warehouse_codes")
         .eq("owner_id", profile.user_id)
         .in("easyorders_product_id", eoProductIds);
+      // Load synced EO products to normalize stale cart variant IDs
+      const { data: eoProds } = await supabase
+        .from("easyorders_products")
+        .select("external_id, variants")
+        .eq("owner_id", profile.user_id)
+        .in("external_id", eoProductIds);
+      const eoByExtSync = new Map<string, any>();
+      for (const ep of (eoProds || []) as any[]) eoByExtSync.set(String(ep.external_id), ep);
+      for (const li of lineItems) {
+        if (!li.easyorders_product_id || !li.easyorders_variant_id) continue;
+        const ep = eoByExtSync.get(li.easyorders_product_id);
+        if (!ep || !Array.isArray(ep.variants)) continue;
+        const exists = ep.variants.some((v: any) => String(v.id) === li.easyorders_variant_id);
+        if (exists) continue;
+        // Get original cart variant data from body to extract taager_code/props
+        let cartVariant: any = null;
+        if (Array.isArray(body.cart_items)) {
+          for (const ci of body.cart_items) {
+            const v = ci?.variant;
+            if (v && String(v.id) === li.easyorders_variant_id) { cartVariant = v; break; }
+          }
+        }
+        if (!cartVariant) continue;
+        const cartCode = cartVariant.taager_code ?? cartVariant.sku ?? null;
+        const cartProps: any[] = Array.isArray(cartVariant.variation_props) ? cartVariant.variation_props : [];
+        const cartPropSet = new Set(cartProps.map((p: any) => norm(p?.variation_prop)));
+        let canonical: any = null;
+        if (cartCode) canonical = ep.variants.find((v: any) => String(v.sku ?? "") === String(cartCode));
+        if (!canonical && cartPropSet.size > 0) {
+          canonical = ep.variants.find((v: any) => {
+            const vp = Array.isArray(v.variation_props) ? v.variation_props : [];
+            if (vp.length !== cartPropSet.size) return false;
+            return vp.every((p: any) => cartPropSet.has(norm(p?.variation_prop)));
+          });
+        }
+        if (canonical?.id) {
+          console.log("normalized stale EO variant", li.easyorders_variant_id, "->", canonical.id);
+          li.easyorders_variant_id = String(canonical.id);
+        }
+      }
+      eoVariantIds.length = 0;
+      for (const li of lineItems) if (li.easyorders_variant_id) eoVariantIds.push(li.easyorders_variant_id);
       if (localProds && localProds.length > 0) {
         const lp = localProds[0] as any;
         matched_product_id = lp.id;
