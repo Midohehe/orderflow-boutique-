@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Truck, RefreshCw, Copy } from "lucide-react";
+import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2 } from "lucide-react";
 
 interface ShippingSettings {
   id?: string;
@@ -30,6 +30,83 @@ const ShippingSettingsPage = () => {
   const [syncing, setSyncing] = useState(false);
   const [whCount, setWhCount] = useState<number>(0);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
+  const [mappings, setMappings] = useState<Array<{ id?: string; status_code: string; custom_label: string }>>([]);
+  const [savingMappings, setSavingMappings] = useState(false);
+
+  const DEFAULT_CODES: Array<{ code: string; label: string }> = [
+    { code: "1", label: "جديدة" },
+    { code: "2", label: "قيد التجهيز" },
+    { code: "3", label: "في المخزن" },
+    { code: "4", label: "خرجت للتوصيل" },
+    { code: "5", label: "تم التسليم" },
+    { code: "6", label: "مؤجلة" },
+    { code: "7", label: "مرتجعة جزئياً" },
+    { code: "8", label: "مرتجعة" },
+    { code: "9", label: "ملغية" },
+    { code: "10", label: "تم استلام المرتجع" },
+  ];
+
+  const loadMappings = async () => {
+    const { data } = await supabase
+      .from("carrier_status_mappings")
+      .select("id, status_code, custom_label")
+      .order("status_code");
+    const existing = (data || []) as any[];
+    const merged = DEFAULT_CODES.map((d) => {
+      const found = existing.find((e) => e.status_code === d.code);
+      return found
+        ? { id: found.id, status_code: found.status_code, custom_label: found.custom_label }
+        : { status_code: d.code, custom_label: d.label };
+    });
+    // Add any custom (non-default) codes the user already has
+    existing
+      .filter((e) => !DEFAULT_CODES.some((d) => d.code === e.status_code))
+      .forEach((e) => merged.push({ id: e.id, status_code: e.status_code, custom_label: e.custom_label }));
+    setMappings(merged);
+  };
+
+  useEffect(() => { loadMappings(); }, []);
+
+  const updateMapping = (idx: number, field: "status_code" | "custom_label", value: string) => {
+    setMappings((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
+  };
+
+  const addMapping = () => {
+    setMappings((prev) => [...prev, { status_code: "", custom_label: "" }]);
+  };
+
+  const removeMapping = async (idx: number) => {
+    const m = mappings[idx];
+    if (m.id) {
+      await supabase.from("carrier_status_mappings").delete().eq("id", m.id);
+    }
+    setMappings((prev) => prev.filter((_, i) => i !== idx));
+    toast({ title: "تم الحذف" });
+  };
+
+  const saveMappings = async () => {
+    setSavingMappings(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("يجب تسجيل الدخول");
+      const valid = mappings.filter((m) => m.status_code.trim() && m.custom_label.trim());
+      const rows = valid.map((m) => ({
+        owner_id: user.id,
+        status_code: m.status_code.trim(),
+        custom_label: m.custom_label.trim(),
+      }));
+      const { error } = await supabase
+        .from("carrier_status_mappings")
+        .upsert(rows, { onConflict: "owner_id,status_code" });
+      if (error) throw error;
+      toast({ title: "تم الحفظ", description: "تم حفظ تخصيص أسماء الحالات" });
+      await loadMappings();
+    } catch (e) {
+      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setSavingMappings(false);
+    }
+  };
 
   const loadCount = async () => {
     const { count } = await supabase.from("shipping_warehouse_products").select("*", { count: "exact", head: true });
@@ -209,6 +286,59 @@ const ShippingSettingsPage = () => {
                 }}
               >
                 <Copy className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-3">
+            <div>
+              <Label className="text-base font-bold">تخصيص أسماء حالات الشحن</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                حوّل أكواد الحالات القادمة من شركة الشحن إلى أسماء تفهمها (مثلاً: الكود <span className="font-mono">5</span> ← "تم التوصيل للزبون").
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-[100px_1fr_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+                <span>الكود</span>
+                <span>الاسم المعروض</span>
+                <span></span>
+              </div>
+              {mappings.map((m, idx) => (
+                <div key={idx} className="grid grid-cols-[100px_1fr_40px] gap-2 items-center">
+                  <Input
+                    dir="ltr"
+                    value={m.status_code}
+                    onChange={(e) => updateMapping(idx, "status_code", e.target.value)}
+                    placeholder="5"
+                    className="font-mono text-center"
+                  />
+                  <Input
+                    value={m.custom_label}
+                    onChange={(e) => updateMapping(idx, "custom_label", e.target.value)}
+                    placeholder="مثال: تم التوصيل"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeMapping(idx)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={addMapping} className="flex-1">
+                <Plus className="w-4 h-4 ml-2" />
+                إضافة حالة جديدة
+              </Button>
+              <Button type="button" onClick={saveMappings} disabled={savingMappings} className="flex-1">
+                {savingMappings && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                حفظ التخصيصات
               </Button>
             </div>
           </div>
