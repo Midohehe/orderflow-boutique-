@@ -119,7 +119,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const label = STATUS_LABELS[status] ? `${STATUS_LABELS[status]} (${status})` : status;
+    // Look up custom mapping for this owner first
+    const { data: mapping } = await supabase
+      .from("carrier_status_mappings")
+      .select("custom_label")
+      .eq("owner_id", profile.user_id)
+      .eq("status_code", String(status))
+      .maybeSingle();
+
+    const label = mapping?.custom_label
+      ? mapping.custom_label
+      : STATUS_LABELS[status]
+        ? `${STATUS_LABELS[status]} (${status})`
+        : String(status);
 
     let q = supabase
       .from("orders")
