@@ -153,6 +153,7 @@ Deno.serve(async (req) => {
       warehouse_code: string | null;
       easyorders_product_id: string | null;
       easyorders_variant_id: string | null;
+      easyorders_sku: string | null;
       quantity: number;
       price: number;
     };
