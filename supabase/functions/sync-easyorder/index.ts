@@ -209,6 +209,7 @@ Deno.serve(async (req) => {
           li.product_id = lp2.id;
           const map2 = (lp2.variant_easyorders_ids || {}) as Record<string, string>;
           const whMap = (lp2.variant_warehouse_codes || {}) as Record<string, string>;
+          let matchedVariantKey: string | null = null;
           if (li.easyorders_variant_id) {
             for (const [variantKey, eoId] of Object.entries(map2)) {
               if (String(eoId) === li.easyorders_variant_id) {
@@ -221,10 +222,27 @@ Deno.serve(async (req) => {
                   else if (sizes.includes(part)) li.selected_size = part;
                   else if (codes.includes(part)) li.selected_product_code = part;
                 }
-                if (whMap[variantKey]) li.warehouse_code = String(whMap[variantKey]);
+                matchedVariantKey = variantKey;
                 break;
               }
             }
+          }
+          const colorMatch = findByName(lp2.colors, li.selected_color);
+          const sizeMatch = findByName(lp2.sizes, li.selected_size);
+          if (colorMatch) li.selected_color = colorMatch;
+          if (sizeMatch) li.selected_size = sizeMatch;
+          if (!matchedVariantKey) {
+            const candidates = [
+              [li.selected_color, li.selected_size].filter(Boolean).join(" - "),
+              li.selected_color || "",
+              li.selected_size || "",
+            ].filter(Boolean);
+            for (const k of candidates) {
+              if (whMap[k as string]) { matchedVariantKey = k as string; break; }
+            }
+          }
+          if (matchedVariantKey && whMap[matchedVariantKey]) {
+            li.warehouse_code = String(whMap[matchedVariantKey]);
           }
         }
       }
