@@ -565,7 +565,16 @@ Deno.serve(async (req) => {
             })
             .eq("id", o.id);
         } else {
-          const errMsg = j?.errors?.[0]?.message || "Unknown error";
+          const firstErr = j?.errors?.[0];
+          let errMsg = firstErr?.message || "Unknown error";
+          // Surface field-level validation details (e.g. which product/quantity is invalid)
+          const validation = firstErr?.extensions?.validation;
+          if (validation && typeof validation === "object") {
+            const details = Object.entries(validation)
+              .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : String(msgs)}`)
+              .join(" | ");
+            if (details) errMsg = `${errMsg} ${details}`;
+          }
           console.error("saveShipment failed", o.id, j);
           results.push({ id: o.id, ok: false, error: errMsg });
           await admin.from("orders").update({ shipping_error: errMsg }).eq("id", o.id);
