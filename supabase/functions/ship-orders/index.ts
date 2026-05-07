@@ -111,13 +111,17 @@ Deno.serve(async (req) => {
 
     // Fetch products to look up per-variant warehouse code (shipping company storage code)
     const productIds = Array.from(new Set((orders || []).map((o: any) => o.product_id).filter(Boolean)));
-    const productsMap = new Map<string, { variant_warehouse_codes: Record<string, string> }>();
+    const productsMap = new Map<string, { variant_warehouse_codes: Record<string, string>; variant_easyorders_ids: Record<string, string>; colors: string[]; sizes: string[]; product_codes: string[] }>();
     if (productIds.length > 0) {
       const { data: prods } = await admin
         .from("products")
-        .select("id, variant_warehouse_codes")
+        .select("id, variant_warehouse_codes, variant_easyorders_ids, colors, sizes, product_codes")
         .in("id", productIds);
-      (prods || []).forEach((p: any) => productsMap.set(p.id, { variant_warehouse_codes: p.variant_warehouse_codes || {} }));
+      (prods || []).forEach((p: any) => productsMap.set(p.id, {
+        variant_warehouse_codes: p.variant_warehouse_codes || {},
+        variant_easyorders_ids: p.variant_easyorders_ids || {},
+        colors: p.colors || [], sizes: p.sizes || [], product_codes: p.product_codes || [],
+      }));
     }
 
     // Fetch order_items for these orders (multi-product support)
@@ -137,9 +141,13 @@ Deno.serve(async (req) => {
       if (extraIds.length > 0) {
         const { data: extra } = await admin
           .from("products")
-          .select("id, variant_warehouse_codes")
+          .select("id, variant_warehouse_codes, variant_easyorders_ids, colors, sizes, product_codes")
           .in("id", extraIds);
-        (extra || []).forEach((p: any) => productsMap.set(p.id, { variant_warehouse_codes: p.variant_warehouse_codes || {} }));
+        (extra || []).forEach((p: any) => productsMap.set(p.id, {
+          variant_warehouse_codes: p.variant_warehouse_codes || {},
+          variant_easyorders_ids: p.variant_easyorders_ids || {},
+          colors: p.colors || [], sizes: p.sizes || [], product_codes: p.product_codes || [],
+        }));
       }
     }
 
@@ -442,13 +450,20 @@ Deno.serve(async (req) => {
 
       // Build shipmentProducts. Prefer order_items (multi-product); fall back to legacy single-row fields.
       const items = itemsByOrder.get(o.id) || [];
-      const resolveWh = (productId: string | null, color: string | null, size: string | null, code: string | null, directWh: string | null): number | undefined => {
+      const resolveWh = (productId: string | null, color: string | null, size: string | null, code: string | null, directWh: string | null, eoVariantId: string | null = null): number | undefined => {
         if (directWh) {
           const id = whProductByCode.get(String(directWh).trim());
           if (id) return id;
         }
-        const whCodes = (productId && productsMap.get(productId)?.variant_warehouse_codes) || {};
-        const variantKey = (color && size) ? `${color} - ${size}` : (color || size || code || "");
+        const prod = productId ? productsMap.get(productId) : undefined;
+        const whCodes = (prod?.variant_warehouse_codes) || {};
+        // If we have an EasyOrders variant id, find the matching variantKey from the product's mapping.
+        let variantKey = (color && size) ? `${color} - ${size}` : (color || size || code || "");
+        if ((!whCodes[variantKey] || !variantKey) && eoVariantId && prod?.variant_easyorders_ids) {
+          for (const [vk, eoId] of Object.entries(prod.variant_easyorders_ids)) {
+            if (String(eoId) === String(eoVariantId)) { variantKey = vk; break; }
+          }
+        }
         let rawWh = (whCodes[variantKey] || whCodes[color || ""] || whCodes[size || ""] || whCodes[code || ""] || "").toString().trim();
         if (!rawWh && code && /^\d+$/.test(String(code).trim())) rawWh = String(code).trim();
         if (!rawWh) {
@@ -465,7 +480,7 @@ Deno.serve(async (req) => {
         const built: Array<{ productId: number; price: number; quantity: number }> = [];
         let missing = 0;
         for (const it of items) {
-          const wh = resolveWh(it.product_id, it.selected_color, it.selected_size, it.selected_product_code, it.warehouse_code);
+          const wh = resolveWh(it.product_id, it.selected_color, it.selected_size, it.selected_product_code, it.warehouse_code, it.easyorders_variant_id);
           const qty = Math.max(1, Number(it.quantity) || 1);
           const unit = Number(it.price) || 0;
           if (wh) built.push({ productId: wh, price: unit, quantity: qty });
