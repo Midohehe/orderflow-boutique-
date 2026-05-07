@@ -120,6 +120,29 @@ Deno.serve(async (req) => {
       (prods || []).forEach((p: any) => productsMap.set(p.id, { variant_warehouse_codes: p.variant_warehouse_codes || {} }));
     }
 
+    // Fetch order_items for these orders (multi-product support)
+    const itemsByOrder = new Map<string, any[]>();
+    {
+      const { data: items } = await admin
+        .from("order_items")
+        .select("*")
+        .in("order_id", ids);
+      for (const it of items || []) {
+        const arr = itemsByOrder.get(it.order_id) || [];
+        arr.push(it);
+        itemsByOrder.set(it.order_id, arr);
+      }
+      // Also load warehouse codes for any extra products referenced in items
+      const extraIds = Array.from(new Set((items || []).map((i: any) => i.product_id).filter((x: string | null) => x && !productsMap.has(x))));
+      if (extraIds.length > 0) {
+        const { data: extra } = await admin
+          .from("products")
+          .select("id, variant_warehouse_codes")
+          .in("id", extraIds);
+        (extra || []).forEach((p: any) => productsMap.set(p.id, { variant_warehouse_codes: p.variant_warehouse_codes || {} }));
+      }
+    }
+
     if (oErr || !orders) {
       return new Response(JSON.stringify({ error: "Could not load orders" }), {
         status: 500,
@@ -417,31 +440,52 @@ Deno.serve(async (req) => {
 
       const phone = normalizePhone(String(o.phone || ""));
 
-      // Look up warehouse storage code for this variant
-      const whCodes = (o.product_id && productsMap.get(o.product_id)?.variant_warehouse_codes) || {};
-      const variantKey =
-        (o.selected_color && o.selected_size) ? `${o.selected_color} - ${o.selected_size}` :
-        (o.selected_color || o.selected_size || o.selected_product_code || "");
-      let rawWh = (whCodes[variantKey] || whCodes[o.selected_color || ""] || whCodes[o.selected_size || ""] || whCodes[o.selected_product_code || ""] || "").toString().trim();
-      // Fallback: selected_product_code itself may be the warehouse numeric code.
-      if (!rawWh && o.selected_product_code && /^\d+$/.test(String(o.selected_product_code).trim())) {
-        rawWh = String(o.selected_product_code).trim();
+      // Build shipmentProducts. Prefer order_items (multi-product); fall back to legacy single-row fields.
+      const items = itemsByOrder.get(o.id) || [];
+      const resolveWh = (productId: string | null, color: string | null, size: string | null, code: string | null, directWh: string | null): number | undefined => {
+        if (directWh) {
+          const id = whProductByCode.get(String(directWh).trim());
+          if (id) return id;
+        }
+        const whCodes = (productId && productsMap.get(productId)?.variant_warehouse_codes) || {};
+        const variantKey = (color && size) ? `${color} - ${size}` : (color || size || code || "");
+        let rawWh = (whCodes[variantKey] || whCodes[color || ""] || whCodes[size || ""] || whCodes[code || ""] || "").toString().trim();
+        if (!rawWh && code && /^\d+$/.test(String(code).trim())) rawWh = String(code).trim();
+        if (!rawWh) {
+          const anyNumeric = Object.values(whCodes).find((v) => /^\d+$/.test(String(v || "").trim()));
+          if (anyNumeric) rawWh = String(anyNumeric).trim();
+        }
+        return rawWh ? whProductByCode.get(rawWh) : undefined;
+      };
+
+      let shipmentProducts: Array<{ productId: number; price: number; quantity: number }> | undefined;
+      let allLinesHaveWh = false;
+
+      if (items.length > 0) {
+        const built: Array<{ productId: number; price: number; quantity: number }> = [];
+        let missing = 0;
+        for (const it of items) {
+          const wh = resolveWh(it.product_id, it.selected_color, it.selected_size, it.selected_product_code, it.warehouse_code);
+          const qty = Math.max(1, Number(it.quantity) || 1);
+          const unit = Number(it.price) || 0;
+          if (wh) built.push({ productId: wh, price: unit, quantity: qty });
+          else missing++;
+        }
+        if (built.length > 0 && missing === 0) {
+          shipmentProducts = built;
+          allLinesHaveWh = true;
+        }
+        console.log("ship-orders multi-line", { orderId: o.id, items: items.length, built: built.length, missing });
+      } else {
+        // Legacy single-row fallback
+        const wh = resolveWh(o.product_id, o.selected_color, o.selected_size, o.selected_product_code, null);
+        const qty = Math.max(1, Number(o.quantity) || 1);
+        const unitPrice = qty > 0 ? (Number(o.price) || 0) / qty : (Number(o.price) || 0);
+        if (wh) {
+          shipmentProducts = [{ productId: wh, price: unitPrice, quantity: qty }];
+          allLinesHaveWh = true;
+        }
       }
-      // Fallback: any numeric value in the product's warehouse code map.
-      if (!rawWh) {
-        const anyNumeric = Object.values(whCodes).find((v) => /^\d+$/.test(String(v || "").trim()));
-        if (anyNumeric) rawWh = String(anyNumeric).trim();
-      }
-      // The warehouse code from our DB (e.g. "80753960") is the customer-facing code,
-      // but the API expects the internal product id. Map via listProductsDropdown.
-      const warehouseInternalId = rawWh ? whProductByCode.get(rawWh) : undefined;
-      console.log("ship-orders wh-lookup", { orderId: o.id, variantKey, rawWh, warehouseInternalId, available: whProducts.map(p => `${p.id}:${p.code}`) });
-      const qty = Math.max(1, Number(o.quantity) || 1);
-      // Per-unit price = total order price / quantity (price column stores order total)
-      const unitPrice = qty > 0 ? (Number(o.price) || 0) / qty : (Number(o.price) || 0);
-      const shipmentProducts = warehouseInternalId
-        ? [{ productId: warehouseInternalId, price: unitPrice, quantity: qty }]
-        : undefined;
 
       const input: Record<string, unknown> = {
         serviceId: defaultServiceId,
@@ -472,14 +516,17 @@ Deno.serve(async (req) => {
             : null,
         ].filter(Boolean).join(" / ") || undefined,
       };
-      if (shipmentProducts) {
+      if (shipmentProducts && allLinesHaveWh) {
         // When shipmentProducts is set, the API derives weight/pieces/price from products
         // and forbids top-level weight/piecesCount/price as well as receiveInWarehouse/typeCode.
         // Setting shipmentProducts alone is enough to deduct from the company's warehouse stock.
         input.shipmentProducts = shipmentProducts;
       } else {
         // No warehouse product → send as a regular shipment with explicit fields.
-        input.piecesCount = o.quantity || 1;
+        const totalPieces = items.length > 0
+          ? items.reduce((s: number, i: any) => s + (Number(i.quantity) || 1), 0)
+          : (o.quantity || 1);
+        input.piecesCount = totalPieces;
         input.weight = 1;
         input.price = Number(o.price) || 0;
       }
