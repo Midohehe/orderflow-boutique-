@@ -46,16 +46,26 @@ const ShippingSettingsPage = () => {
   ];
 
   const DEFAULT_CODES: Array<{ code: string; label: string }> = [
-    { code: "1", label: "جديدة" },
-    { code: "2", label: "قيد التجهيز" },
-    { code: "3", label: "في المخزن" },
-    { code: "4", label: "خرجت للتوصيل" },
-    { code: "5", label: "تم التسليم" },
-    { code: "6", label: "مؤجلة" },
-    { code: "7", label: "مرتجعة جزئياً" },
-    { code: "8", label: "مرتجعة" },
-    { code: "9", label: "ملغية" },
-    { code: "10", label: "تم استلام المرتجع" },
+    { code: "PRP", label: "جارى التجهيز" },
+    { code: "PRPD", label: "تم التجهيز" },
+    { code: "STD", label: "قيد الارسال للمندوب" },
+    { code: "DEX", label: "متابعة" },
+    { code: "HTR", label: "انتظار لإعادة التوصيل" },
+    { code: "PKH", label: "انتظار لإعادة الالتقاط" },
+    { code: "DTR", label: "تم التسليم" },
+    { code: "DTRC", label: "تم التسليم" },
+    { code: "DTRCP", label: "تم التسليم مع التسوية" },
+    { code: "DTRUC", label: "تم التسليم تحت تسوية المندوب" },
+    { code: "RTS", label: "راجع" },
+    { code: "RTSD", label: "راجع لدى المندوب" },
+    { code: "RTSC", label: "راجع لدى الشركة" },
+    { code: "OTR", label: "قيد الإرجاع" },
+    { code: "RTRN", label: "تم الإرجاع للراسل" },
+    { code: "RCV", label: "ارتجاع للمخزن" },
+    { code: "UPKBL", label: "جاهز للتفريغ" },
+    { code: "UPKBD", label: "تم التفريغ" },
+    { code: "BMR", label: "مناولة بين الفروع - وارد" },
+    { code: "BMT", label: "مناولة بين الفروع - صادر" },
   ];
 
   const loadMappings = async () => {
