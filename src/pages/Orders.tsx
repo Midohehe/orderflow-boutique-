@@ -46,6 +46,7 @@ interface Order {
   link_error?: string | null;
   carrier_status?: string | null;
   carrier_status_updated_at?: string | null;
+  carrier_status_raw?: any;
 }
 
 const statusLabels: Record<Order["status"], string> = {
@@ -77,6 +78,29 @@ const Orders = () => {
   const [shippedSearch, setShippedSearch] = useState("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [statusMap, setStatusMap] = useState<Record<string, string>>({});
+
+  const extractStatusCode = (order: Order): string | null => {
+    const raw = order.carrier_status_raw;
+    if (raw && typeof raw === "object") {
+      const c = raw.shipmentStatusCode ?? raw.shipment_status_code ?? raw.status;
+      if (c !== undefined && c !== null && c !== "") return String(c).trim();
+    }
+    // Fallback: parse trailing "(<code>)" from existing carrier_status text
+    if (order.carrier_status) {
+      const m = order.carrier_status.match(/\(([^)]+)\)\s*$/);
+      if (m) return m[1].trim();
+      // If it's just a code like "rits" with no parentheses
+      if (statusMap[order.carrier_status.trim()]) return order.carrier_status.trim();
+    }
+    return null;
+  };
+
+  const displayCarrierStatus = (order: Order): string => {
+    const code = extractStatusCode(order);
+    if (code && statusMap[code]) return statusMap[code];
+    return order.carrier_status || "في انتظار تحديث من شركة الشحن";
+  };
 
   const handleCreateManualOrder = async () => {
     setCreating(true);
@@ -205,17 +229,23 @@ const Orders = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ordersRes, currencyRes] = await Promise.all([
+        const [ordersRes, currencyRes, mapRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at")
+            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
+          supabase.from("carrier_status_mappings").select("status_code, custom_label"),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
         setOrders((ordersRes.data || []) as Order[]);
         if (currencyRes.data) setCurrencySymbol(currencyRes.data.currency_symbol);
+        if (mapRes.data) {
+          const m: Record<string, string> = {};
+          (mapRes.data as any[]).forEach((r) => { m[String(r.status_code)] = r.custom_label; });
+          setStatusMap(m);
+        }
       } catch (error) {
         console.error("Error fetching orders:", error);
         toast({
