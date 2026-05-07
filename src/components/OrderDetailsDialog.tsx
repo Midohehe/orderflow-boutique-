@@ -283,6 +283,9 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                   const cs = prod?.colors || [];
                   const ss = prod?.sizes || [];
                   const cds = prod?.product_codes || [];
+                  const variantKey = `${it.selected_color || ""} - ${it.selected_size || ""}`;
+                  const resolvedWh = prod?.variant_warehouse_codes?.[variantKey] || it.warehouse_code || null;
+                  const resolvedEoVar = prod?.variant_easyorders_ids?.[variantKey] || it.easyorders_variant_id || null;
                   return (
                     <div key={idx} className="border rounded p-3 bg-background space-y-2">
                       <div className="flex items-center justify-between gap-2">
@@ -290,6 +293,28 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                         <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(idx)} title="حذف">
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
+                      </div>
+                      <div className="rounded border bg-muted/30 p-2 text-xs space-y-1">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">الاسم المجلوب من ايزي اوردرز:</span>
+                          <span className="font-medium text-foreground truncate">{it.product_name || "—"}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">معرف منتج ايزي اوردرز:</span>
+                          <span className="font-mono text-foreground truncate" title={it.easyorders_product_id || ""}>{it.easyorders_product_id || "—"}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">معرف متغير ايزي اوردرز:</span>
+                          <span className="font-mono text-foreground truncate" title={resolvedEoVar || ""}>{resolvedEoVar || "—"}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">المنتج المختار محلياً:</span>
+                          <span className="font-medium text-foreground truncate">{prod?.name || "غير مختار"}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">كود مخزن شركة الشحن:</span>
+                          <span className={`font-mono ${resolvedWh ? "text-foreground" : "text-destructive"}`}>{resolvedWh || "غير مرتبط"}</span>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="space-y-1 sm:col-span-2">
