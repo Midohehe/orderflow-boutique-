@@ -209,6 +209,27 @@ export type Database = {
         }
         Relationships: []
       }
+      hidden_default_carrier_codes: {
+        Row: {
+          created_at: string
+          id: string
+          owner_id: string
+          status_code: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_id: string
+          status_code: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_id?: string
+          status_code?: string
+        }
+        Relationships: []
+      }
       hidden_default_cities: {
         Row: {
           area: string

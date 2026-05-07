@@ -69,12 +69,16 @@ const ShippingSettingsPage = () => {
   ];
 
   const loadMappings = async () => {
-    const { data } = await supabase
-      .from("carrier_status_mappings")
-      .select("id, status_code, custom_label, color")
-      .order("status_code");
+    const [{ data }, { data: hidden }] = await Promise.all([
+      supabase
+        .from("carrier_status_mappings")
+        .select("id, status_code, custom_label, color")
+        .order("status_code"),
+      supabase.from("hidden_default_carrier_codes").select("status_code"),
+    ]);
     const existing = (data || []) as any[];
-    const merged = DEFAULT_CODES.map((d) => {
+    const hiddenSet = new Set(((hidden || []) as any[]).map((h) => h.status_code));
+    const merged = DEFAULT_CODES.filter((d) => !hiddenSet.has(d.code)).map((d) => {
       const found = existing.find((e) => e.status_code === d.code);
       return found
         ? { id: found.id, status_code: found.status_code, custom_label: found.custom_label, color: found.color || "default" }
@@ -101,6 +105,15 @@ const ShippingSettingsPage = () => {
     const m = mappings[idx];
     if (m.id) {
       await supabase.from("carrier_status_mappings").delete().eq("id", m.id);
+    }
+    // If it's a default code, remember the deletion so it doesn't reappear.
+    if (DEFAULT_CODES.some((d) => d.code === m.status_code)) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from("hidden_default_carrier_codes")
+          .upsert({ owner_id: user.id, status_code: m.status_code }, { onConflict: "owner_id,status_code" });
+      }
     }
     setMappings((prev) => prev.filter((_, i) => i !== idx));
     toast({ title: "تم الحذف" });
