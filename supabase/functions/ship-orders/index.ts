@@ -560,6 +560,7 @@ Deno.serve(async (req) => {
             .update({
               shipped_to_company: true,
               shipping_reference: String(reference),
+              shipping_id: created.id ? String(created.id) : null,
               status: "shipped",
               shipping_error: null,
             })

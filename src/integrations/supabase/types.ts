@@ -330,6 +330,7 @@ export type Database = {
           selected_size: string | null
           shipped_to_company: boolean
           shipping_error: string | null
+          shipping_id: string | null
           shipping_included: boolean
           shipping_reference: string | null
           status: string
@@ -360,6 +361,7 @@ export type Database = {
           selected_size?: string | null
           shipped_to_company?: boolean
           shipping_error?: string | null
+          shipping_id?: string | null
           shipping_included?: boolean
           shipping_reference?: string | null
           status?: string
@@ -390,6 +392,7 @@ export type Database = {
           selected_size?: string | null
           shipped_to_company?: boolean
           shipping_error?: string | null
+          shipping_id?: string | null
           shipping_included?: boolean
           shipping_reference?: string | null
           status?: string
