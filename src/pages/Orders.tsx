@@ -486,6 +486,18 @@ const Orders = () => {
                   </Badge>
                 )}
               </div>
+              {order.link_error && (
+                <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+                  <span className="font-bold ml-1">⚠ تعذر الربط التلقائي:</span>
+                  <span className="text-foreground/80">{order.link_error}</span>
+                </div>
+              )}
+              {order.shipping_error && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+                  <span className="font-bold ml-1 text-destructive">✕ فشل الإرسال لشركة الشحن:</span>
+                  <span className="text-foreground/80">{order.shipping_error}</span>
+                </div>
+              )}
               <EditMatchedCity
                 orderId={order.id}
                 city={order.matched_zone_name}
