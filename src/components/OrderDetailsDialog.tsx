@@ -44,6 +44,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<any>(null);
   const [products, setProducts] = useState<ProductLite[]>([]);
+  const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (!open || !orderId) return;
@@ -51,10 +52,12 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     Promise.all([
       supabase.from("orders").select("*").eq("id", orderId).maybeSingle(),
       supabase.from("products").select("id, name, price, colors, sizes, product_codes").order("name"),
-    ]).then(([o, p]) => {
+      supabase.from("order_items").select("*").eq("order_id", orderId).order("created_at"),
+    ]).then(([o, p, it]) => {
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
       setData(o.data || null);
       setProducts((p.data || []) as ProductLite[]);
+      setItems((it.data || []) as any[]);
       setLoading(false);
     });
   }, [open, orderId]);
@@ -145,8 +148,29 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               </div>
             </div>
 
+            {items.length > 0 && (
+              <div className="border rounded-lg p-3 space-y-2 bg-muted/20">
+                <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
+                <div className="space-y-2">
+                  {items.map((it, idx) => (
+                    <div key={it.id} className="text-sm border rounded p-2 bg-background">
+                      <div className="font-medium">{idx + 1}. {it.product_name}</div>
+                      <div className="text-muted-foreground text-xs flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                        {it.selected_color && <span>اللون: {it.selected_color}</span>}
+                        {it.selected_size && <span>المقاس: {it.selected_size}</span>}
+                        {it.selected_product_code && <span>الكود: {it.selected_product_code}</span>}
+                        <span>الكمية: {it.quantity}</span>
+                        <span>السعر: {Number(it.price).toLocaleString()}</span>
+                        {it.warehouse_code && <span>كود المخزن: {it.warehouse_code}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
-              <h4 className="font-semibold text-foreground">المنتج داخل الطلب</h4>
+              <h4 className="font-semibold text-foreground">المنتج الرئيسي (للعرض في الجدول)</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1 sm:col-span-2">
                   <Label>اختر المنتج</Label>
