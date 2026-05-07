@@ -307,22 +307,31 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       </SelectContent>
                     </Select>
                     {eoVariants.length > 0 && (
-                      <Select
-                        value={product.variantEasyOrdersIds?.[key] || "__none__"}
-                        onValueChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
-                      >
-                        <SelectTrigger className="w-56">
-                          <SelectValue placeholder="متغير EasyOrders" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— غير مرتبط —</SelectItem>
-                          {eoVariants.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {v.name || `#${v.id}`}{v.sku ? ` (${v.sku})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-col gap-1">
+                        <Select
+                          value={product.variantEasyOrdersIds?.[key] || "__none__"}
+                          onValueChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
+                        >
+                          <SelectTrigger className="w-64">
+                            <SelectValue placeholder="متغير EasyOrders" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— غير مرتبط —</SelectItem>
+                            {eoVariants.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.name || `#${v.id}`}{v.sku ? ` (${v.sku})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {product.variantEasyOrdersIds?.[key] ? (
+                          <span className="text-[10px] text-muted-foreground font-mono" dir="ltr">
+                            ID: {product.variantEasyOrdersIds[key]}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-destructive">غير مرتبط بمتغير EasyOrders</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -382,6 +391,36 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           >
             ربط المتغيرات تلقائياً (استبدال)
           </Button>
+        )}
+        {product.easyOrdersProductId && eoVariants.length > 0 && (
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/50 px-3 py-2 text-sm font-semibold">
+              متغيرات EasyOrders ({eoVariants.length})
+            </div>
+            <div className="divide-y">
+              {eoVariants.map((v) => {
+                const linkedKey = Object.entries(product.variantEasyOrdersIds || {})
+                  .find(([, id]) => id === v.id)?.[0];
+                return (
+                  <div key={v.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{v.name || "—"}{v.sku ? ` (${v.sku})` : ""}</div>
+                      <div className="text-muted-foreground font-mono truncate" dir="ltr">ID: {v.id}</div>
+                    </div>
+                    {linkedKey ? (
+                      <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[11px] whitespace-nowrap">
+                        ↔ {linkedKey}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 rounded bg-destructive/10 text-destructive text-[11px] whitespace-nowrap">
+                        غير مرتبط
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
