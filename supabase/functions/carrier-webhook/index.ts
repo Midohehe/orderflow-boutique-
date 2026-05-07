@@ -32,6 +32,10 @@ function extractFromPayload(body: any): {
   let shipmentId: any = null;
   let ref: any = null;
   let status: any = null;
+  let deliveredAmount: any = null;
+  let collectedFees: any = null;
+  let returnTypeCode: any = null;
+  let deliveryTypeCode: any = null;
   for (const c of candidates) {
     if (!shipmentId) shipmentId = pick(c, ["shipmentId", "shipment_id"]);
     if (!ref) ref = pick(c, [
@@ -46,11 +50,27 @@ function extractFromPayload(body: any): {
       const st = c.status || c.shipmentStatus;
       if (st && typeof st === "object") status = st.name || st.label || st.value || st.code;
     }
+    if (deliveredAmount == null) deliveredAmount = pick(c, ["deliveredAmount", "delivered_amount"]);
+    if (collectedFees == null) collectedFees = pick(c, ["collectedFees", "collected_fees"]);
+    if (returnTypeCode == null) returnTypeCode = pick(c, ["returnTypeCode", "return_type_code"]);
+    if (deliveryTypeCode == null) deliveryTypeCode = pick(c, ["deliveryTypeCode", "delivery_type_code"]);
+  }
+  // Build composite code: Accurate sends a base status (DTR / RTS / ...) plus side-fields.
+  // We append a suffix so users can map e.g. DTR (no cash) vs DTRC (delivered + collected) separately.
+  let composite: string | null = status != null ? String(status).trim() : null;
+  if (composite) {
+    const delivered = Number(deliveredAmount) || 0;
+    const collected = Number(collectedFees) || 0;
+    const hasCash = delivered > 0 || collected > 0;
+    // Only append C if it isn't already part of the code, and we have a cash signal.
+    if (hasCash && !/C$/i.test(composite)) {
+      composite = `${composite}C`;
+    }
   }
   return {
     shipmentId: shipmentId != null ? String(shipmentId).trim() : null,
     ref: ref ? String(ref).trim() : null,
-    status: status != null ? String(status).trim() : null,
+    status: composite,
   };
 }
 
