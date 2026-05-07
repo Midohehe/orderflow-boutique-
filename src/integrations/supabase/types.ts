@@ -245,6 +245,65 @@ export type Database = {
         }
         Relationships: []
       }
+      order_items: {
+        Row: {
+          created_at: string
+          easyorders_product_id: string | null
+          easyorders_variant_id: string | null
+          id: string
+          order_id: string
+          owner_id: string
+          price: number
+          product_id: string | null
+          product_name: string
+          quantity: number
+          selected_color: string | null
+          selected_product_code: string | null
+          selected_size: string | null
+          warehouse_code: string | null
+        }
+        Insert: {
+          created_at?: string
+          easyorders_product_id?: string | null
+          easyorders_variant_id?: string | null
+          id?: string
+          order_id: string
+          owner_id: string
+          price?: number
+          product_id?: string | null
+          product_name: string
+          quantity?: number
+          selected_color?: string | null
+          selected_product_code?: string | null
+          selected_size?: string | null
+          warehouse_code?: string | null
+        }
+        Update: {
+          created_at?: string
+          easyorders_product_id?: string | null
+          easyorders_variant_id?: string | null
+          id?: string
+          order_id?: string
+          owner_id?: string
+          price?: number
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          selected_color?: string | null
+          selected_product_code?: string | null
+          selected_size?: string | null
+          warehouse_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           address: string
