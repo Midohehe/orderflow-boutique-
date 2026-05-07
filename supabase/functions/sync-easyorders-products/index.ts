@@ -7,6 +7,19 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function norm(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u0652\u0670]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0624/g, "\u0648")
+    .replace(/\u0626/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\s+/g, " ");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -117,7 +130,81 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, count: total }), {
+    // Auto-relink variant IDs on local products linked to any synced EO product.
+    // Matches by color/size name (normalized) so variants always have current EO IDs.
+    let relinkedProducts = 0;
+    let relinkedVariants = 0;
+    try {
+      const eoIds = allRows.map((r) => r.external_id);
+      if (eoIds.length > 0) {
+        const { data: localProds } = await admin
+          .from("products")
+          .select("id, easyorders_product_id, colors, sizes, product_codes, variant_easyorders_ids")
+          .eq("owner_id", userData.user.id)
+          .in("easyorders_product_id", eoIds);
+
+        const eoByExt = new Map<string, any>();
+        for (const r of allRows) eoByExt.set(r.external_id, r);
+
+        for (const lp of (localProds || []) as any[]) {
+          const eo = eoByExt.get(String(lp.easyorders_product_id));
+          if (!eo || !Array.isArray(eo.variants)) continue;
+          const colors: string[] = lp.colors || [];
+          const sizes: string[] = lp.sizes || [];
+          const codes: string[] = lp.product_codes || [];
+          const newMap: Record<string, string> = {};
+          let changed = false;
+          for (const v of eo.variants) {
+            if (!v?.id) continue;
+            const props = Array.isArray(v.variation_props) ? v.variation_props : [];
+            let color: string | null = null;
+            let size: string | null = null;
+            for (const p of props) {
+              const val = p?.variation_prop ?? p?.value ?? "";
+              if (!val) continue;
+              const c = colors.find((x) => norm(x) === norm(val) || norm(val).includes(norm(x)));
+              if (c && !color) { color = c; continue; }
+              const s = sizes.find((x) => norm(x) === norm(val) || norm(val).includes(norm(x)));
+              if (s && !size) { size = s; continue; }
+            }
+            // Build variant key consistent with ProductForm convention
+            const keyParts = [color, size].filter(Boolean) as string[];
+            let key = keyParts.join(" - ");
+            if (!key) {
+              // Fallback: try matching SKU/name against product_codes
+              const sku = v.sku || v.name;
+              const code = codes.find((c) => norm(c) === norm(sku));
+              if (code) key = code;
+            }
+            if (!key) continue;
+            newMap[key] = String(v.id);
+          }
+          // Merge: overwrite existing keys with fresh IDs, keep others as-is
+          const existing = (lp.variant_easyorders_ids || {}) as Record<string, string>;
+          const merged: Record<string, string> = { ...existing };
+          let count = 0;
+          for (const [k, id] of Object.entries(newMap)) {
+            if (merged[k] !== id) { merged[k] = id; count++; changed = true; }
+          }
+          if (changed) {
+            const { error: uErr } = await admin
+              .from("products")
+              .update({ variant_easyorders_ids: merged })
+              .eq("id", lp.id);
+            if (!uErr) {
+              relinkedProducts++;
+              relinkedVariants += count;
+            } else {
+              console.error("relink update failed", lp.id, uErr.message);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("auto-relink error", e);
+    }
+
+    return new Response(JSON.stringify({ ok: true, count: total, relinkedProducts, relinkedVariants }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
