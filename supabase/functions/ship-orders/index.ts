@@ -442,7 +442,9 @@ Deno.serve(async (req) => {
       }
 
       if (!zoneId || !areaId) {
-        results.push({ id: o.id, ok: false, error: `تعذر مطابقة المدينة/المنطقة: "${o.city}" - "${o.address}"` });
+        const err = `تعذر مطابقة المدينة/المنطقة: "${o.city}" - "${o.address}"`;
+        results.push({ id: o.id, ok: false, error: err });
+        await admin.from("orders").update({ shipping_error: err }).eq("id", o.id);
         continue;
       }
 
@@ -559,15 +561,19 @@ Deno.serve(async (req) => {
               shipped_to_company: true,
               shipping_reference: String(reference),
               status: "shipped",
+              shipping_error: null,
             })
             .eq("id", o.id);
         } else {
           const errMsg = j?.errors?.[0]?.message || "Unknown error";
           console.error("saveShipment failed", o.id, j);
           results.push({ id: o.id, ok: false, error: errMsg });
+          await admin.from("orders").update({ shipping_error: errMsg }).eq("id", o.id);
         }
       } catch (e) {
-        results.push({ id: o.id, ok: false, error: (e as Error).message });
+        const errMsg = (e as Error).message;
+        results.push({ id: o.id, ok: false, error: errMsg });
+        await admin.from("orders").update({ shipping_error: errMsg }).eq("id", o.id);
       }
     }
 
