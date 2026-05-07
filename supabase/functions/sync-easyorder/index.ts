@@ -139,6 +139,7 @@ Deno.serve(async (req) => {
       warehouse_code: string | null;
       easyorders_product_id: string | null;
       easyorders_variant_id: string | null;
+      easyorders_sku: string | null;
       quantity: number;
       price: number;
     };
@@ -152,6 +153,7 @@ Deno.serve(async (req) => {
       for (const it of data.cart_items) {
         const pid = it?.product?.id ?? it?.product_id;
         const vid = it?.variant?.id ?? it?.variant_id;
+        const vsku = it?.variant?.taager_code ?? it?.variant?.sku ?? it?.sku ?? null;
         if (pid) eoProductIds.push(String(pid));
         if (vid) eoVariantIds.push(String(vid));
         const props = it?.variant?.variation_props;
@@ -176,6 +178,7 @@ Deno.serve(async (req) => {
           warehouse_code: null,
           easyorders_product_id: pid ? String(pid) : null,
           easyorders_variant_id: vid ? String(vid) : null,
+          easyorders_sku: vsku ? String(vsku) : null,
           quantity: lineQty,
           price: linePrice,
         });
