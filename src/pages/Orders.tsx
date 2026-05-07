@@ -124,7 +124,7 @@ const Orders = () => {
           quantity: 1,
           status: "pending",
         })
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at")
+        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
         .maybeSingle();
       if (error) throw error;
       if (data) {
@@ -277,7 +277,7 @@ const Orders = () => {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at")
+        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -556,7 +556,7 @@ const Orders = () => {
                 )}
                 {order.shipping_reference && (
                   <Badge className={order.carrier_status ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}>
-                    حالة شركة التوصيل: {order.carrier_status || "في انتظار تحديث من شركة الشحن"}
+                    حالة شركة التوصيل: {displayCarrierStatus(order)}
                   </Badge>
                 )}
               </div>
