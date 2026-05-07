@@ -42,6 +42,8 @@ interface Order {
   shipping_reference?: string | null;
   matched_zone_name?: string | null;
   matched_area_name?: string | null;
+  shipping_error?: string | null;
+  link_error?: string | null;
 }
 
 const statusLabels: Record<Order["status"], string> = {
