@@ -307,22 +307,31 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       </SelectContent>
                     </Select>
                     {eoVariants.length > 0 && (
-                      <Select
-                        value={product.variantEasyOrdersIds?.[key] || "__none__"}
-                        onValueChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
-                      >
-                        <SelectTrigger className="w-56">
-                          <SelectValue placeholder="متغير EasyOrders" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— غير مرتبط —</SelectItem>
-                          {eoVariants.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {v.name || `#${v.id}`}{v.sku ? ` (${v.sku})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-col gap-1">
+                        <Select
+                          value={product.variantEasyOrdersIds?.[key] || "__none__"}
+                          onValueChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
+                        >
+                          <SelectTrigger className="w-64">
+                            <SelectValue placeholder="متغير EasyOrders" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— غير مرتبط —</SelectItem>
+                            {eoVariants.map((v) => (
+                              <SelectItem key={v.id} value={v.id}>
+                                {v.name || `#${v.id}`}{v.sku ? ` (${v.sku})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {product.variantEasyOrdersIds?.[key] ? (
+                          <span className="text-[10px] text-muted-foreground font-mono" dir="ltr">
+                            ID: {product.variantEasyOrdersIds[key]}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-destructive">غير مرتبط بمتغير EasyOrders</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
