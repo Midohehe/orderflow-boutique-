@@ -29,6 +29,15 @@ function findByName(list: string[] | null | undefined, value: string | null): st
   if (!value || !list || list.length === 0) return null;
   const n = norm(value);
   for (const x of list) if (norm(x) === n) return x;
+  const tokens = n.split(/[\s\-_/،,]+/).filter(Boolean);
+  for (const x of list) {
+    const xn = norm(x);
+    if (xn && tokens.includes(xn)) return x;
+  }
+  for (const x of list) {
+    const xn = norm(x);
+    if (xn && (n === xn || n.startsWith(xn + " "))) return x;
+  }
   return null;
 }
 
