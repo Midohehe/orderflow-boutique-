@@ -392,6 +392,36 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             ربط المتغيرات تلقائياً (استبدال)
           </Button>
         )}
+        {product.easyOrdersProductId && eoVariants.length > 0 && (
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-muted/50 px-3 py-2 text-sm font-semibold">
+              متغيرات EasyOrders ({eoVariants.length})
+            </div>
+            <div className="divide-y">
+              {eoVariants.map((v) => {
+                const linkedKey = Object.entries(product.variantEasyOrdersIds || {})
+                  .find(([, id]) => id === v.id)?.[0];
+                return (
+                  <div key={v.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{v.name || "—"}{v.sku ? ` (${v.sku})` : ""}</div>
+                      <div className="text-muted-foreground font-mono truncate" dir="ltr">ID: {v.id}</div>
+                    </div>
+                    {linkedKey ? (
+                      <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[11px] whitespace-nowrap">
+                        ↔ {linkedKey}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 rounded bg-destructive/10 text-destructive text-[11px] whitespace-nowrap">
+                        غير مرتبط
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <Button onClick={onSubmit} className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
