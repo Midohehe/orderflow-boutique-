@@ -12,6 +12,26 @@ function s(v: unknown, max = 500): string {
   return String(v).trim().slice(0, max);
 }
 
+function norm(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u0652\u0670]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0624/g, "\u0648")
+    .replace(/\u0626/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\s+/g, " ");
+}
+
+function findByName(list: string[] | null | undefined, value: string | null): string | null {
+  if (!value || !list || list.length === 0) return null;
+  const n = norm(value);
+  for (const x of list) if (norm(x) === n) return x;
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") {
