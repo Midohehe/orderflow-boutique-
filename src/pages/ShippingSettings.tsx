@@ -30,8 +30,20 @@ const ShippingSettingsPage = () => {
   const [syncing, setSyncing] = useState(false);
   const [whCount, setWhCount] = useState<number>(0);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
-  const [mappings, setMappings] = useState<Array<{ id?: string; status_code: string; custom_label: string }>>([]);
+  const [mappings, setMappings] = useState<Array<{ id?: string; status_code: string; custom_label: string; color: string }>>([]);
   const [savingMappings, setSavingMappings] = useState(false);
+
+  const COLOR_OPTIONS: Array<{ value: string; label: string; cls: string }> = [
+    { value: "default", label: "افتراضي", cls: "bg-accent" },
+    { value: "blue", label: "أزرق", cls: "bg-blue-500" },
+    { value: "green", label: "أخضر", cls: "bg-green-600" },
+    { value: "yellow", label: "أصفر", cls: "bg-yellow-400" },
+    { value: "red", label: "أحمر", cls: "bg-red-600" },
+    { value: "purple", label: "بنفسجي", cls: "bg-purple-600" },
+    { value: "orange", label: "برتقالي", cls: "bg-orange-500" },
+    { value: "pink", label: "وردي", cls: "bg-pink-500" },
+    { value: "gray", label: "رمادي", cls: "bg-gray-500" },
+  ];
 
   const DEFAULT_CODES: Array<{ code: string; label: string }> = [
     { code: "1", label: "جديدة" },
@@ -49,30 +61,30 @@ const ShippingSettingsPage = () => {
   const loadMappings = async () => {
     const { data } = await supabase
       .from("carrier_status_mappings")
-      .select("id, status_code, custom_label")
+      .select("id, status_code, custom_label, color")
       .order("status_code");
     const existing = (data || []) as any[];
     const merged = DEFAULT_CODES.map((d) => {
       const found = existing.find((e) => e.status_code === d.code);
       return found
-        ? { id: found.id, status_code: found.status_code, custom_label: found.custom_label }
-        : { status_code: d.code, custom_label: d.label };
+        ? { id: found.id, status_code: found.status_code, custom_label: found.custom_label, color: found.color || "default" }
+        : { status_code: d.code, custom_label: d.label, color: "default" };
     });
     // Add any custom (non-default) codes the user already has
     existing
       .filter((e) => !DEFAULT_CODES.some((d) => d.code === e.status_code))
-      .forEach((e) => merged.push({ id: e.id, status_code: e.status_code, custom_label: e.custom_label }));
+      .forEach((e) => merged.push({ id: e.id, status_code: e.status_code, custom_label: e.custom_label, color: e.color || "default" }));
     setMappings(merged);
   };
 
   useEffect(() => { loadMappings(); }, []);
 
-  const updateMapping = (idx: number, field: "status_code" | "custom_label", value: string) => {
+  const updateMapping = (idx: number, field: "status_code" | "custom_label" | "color", value: string) => {
     setMappings((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
   };
 
   const addMapping = () => {
-    setMappings((prev) => [...prev, { status_code: "", custom_label: "" }]);
+    setMappings((prev) => [...prev, { status_code: "", custom_label: "", color: "default" }]);
   };
 
   const removeMapping = async (idx: number) => {
@@ -94,6 +106,7 @@ const ShippingSettingsPage = () => {
         owner_id: user.id,
         status_code: m.status_code.trim(),
         custom_label: m.custom_label.trim(),
+        color: m.color || "default",
       }));
       const { error } = await supabase
         .from("carrier_status_mappings")
@@ -299,13 +312,14 @@ const ShippingSettingsPage = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="grid grid-cols-[100px_1fr_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+              <div className="grid grid-cols-[80px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
                 <span>الكود</span>
                 <span>الاسم المعروض</span>
+                <span>اللون</span>
                 <span></span>
               </div>
               {mappings.map((m, idx) => (
-                <div key={idx} className="grid grid-cols-[100px_1fr_40px] gap-2 items-center">
+                <div key={idx} className="grid grid-cols-[80px_1fr_120px_40px] gap-2 items-center">
                   <Input
                     dir="ltr"
                     value={m.status_code}
@@ -318,6 +332,15 @@ const ShippingSettingsPage = () => {
                     onChange={(e) => updateMapping(idx, "custom_label", e.target.value)}
                     placeholder="مثال: تم التوصيل"
                   />
+                  <select
+                    value={m.color || "default"}
+                    onChange={(e) => updateMapping(idx, "color", e.target.value)}
+                    className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {COLOR_OPTIONS.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
                   <Button
                     type="button"
                     variant="ghost"

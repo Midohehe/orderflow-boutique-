@@ -79,6 +79,26 @@ const Orders = () => {
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
+  const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
+
+  const COLOR_CLASSES: Record<string, string> = {
+    default: "bg-accent text-accent-foreground",
+    blue: "bg-blue-500 text-white",
+    green: "bg-green-600 text-white",
+    yellow: "bg-yellow-400 text-yellow-950",
+    red: "bg-red-600 text-white",
+    purple: "bg-purple-600 text-white",
+    orange: "bg-orange-500 text-white",
+    pink: "bg-pink-500 text-white",
+    gray: "bg-gray-500 text-white",
+  };
+
+  const carrierStatusClass = (order: Order): string => {
+    if (!order.carrier_status) return "bg-muted text-muted-foreground";
+    const code = extractStatusCode(order);
+    const color = code ? statusColorMap[code] : undefined;
+    return COLOR_CLASSES[color || "default"] || COLOR_CLASSES.default;
+  };
 
   const extractStatusCode = (order: Order): string | null => {
     const raw = order.carrier_status_raw;
@@ -235,7 +255,7 @@ const Orders = () => {
             .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
-          supabase.from("carrier_status_mappings").select("status_code, custom_label"),
+          supabase.from("carrier_status_mappings").select("status_code, custom_label, color"),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
@@ -243,8 +263,13 @@ const Orders = () => {
         if (currencyRes.data) setCurrencySymbol(currencyRes.data.currency_symbol);
         if (mapRes.data) {
           const m: Record<string, string> = {};
-          (mapRes.data as any[]).forEach((r) => { m[String(r.status_code)] = r.custom_label; });
+          const cm: Record<string, string> = {};
+          (mapRes.data as any[]).forEach((r) => {
+            m[String(r.status_code)] = r.custom_label;
+            if (r.color) cm[String(r.status_code)] = r.color;
+          });
           setStatusMap(m);
+          setStatusColorMap(cm);
         }
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -555,7 +580,7 @@ const Orders = () => {
                   </Badge>
                 )}
                 {order.shipping_reference && (
-                  <Badge className={order.carrier_status ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}>
+                  <Badge className={carrierStatusClass(order)}>
                     حالة شركة التوصيل: {displayCarrierStatus(order)}
                   </Badge>
                 )}
