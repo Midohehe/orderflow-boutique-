@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Truck, RefreshCw } from "lucide-react";
+import { Loader2, Truck, RefreshCw, Copy } from "lucide-react";
 
 interface ShippingSettings {
   id?: string;
@@ -29,12 +29,30 @@ const ShippingSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [whCount, setWhCount] = useState<number>(0);
+  const [webhookUrl, setWebhookUrl] = useState<string>("");
 
   const loadCount = async () => {
     const { count } = await supabase.from("shipping_warehouse_products").select("*", { count: "exact", head: true });
     setWhCount(count || 0);
   };
   useEffect(() => { loadCount(); }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("webhook_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const token = (data as any)?.webhook_token;
+      if (token) {
+        const base = import.meta.env.VITE_SUPABASE_URL;
+        setWebhookUrl(`${base}/functions/v1/carrier-webhook?token=${token}`);
+      }
+    })();
+  }, []);
 
   const handleSyncProducts = async () => {
     setSyncing(true);
@@ -171,6 +189,28 @@ const ShippingSettingsPage = () => {
               {syncing ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <RefreshCw className="w-4 h-4 ml-2" />}
               مزامنة منتجات المخزن من شركة الشحن
             </Button>
+          </div>
+
+          <div className="border-t pt-4 space-y-2">
+            <Label>رابط الويب هوك لتحديث حالات الشحنات</Label>
+            <p className="text-xs text-muted-foreground">
+              أرسل هذا الرابط لشركة الشحن (Turbo) ليُرسلوا تحديثات حالة الشحنة عليه. سيتم تحديث "حالة شركة التوصيل" تلقائياً في الطلبات بناءً على كود الشحن.
+            </p>
+            <div className="flex gap-2">
+              <Input dir="ltr" readOnly value={webhookUrl} placeholder="جاري التحميل..." />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  if (!webhookUrl) return;
+                  navigator.clipboard.writeText(webhookUrl);
+                  toast({ title: "تم النسخ" });
+                }}
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
