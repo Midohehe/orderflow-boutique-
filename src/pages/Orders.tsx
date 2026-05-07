@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -74,6 +74,43 @@ const Orders = () => {
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreateManualOrder = async () => {
+    setCreating(true);
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      if (!uid) {
+        toast({ title: "خطأ", description: "يجب تسجيل الدخول", variant: "destructive" });
+        return;
+      }
+      const { data, error } = await supabase
+        .from("orders")
+        .insert({
+          owner_id: uid,
+          customer_name: "بدون اسم",
+          phone: "",
+          address: "",
+          city: "",
+          product_name: "",
+          price: 0,
+          quantity: 1,
+          status: "pending",
+        })
+        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error")
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setOrders((prev) => [data as Order, ...prev]);
+        setDetailsId(data.id);
+      }
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر إنشاء الطلب", variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -714,6 +751,14 @@ const Orders = () => {
                     >
                       {extracting ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <ImagePlus className="w-4 h-4 ml-2" />}
                       إنشاء طلب من صورة
+                    </Button>
+                    <Button
+                      onClick={handleCreateManualOrder}
+                      disabled={creating}
+                      className="w-full sm:w-auto"
+                    >
+                      {creating ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Plus className="w-4 h-4 ml-2" />}
+                      إضافة طلب
                     </Button>
                     <input
                       id="order-image-input"
