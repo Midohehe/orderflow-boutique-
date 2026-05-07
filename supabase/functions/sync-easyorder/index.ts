@@ -139,6 +139,7 @@ Deno.serve(async (req) => {
       warehouse_code: string | null;
       easyorders_product_id: string | null;
       easyorders_variant_id: string | null;
+      easyorders_sku: string | null;
       quantity: number;
       price: number;
     };
@@ -152,6 +153,7 @@ Deno.serve(async (req) => {
       for (const it of data.cart_items) {
         const pid = it?.product?.id ?? it?.product_id;
         const vid = it?.variant?.id ?? it?.variant_id;
+        const vsku = it?.variant?.taager_code ?? it?.variant?.sku ?? it?.sku ?? null;
         if (pid) eoProductIds.push(String(pid));
         if (vid) eoVariantIds.push(String(vid));
         const props = it?.variant?.variation_props;
@@ -176,6 +178,7 @@ Deno.serve(async (req) => {
           warehouse_code: null,
           easyorders_product_id: pid ? String(pid) : null,
           easyorders_variant_id: vid ? String(vid) : null,
+          easyorders_sku: vsku ? String(vsku) : null,
           quantity: lineQty,
           price: linePrice,
         });
@@ -196,41 +199,43 @@ Deno.serve(async (req) => {
         .in("external_id", eoProductIds);
       const eoByExt = new Map<string, any>();
       for (const ep of (eoProds || []) as any[]) eoByExt.set(String(ep.external_id), ep);
-      // Normalize cart variant IDs against synced canonical variants by matching taager_code or variation_props
+      // PRIMARY normalization: resolve canonical EO variant_id by SKU.
+      // EasyOrders returns different variant IDs in /orders vs /products for the same SKU,
+      // so SKU is the only reliable cross-endpoint identifier.
       for (const li of lineItems) {
-        if (!li.easyorders_product_id || !li.easyorders_variant_id) continue;
+        if (!li.easyorders_product_id) continue;
         const ep = eoByExt.get(li.easyorders_product_id);
         if (!ep || !Array.isArray(ep.variants)) continue;
-        const exists = ep.variants.some((v: any) => String(v.id) === li.easyorders_variant_id);
-        if (exists) continue;
-        // Try to find the cart variant in the original EO order to get taager_code/props
-        let cartVariant: any = null;
-        if (Array.isArray(data.cart_items)) {
-          for (const ci of data.cart_items) {
-            const v = ci?.variant;
-            if (v && String(v.id) === li.easyorders_variant_id) { cartVariant = v; break; }
+        let canonical: any = null;
+        // 1) Match by SKU first (most reliable)
+        if (li.easyorders_sku) {
+          canonical = ep.variants.find((v: any) => String(v.sku ?? "") === String(li.easyorders_sku));
+        }
+        // 2) Fallback to variation_props match
+        if (!canonical && li.easyorders_variant_id) {
+          let cartVariant: any = null;
+          if (Array.isArray(data.cart_items)) {
+            for (const ci of data.cart_items) {
+              const v = ci?.variant;
+              if (v && String(v.id) === li.easyorders_variant_id) { cartVariant = v; break; }
+            }
+          }
+          const cartProps: any[] = Array.isArray(cartVariant?.variation_props) ? cartVariant.variation_props : [];
+          const cartPropSet = new Set(cartProps.map((p: any) => norm(p?.variation_prop)));
+          if (cartPropSet.size > 0) {
+            canonical = ep.variants.find((v: any) => {
+              const vp = Array.isArray(v.variation_props) ? v.variation_props : [];
+              if (vp.length !== cartPropSet.size) return false;
+              return vp.every((p: any) => cartPropSet.has(norm(p?.variation_prop)));
+            });
           }
         }
-        if (!cartVariant) continue;
-        const cartCode = cartVariant.taager_code ?? cartVariant.sku ?? null;
-        const cartProps: any[] = Array.isArray(cartVariant.variation_props) ? cartVariant.variation_props : [];
-        const cartPropSet = new Set(cartProps.map((p: any) => norm(p?.variation_prop)));
-        let canonical: any = null;
-        // Match by taager_code first
-        if (cartCode) {
-          canonical = ep.variants.find((v: any) => String(v.sku ?? "") === String(cartCode));
-        }
-        // Otherwise match by full variation_props set
-        if (!canonical && cartPropSet.size > 0) {
-          canonical = ep.variants.find((v: any) => {
-            const vp = Array.isArray(v.variation_props) ? v.variation_props : [];
-            if (vp.length !== cartPropSet.size) return false;
-            return vp.every((p: any) => cartPropSet.has(norm(p?.variation_prop)));
-          });
-        }
         if (canonical?.id) {
-          console.log("normalized stale EO variant", li.easyorders_variant_id, "->", canonical.id);
+          if (li.easyorders_variant_id !== String(canonical.id)) {
+            console.log("normalized EO variant via SKU", li.easyorders_sku, li.easyorders_variant_id, "->", canonical.id);
+          }
           li.easyorders_variant_id = String(canonical.id);
+          if (!li.easyorders_sku && canonical.sku) li.easyorders_sku = String(canonical.sku);
         }
       }
       // Re-sync top-level variant ids list for first-product matching below
