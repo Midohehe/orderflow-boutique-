@@ -97,17 +97,30 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     .replace(/[إأآا]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ة/g, "ه")
     .replace(/\s+/g, " ").toLowerCase();
 
+  // Token-aware match: local part appears as a standalone token within EO variation_prop
+  const valueMatches = (localPart: string, eoVal: string) => {
+    const lp = norm(localPart);
+    const ev = norm(eoVal);
+    if (!lp || !ev) return false;
+    if (lp === ev) return true;
+    const tokens = ev.split(/[\s\-_/،,]+/).filter(Boolean);
+    if (tokens.includes(lp)) return true;
+    if (ev.startsWith(lp + " ")) return true;
+    return false;
+  };
+
   const autoLinkEoVariants = (overwrite: boolean) => {
     if (!eoVariants.length || !variantKeys.length) return;
     const next: Record<string, string> = { ...(product.variantEasyOrdersIds || {}) };
     let linked = 0;
     for (const key of variantKeys) {
       if (!overwrite && next[key]) continue;
-      const parts = key.split(" - ").map((x) => norm(x));
+      const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
       const match = eoVariants.find((v) => {
-        const vals = (v.props || []).map((p: any) => norm(p?.variation_prop || ""));
-        if (!vals.length) return false;
-        return parts.every((p) => vals.includes(p)) && vals.length === parts.length;
+        const vals: string[] = (v.props || []).map((p: any) => p?.variation_prop || "");
+        if (vals.length !== parts.length) return false;
+        // every local part must match some EO value (token-aware)
+        return parts.every((p) => vals.some((vv) => valueMatches(p, vv)));
       });
       if (match) { next[key] = match.id; linked++; }
     }
