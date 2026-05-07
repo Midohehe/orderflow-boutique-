@@ -307,6 +307,9 @@ export type Database = {
       orders: {
         Row: {
           address: string
+          carrier_status: string | null
+          carrier_status_raw: Json | null
+          carrier_status_updated_at: string | null
           city: string
           created_at: string
           customer_name: string
@@ -334,6 +337,9 @@ export type Database = {
         }
         Insert: {
           address: string
+          carrier_status?: string | null
+          carrier_status_raw?: Json | null
+          carrier_status_updated_at?: string | null
           city: string
           created_at?: string
           customer_name: string
@@ -361,6 +367,9 @@ export type Database = {
         }
         Update: {
           address?: string
+          carrier_status?: string | null
+          carrier_status_raw?: Json | null
+          carrier_status_updated_at?: string | null
           city?: string
           created_at?: string
           customer_name?: string
