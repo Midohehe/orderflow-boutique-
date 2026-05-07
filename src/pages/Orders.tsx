@@ -524,6 +524,11 @@ const Orders = () => {
                     كود الشحن: {order.shipping_reference}
                   </Badge>
                 )}
+                {order.carrier_status && (
+                  <Badge className="bg-accent text-accent-foreground">
+                    حالة شركة التوصيل: {order.carrier_status}
+                  </Badge>
+                )}
               </div>
               {order.link_error && (
                 <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
