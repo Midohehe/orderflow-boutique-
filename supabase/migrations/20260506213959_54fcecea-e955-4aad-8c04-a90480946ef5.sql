@@ -1,0 +1,1 @@
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS subscription_price numeric NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS subscription_currency text NOT NULL DEFAULT 'د.ل';

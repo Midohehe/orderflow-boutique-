@@ -1,0 +1,1 @@
+CREATE POLICY "Public can read shipping zones" ON public.shipping_zones FOR SELECT TO anon, authenticated USING (true);
