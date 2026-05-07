@@ -223,23 +223,8 @@ Deno.serve(async (req) => {
           const whMap = (lp2.variant_warehouse_codes || {}) as Record<string, string>;
           let matchedVariantKey: string | null = null;
 
-          // PRIMARY: name-based resolution (token-aware), more reliable than stored map
-          const colorMatch = findByName(lp2.colors, li.selected_color);
-          const sizeMatch = findByName(lp2.sizes, li.selected_size);
-          if (colorMatch) li.selected_color = colorMatch;
-          if (sizeMatch) li.selected_size = sizeMatch;
-
-          const keyCandidates = [
-            [li.selected_color, li.selected_size].filter(Boolean).join(" - "),
-            li.selected_color || "",
-            li.selected_size || "",
-            li.selected_product_code || "",
-          ].filter(Boolean) as string[];
-          for (const k of keyCandidates) {
-            if (whMap[k] || map2[k]) { matchedVariantKey = k; break; }
-          }
-
-          if (!matchedVariantKey && li.easyorders_variant_id) {
+          // PRIMARY: lookup EO variant_id in the user-managed mapping (ProductForm table)
+          if (li.easyorders_variant_id) {
             for (const [variantKey, eoId] of Object.entries(map2)) {
               if (String(eoId) === li.easyorders_variant_id) {
                 matchedVariantKey = variantKey;
@@ -247,13 +232,32 @@ Deno.serve(async (req) => {
                 const colors = (lp2.colors || []) as string[];
                 const sizes = (lp2.sizes || []) as string[];
                 const codes = (lp2.product_codes || []) as string[];
+                li.selected_color = null;
+                li.selected_size = null;
                 for (const part of parts) {
-                  if (colors.includes(part) && !li.selected_color) li.selected_color = part;
-                  else if (sizes.includes(part) && !li.selected_size) li.selected_size = part;
-                  else if (codes.includes(part) && !li.selected_product_code) li.selected_product_code = part;
+                  if (colors.includes(part)) li.selected_color = part;
+                  else if (sizes.includes(part)) li.selected_size = part;
+                  else if (codes.includes(part)) li.selected_product_code = part;
                 }
                 break;
               }
+            }
+          }
+
+          // FALLBACK: name-based only if mapping is missing this EO variant id
+          if (!matchedVariantKey) {
+            const colorMatch = findByName(lp2.colors, li.selected_color);
+            const sizeMatch = findByName(lp2.sizes, li.selected_size);
+            if (colorMatch) li.selected_color = colorMatch;
+            if (sizeMatch) li.selected_size = sizeMatch;
+            const keyCandidates = [
+              [li.selected_color, li.selected_size].filter(Boolean).join(" - "),
+              li.selected_color || "",
+              li.selected_size || "",
+              li.selected_product_code || "",
+            ].filter(Boolean) as string[];
+            for (const k of keyCandidates) {
+              if (whMap[k] || map2[k]) { matchedVariantKey = k; break; }
             }
           }
 
