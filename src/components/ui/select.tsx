@@ -64,7 +64,7 @@ const SelectContent = React.forwardRef<
     searchable?: boolean;
     searchPlaceholder?: string;
   }
->(({ className, children, position = "popper", searchable, searchPlaceholder = "بحث...", ...props }, ref) => {
+>(({ className, children, position = "popper", searchable = true, searchPlaceholder = "بحث...", ...props }, ref) => {
   const [query, setQuery] = React.useState("");
 
   const getText = (node: React.ReactNode): string => {
