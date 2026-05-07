@@ -179,6 +179,9 @@ Deno.serve(async (req) => {
         .select("id, easyorders_product_id, variant_easyorders_ids, colors, sizes, product_codes, variant_warehouse_codes")
         .eq("owner_id", userId)
         .in("easyorders_product_id", eoProductIds);
+      if (!localProds || localProds.length === 0) {
+        // No local product is linked to any EasyOrders product id from this order
+      }
       if (localProds && localProds.length > 0) {
         const lp = localProds[0] as any;
         matched_product_id = lp.id;
@@ -248,6 +251,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Build link error message describing what auto-linking failed (product/variant)
+    const linkErrors: string[] = [];
+    for (const li of lineItems) {
+      const name = li.product_name || "منتج";
+      if (!li.product_id) {
+        linkErrors.push(`المنتج "${name}" (EO: ${li.easyorders_product_id || "—"}) غير مرتبط بأي منتج محلي`);
+      } else if (li.easyorders_variant_id && !li.warehouse_code) {
+        linkErrors.push(`متغير المنتج "${name}" (متغير EO: ${li.easyorders_variant_id}) غير مرتبط بمتغير محلي. أعد مزامنة المنتجات.`);
+      }
+    }
+    const link_error = linkErrors.length > 0 ? linkErrors.join(" | ") : null;
+
     if (!phone || !address || !city) {
       return new Response(JSON.stringify({
         error: "Order missing required fields",
@@ -285,6 +300,7 @@ Deno.serve(async (req) => {
       product_id: matched_product_id,
       selected_color, selected_size, selected_product_code,
       matched_zone_id, matched_area_id, matched_zone_name, matched_area_name,
+      link_error,
     }).select("id").single();
 
     if (iErr) {

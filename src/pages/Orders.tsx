@@ -42,6 +42,8 @@ interface Order {
   shipping_reference?: string | null;
   matched_zone_name?: string | null;
   matched_area_name?: string | null;
+  shipping_error?: string | null;
+  link_error?: string | null;
 }
 
 const statusLabels: Record<Order["status"], string> = {
@@ -167,7 +169,7 @@ const Orders = () => {
         const [ordersRes, currencyRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name")
+            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error")
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
         ]);
@@ -206,7 +208,7 @@ const Orders = () => {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name")
+        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -484,6 +486,18 @@ const Orders = () => {
                   </Badge>
                 )}
               </div>
+              {order.link_error && (
+                <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+                  <span className="font-bold ml-1">⚠ تعذر الربط التلقائي:</span>
+                  <span className="text-foreground/80">{order.link_error}</span>
+                </div>
+              )}
+              {order.shipping_error && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+                  <span className="font-bold ml-1 text-destructive">✕ فشل الإرسال لشركة الشحن:</span>
+                  <span className="text-foreground/80">{order.shipping_error}</span>
+                </div>
+              )}
               <EditMatchedCity
                 orderId={order.id}
                 city={order.matched_zone_name}

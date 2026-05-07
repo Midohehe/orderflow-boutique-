@@ -311,6 +311,7 @@ export type Database = {
           created_at: string
           customer_name: string
           id: string
+          link_error: string | null
           matched_area_id: number | null
           matched_area_name: string | null
           matched_zone_id: number | null
@@ -325,6 +326,7 @@ export type Database = {
           selected_product_code: string | null
           selected_size: string | null
           shipped_to_company: boolean
+          shipping_error: string | null
           shipping_included: boolean
           shipping_reference: string | null
           status: string
@@ -336,6 +338,7 @@ export type Database = {
           created_at?: string
           customer_name: string
           id?: string
+          link_error?: string | null
           matched_area_id?: number | null
           matched_area_name?: string | null
           matched_zone_id?: number | null
@@ -350,6 +353,7 @@ export type Database = {
           selected_product_code?: string | null
           selected_size?: string | null
           shipped_to_company?: boolean
+          shipping_error?: string | null
           shipping_included?: boolean
           shipping_reference?: string | null
           status?: string
@@ -361,6 +365,7 @@ export type Database = {
           created_at?: string
           customer_name?: string
           id?: string
+          link_error?: string | null
           matched_area_id?: number | null
           matched_area_name?: string | null
           matched_zone_id?: number | null
@@ -375,6 +380,7 @@ export type Database = {
           selected_product_code?: string | null
           selected_size?: string | null
           shipped_to_company?: boolean
+          shipping_error?: string | null
           shipping_included?: boolean
           shipping_reference?: string | null
           status?: string
