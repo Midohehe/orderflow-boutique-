@@ -79,16 +79,49 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   }, []);
 
   const selectedEoProduct = eoProducts.find((p) => p.external_id === product.easyOrdersProductId);
-  const eoVariants: Array<{ id: string; name: string | null; sku: string | null }> = Array.isArray(selectedEoProduct?.variants)
+  const eoVariants: Array<{ id: string; name: string | null; sku: string | null; props: any[] }> = Array.isArray(selectedEoProduct?.variants)
     ? (selectedEoProduct!.variants as any[]).map((v) => ({
         id: String(v.id ?? ""),
         name: v.name ?? (Array.isArray(v.variation_props) ? v.variation_props.map((p: any) => p.variation_prop).join(" / ") : null),
         sku: v.sku ?? null,
+        props: Array.isArray(v.variation_props) ? v.variation_props : [],
       })).filter((v) => v.id)
     : [];
 
   const variantKeys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
   const hasVariants = variantKeys.length > 0;
+
+  // Normalize Arabic for matching
+  const norm = (s: string) => (s || "").toString().trim()
+    .replace(/[\u064B-\u0652\u0670]/g, "")
+    .replace(/[إأآا]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ة/g, "ه")
+    .replace(/\s+/g, " ").toLowerCase();
+
+  const autoLinkEoVariants = (overwrite: boolean) => {
+    if (!eoVariants.length || !variantKeys.length) return;
+    const next: Record<string, string> = { ...(product.variantEasyOrdersIds || {}) };
+    let linked = 0;
+    for (const key of variantKeys) {
+      if (!overwrite && next[key]) continue;
+      const parts = key.split(" - ").map((x) => norm(x));
+      const match = eoVariants.find((v) => {
+        const vals = (v.props || []).map((p: any) => norm(p?.variation_prop || ""));
+        if (!vals.length) return false;
+        return parts.every((p) => vals.includes(p)) && vals.length === parts.length;
+      });
+      if (match) { next[key] = match.id; linked++; }
+    }
+    onProductChange({ ...product, variantEasyOrdersIds: next });
+    return linked;
+  };
+
+  // Auto-link on first EO product selection (only fills empty mappings)
+  useEffect(() => {
+    if (!product.easyOrdersProductId || !eoVariants.length || !variantKeys.length) return;
+    const empty = variantKeys.every((k) => !product.variantEasyOrdersIds?.[k]);
+    if (empty) autoLinkEoVariants(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.easyOrdersProductId, eoProducts.length]);
 
   const updateVariantQty = (key: string, value: string) => {
     onProductChange({
