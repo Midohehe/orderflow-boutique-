@@ -108,6 +108,21 @@ Deno.serve(async (req) => {
     const eoProductIds: string[] = [];
     const eoVariantIds: string[] = [];
 
+    // Detailed line items for the new order_items table (one row per cart line)
+    type LineItem = {
+      product_id: string | null;
+      product_name: string;
+      selected_color: string | null;
+      selected_size: string | null;
+      selected_product_code: string | null;
+      warehouse_code: string | null;
+      easyorders_product_id: string | null;
+      easyorders_variant_id: string | null;
+      quantity: number;
+      price: number;
+    };
+    const lineItems: LineItem[] = [];
+
     if (Array.isArray(body.cart_items) && body.cart_items.length > 0) {
       product_name = body.cart_items
         .map((it: any) => it?.product?.name || it?.name || "")
@@ -127,6 +142,29 @@ Deno.serve(async (req) => {
             if (p?.variation === "size" && !selected_size) selected_size = s(p.variation_prop, 100);
           }
         }
+        // Build the per-line snapshot (resolved later against local products)
+        let lineColor: string | null = null;
+        let lineSize: string | null = null;
+        if (Array.isArray(props)) {
+          for (const p of props) {
+            if (p?.variation === "color") lineColor = s(p.variation_prop, 100);
+            if (p?.variation === "size") lineSize = s(p.variation_prop, 100);
+          }
+        }
+        const linePrice = Number(it?.price ?? it?.unit_price ?? it?.product?.price ?? 0) || 0;
+        const lineQty = Math.max(1, Math.min(999, Math.floor(Number(it?.quantity ?? 1))));
+        lineItems.push({
+          product_id: null,
+          product_name: s(it?.product?.name || it?.name || "", 250),
+          selected_color: lineColor,
+          selected_size: lineSize,
+          selected_product_code: null,
+          warehouse_code: null,
+          easyorders_product_id: pid ? String(pid) : null,
+          easyorders_variant_id: vid ? String(vid) : null,
+          quantity: lineQty,
+          price: linePrice,
+        });
       }
     } else if (Array.isArray(body.products)) {
       product_name = body.products
@@ -144,7 +182,7 @@ Deno.serve(async (req) => {
     if (eoProductIds.length > 0) {
       const { data: localProds } = await supabase
         .from("products")
-        .select("id, easyorders_product_id, variant_easyorders_ids, colors, sizes, product_codes")
+        .select("id, easyorders_product_id, variant_easyorders_ids, colors, sizes, product_codes, variant_warehouse_codes")
         .eq("owner_id", profile.user_id)
         .in("easyorders_product_id", eoProductIds);
       if (localProds && localProds.length > 0) {
@@ -165,6 +203,37 @@ Deno.serve(async (req) => {
               else if (codes.includes(part)) selected_product_code = part;
             }
             break;
+          }
+        }
+
+        // Resolve each line item against the matched local products
+        const byEoId = new Map<string, any>();
+        for (const lp2 of localProds as any[]) {
+          if (lp2.easyorders_product_id) byEoId.set(String(lp2.easyorders_product_id), lp2);
+        }
+        for (const li of lineItems) {
+          if (!li.easyorders_product_id) continue;
+          const lp2 = byEoId.get(li.easyorders_product_id);
+          if (!lp2) continue;
+          li.product_id = lp2.id;
+          const map2 = (lp2.variant_easyorders_ids || {}) as Record<string, string>;
+          const whMap = (lp2.variant_warehouse_codes || {}) as Record<string, string>;
+          if (li.easyorders_variant_id) {
+            for (const [variantKey, eoId] of Object.entries(map2)) {
+              if (String(eoId) === li.easyorders_variant_id) {
+                const parts = variantKey.split(" - ").map((x) => x.trim());
+                const colors = (lp2.colors || []) as string[];
+                const sizes = (lp2.sizes || []) as string[];
+                const codes = (lp2.product_codes || []) as string[];
+                for (const part of parts) {
+                  if (colors.includes(part)) li.selected_color = part;
+                  else if (sizes.includes(part)) li.selected_size = part;
+                  else if (codes.includes(part)) li.selected_product_code = part;
+                }
+                if (whMap[variantKey]) li.warehouse_code = String(whMap[variantKey]);
+                break;
+              }
+            }
           }
         }
       }
@@ -226,6 +295,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Could not create order", details: iErr.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Insert order_items rows (one per cart line). Keep going on error.
+    if (lineItems.length > 0) {
+      const rows = lineItems.map((li) => ({
+        order_id: order.id,
+        owner_id: profile.user_id,
+        product_id: li.product_id,
+        product_name: li.product_name || product_name || "—",
+        selected_color: li.selected_color,
+        selected_size: li.selected_size,
+        selected_product_code: li.selected_product_code,
+        warehouse_code: li.warehouse_code,
+        easyorders_product_id: li.easyorders_product_id,
+        easyorders_variant_id: li.easyorders_variant_id,
+        quantity: li.quantity,
+        price: li.price,
+      }));
+      const { error: itErr } = await supabase.from("order_items").insert(rows);
+      if (itErr) console.error("order_items insert failed", itErr);
     }
 
     console.log("webhook order created", order.id);
