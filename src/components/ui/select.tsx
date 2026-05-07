@@ -60,8 +60,41 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    searchable?: boolean;
+    searchPlaceholder?: string;
+  }
+>(({ className, children, position = "popper", searchable = true, searchPlaceholder = "بحث...", ...props }, ref) => {
+  const [query, setQuery] = React.useState("");
+
+  const getText = (node: React.ReactNode): string => {
+    if (node == null || typeof node === "boolean") return "";
+    if (typeof node === "string" || typeof node === "number") return String(node);
+    if (Array.isArray(node)) return node.map(getText).join(" ");
+    if (React.isValidElement(node)) return getText((node.props as { children?: React.ReactNode }).children);
+    return "";
+  };
+
+  const filteredChildren = React.useMemo(() => {
+    if (!searchable || !query.trim()) return children;
+    const q = query.trim().toLowerCase();
+    const filterNode = (node: React.ReactNode): React.ReactNode => {
+      if (!React.isValidElement(node)) return node;
+      const el = node as React.ReactElement<{ value?: unknown; children?: React.ReactNode }>;
+      // SelectItem has a `value` prop — filter by its text content
+      if (el.props && "value" in el.props) {
+        return getText(el.props.children).toLowerCase().includes(q) ? el : null;
+      }
+      if (el.props && el.props.children) {
+        const newChildren = React.Children.map(el.props.children, filterNode);
+        return React.cloneElement(el, el.props, newChildren);
+      }
+      return el;
+    };
+    return React.Children.map(children, filterNode);
+  }, [children, query, searchable]);
+
+  return (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
@@ -74,6 +107,21 @@ const SelectContent = React.forwardRef<
       position={position}
       {...props}
     >
+      {searchable && (
+        <div
+          className="flex items-center border-b px-2 py-1.5 sticky top-0 bg-popover z-10"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            placeholder={searchPlaceholder}
+            className="w-full bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
+            dir="auto"
+          />
+        </div>
+      )}
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(
@@ -82,12 +130,13 @@ const SelectContent = React.forwardRef<
             "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
         )}
       >
-        {children}
+        {filteredChildren}
       </SelectPrimitive.Viewport>
       <SelectScrollDownButton />
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
-));
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<
