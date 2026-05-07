@@ -373,6 +373,16 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             لا توجد منتجات. اذهب إلى "حسابي" واضغط "مزامنة منتجات EasyOrders".
           </p>
         )}
+        {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => autoLinkEoVariants(true)}
+          >
+            ربط المتغيرات تلقائياً (استبدال)
+          </Button>
+        )}
       </div>
 
       <Button onClick={onSubmit} className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
