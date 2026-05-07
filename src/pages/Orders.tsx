@@ -44,6 +44,8 @@ interface Order {
   matched_area_name?: string | null;
   shipping_error?: string | null;
   link_error?: string | null;
+  carrier_status?: string | null;
+  carrier_status_updated_at?: string | null;
 }
 
 const statusLabels: Record<Order["status"], string> = {
@@ -98,7 +100,7 @@ const Orders = () => {
           quantity: 1,
           status: "pending",
         })
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error")
+        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at")
         .maybeSingle();
       if (error) throw error;
       if (data) {
@@ -206,7 +208,7 @@ const Orders = () => {
         const [ordersRes, currencyRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error")
+            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at")
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
         ]);
@@ -245,7 +247,7 @@ const Orders = () => {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error")
+        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -520,6 +522,11 @@ const Orders = () => {
                 {order.shipping_reference && (
                   <Badge variant="outline" className="font-mono">
                     كود الشحن: {order.shipping_reference}
+                  </Badge>
+                )}
+                {order.carrier_status && (
+                  <Badge className="bg-accent text-accent-foreground">
+                    حالة شركة التوصيل: {order.carrier_status}
                   </Badge>
                 )}
               </div>
