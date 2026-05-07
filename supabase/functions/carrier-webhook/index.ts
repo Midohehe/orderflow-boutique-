@@ -32,6 +32,8 @@ function extractFromPayload(body: any): {
   let shipmentId: any = null;
   let ref: any = null;
   let status: any = null;
+  let deliveryTypeCode: any = null;
+  let returnTypeCode: any = null;
   for (const c of candidates) {
     if (!shipmentId) shipmentId = pick(c, ["shipmentId", "shipment_id"]);
     if (!ref) ref = pick(c, [
@@ -46,11 +48,22 @@ function extractFromPayload(body: any): {
       const st = c.status || c.shipmentStatus;
       if (st && typeof st === "object") status = st.name || st.label || st.value || st.code;
     }
+    if (!deliveryTypeCode) deliveryTypeCode = pick(c, ["deliveryTypeCode", "delivery_type_code"]);
+    if (!returnTypeCode) returnTypeCode = pick(c, ["returnTypeCode", "return_type_code"]);
+  }
+  // Build composite code: base shipmentStatusCode + delivery/return suffix.
+  // e.g. DTR + C = DTRC, RTS + D = RTSD
+  let composite = status != null ? String(status).trim() : null;
+  if (composite) {
+    const suffix = (deliveryTypeCode ?? returnTypeCode);
+    if (suffix != null && String(suffix).trim() !== "") {
+      composite = composite + String(suffix).trim();
+    }
   }
   return {
     shipmentId: shipmentId != null ? String(shipmentId).trim() : null,
     ref: ref ? String(ref).trim() : null,
-    status: status != null ? String(status).trim() : null,
+    status: composite,
   };
 }
 
