@@ -524,9 +524,9 @@ const Orders = () => {
                     كود الشحن: {order.shipping_reference}
                   </Badge>
                 )}
-                {order.carrier_status && (
-                  <Badge className="bg-accent text-accent-foreground">
-                    حالة شركة التوصيل: {order.carrier_status}
+                {order.shipping_reference && (
+                  <Badge className={order.carrier_status ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}>
+                    حالة شركة التوصيل: {order.carrier_status || "في انتظار تحديث من شركة الشحن"}
                   </Badge>
                 )}
               </div>
