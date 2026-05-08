@@ -69,6 +69,22 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
+    // Discover available payment type codes from the schema enum
+    const ENUM_QUERY = `query { __type(name: "PaymentTypeCode") { enumValues { name } } }`;
+    const enumRes = await gql(ENUM_QUERY);
+    const enumNames: string[] = (enumRes?.data?.__type?.enumValues || []).map((v: any) => v.name);
+    // Pick the returns enum: anything containing RTRN/RETURN, excluding CUSTM (settlements)
+    const returnTypeCode = enumNames.find((n) =>
+      /RTRN|RETURN|RETN|RTN/i.test(n)
+    ) || enumNames.find((n) => /RET/i.test(n) && !/CUSTM/i.test(n));
+
+    if (!returnTypeCode) {
+      return new Response(JSON.stringify({
+        ok: true, count: 0,
+        debug: { message: "No returns type code found", availableCodes: enumNames },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
         paginatorInfo { hasMorePages currentPage }
@@ -87,7 +103,7 @@ Deno.serve(async (req) => {
     let page = 1;
     let lastErr: any = null;
     while (true) {
-      const res = await gql(LIST_QUERY, { input: { typeCode: "RTRN" }, first: 100, page });
+      const res = await gql(LIST_QUERY, { input: { typeCode: returnTypeCode }, first: 100, page });
       lastErr = res?.errors ?? null;
       const list = res?.data?.listPayments;
       if (!list) break;
@@ -127,7 +143,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      ok: true, count: rows.length, debug: lastErr,
+      ok: true, count: rows.length, typeCode: returnTypeCode, debug: lastErr,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
