@@ -379,6 +379,8 @@ export type Database = {
           selected_color: string | null
           selected_product_code: string | null
           selected_size: string | null
+          settlement_received: boolean
+          settlement_received_at: string | null
           shipped_to_company: boolean
           shipping_error: string | null
           shipping_id: string | null
@@ -410,6 +412,8 @@ export type Database = {
           selected_color?: string | null
           selected_product_code?: string | null
           selected_size?: string | null
+          settlement_received?: boolean
+          settlement_received_at?: string | null
           shipped_to_company?: boolean
           shipping_error?: string | null
           shipping_id?: string | null
@@ -441,6 +445,8 @@ export type Database = {
           selected_color?: string | null
           selected_product_code?: string | null
           selected_size?: string | null
+          settlement_received?: boolean
+          settlement_received_at?: string | null
           shipped_to_company?: boolean
           shipping_error?: string | null
           shipping_id?: string | null
@@ -612,6 +618,161 @@ export type Database = {
           user_id?: string
           username?: string
           webhook_token?: string | null
+        }
+        Relationships: []
+      }
+      settlement_shipments: {
+        Row: {
+          area_name: string | null
+          collected_fees: number
+          created_at: string
+          delivered_amount: number
+          delivered_or_returned_date: string | null
+          external_shipment_id: number | null
+          id: string
+          order_id: string | null
+          owner_id: string
+          paid_amount: number
+          pieces_count: number
+          raw: Json | null
+          recipient_name: string | null
+          recipient_phone: string | null
+          ref_number: string | null
+          settlement_id: string
+          shipment_code: string
+          shipment_date: string | null
+          status_code: string | null
+          status_name: string | null
+          weight: number
+          zone_name: string | null
+        }
+        Insert: {
+          area_name?: string | null
+          collected_fees?: number
+          created_at?: string
+          delivered_amount?: number
+          delivered_or_returned_date?: string | null
+          external_shipment_id?: number | null
+          id?: string
+          order_id?: string | null
+          owner_id: string
+          paid_amount?: number
+          pieces_count?: number
+          raw?: Json | null
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          ref_number?: string | null
+          settlement_id: string
+          shipment_code: string
+          shipment_date?: string | null
+          status_code?: string | null
+          status_name?: string | null
+          weight?: number
+          zone_name?: string | null
+        }
+        Update: {
+          area_name?: string | null
+          collected_fees?: number
+          created_at?: string
+          delivered_amount?: number
+          delivered_or_returned_date?: string | null
+          external_shipment_id?: number | null
+          id?: string
+          order_id?: string | null
+          owner_id?: string
+          paid_amount?: number
+          pieces_count?: number
+          raw?: Json | null
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          ref_number?: string | null
+          settlement_id?: string
+          shipment_code?: string
+          shipment_date?: string | null
+          status_code?: string | null
+          status_name?: string | null
+          weight?: number
+          zone_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_shipments_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlements: {
+        Row: {
+          approved: boolean
+          code: string
+          created_at: string
+          customer_name: string | null
+          delivered_amount: number
+          due_fees: number
+          external_id: number
+          id: string
+          notes: string | null
+          owner_id: string
+          payment_amount: number
+          pieces_count: number
+          raw: Json | null
+          received: boolean
+          received_at: string | null
+          safe_name: string | null
+          settlement_date: string | null
+          shipment_count: number
+          shipments_synced_at: string | null
+          transaction_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved?: boolean
+          code: string
+          created_at?: string
+          customer_name?: string | null
+          delivered_amount?: number
+          due_fees?: number
+          external_id: number
+          id?: string
+          notes?: string | null
+          owner_id: string
+          payment_amount?: number
+          pieces_count?: number
+          raw?: Json | null
+          received?: boolean
+          received_at?: string | null
+          safe_name?: string | null
+          settlement_date?: string | null
+          shipment_count?: number
+          shipments_synced_at?: string | null
+          transaction_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved?: boolean
+          code?: string
+          created_at?: string
+          customer_name?: string | null
+          delivered_amount?: number
+          due_fees?: number
+          external_id?: number
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          payment_amount?: number
+          pieces_count?: number
+          raw?: Json | null
+          received?: boolean
+          received_at?: string | null
+          safe_name?: string | null
+          settlement_date?: string | null
+          shipment_count?: number
+          shipments_synced_at?: string | null
+          transaction_type?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
