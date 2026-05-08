@@ -87,14 +87,8 @@ function extractFromPayload(body: any): {
       return s === "false" || s === "0" || s === "no" || s === "n" || s === "لا";
     };
     if (composite.toUpperCase() === "DTR") {
-      if (isYes(paidToCustomer)) {
-        composite = "DTRCP";
-      } else if (isYes(collection)) {
-        composite = "DTRC";
-      } else {
-        // Default for DTR when no collection signal: treat as not collected (UC)
-        composite = "DTRUC";
-      }
+      // Always keep DTR as-is, regardless of collection / paid-to-customer fields
+      composite = "DTR";
     } else {
       const suffix = (deliveryTypeCode ?? returnTypeCode);
       if (suffix != null && String(suffix).trim() !== "") {
