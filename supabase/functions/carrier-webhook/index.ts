@@ -34,6 +34,8 @@ function extractFromPayload(body: any): {
   let status: any = null;
   let deliveryTypeCode: any = null;
   let returnTypeCode: any = null;
+  let collection: any = null;
+  let paidToCustomer: any = null;
   for (const c of candidates) {
     if (!shipmentId) shipmentId = pick(c, ["shipmentId", "shipment_id"]);
     if (!ref) ref = pick(c, [
@@ -50,14 +52,42 @@ function extractFromPayload(body: any): {
     }
     if (!deliveryTypeCode) deliveryTypeCode = pick(c, ["deliveryTypeCode", "delivery_type_code"]);
     if (!returnTypeCode) returnTypeCode = pick(c, ["returnTypeCode", "return_type_code"]);
+    if (collection === null) collection = pick(c, ["collection", "COLLECTION", "collected", "isCollected", "is_collected"]);
+    if (paidToCustomer === null) paidToCustomer = pick(c, ["paidToCustomer", "paid_to_customer", "PAID_TO_CUSTOMER", "paidCustomer", "isPaidToCustomer"]);
   }
-  // Build composite code: base shipmentStatusCode + delivery/return suffix.
-  // e.g. DTR + C = DTRC, RTS + D = RTSD
+  // Build composite code: base shipmentStatusCode + suffix.
+  // For DTR: derive suffix from COLLECTION + PAID_TO_CUSTOMER fields.
+  //   PAID_TO_CUSTOMER = yes  -> CP  (overrides collection)
+  //   COLLECTION = yes        -> C
+  //   COLLECTION = no         -> UC
+  // For other codes: append delivery/return type code if present (e.g. RTS + D = RTSD)
   let composite = status != null ? String(status).trim() : null;
   if (composite) {
-    const suffix = (deliveryTypeCode ?? returnTypeCode);
-    if (suffix != null && String(suffix).trim() !== "") {
-      composite = composite + String(suffix).trim();
+    const isYes = (v: any) => {
+      if (v === true) return true;
+      if (v === false || v === null || v === undefined) return false;
+      const s = String(v).trim().toLowerCase();
+      return s === "true" || s === "1" || s === "yes" || s === "y" || s === "نعم";
+    };
+    const isNo = (v: any) => {
+      if (v === false) return true;
+      if (v === null || v === undefined) return false;
+      const s = String(v).trim().toLowerCase();
+      return s === "false" || s === "0" || s === "no" || s === "n" || s === "لا";
+    };
+    if (composite.toUpperCase() === "DTR") {
+      if (isYes(paidToCustomer)) {
+        composite = "DTRCP";
+      } else if (isYes(collection)) {
+        composite = "DTRC";
+      } else if (isNo(collection)) {
+        composite = "DTRUC";
+      }
+    } else {
+      const suffix = (deliveryTypeCode ?? returnTypeCode);
+      if (suffix != null && String(suffix).trim() !== "") {
+        composite = composite + String(suffix).trim();
+      }
     }
   }
   return {
