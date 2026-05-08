@@ -69,21 +69,29 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // Discover available payment type codes from the schema enum
-    const ENUM_QUERY = `query { __type(name: "PaymentTypeCode") { enumValues { name } } }`;
-    const enumRes = await gql(ENUM_QUERY);
-    const enumNames: string[] = (enumRes?.data?.__type?.enumValues || []).map((v: any) => v.name);
-    // Pick the returns enum: anything containing RTRN/RETURN, excluding CUSTM (settlements)
-    const returnTypeCode = enumNames.find((n) =>
-      /RTRN|RETURN|RETN|RTN/i.test(n)
-    ) || enumNames.find((n) => /RET/i.test(n) && !/CUSTM/i.test(n));
+    // Discover schema: query fields + relevant enums
+    const INTRO = `query {
+      queryType: __schema { queryType { fields { name args { name type { name kind ofType { name kind } } } } } }
+      paymentEnum: __type(name: "PaymentTypeCode") { enumValues { name } }
+    }`;
+    const introRes = await gql(INTRO);
+    const queryFields = (introRes?.data?.queryType?.queryType?.fields || [])
+      .map((f: any) => f.name);
+    const returnRelated = queryFields.filter((n: string) => /return|rtrn/i.test(n));
+    const paymentCodes = (introRes?.data?.paymentEnum?.enumValues || [])
+      .map((v: any) => v.name);
 
-    if (!returnTypeCode) {
-      return new Response(JSON.stringify({
-        ok: true, count: 0,
-        debug: { message: "No returns type code found", availableCodes: enumNames },
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    return new Response(JSON.stringify({
+      ok: true, count: 0,
+      message: "نظام شركة الشحن لا يوفر typeCode للمرتجعات. هذه الاستعلامات المتاحة المتعلقة بالمرتجعات",
+      returnRelatedQueries: returnRelated,
+      allPaymentTypeCodes: paymentCodes,
+      hint: "أرسل لنا اسم الاستعلام المناسب لجلب المرتجعات من قائمة returnRelatedQueries",
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // (unreachable - kept for when correct type code/query is identified)
+    // eslint-disable-next-line @typescript-eslint/no-unreachable-code
+    const returnTypeCode = "RTRN";
 
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
