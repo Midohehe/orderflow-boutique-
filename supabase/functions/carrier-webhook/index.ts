@@ -55,6 +55,17 @@ function extractFromPayload(body: any): {
     if (collection === null) collection = pick(c, ["collection", "COLLECTION", "collected", "isCollected", "is_collected"]);
     if (paidToCustomer === null) paidToCustomer = pick(c, ["paidToCustomer", "paid_to_customer", "PAID_TO_CUSTOMER", "paidCustomer", "isPaidToCustomer"]);
   }
+  // Accurate/Turbo payload uses numeric `collectedFees` and `deliveredAmount`
+  // instead of explicit COLLECTION / PAID_TO_CUSTOMER booleans.
+  // Derive collection from collectedFees when not explicitly provided.
+  let collectedFees: any = null;
+  for (const c of candidates) {
+    if (collectedFees === null) collectedFees = pick(c, ["collectedFees", "collected_fees"]);
+  }
+  if (collection === null && collectedFees !== null && collectedFees !== "") {
+    const n = Number(collectedFees);
+    if (!Number.isNaN(n)) collection = n > 0;
+  }
   // Build composite code: base shipmentStatusCode + suffix.
   // For DTR: derive suffix from COLLECTION + PAID_TO_CUSTOMER fields.
   //   PAID_TO_CUSTOMER = yes  -> CP  (overrides collection)
@@ -80,7 +91,8 @@ function extractFromPayload(body: any): {
         composite = "DTRCP";
       } else if (isYes(collection)) {
         composite = "DTRC";
-      } else if (isNo(collection)) {
+      } else {
+        // Default for DTR when no collection signal: treat as not collected (UC)
         composite = "DTRUC";
       }
     } else {
