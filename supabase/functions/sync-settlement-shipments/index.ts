@@ -110,8 +110,11 @@ Deno.serve(async (req) => {
 
     const allEntries: any[] = [];
     let page = 1;
+    let lastRes: any = null;
     while (true) {
       const res = await gql(QUERY, { id: settlement.external_id, first: 200, page });
+      lastRes = res;
+      console.log("page", page, "resp", JSON.stringify(res).slice(0, 1500));
       const ents = res?.data?.payment?.entries;
       if (!ents) break;
       allEntries.push(...(ents.data || []));
@@ -211,6 +214,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       ok: true, count: shipmentRows.length,
       linked: shipmentRows.filter((r) => r.order_id).length,
+      debug: lastRes?.errors ?? null,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
