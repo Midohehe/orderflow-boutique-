@@ -161,7 +161,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    const shipmentRows = allEntries.map((e) => {
+    // Keep only returned shipments (status code containing RTRN/RETURN, or
+    // status name in Arabic indicating a return). This is what makes a
+    // "returns receipt" different from a regular settlement.
+    const isReturned = (s: any) => {
+      const code = String(s?.status?.code || "").toUpperCase();
+      const name = String(s?.status?.name || "");
+      return /RTRN|RETURN|RETN/.test(code) || /مرتجع|راجع|إرجاع|ارجاع/.test(name);
+    };
+    const returnedEntries = allEntries.filter((e) => isReturned(e.shipment));
+    const shipmentRows = returnedEntries.map((e) => {
       const s = e.shipment || {};
       const orderId = (s.refNumber && orderIdByRef.get(String(s.refNumber)))
         || (s.code && orderIdByRef.get(String(s.code)))

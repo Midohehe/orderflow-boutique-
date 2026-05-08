@@ -69,29 +69,12 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // Discover schema: query fields + relevant enums
-    const INTRO = `query {
-      queryType: __schema { queryType { fields { name args { name type { name kind ofType { name kind } } } } } }
-      paymentEnum: __type(name: "PaymentTypeCode") { enumValues { name } }
-    }`;
-    const introRes = await gql(INTRO);
-    const queryFields = (introRes?.data?.queryType?.queryType?.fields || [])
-      .map((f: any) => f.name);
-    const returnRelated = queryFields.filter((n: string) => /return|rtrn/i.test(n));
-    const paymentCodes = (introRes?.data?.paymentEnum?.enumValues || [])
-      .map((v: any) => v.name);
-
-    return new Response(JSON.stringify({
-      ok: true, count: 0,
-      message: "نظام شركة الشحن لا يوفر typeCode للمرتجعات. هذه الاستعلامات المتاحة المتعلقة بالمرتجعات",
-      returnRelatedQueries: returnRelated,
-      allPaymentTypeCodes: paymentCodes,
-      hint: "أرسل لنا اسم الاستعلام المناسب لجلب المرتجعات من قائمة returnRelatedQueries",
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-    // (unreachable - kept for when correct type code/query is identified)
-    // eslint-disable-next-line @typescript-eslint/no-unreachable-code
-    const returnTypeCode = "RTRN";
+    // Turbo's GraphQL only exposes CUSTM (customer settlements) and DLVBY
+    // (delivery boy) as PaymentTypeCode values. Returns are not a separate
+    // payment list — they appear as RTRN-status shipments inside CUSTM
+    // payments. For the "returns receipt" workflow we list the same CUSTM
+    // payments here, but the shipment sync will keep only returned shipments.
+    const returnTypeCode = "CUSTM";
 
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
