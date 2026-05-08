@@ -529,7 +529,7 @@ const Orders = () => {
         (o.phone || "").toLowerCase().includes(shippedSearchNorm)
       )
     : allShipped;
-  const deliveredOrders = orders.filter((o) => o.status === "delivered");
+  const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
   if (loading) {
