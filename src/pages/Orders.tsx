@@ -32,7 +32,7 @@ interface Order {
   city: string;
   product_name: string;
   price: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled";
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received";
   created_at: string;
   selected_color?: string;
   selected_size?: string;
@@ -56,6 +56,7 @@ const statusLabels: Record<Order["status"], string> = {
   delivered: "تم الاستلام",
   cancelled: "ملغي",
   settled: "تم استلام القيمة المالية",
+  returned_received: "تم استلام المرتجع",
 };
 
 const statusColors: Record<Order["status"], string> = {
@@ -65,6 +66,7 @@ const statusColors: Record<Order["status"], string> = {
   delivered: "bg-success text-success-foreground",
   cancelled: "bg-destructive text-destructive-foreground",
   settled: "bg-success text-success-foreground",
+  returned_received: "bg-muted text-muted-foreground",
 };
 
 const Orders = () => {

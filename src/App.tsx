@@ -21,6 +21,8 @@ const CurrencySettings = lazy(() => import("./pages/CurrencySettings"));
 const FinancialAccounts = lazy(() => import("./pages/FinancialAccounts"));
 const Settlements = lazy(() => import("./pages/Settlements"));
 const SettlementDetail = lazy(() => import("./pages/SettlementDetail"));
+const Returns = lazy(() => import("./pages/Returns"));
+const ReturnDetail = lazy(() => import("./pages/ReturnDetail"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
@@ -73,6 +75,8 @@ const App = () => {
                 <Route path="financial" element={<FinancialAccounts />} />
                 <Route path="settlements" element={<Settlements />} />
                 <Route path="settlements/:id" element={<SettlementDetail />} />
+                <Route path="returns" element={<Returns />} />
+                <Route path="returns/:id" element={<ReturnDetail />} />
                 <Route path="pixel" element={<PixelSettings />} />
                 <Route path="order-form" element={<OrderFormSettings />} />
                 <Route path="thank-you" element={<ThankYouSettings />} />
