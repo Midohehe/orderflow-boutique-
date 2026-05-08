@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     let page = 1;
     let lastRes: any = null;
     while (true) {
-      const res = await gql(QUERY, { id: settlement.external_id, first: 200, page });
+      const res = await gql(QUERY, { id: settlement.external_id, first: 100, page });
       lastRes = res;
       console.log("page", page, "resp", JSON.stringify(res).slice(0, 1500));
       const ents = res?.data?.payment?.entries;
