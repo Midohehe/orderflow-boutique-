@@ -32,7 +32,7 @@ interface Order {
   city: string;
   product_name: string;
   price: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled";
   created_at: string;
   selected_color?: string;
   selected_size?: string;
@@ -55,6 +55,7 @@ const statusLabels: Record<Order["status"], string> = {
   shipped: "جاري التوصيل",
   delivered: "تم الاستلام",
   cancelled: "ملغي",
+  settled: "تم استلام القيمة المالية",
 };
 
 const statusColors: Record<Order["status"], string> = {
@@ -63,6 +64,7 @@ const statusColors: Record<Order["status"], string> = {
   shipped: "bg-accent text-accent-foreground",
   delivered: "bg-success text-success-foreground",
   cancelled: "bg-destructive text-destructive-foreground",
+  settled: "bg-success text-success-foreground",
 };
 
 const Orders = () => {
@@ -527,7 +529,7 @@ const Orders = () => {
         (o.phone || "").toLowerCase().includes(shippedSearchNorm)
       )
     : allShipped;
-  const deliveredOrders = orders.filter((o) => o.status === "delivered");
+  const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
   if (loading) {

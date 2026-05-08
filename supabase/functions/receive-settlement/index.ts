@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
       await admin.from("orders").update({
         settlement_received: received,
         settlement_received_at: ts,
+        status: received ? "settled" : "delivered",
       }).in("id", orderIds).eq("owner_id", ownerId);
     }
 
