@@ -69,6 +69,30 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
+    // Discover schema: query fields + relevant enums
+    const INTRO = `query {
+      queryType: __schema { queryType { fields { name args { name type { name kind ofType { name kind } } } } } }
+      paymentEnum: __type(name: "PaymentTypeCode") { enumValues { name } }
+    }`;
+    const introRes = await gql(INTRO);
+    const queryFields = (introRes?.data?.queryType?.queryType?.fields || [])
+      .map((f: any) => f.name);
+    const returnRelated = queryFields.filter((n: string) => /return|rtrn/i.test(n));
+    const paymentCodes = (introRes?.data?.paymentEnum?.enumValues || [])
+      .map((v: any) => v.name);
+
+    return new Response(JSON.stringify({
+      ok: true, count: 0,
+      message: "نظام شركة الشحن لا يوفر typeCode للمرتجعات. هذه الاستعلامات المتاحة المتعلقة بالمرتجعات",
+      returnRelatedQueries: returnRelated,
+      allPaymentTypeCodes: paymentCodes,
+      hint: "أرسل لنا اسم الاستعلام المناسب لجلب المرتجعات من قائمة returnRelatedQueries",
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // (unreachable - kept for when correct type code/query is identified)
+    // eslint-disable-next-line @typescript-eslint/no-unreachable-code
+    const returnTypeCode = "RTRN";
+
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
         paginatorInfo { hasMorePages currentPage }
@@ -87,7 +111,7 @@ Deno.serve(async (req) => {
     let page = 1;
     let lastErr: any = null;
     while (true) {
-      const res = await gql(LIST_QUERY, { input: { typeCode: "RTRN" }, first: 100, page });
+      const res = await gql(LIST_QUERY, { input: { typeCode: returnTypeCode }, first: 100, page });
       lastErr = res?.errors ?? null;
       const list = res?.data?.listPayments;
       if (!list) break;
@@ -127,7 +151,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      ok: true, count: rows.length, debug: lastErr,
+      ok: true, count: rows.length, typeCode: returnTypeCode, debug: lastErr,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
