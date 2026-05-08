@@ -8,7 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const FINANCIAL_ENDPOINT = "https://www.turboex.ly:8443/graphql";
+const FINANCIAL_ENDPOINT = "https://turboex.ly:8443/graphql";
 
 interface Body { settlement_id: string }
 
