@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ const baseMenuItems = [
   { icon: ShoppingCart, label: "الطلبيات", path: "/dashboard/orders", external: false, adminOnly: false, dynamicStore: false },
   { icon: Calculator, label: "الحسابات المالية", path: "/dashboard/financial", external: false, adminOnly: false, dynamicStore: false },
   { icon: Wallet, label: "استلام التسويات المالية", path: "/dashboard/settlements", external: false, adminOnly: false, dynamicStore: false },
+  { icon: Undo2, label: "استلام المرتجعات", path: "/dashboard/returns", external: false, adminOnly: false, dynamicStore: false },
   { icon: Crosshair, label: "إعدادات البيكسل", path: "/dashboard/pixel", external: false, adminOnly: false, dynamicStore: false },
   { icon: FileText, label: "نموذج الطلب", path: "/dashboard/order-form", external: false, adminOnly: false, dynamicStore: false },
   { icon: Heart, label: "صفحة الشكر", path: "/dashboard/thank-you", external: false, adminOnly: false, dynamicStore: false },
