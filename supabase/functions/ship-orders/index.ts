@@ -510,6 +510,13 @@ Deno.serve(async (req) => {
       }
 
       const hasWarehouseLink = !!(shipmentProducts && allLinesHaveWh);
+      const warehouseDescription = hasWarehouseLink
+        ? Array.from(new Set(
+            (shipmentProducts || [])
+              .map((sp) => whProductNameById.get(sp.productId))
+              .filter((n): n is string => !!n && n.trim().length > 0)
+          )).join(" - ")
+        : "";
       const input: Record<string, unknown> = {
         serviceId: defaultServiceId,
         recipientName: o.customer_name,
@@ -519,7 +526,7 @@ Deno.serve(async (req) => {
         recipientZoneId: zoneId,
         recipientSubzoneId: areaId,
         description: hasWarehouseLink
-          ? undefined
+          ? (warehouseDescription || undefined)
           : [
               o.product_name,
               o.selected_color ? `اللون: ${o.selected_color}` : null,
