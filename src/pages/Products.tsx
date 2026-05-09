@@ -597,21 +597,26 @@ const Products = () => {
         </Dialog>
       </div>
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog - Full page */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-          <DialogHeader>
+        <DialogContent
+          className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 translate-x-0 translate-y-0 left-0 top-0 border-0 flex flex-col"
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="px-4 sm:px-6 py-4 border-b shrink-0">
             <DialogTitle>تعديل المنتج</DialogTitle>
           </DialogHeader>
-          <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-            <ProductForm
-              product={editProduct}
-              onProductChange={setEditProduct}
-              onSubmit={handleEditProduct}
-              submitText="حفظ التعديلات"
-              isLoading={isSaving || isEditLoading}
-            />
-          </Suspense>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+            <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+              <ProductForm
+                product={editProduct}
+                onProductChange={setEditProduct}
+                onSubmit={handleEditProduct}
+                submitText="حفظ التعديلات"
+                isLoading={isSaving || isEditLoading}
+              />
+            </Suspense>
+          </div>
         </DialogContent>
       </Dialog>
 
