@@ -365,6 +365,43 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
       </div>
 
+      {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
+      <div className="border-t pt-6 mt-6 space-y-3">
+        <h3 className="text-lg font-semibold">المنتج الرئيسي في EasyOrders</h3>
+        <p className="text-sm text-muted-foreground">
+          اختر المنتج الرئيسي من EasyOrders. سيتم عرض متغيراته فقط في خيارات الربط أدناه.
+        </p>
+        <SearchableSelect
+          value={product.easyOrdersProductId || "__none__"}
+          onChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
+          placeholder="اختر منتج EasyOrders"
+          searchPlaceholder="ابحث بالاسم أو SKU..."
+          options={[
+            { value: "__none__", label: "— غير مرتبط —" },
+            ...eoProducts.map((p) => ({
+              value: p.external_id,
+              label: `${p.name || `#${p.external_id}`}${p.sku ? ` (${p.sku})` : ""}`,
+              keywords: `${p.name || ""} ${p.sku || ""}`,
+            })),
+          ]}
+        />
+        {eoProducts.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            لا توجد منتجات. اذهب إلى "حسابي" واضغط "مزامنة منتجات EasyOrders".
+          </p>
+        )}
+        {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => autoLinkEoVariants(true)}
+          >
+            ربط المتغيرات تلقائياً (استبدال)
+          </Button>
+        )}
+      </div>
+
       {/* Stock Management */}
       <div className="border-t pt-6 mt-6">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
@@ -495,42 +532,9 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         )}
       </div>
 
-      {/* EasyOrders linking */}
-      <div className="border-t pt-6 mt-6 space-y-3">
-        <h3 className="text-lg font-semibold">ربط بمنتج EasyOrders (اختياري)</h3>
-        <p className="text-sm text-muted-foreground">
-          عند استلام طلب من EasyOrders، يستخدم هذا الربط لتحديد المنتج المحلي ومتغيره تلقائياً.
-        </p>
-        <SearchableSelect
-          value={product.easyOrdersProductId || "__none__"}
-          onChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
-          placeholder="اختر منتج EasyOrders"
-          searchPlaceholder="ابحث بالاسم أو SKU..."
-          options={[
-            { value: "__none__", label: "— غير مرتبط —" },
-            ...eoProducts.map((p) => ({
-              value: p.external_id,
-              label: `${p.name || `#${p.external_id}`}${p.sku ? ` (${p.sku})` : ""}`,
-              keywords: `${p.name || ""} ${p.sku || ""}`,
-            })),
-          ]}
-        />
-        {eoProducts.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            لا توجد منتجات. اذهب إلى "حسابي" واضغط "مزامنة منتجات EasyOrders".
-          </p>
-        )}
-        {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => autoLinkEoVariants(true)}
-          >
-            ربط المتغيرات تلقائياً (استبدال)
-          </Button>
-        )}
-        {product.easyOrdersProductId && eoVariants.length > 0 && (
+      {/* قائمة متغيرات EasyOrders للمنتج المختار */}
+      {product.easyOrdersProductId && eoVariants.length > 0 && (
+        <div className="border-t pt-6 mt-6 space-y-3">
           <div className="border rounded-lg overflow-hidden">
             <div className="bg-muted/50 px-3 py-2 text-sm font-semibold">
               متغيرات EasyOrders ({eoVariants.length})
@@ -559,8 +563,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               })}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <Button onClick={onSubmit} className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
         {isLoading ? "جاري الحفظ..." : submitText}
