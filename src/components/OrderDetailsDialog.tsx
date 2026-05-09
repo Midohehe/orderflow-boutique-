@@ -402,6 +402,12 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                           <span className="font-mono text-foreground truncate" title={it.easyorders_product_id || ""}>{it.easyorders_product_id || "—"}</span>
                         </div>
                         <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">اسم المتغير:</span>
+                          <span className="font-medium text-foreground truncate">
+                            {[it.selected_color, it.selected_size, it.selected_product_code].filter(Boolean).join(" - ") || "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">معرف متغير ايزي اوردرز:</span>
                           <span className="font-mono text-foreground truncate" title={resolvedEoVar || ""}>{resolvedEoVar || "—"}</span>
                         </div>
