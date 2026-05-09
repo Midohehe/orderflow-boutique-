@@ -141,8 +141,16 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     for (const key of variantKeys) {
       if (!overwrite && next[key]) continue;
       const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
-      // 1) Strict: all parts match EO props with same arity
+      // 0) SKU exact match — highest priority. The key itself or any of its parts may equal v.sku
       let match = eoVariants.find((v) => {
+        if (!v.sku) return false;
+        if (!overwrite && used.has(v.id)) return false;
+        const sk = norm(v.sku);
+        if (norm(key) === sk) return true;
+        return parts.some((p) => norm(p) === sk);
+      });
+      // 1) Strict: all parts match EO props with same arity
+      if (!match) match = eoVariants.find((v) => {
         if (!overwrite && used.has(v.id)) return false;
         const vals: string[] = (v.props || []).map((p: any) => p?.variation_prop || "");
         if (vals.length !== parts.length) return false;
@@ -184,10 +192,12 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     for (const key of variantKeys) {
       if (!overwrite && next[key]) continue;
       const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
-      // 1) Exact code match (key itself is a SKU/code, or matches wh.code)
+      // 1) Exact code match — highest priority. Match key or any of its parts against wh.code
       let match = whProducts.find((w) => {
         if (!w.code) return false;
-        return norm(w.code) === norm(key);
+        const wc = norm(w.code);
+        if (norm(key) === wc) return true;
+        return parts.some((p) => norm(p) === wc);
       });
       // 2) Score: product name + all variant parts must appear in wh.name/code
       if (!match) {
@@ -403,24 +413,38 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-sm text-muted-foreground">
               أدخل عدد القطع المتوفرة لكل متغير. سيظهر هذا في صفحة المخزون.
             </p>
+            {/* Column headers (visible on md+) */}
+            <div className="hidden md:grid md:grid-cols-[1fr_6rem_16rem_18rem] gap-2 px-3 text-xs font-semibold text-muted-foreground">
+              <div>المتغير المحلي</div>
+              <div>الكمية</div>
+              <div>منتج المخزن (شركة الشحن)</div>
+              <div>متغير EasyOrders</div>
+            </div>
             <div className="grid grid-cols-1 gap-3">
               {variantKeys.map((key) => (
-                <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 border rounded-lg bg-muted/30">
-                  <Label className="flex-1 truncate">{key}</Label>
-                  <div className="flex items-center gap-2">
+                <div key={key} className="flex flex-col md:grid md:grid-cols-[1fr_6rem_16rem_18rem] md:items-start gap-2 p-3 border rounded-lg bg-muted/30">
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-muted-foreground md:hidden">المتغير المحلي</div>
+                    <Label className="block truncate">{key}</Label>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground md:hidden">الكمية</div>
                     <Input
                       type="number"
                       min="0"
                       value={product.variantStock[key] ?? ""}
                       onChange={(e) => updateVariantQty(key, e.target.value)}
                       placeholder="الكمية"
-                      className="w-24"
+                      className="w-full"
                     />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground md:hidden">منتج المخزن (شركة الشحن)</div>
                     <Select
                       value={product.variantWarehouseCodes?.[key] || "__none__"}
                       onValueChange={(v) => updateVariantWhCode(key, v === "__none__" ? "" : v)}
                     >
-                      <SelectTrigger className="w-56">
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="منتج المخزن (شركة الشحن)" />
                       </SelectTrigger>
                       <SelectContent>
@@ -432,13 +456,25 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                         ))}
                       </SelectContent>
                     </Select>
-                    {eoVariants.length > 0 && (
+                    {(() => {
+                      const id = product.variantWarehouseCodes?.[key];
+                      const w = id ? whProducts.find((x) => String(x.external_id) === String(id)) : null;
+                      return w ? (
+                        <div className="text-[10px] text-muted-foreground mt-1 truncate">
+                          {w.name || "—"}{w.code ? ` • SKU: ${w.code}` : ""}
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground md:hidden">متغير EasyOrders</div>
+                    {eoVariants.length > 0 ? (
                       <div className="flex flex-col gap-1">
                         <Select
                           value={product.variantEasyOrdersIds?.[key] || "__none__"}
                           onValueChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
                         >
-                          <SelectTrigger className="w-64">
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="متغير EasyOrders" />
                           </SelectTrigger>
                           <SelectContent>
@@ -450,14 +486,20 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                             ))}
                           </SelectContent>
                         </Select>
-                        {product.variantEasyOrdersIds?.[key] ? (
-                          <span className="text-[10px] text-muted-foreground font-mono" dir="ltr">
-                            ID: {product.variantEasyOrdersIds[key]}
-                          </span>
-                        ) : (
+                        {product.variantEasyOrdersIds?.[key] ? (() => {
+                          const id = product.variantEasyOrdersIds[key];
+                          const v = eoVariants.find((x) => x.id === id);
+                          return (
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              {v?.name || "—"}{v?.sku ? ` • SKU: ${v.sku}` : ""}
+                            </span>
+                          );
+                        })() : (
                           <span className="text-[10px] text-destructive">غير مرتبط بمتغير EasyOrders</span>
                         )}
                       </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">لا توجد متغيرات EasyOrders</span>
                     )}
                   </div>
                 </div>
