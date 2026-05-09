@@ -214,9 +214,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   // Auto-link warehouse products بعد توفر ربط EasyOrders + قائمة المخزن (المرحلة 2)
   useEffect(() => {
     if (!whProducts.length || !variantKeys.length) return;
-    const empty = variantKeys.every((k) => !product.variantWarehouseCodes?.[k]);
-    const hasEoLinks = variantKeys.some((k) => product.variantEasyOrdersIds?.[k]);
-    if (empty && hasEoLinks) autoLinkWarehouseVariants(false);
+    // ربط أي متغير فيه EO link لكنه بدون كود مخزن — لا نشترط أن تكون كل الخانات فارغة
+    const needsLink = variantKeys.some(
+      (k) => product.variantEasyOrdersIds?.[k] && !product.variantWarehouseCodes?.[k]
+    );
+    if (needsLink) autoLinkWarehouseVariants(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [whProducts.length, variantKeys.join("|"), JSON.stringify(product.variantEasyOrdersIds || {})]);
 
