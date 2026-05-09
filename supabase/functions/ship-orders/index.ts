@@ -185,18 +185,23 @@ Deno.serve(async (req) => {
     const whProducts: Array<{ id: number; name: string; code: string }> = meta?.data?.listProductsDropdown || [];
     // Map by warehouse code (e.g. "80753960") AND by id-as-string, to get internal id.
     const whProductByCode = new Map<string, number>();
+    const whProductNameById = new Map<number, string>();
     for (const p of whProducts) {
       if (p.code) whProductByCode.set(String(p.code).trim(), p.id);
       whProductByCode.set(String(p.id), p.id);
+      if (p.name) whProductNameById.set(p.id, String(p.name));
     }
     // Also merge from local synced table (fast lookup, owner-scoped)
     const { data: localWh } = await admin
       .from("shipping_warehouse_products")
-      .select("external_id, code")
+      .select("external_id, code, name")
       .eq("owner_id", userData.user.id);
     for (const p of localWh || []) {
       if (p.code) whProductByCode.set(String(p.code).trim(), p.external_id);
       whProductByCode.set(String(p.external_id), p.external_id);
+      if (p.name && !whProductNameById.has(p.external_id)) {
+        whProductNameById.set(p.external_id, String(p.name));
+      }
     }
 
     const defaultServiceId = services[0]?.id;
