@@ -109,22 +109,112 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     return false;
   };
 
+  // Tokenize a normalized string into search tokens
+  const tokenize = (s: string) => norm(s).split(/[\s\-_/،,()]+/).filter((t) => t && t.length > 0);
+
+  // Score how well a candidate text matches the target tokens (higher = better)
+  // - exact full match: huge bonus
+  // - each target token found as a token in candidate: +3
+  // - each target token found as substring: +1
+  const scoreMatch = (targetText: string, candidateText: string): number => {
+    const t = norm(targetText);
+    const c = norm(candidateText);
+    if (!t || !c) return 0;
+    if (t === c) return 100;
+    const tTokens = tokenize(targetText);
+    const cTokens = new Set(tokenize(candidateText));
+    let score = 0;
+    for (const tk of tTokens) {
+      if (cTokens.has(tk)) score += 3;
+      else if (c.includes(tk)) score += 1;
+    }
+    // small bonus if candidate contains the full target as substring
+    if (c.includes(t)) score += 2;
+    return score;
+  };
+
   const autoLinkEoVariants = (overwrite: boolean) => {
     if (!eoVariants.length || !variantKeys.length) return;
     const next: Record<string, string> = { ...(product.variantEasyOrdersIds || {}) };
     let linked = 0;
+    const used = new Set<string>(Object.values(next));
     for (const key of variantKeys) {
       if (!overwrite && next[key]) continue;
       const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
-      const match = eoVariants.find((v) => {
+      // 1) Strict: all parts match EO props with same arity
+      let match = eoVariants.find((v) => {
+        if (!overwrite && used.has(v.id)) return false;
         const vals: string[] = (v.props || []).map((p: any) => p?.variation_prop || "");
         if (vals.length !== parts.length) return false;
-        // every local part must match some EO value (token-aware)
         return parts.every((p) => vals.some((vv) => valueMatches(p, vv)));
       });
-      if (match) { next[key] = match.id; linked++; }
+      // 2) Loose: pick best-scoring EO variant whose name/sku/props contain all parts
+      if (!match) {
+        let bestScore = 0;
+        let best: typeof eoVariants[number] | undefined;
+        for (const v of eoVariants) {
+          if (!overwrite && used.has(v.id)) continue;
+          const haystack = [
+            v.name || "",
+            v.sku || "",
+            ...(v.props || []).map((p: any) => p?.variation_prop || ""),
+          ].join(" ");
+          // require all key parts to appear (token or substring) before scoring
+          const allFound = parts.every((p) => scoreMatch(p, haystack) > 0);
+          if (!allFound) continue;
+          const sc = scoreMatch(key, haystack);
+          if (sc > bestScore) { bestScore = sc; best = v; }
+        }
+        if (best && bestScore >= 3) match = best;
+      }
+      if (match) { next[key] = match.id; used.add(match.id); linked++; }
     }
     onProductChange({ ...product, variantEasyOrdersIds: next });
+    return linked;
+  };
+
+  // Smart auto-link for shipping warehouse products.
+  // Matches by: exact code in productCodes/key, OR product name + variant tokens against
+  // warehouse product name/code, picking the highest-scoring candidate.
+  const autoLinkWarehouseVariants = (overwrite: boolean) => {
+    if (!whProducts.length || !variantKeys.length) return 0;
+    const next: Record<string, string> = { ...(product.variantWarehouseCodes || {}) };
+    let linked = 0;
+    const productName = product.name || "";
+    for (const key of variantKeys) {
+      if (!overwrite && next[key]) continue;
+      const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
+      // 1) Exact code match (key itself is a SKU/code, or matches wh.code)
+      let match = whProducts.find((w) => {
+        if (!w.code) return false;
+        return norm(w.code) === norm(key);
+      });
+      // 2) Score: product name + all variant parts must appear in wh.name/code
+      if (!match) {
+        const target = [productName, ...parts].filter(Boolean).join(" ");
+        let bestScore = 0;
+        let best: typeof whProducts[number] | undefined;
+        for (const w of whProducts) {
+          const hay = [w.name || "", w.code || ""].join(" ");
+          if (!hay.trim()) continue;
+          // require every variant part to appear in candidate
+          const partsOk = parts.every((p) => scoreMatch(p, hay) > 0);
+          if (!partsOk) continue;
+          // also require product name token overlap (at least one strong token)
+          const nameTokens = tokenize(productName).filter((t) => t.length >= 2);
+          const nameHit = nameTokens.length === 0
+            ? true
+            : nameTokens.some((t) => tokenize(hay).includes(t) || norm(hay).includes(t));
+          if (!nameHit) continue;
+          const sc = scoreMatch(target, hay);
+          if (sc > bestScore) { bestScore = sc; best = w; }
+        }
+        // require a meaningful score (parts + at least some name overlap)
+        if (best && bestScore >= 3) match = best;
+      }
+      if (match) { next[key] = String(match.external_id); linked++; }
+    }
+    onProductChange({ ...product, variantWarehouseCodes: next });
     return linked;
   };
 
@@ -135,6 +225,14 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     if (empty) autoLinkEoVariants(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.easyOrdersProductId, eoProducts.length]);
+
+  // Auto-link warehouse products once they load, only filling empty mappings
+  useEffect(() => {
+    if (!whProducts.length || !variantKeys.length) return;
+    const empty = variantKeys.every((k) => !product.variantWarehouseCodes?.[k]);
+    if (empty) autoLinkWarehouseVariants(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whProducts.length, variantKeys.join("|"), product.name]);
 
   const updateVariantQty = (key: string, value: string) => {
     onProductChange({
