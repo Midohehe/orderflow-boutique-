@@ -504,6 +504,7 @@ Deno.serve(async (req) => {
         }
       }
 
+      const hasWarehouseLink = !!(shipmentProducts && allLinesHaveWh);
       const input: Record<string, unknown> = {
         serviceId: defaultServiceId,
         recipientName: o.customer_name,
@@ -512,12 +513,14 @@ Deno.serve(async (req) => {
         recipientAddress: (areaName || correctedRegion || o.address || correctedCity || o.city || "-"),
         recipientZoneId: zoneId,
         recipientSubzoneId: areaId,
-        description: [
-          o.product_name,
-          o.selected_color ? `اللون: ${o.selected_color}` : null,
-          o.selected_size ? `المقاس: ${o.selected_size}` : null,
-          o.selected_product_code ? `الكود: ${o.selected_product_code}` : null,
-        ].filter(Boolean).join(" - "),
+        description: hasWarehouseLink
+          ? undefined
+          : [
+              o.product_name,
+              o.selected_color ? `اللون: ${o.selected_color}` : null,
+              o.selected_size ? `المقاس: ${o.selected_size}` : null,
+              o.selected_product_code ? `الكود: ${o.selected_product_code}` : null,
+            ].filter(Boolean).join(" - "),
         typeCode: "FDP",
         priceTypeCode: body.shipping_included ? "INCLD" : "EXCLD",
         paymentTypeCode: "COLC",
