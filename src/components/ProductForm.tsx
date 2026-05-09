@@ -141,8 +141,16 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     for (const key of variantKeys) {
       if (!overwrite && next[key]) continue;
       const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
-      // 1) Strict: all parts match EO props with same arity
+      // 0) SKU exact match — highest priority. The key itself or any of its parts may equal v.sku
       let match = eoVariants.find((v) => {
+        if (!v.sku) return false;
+        if (!overwrite && used.has(v.id)) return false;
+        const sk = norm(v.sku);
+        if (norm(key) === sk) return true;
+        return parts.some((p) => norm(p) === sk);
+      });
+      // 1) Strict: all parts match EO props with same arity
+      if (!match) match = eoVariants.find((v) => {
         if (!overwrite && used.has(v.id)) return false;
         const vals: string[] = (v.props || []).map((p: any) => p?.variation_prop || "");
         if (vals.length !== parts.length) return false;
@@ -184,10 +192,12 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     for (const key of variantKeys) {
       if (!overwrite && next[key]) continue;
       const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
-      // 1) Exact code match (key itself is a SKU/code, or matches wh.code)
+      // 1) Exact code match — highest priority. Match key or any of its parts against wh.code
       let match = whProducts.find((w) => {
         if (!w.code) return false;
-        return norm(w.code) === norm(key);
+        const wc = norm(w.code);
+        if (norm(key) === wc) return true;
+        return parts.some((p) => norm(p) === wc);
       });
       // 2) Score: product name + all variant parts must appear in wh.name/code
       if (!match) {
