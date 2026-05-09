@@ -260,6 +260,21 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       payload.price = aggPrice;
       payload.quantity = aggQty;
     }
+    // Recompute link_error based on current items so the warning clears after a successful retry-link
+    const newLinkErrors: string[] = [];
+    for (const it of items) {
+      const prod = products.find((p) => p.id === it.product_id);
+      const key = `${it.selected_color || ""} - ${it.selected_size || ""}`;
+      const wh = prod?.variant_warehouse_codes?.[key] || it.warehouse_code || null;
+      const eoVar = prod?.variant_easyorders_ids?.[key] || it.easyorders_variant_id || null;
+      const name = it.product_name || "منتج";
+      if (!it.product_id) {
+        newLinkErrors.push(`المنتج "${name}" (EO: ${it.easyorders_product_id || "—"}) غير مرتبط بأي منتج محلي`);
+      } else if (eoVar && !wh) {
+        newLinkErrors.push(`متغير المنتج "${name}" (متغير EO: ${eoVar}) غير مرتبط بكود مخزن شركة الشحن`);
+      }
+    }
+    payload.link_error = newLinkErrors.length > 0 ? newLinkErrors.join(" | ") : null;
     const { error } = await supabase.from("orders").update(payload).eq("id", orderId);
     if (error) {
       setSaving(false);
