@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -415,22 +416,20 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                   </div>
                   <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">منتج المخزن (شركة الشحن)</div>
-                    <Select
+                    <SearchableSelect
                       value={product.variantWarehouseCodes?.[key] || "__none__"}
-                      onValueChange={(v) => updateVariantWhCode(key, v === "__none__" ? "" : v)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="منتج المخزن (شركة الشحن)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— بدون ربط (طلبية عادية) —</SelectItem>
-                        {whProducts.map((p) => (
-                          <SelectItem key={p.external_id} value={String(p.external_id)}>
-                            {p.name || `#${p.external_id}`}{p.code ? ` (${p.code})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => updateVariantWhCode(key, v === "__none__" ? "" : v)}
+                      placeholder="منتج المخزن (شركة الشحن)"
+                      searchPlaceholder="ابحث بالاسم أو SKU..."
+                      options={[
+                        { value: "__none__", label: "— بدون ربط (طلبية عادية) —" },
+                        ...whProducts.map((p) => ({
+                          value: String(p.external_id),
+                          label: `${p.name || `#${p.external_id}`}${p.code ? ` (${p.code})` : ""}`,
+                          keywords: `${p.name || ""} ${p.code || ""}`,
+                        })),
+                      ]}
+                    />
                     {(() => {
                       const id = product.variantWarehouseCodes?.[key];
                       const w = id ? whProducts.find((x) => String(x.external_id) === String(id)) : null;
@@ -445,22 +444,20 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                     <div className="text-[10px] text-muted-foreground md:hidden">متغير EasyOrders</div>
                     {eoVariants.length > 0 ? (
                       <div className="flex flex-col gap-1">
-                        <Select
+                        <SearchableSelect
                           value={product.variantEasyOrdersIds?.[key] || "__none__"}
-                          onValueChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="متغير EasyOrders" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— غير مرتبط —</SelectItem>
-                            {eoVariants.map((v) => (
-                              <SelectItem key={v.id} value={v.id}>
-                                {v.name || `#${v.id}`}{v.sku ? ` (${v.sku})` : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={(v) => updateVariantEoId(key, v === "__none__" ? "" : v)}
+                          placeholder="متغير EasyOrders"
+                          searchPlaceholder="ابحث بالاسم أو SKU..."
+                          options={[
+                            { value: "__none__", label: "— غير مرتبط —" },
+                            ...eoVariants.map((v) => ({
+                              value: v.id,
+                              label: `${v.name || `#${v.id}`}${v.sku ? ` (${v.sku})` : ""}`,
+                              keywords: `${v.name || ""} ${v.sku || ""}`,
+                            })),
+                          ]}
+                        />
                         {product.variantEasyOrdersIds?.[key] ? (() => {
                           const id = product.variantEasyOrdersIds[key];
                           const v = eoVariants.find((x) => x.id === id);
@@ -504,22 +501,20 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         <p className="text-sm text-muted-foreground">
           عند استلام طلب من EasyOrders، يستخدم هذا الربط لتحديد المنتج المحلي ومتغيره تلقائياً.
         </p>
-        <Select
+        <SearchableSelect
           value={product.easyOrdersProductId || "__none__"}
-          onValueChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="اختر منتج EasyOrders" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">— غير مرتبط —</SelectItem>
-            {eoProducts.map((p) => (
-              <SelectItem key={p.external_id} value={p.external_id}>
-                {p.name || `#${p.external_id}`}{p.sku ? ` (${p.sku})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
+          placeholder="اختر منتج EasyOrders"
+          searchPlaceholder="ابحث بالاسم أو SKU..."
+          options={[
+            { value: "__none__", label: "— غير مرتبط —" },
+            ...eoProducts.map((p) => ({
+              value: p.external_id,
+              label: `${p.name || `#${p.external_id}`}${p.sku ? ` (${p.sku})` : ""}`,
+              keywords: `${p.name || ""} ${p.sku || ""}`,
+            })),
+          ]}
+        />
         {eoProducts.length === 0 && (
           <p className="text-xs text-muted-foreground">
             لا توجد منتجات. اذهب إلى "حسابي" واضغط "مزامنة منتجات EasyOrders".
