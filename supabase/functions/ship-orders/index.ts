@@ -515,7 +515,7 @@ Deno.serve(async (req) => {
             (shipmentProducts || [])
               .map((sp) => whProductNameById.get(sp.productId))
               .filter((n): n is string => !!n && n.trim().length > 0)
-          )).join(" - ")
+          )).map((name, idx) => `${idx + 1}. ${name}`).join(" | ")
         : "";
       const input: Record<string, unknown> = {
         serviceId: defaultServiceId,
