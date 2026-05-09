@@ -555,8 +555,19 @@ const Orders = () => {
     );
   }
 
-  const renderOrderCard = (order: Order, showCheckbox: boolean = false) => (
-    <Card key={order.id} className="card-shadow animate-slide-up">
+  const normalizePhone = (p: string | null | undefined) => (p || "").replace(/\D/g, "");
+  const pendingPhoneCounts: Record<string, number> = {};
+  pendingOrders.forEach((o) => {
+    const k = normalizePhone(o.phone);
+    if (!k) return;
+    pendingPhoneCounts[k] = (pendingPhoneCounts[k] || 0) + 1;
+  });
+
+  const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => (
+    <Card
+      key={order.id}
+      className={`card-shadow animate-slide-up ${duplicateCount > 1 ? "border-2 border-destructive bg-destructive/5" : ""}`}
+    >
       <CardContent className="p-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -573,6 +584,11 @@ const Orders = () => {
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
                 </Badge>
+                {duplicateCount > 1 && (
+                  <Badge variant="destructive">
+                    رقم مكرر ×{duplicateCount}
+                  </Badge>
+                )}
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
