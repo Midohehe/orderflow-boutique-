@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -25,6 +25,7 @@ interface ProductLite {
   product_codes?: string[] | null;
   variant_warehouse_codes?: Record<string, string> | null;
   variant_easyorders_ids?: Record<string, string> | null;
+  easyorders_product_id?: string | null;
 }
 
 const TEXT_FIELDS: { key: string; label: string; type?: string; textarea?: boolean }[] = [
@@ -67,7 +68,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     setLoading(true);
     Promise.all([
       supabase.from("orders").select("*").eq("id", orderId).maybeSingle(),
-      supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids").order("name"),
+      supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id").order("name"),
       supabase.from("order_items").select("*").eq("order_id", orderId).order("created_at"),
     ]).then(([o, p, it]) => {
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
@@ -149,6 +150,83 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
 
   const removeItem = (idx: number) => {
     setItems((arr) => arr.filter((_, i) => i !== idx));
+  };
+
+  const retryLinking = () => {
+    let linkedProducts = 0;
+    let linkedWarehouse = 0;
+    let stillMissing = 0;
+    const next = items.map((it) => {
+      const updated: any = { ...it };
+      // 1) Link product by easyorders_product_id if not linked
+      if (!updated.product_id && updated.easyorders_product_id) {
+        const p = products.find((x) => x.easyorders_product_id === updated.easyorders_product_id);
+        if (p) {
+          updated.product_id = p.id;
+          if (!updated.product_name) updated.product_name = p.name;
+          if (!updated.price) updated.price = Number(p.price) || 0;
+          linkedProducts++;
+        }
+      }
+      // 2) Resolve variant + warehouse code
+      const prod = products.find((x) => x.id === updated.product_id);
+      if (prod) {
+        const eoMap = (prod.variant_easyorders_ids || {}) as Record<string, string>;
+        const whMap = (prod.variant_warehouse_codes || {}) as Record<string, string>;
+        let variantKey: string | null = null;
+        // Match by EO variant id
+        if (updated.easyorders_variant_id) {
+          for (const [k, v] of Object.entries(eoMap)) {
+            if (String(v) === String(updated.easyorders_variant_id)) { variantKey = k; break; }
+          }
+        }
+        // Match by color/size
+        if (!variantKey) {
+          const candidates = [
+            [updated.selected_color, updated.selected_size].filter(Boolean).join(" - "),
+            updated.selected_color || "",
+            updated.selected_size || "",
+            updated.selected_product_code || "",
+          ].filter(Boolean) as string[];
+          for (const k of candidates) if (whMap[k] || eoMap[k]) { variantKey = k; break; }
+        }
+        if (variantKey) {
+          const parts = variantKey.split(" - ").map((x) => x.trim());
+          const colors = prod.colors || [];
+          const sizes = prod.sizes || [];
+          const codes = prod.product_codes || [];
+          for (const part of parts) {
+            if (colors.includes(part)) updated.selected_color = part;
+            else if (sizes.includes(part)) updated.selected_size = part;
+            else if (codes.includes(part)) updated.selected_product_code = part;
+          }
+          if (whMap[variantKey] && !updated.warehouse_code) {
+            updated.warehouse_code = whMap[variantKey];
+            linkedWarehouse++;
+          }
+          if (eoMap[variantKey] && !updated.easyorders_variant_id) {
+            updated.easyorders_variant_id = eoMap[variantKey];
+          }
+        }
+      }
+      if (!updated.product_id || !updated.warehouse_code) stillMissing++;
+      return updated;
+    });
+    setItems(next);
+    if (linkedProducts === 0 && linkedWarehouse === 0) {
+      toast({
+        title: "لم يتم العثور على روابط جديدة",
+        description: stillMissing > 0
+          ? "تأكد من ربط المنتج المحلي مع منتج EasyOrders ومتغيراته أولاً، ثم أعد المحاولة."
+          : "كل المنتجات مربوطة بالفعل.",
+        variant: stillMissing > 0 ? "destructive" : "default",
+      });
+    } else {
+      toast({
+        title: "تم تحديث الربط",
+        description: `تم ربط ${linkedProducts} منتج و ${linkedWarehouse} كود مخزن. اضغط "حفظ التعديلات" للحفظ.`,
+      });
+    }
   };
 
   const save = async () => {
@@ -273,9 +351,14 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
             <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
-                <Button type="button" size="sm" variant="outline" onClick={addItem}>
-                  <Plus className="w-4 h-4 ml-1" /> إضافة منتج
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={retryLinking} title="يحاول ربط المنتجات والمتغيرات بناءً على معرفات EasyOrders">
+                    <Link2 className="w-4 h-4 ml-1" /> إعادة محاولة الربط
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={addItem}>
+                    <Plus className="w-4 h-4 ml-1" /> إضافة منتج
+                  </Button>
+                </div>
               </div>
               <div className="space-y-3">
                 {items.map((it, idx) => {
