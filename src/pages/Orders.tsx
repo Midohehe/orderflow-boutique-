@@ -905,7 +905,7 @@ const Orders = () => {
             )
           ) : (
             <div className="space-y-4">
-              {pendingOrders.map((order) => renderOrderCard(order, true))}
+              {pendingOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
             </div>
           )}
         </TabsContent>
