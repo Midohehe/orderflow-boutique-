@@ -80,6 +80,8 @@ const Orders = () => {
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
+  const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
+  const [pendingDateTo, setPendingDateTo] = useState<string>("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
@@ -520,9 +522,20 @@ const Orders = () => {
 
   const productNames = Array.from(new Set(orders.map((o) => o.product_name).filter(Boolean)));
   const allPending = orders.filter((o) => o.status === "pending");
-  const pendingOrders = allPending.filter((o) =>
-    productFilter === "all" ? true : o.product_name === productFilter
-  );
+  const pendingOrders = allPending.filter((o) => {
+    if (productFilter !== "all" && o.product_name !== productFilter) return false;
+    if (pendingDateFrom) {
+      const from = new Date(pendingDateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(o.created_at) < from) return false;
+    }
+    if (pendingDateTo) {
+      const to = new Date(pendingDateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(o.created_at) > to) return false;
+    }
+    return true;
+  });
   const allShipped = orders.filter((o) => o.status === "shipped");
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
   const shippedOrders = shippedSearchNorm
@@ -788,6 +801,35 @@ const Orders = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">من:</span>
+                        <Input
+                          type="date"
+                          value={pendingDateFrom}
+                          onChange={(e) => { setPendingDateFrom(e.target.value); setSelectedOrders([]); }}
+                          className="w-full sm:w-40"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">إلى:</span>
+                        <Input
+                          type="date"
+                          value={pendingDateTo}
+                          onChange={(e) => { setPendingDateTo(e.target.value); setSelectedOrders([]); }}
+                          className="w-full sm:w-40"
+                        />
+                      </div>
+                      {(pendingDateFrom || pendingDateTo) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setPendingDateFrom(""); setPendingDateTo(""); }}
+                        >
+                          مسح
+                        </Button>
+                      )}
+                    </div>
                     <Select value={shippingMode} onValueChange={(v) => setShippingMode(v as any)}>
                       <SelectTrigger className="w-full sm:w-44">
                         <SelectValue placeholder="نوع الشحن" />
