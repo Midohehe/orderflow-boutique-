@@ -17,7 +17,8 @@ interface EoVariant {
   sku?: string | null;
   price?: number | null;
   stock?: number | null;
-  props?: Array<{ variation_name?: string; variation_prop?: string }> | null;
+  variation_props?: Array<{ variation?: string; variation_name?: string; variation_prop?: string }> | null;
+  props?: Array<{ variation?: string; variation_name?: string; variation_prop?: string }> | null;
   [k: string]: any;
 }
 
@@ -61,6 +62,19 @@ const EasyOrdersProducts = () => {
         return hay.includes(q);
       })
     : products;
+
+  // اسم المتغير المعروض: إن كان name = sku فابنِه من خصائص الفروقات (لون - مقاس...)
+  const variantDisplayName = (v: EoVariant): string => {
+    const props = v.variation_props || v.props || [];
+    const fromProps = Array.isArray(props)
+      ? props.map((p) => p?.variation_prop).filter(Boolean).join(" - ")
+      : "";
+    const name = (v.name || "").trim();
+    const sku = (v.sku || "").trim();
+    if (name && name !== sku) return name;
+    if (fromProps) return fromProps;
+    return name || "—";
+  };
 
   if (loading) {
     return (
@@ -147,20 +161,23 @@ const EasyOrdersProducts = () => {
                             <TableBody>
                               {variants.map((v, i) => (
                                 <TableRow key={v.id || i}>
-                                  <TableCell>{v.name || "—"}</TableCell>
+                                  <TableCell>{variantDisplayName(v)}</TableCell>
                                   <TableCell className="font-mono text-xs">{v.sku || "—"}</TableCell>
                                   <TableCell>
-                                    {Array.isArray(v.props) && v.props.length > 0 ? (
+                                    {(() => {
+                                      const props = v.variation_props || v.props || [];
+                                      return Array.isArray(props) && props.length > 0 ? (
                                       <div className="flex flex-wrap gap-1">
-                                        {v.props.map((pr, idx) => (
+                                        {props.map((pr: any, idx: number) => (
                                           <Badge key={idx} variant="outline" className="text-xs">
-                                            {pr.variation_name}: {pr.variation_prop}
+                                            {(pr.variation || pr.variation_name) ?? ""}: {pr.variation_prop}
                                           </Badge>
                                         ))}
                                       </div>
                                     ) : (
                                       "—"
-                                    )}
+                                      );
+                                    })()}
                                   </TableCell>
                                   <TableCell>{v.price ?? "—"}</TableCell>
                                   <TableCell>{v.stock ?? "—"}</TableCell>
