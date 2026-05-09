@@ -69,12 +69,28 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // Turbo's GraphQL only exposes CUSTM (customer settlements) and DLVBY
-    // (delivery boy) as PaymentTypeCode values. Returns are not a separate
-    // payment list — they appear as RTRN-status shipments inside CUSTM
-    // payments. For the "returns receipt" workflow we list the same CUSTM
-    // payments here, but the shipment sync will keep only returned shipments.
-    const returnTypeCode = "CUSTM";
+    // Discover available payment type codes to find the returns one.
+    const typesRes = await gql(
+      `query { listPaymentTypesDropdown { id code name } }`,
+    );
+    const types: Array<{ id: string; code: string; name: string }> =
+      typesRes?.data?.listPaymentTypesDropdown ?? [];
+    // Pick the one that looks like returns (RTRN / RETN / مرتجع / راجع / إرجاع)
+    const isReturnType = (t: { code?: string; name?: string }) => {
+      const c = (t.code || "").toUpperCase();
+      const n = (t.name || "").toLowerCase();
+      if (/RTRN|RETN|RETURN|RTN/.test(c)) return true;
+      if (/مرتجع|راجع|إرجاع|ارجاع/.test(n)) return true;
+      return false;
+    };
+    const returnType = types.find(isReturnType);
+    if (!returnType) {
+      return new Response(JSON.stringify({
+        error: "لا يوجد نوع قائمة مرتجعات في شركة الشحن",
+        availableTypes: types,
+      }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const returnTypeCode = returnType.code;
 
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
