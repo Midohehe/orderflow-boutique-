@@ -69,11 +69,9 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // Turbo's GraphQL only exposes CUSTM (customer settlements) and DLVBY
-    // (delivery boy) as PaymentTypeCode values. Returns are not a separate
-    // payment list — they appear as RTRN-status shipments inside CUSTM
-    // payments. For the "returns receipt" workflow we list the same CUSTM
-    // payments here, but the shipment sync will keep only returned shipments.
+    // NOTE: The shipping company's GraphQL API does not expose returns as
+    // standalone "payment lists" — PaymentTypeCode only has CUSTM and DLVBY.
+    // Returns are individual shipments with RTRN status, fetched separately.
     const returnTypeCode = "CUSTM";
 
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
