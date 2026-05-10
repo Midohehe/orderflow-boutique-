@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, UserCircle, Webhook, Copy, RefreshCw } from "lucide-react";
@@ -46,25 +47,39 @@ const AccountSettings = () => {
   };
 
   const syncOrder = async () => {
-    const id = syncOrderId.trim();
-    if (!id) {
-      toast({ title: "أدخل رقم الطلب", variant: "destructive" });
+  const ids = Array.from(new Set(
+      syncOrderId.split(/[\s,;\n]+/).map((s) => s.trim()).filter(Boolean)
+    ));
+    if (ids.length === 0) {
+      toast({ title: "أدخل رقم طلب واحد على الأقل", variant: "destructive" });
       return;
     }
     setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("sync-easyorder", {
-        body: { order_id: id },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error + (((data as any).details) ? ": " + (data as any).details : ""));
-      toast({ title: "تمت المزامنة", description: "تمت إضافة الطلب بنجاح" });
-      setSyncOrderId("");
-    } catch (e: any) {
-      toast({ title: "فشلت المزامنة", description: e.message, variant: "destructive" });
-    } finally {
-      setSyncing(false);
+    let success = 0;
+    const failures: { id: string; msg: string }[] = [];
+    for (const id of ids) {
+      try {
+        const { data, error } = await supabase.functions.invoke("sync-easyorder", {
+          body: { order_id: id },
+        });
+        if (error) throw error;
+        if ((data as any)?.error) throw new Error((data as any).error + (((data as any).details) ? ": " + (data as any).details : ""));
+        success++;
+      } catch (e: any) {
+        failures.push({ id, msg: e.message || "خطأ" });
+      }
     }
+    if (failures.length === 0) {
+      toast({ title: "تمت المزامنة", description: `تم جلب ${success} طلب بنجاح` });
+      setSyncOrderId("");
+    } else {
+      toast({
+        title: `نجح ${success} / فشل ${failures.length}`,
+        description: failures.slice(0, 5).map((f) => `${f.id}: ${f.msg}`).join("\n"),
+        variant: "destructive",
+      });
+    }
+    setSyncing(false);
   };
 
   useEffect(() => {
@@ -264,22 +279,23 @@ const AccountSettings = () => {
           </div>
 
           <div className="space-y-2 pt-4 border-t">
-            <Label>مزامنة طلب يدوياً (Order ID)</Label>
-            <div className="flex gap-2">
-              <Input
-                dir="ltr"
-                value={syncOrderId}
-                onChange={(e) => setSyncOrderId(e.target.value)}
-                placeholder="2692e31f-27f6-472d-b4cd-c0c1c168511c"
-              />
+            <Label>مزامنة طلبات يدوياً (Order IDs)</Label>
+            <Textarea
+              dir="ltr"
+              value={syncOrderId}
+              onChange={(e) => setSyncOrderId(e.target.value)}
+              placeholder={"2692e31f-27f6-472d-b4cd-c0c1c168511c\nc0c1c168-...\n..."}
+              rows={4}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                أدخل رقم طلب أو عدة أرقام (مفصولة بمسافة، فاصلة، أو سطر جديد).
+              </p>
               <Button onClick={syncOrder} disabled={syncing || !easyOrdersKey}>
                 {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 <span className="mr-2">جلب</span>
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              أدخل رقم الطلب من EasyOrders لجلبه وإضافته إلى طلباتك.
-            </p>
           </div>
 
           <div className="space-y-2 pt-4 border-t">
