@@ -31,6 +31,7 @@ interface Order {
   address: string;
   city: string;
   product_name: string;
+  product_id?: string | null;
   price: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received";
   created_at: string;
@@ -71,6 +72,7 @@ const statusColors: Record<Order["status"], string> = {
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [productsMap, setProductsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState<Order["status"] | "">("");
@@ -150,7 +152,7 @@ const Orders = () => {
           quantity: 1,
           status: "pending",
         })
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
+        .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
         .maybeSingle();
       if (error) throw error;
       if (data) {
@@ -255,17 +257,23 @@ const Orders = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ordersRes, currencyRes, mapRes] = await Promise.all([
+        const [ordersRes, currencyRes, mapRes, productsRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
+            .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color"),
+          supabase.from("products").select("id, name"),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
         setOrders((ordersRes.data || []) as Order[]);
+        if (productsRes.data) {
+          const pm: Record<string, string> = {};
+          (productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
+          setProductsMap(pm);
+        }
         if (currencyRes.data) setCurrencySymbol(currencyRes.data.currency_symbol);
         if (mapRes.data) {
           const m: Record<string, string> = {};
@@ -308,7 +316,7 @@ const Orders = () => {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, customer_name, phone, address, city, product_name, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
+        .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -520,10 +528,14 @@ const Orders = () => {
     });
   };
 
-  const productNames = Array.from(new Set(orders.map((o) => o.product_name).filter(Boolean)));
+  const displayProductName = (o: Order): string =>
+    (o.product_id && productsMap[o.product_id]) || o.product_name || "";
+  const productNames = Array.from(
+    new Set(orders.map(displayProductName).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, "ar"));
   const allPending = orders.filter((o) => o.status === "pending");
   const pendingOrders = allPending.filter((o) => {
-    if (productFilter !== "all" && o.product_name !== productFilter) return false;
+    if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
     if (pendingDateFrom) {
       const from = new Date(pendingDateFrom);
       from.setHours(0, 0, 0, 0);
