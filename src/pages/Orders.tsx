@@ -561,12 +561,39 @@ const Orders = () => {
   });
   const allShipped = orders.filter((o) => o.status === "shipped");
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
-  const shippedOrders = shippedSearchNorm
-    ? allShipped.filter((o) =>
+  const shippedCarrierOptions = (() => {
+    const map = new Map<string, string>();
+    let hasNone = false;
+    for (const o of allShipped) {
+      const code = extractStatusCode(o);
+      if (code) {
+        if (!map.has(code)) map.set(code, statusMap[code] || displayCarrierStatus(o));
+      } else {
+        hasNone = true;
+      }
+    }
+    const opts = Array.from(map.entries()).map(([code, label]) => ({ code, label }));
+    opts.sort((a, b) => a.label.localeCompare(b.label, "ar"));
+    if (hasNone) opts.push({ code: "__none__", label: "بدون حالة" });
+    return opts;
+  })();
+  const shippedOrders = allShipped.filter((o) => {
+    if (shippedSearchNorm) {
+      const matches =
         (o.shipping_reference || "").toLowerCase().includes(shippedSearchNorm) ||
-        (o.phone || "").toLowerCase().includes(shippedSearchNorm)
-      )
-    : allShipped;
+        (o.phone || "").toLowerCase().includes(shippedSearchNorm);
+      if (!matches) return false;
+    }
+    if (shippedCarrierFilter !== "all") {
+      const code = extractStatusCode(o);
+      if (shippedCarrierFilter === "__none__") {
+        if (code) return false;
+      } else if (code !== shippedCarrierFilter) {
+        return false;
+      }
+    }
+    return true;
+  });
   const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
