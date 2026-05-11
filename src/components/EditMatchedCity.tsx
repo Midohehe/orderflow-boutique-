@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Props {
   orderId: string;
@@ -19,6 +19,30 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
   const [c, setC] = useState(city || "");
   const [a, setA] = useState(area || "");
   const [saving, setSaving] = useState(false);
+  const [zones, setZones] = useState<Array<{ external_id: number; name: string }>>([]);
+  const [areas, setAreas] = useState<Array<{ external_id: number; parent_external_id: number | null; name: string }>>([]);
+  const [loadingZones, setLoadingZones] = useState(false);
+
+  useEffect(() => {
+    if (!editing || zones.length > 0) return;
+    setLoadingZones(true);
+    (async () => {
+      const { data, error } = await supabase
+        .from("shipping_zones")
+        .select("external_id,parent_external_id,name,kind")
+        .order("name");
+      if (!error && data) {
+        setZones(data.filter((r: any) => r.kind === "zone"));
+        setAreas(data.filter((r: any) => r.kind === "area"));
+      }
+      setLoadingZones(false);
+    })();
+  }, [editing]);
+
+  const selectedZone = zones.find((z) => z.name === c);
+  const filteredAreas = selectedZone
+    ? areas.filter((ar) => ar.parent_external_id === selectedZone.external_id)
+    : [];
 
   const save = async () => {
     const newCity = c.trim();
@@ -72,8 +96,26 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
 
   return (
     <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded px-2 py-1">
-      <Input value={c} onChange={(e) => setC(e.target.value)} placeholder="المدينة" className="h-8 w-32 text-xs" />
-      <Input value={a} onChange={(e) => setA(e.target.value)} placeholder="المنطقة" className="h-8 w-32 text-xs" />
+      <Select value={c} onValueChange={(v) => { setC(v); setA(""); }} disabled={loadingZones}>
+        <SelectTrigger className="h-8 w-40 text-xs">
+          <SelectValue placeholder={loadingZones ? "جاري التحميل..." : "المدينة"} />
+        </SelectTrigger>
+        <SelectContent>
+          {zones.map((z) => (
+            <SelectItem key={z.external_id} value={z.name}>{z.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={a} onValueChange={setA} disabled={!selectedZone || filteredAreas.length === 0}>
+        <SelectTrigger className="h-8 w-40 text-xs">
+          <SelectValue placeholder={!selectedZone ? "اختر المدينة أولاً" : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة")} />
+        </SelectTrigger>
+        <SelectContent>
+          {filteredAreas.map((ar) => (
+            <SelectItem key={ar.external_id} value={ar.name}>{ar.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button size="icon" className="h-7 w-7" onClick={save} disabled={saving}>
         <Check className="w-3 h-3" />
       </Button>
