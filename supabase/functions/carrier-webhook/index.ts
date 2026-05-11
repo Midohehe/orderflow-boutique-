@@ -206,6 +206,9 @@ Deno.serve(async (req) => {
     };
     if (cancellationReasonId !== null) updatePayload.carrier_cancellation_reason_id = cancellationReasonId;
     if (notes !== null) updatePayload.carrier_notes = notes;
+    if (status === "UPKBD" || status === "UPKBL") {
+      updatePayload.status = "unpacked";
+    }
 
     let q = supabase
       .from("orders")

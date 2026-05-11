@@ -182,6 +182,9 @@ Deno.serve(async (req) => {
       if (sh.notes != null && String(sh.notes).trim() !== "") {
         updatePayload.carrier_notes = String(sh.notes);
       }
+      if (composite === "UPKBD" || composite === "UPKBL") {
+        updatePayload.status = "unpacked";
+      }
       const { error: uErr } = await admin
         .from("orders").update(updatePayload).eq("id", o.id);
       if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); }
