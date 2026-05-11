@@ -83,6 +83,7 @@ const Orders = () => {
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
+  const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -560,12 +561,39 @@ const Orders = () => {
   });
   const allShipped = orders.filter((o) => o.status === "shipped");
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
-  const shippedOrders = shippedSearchNorm
-    ? allShipped.filter((o) =>
+  const shippedCarrierOptions = (() => {
+    const map = new Map<string, string>();
+    let hasNone = false;
+    for (const o of allShipped) {
+      const code = extractStatusCode(o);
+      if (code) {
+        if (!map.has(code)) map.set(code, statusMap[code] || displayCarrierStatus(o));
+      } else {
+        hasNone = true;
+      }
+    }
+    const opts = Array.from(map.entries()).map(([code, label]) => ({ code, label }));
+    opts.sort((a, b) => a.label.localeCompare(b.label, "ar"));
+    if (hasNone) opts.push({ code: "__none__", label: "بدون حالة" });
+    return opts;
+  })();
+  const shippedOrders = allShipped.filter((o) => {
+    if (shippedSearchNorm) {
+      const matches =
         (o.shipping_reference || "").toLowerCase().includes(shippedSearchNorm) ||
-        (o.phone || "").toLowerCase().includes(shippedSearchNorm)
-      )
-    : allShipped;
+        (o.phone || "").toLowerCase().includes(shippedSearchNorm);
+      if (!matches) return false;
+    }
+    if (shippedCarrierFilter !== "all") {
+      const code = extractStatusCode(o);
+      if (shippedCarrierFilter === "__none__") {
+        if (code) return false;
+      } else if (code !== shippedCarrierFilter) {
+        return false;
+      }
+    }
+    return true;
+  });
   const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
@@ -937,14 +965,35 @@ const Orders = () => {
         <TabsContent value="shipped" className="space-y-4">
           <Card className="card-shadow">
             <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={shippedSearch}
-                  onChange={(e) => setShippedSearch(e.target.value)}
-                  placeholder="ابحث بكود الشحن أو رقم الهاتف"
-                  className="pr-10"
-                />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={shippedSearch}
+                    onChange={(e) => setShippedSearch(e.target.value)}
+                    placeholder="ابحث بكود الشحن أو رقم الهاتف"
+                    className="pr-10"
+                  />
+                </div>
+                <Select value={shippedCarrierFilter} onValueChange={setShippedCarrierFilter}>
+                  <SelectTrigger className="sm:w-64">
+                    <SelectValue placeholder="فلترة حسب حالة الشحن" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات ({allShipped.length})</SelectItem>
+                    {shippedCarrierOptions.map((opt) => {
+                      const count = allShipped.filter((o) => {
+                        const c = extractStatusCode(o);
+                        return opt.code === "__none__" ? !c : c === opt.code;
+                      }).length;
+                      return (
+                        <SelectItem key={opt.code} value={opt.code}>
+                          {opt.label} ({count})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
