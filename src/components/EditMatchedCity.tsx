@@ -19,30 +19,39 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
   const [c, setC] = useState(city || "");
   const [a, setA] = useState(area || "");
   const [saving, setSaving] = useState(false);
-  const [zones, setZones] = useState<Array<{ external_id: number; name: string }>>([]);
-  const [areas, setAreas] = useState<Array<{ external_id: number; parent_external_id: number | null; name: string }>>([]);
+  const [zones, setZones] = useState<Array<{ id: number; name: string }>>([]);
+  const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
+  const [loadingAreas, setLoadingAreas] = useState(false);
+
+  const selectedZone = zones.find((z) => z.name === c);
+  const filteredAreas = selectedZone ? (areasMap[selectedZone.id] || []) : [];
 
   useEffect(() => {
     if (!editing || zones.length > 0) return;
     setLoadingZones(true);
     (async () => {
-      const { data, error } = await supabase
-        .from("shipping_zones")
-        .select("external_id,parent_external_id,name,kind")
-        .order("name");
-      if (!error && data) {
-        setZones(data.filter((r: any) => r.kind === "zone"));
-        setAreas(data.filter((r: any) => r.kind === "area"));
+      const { data, error } = await supabase.functions.invoke("list-shipping-dropdown", { body: {} });
+      if (error || (data as any)?.error) {
+        toast({ title: "تعذر جلب المدن", description: (data as any)?.error || error?.message, variant: "destructive" });
+      } else {
+        setZones(((data as any)?.zones || []).sort((a: any, b: any) => a.name.localeCompare(b.name, "ar")));
       }
       setLoadingZones(false);
     })();
   }, [editing]);
 
-  const selectedZone = zones.find((z) => z.name === c);
-  const filteredAreas = selectedZone
-    ? areas.filter((ar) => ar.parent_external_id === selectedZone.external_id)
-    : [];
+  useEffect(() => {
+    if (!editing || !selectedZone || areasMap[selectedZone.id]) return;
+    setLoadingAreas(true);
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id } });
+      if (!error && !(data as any)?.error) {
+        setAreasMap((prev) => ({ ...prev, [selectedZone.id]: (data as any)?.areas || [] }));
+      }
+      setLoadingAreas(false);
+    })();
+  }, [editing, selectedZone?.id]);
 
   const save = async () => {
     const newCity = c.trim();
@@ -106,13 +115,13 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
           ))}
         </SelectContent>
       </Select>
-      <Select value={a} onValueChange={setA} disabled={!selectedZone || filteredAreas.length === 0}>
+      <Select value={a} onValueChange={setA} disabled={!selectedZone || loadingAreas || filteredAreas.length === 0}>
         <SelectTrigger className="h-8 w-40 text-xs">
-          <SelectValue placeholder={!selectedZone ? "اختر المدينة أولاً" : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة")} />
+          <SelectValue placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة"))} />
         </SelectTrigger>
         <SelectContent>
           {filteredAreas.map((ar) => (
-            <SelectItem key={ar.external_id} value={ar.name}>{ar.name}</SelectItem>
+            <SelectItem key={ar.id} value={ar.name}>{ar.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>
