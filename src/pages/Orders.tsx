@@ -1024,7 +1024,50 @@ const Orders = () => {
                     })}
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSyncCarrierStatuses}
+                  disabled={syncingCarrier}
+                  className="gap-2"
+                >
+                  {syncingCarrier ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  مزامنة حالات الشحن
+                </Button>
               </div>
+              {carrierSyncResult && (
+                <div className="mt-4 border-t pt-4 space-y-2">
+                  <div className="text-sm text-muted-foreground">
+                    تم فحص {carrierSyncResult.total} طلب — تحديث {carrierSyncResult.updated} — فشل {carrierSyncResult.failed}
+                  </div>
+                  {carrierSyncResult.codes.length === 0 ? (
+                    <div className="text-sm">لم يتم استرجاع أي حالات.</div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">الأكواد المسترجعة من شركة الشحن:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {carrierSyncResult.codes.map((c) => (
+                          <Badge
+                            key={c.code}
+                            variant={c.mapped ? "default" : "secondary"}
+                            className="text-xs"
+                            title={c.label}
+                          >
+                            <span className="font-mono">{c.code}</span>
+                            <span className="mx-1">·</span>
+                            <span>{c.label}</span>
+                            <span className="mx-1">·</span>
+                            <span>{c.count}</span>
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-2">
+                        الأكواد بلون أزرق فاتح ليس لها تسمية مخصصة — يمكنك إضافتها من إعدادات شركة الشحن.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
           {shippedOrders.length === 0 ? (
