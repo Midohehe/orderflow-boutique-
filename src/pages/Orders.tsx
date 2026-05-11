@@ -1184,6 +1184,20 @@ const Orders = () => {
         </TabsContent>
 
         <TabsContent value="cancelled" className="space-y-4">
+        </TabsContent>
+        <TabsContent value="unpacked" className="space-y-4">
+          {unpackedOrders.length === 0 ? (
+            renderEmptyState(
+              <PackageOpen className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد طلبات تم تفريغها"
+            )
+          ) : (
+            <div className="space-y-4">
+              {unpackedOrders.map((order) => renderOrderCard(order))}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="cancelled-real" className="space-y-4">
           {cancelledOrders.length === 0 ? (
             renderEmptyState(
               <XCircle className="w-16 h-16 text-muted-foreground mb-4" />,
