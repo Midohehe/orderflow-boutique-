@@ -179,6 +179,28 @@ const EasyOrdersProducts = () => {
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">منتجات ايزي اوردرز</h1>
+          <p className="text-sm text-muted-foreground">
+            عرض المنتجات والمتغيرات المجلوبة من EasyOrders
+          </p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="ابحث بالاسم أو SKU..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-9"
+          />
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
@@ -252,28 +274,6 @@ const EasyOrdersProducts = () => {
           )}
         </CardContent>
       </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">منتجات ايزي اوردرز</h1>
-          <p className="text-sm text-muted-foreground">
-            عرض المنتجات والمتغيرات المجلوبة من EasyOrders
-          </p>
-        </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="ابحث بالاسم أو SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pr-9"
-          />
-        </div>
-      </div>
 
       {filtered.length === 0 ? (
         <Card>
