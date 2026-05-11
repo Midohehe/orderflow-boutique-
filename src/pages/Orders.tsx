@@ -716,6 +716,22 @@ const Orders = () => {
                   </Badge>
                 )}
               </div>
+              {(order.carrier_cancellation_reason_id || order.carrier_notes) && (
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
+                  {order.carrier_cancellation_reason_id && (
+                    <div>
+                      <span className="font-bold ml-1">سبب الإلغاء:</span>
+                      <span className="text-foreground/80">{order.carrier_cancellation_reason_id}</span>
+                    </div>
+                  )}
+                  {order.carrier_notes && (
+                    <div>
+                      <span className="font-bold ml-1">ملاحظات شركة الشحن:</span>
+                      <span className="text-foreground/80 whitespace-pre-wrap">{order.carrier_notes}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {order.link_error && (
                 <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
                   <span className="font-bold ml-1">⚠ تعذر الربط التلقائي:</span>
