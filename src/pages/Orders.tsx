@@ -118,8 +118,24 @@ const Orders = () => {
   const extractStatusCode = (order: Order): string | null => {
     const raw = order.carrier_status_raw;
     if (raw && typeof raw === "object") {
-      const c = raw.shipmentStatusCode ?? raw.shipment_status_code ?? raw.status;
-      if (c !== undefined && c !== null && c !== "") return String(c).trim();
+      // Base status code can come from webhook payload (shipmentStatusCode)
+      // or from sync-carrier-statuses (status.code)
+      let base: any = raw.shipmentStatusCode ?? raw.shipment_status_code;
+      if (base == null || base === "") {
+        const st = raw.status;
+        if (typeof st === "string") base = st;
+        else if (st && typeof st === "object") base = st.code ?? st.name;
+      }
+      if (base != null && base !== "") {
+        const baseStr = String(base).trim();
+        if (baseStr.toUpperCase() === "DTR") return "DTR";
+        const suffix = raw.deliveryTypeCode ?? raw.delivery_type_code
+          ?? raw.returnTypeCode ?? raw.return_type_code;
+        if (suffix != null && String(suffix).trim() !== "") {
+          return baseStr + String(suffix).trim();
+        }
+        return baseStr;
+      }
     }
     // Fallback: parse trailing "(<code>)" from existing carrier_status text
     if (order.carrier_status) {
