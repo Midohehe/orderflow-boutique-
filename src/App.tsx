@@ -24,6 +24,7 @@ const Settlements = lazy(() => import("./pages/Settlements"));
 const SettlementDetail = lazy(() => import("./pages/SettlementDetail"));
 const Returns = lazy(() => import("./pages/Returns"));
 const ReturnDetail = lazy(() => import("./pages/ReturnDetail"));
+const StockMovements = lazy(() => import("./pages/StockMovements"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
@@ -79,6 +80,7 @@ const App = () => {
                 <Route path="settlements/:id" element={<SettlementDetail />} />
                 <Route path="returns" element={<Returns />} />
                 <Route path="returns/:id" element={<ReturnDetail />} />
+                <Route path="stock-movements" element={<StockMovements />} />
                 <Route path="pixel" element={<PixelSettings />} />
                 <Route path="order-form" element={<OrderFormSettings />} />
                 <Route path="thank-you" element={<ThankYouSettings />} />
