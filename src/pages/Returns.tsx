@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RefreshCw, ChevronLeft, CheckCircle2, Undo2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -27,29 +28,66 @@ interface ReturnRow {
   shipments_synced_at: string | null;
 }
 
+interface RtrnOrderRow {
+  id: string;
+  customer_name: string;
+  phone: string;
+  product_name: string;
+  quantity: number;
+  price: number;
+  shipping_reference: string | null;
+  carrier_status: string | null;
+  carrier_status_updated_at: string | null;
+  status: string;
+}
+
 const Returns = () => {
   const navigate = useNavigate();
   const [rows, setRows] = useState<ReturnRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [rtrnRows, setRtrnRows] = useState<RtrnOrderRow[]>([]);
+  const [receivingId, setReceivingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from("returns")
-      .select("*")
-      .order("return_date", { ascending: false });
-    if (error) {
-      toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    } else {
-      setRows((data as ReturnRow[]) || []);
-    }
+    const [{ data, error }, { data: ord, error: oErr }] = await Promise.all([
+      (supabase as any).from("returns").select("*").order("return_date", { ascending: false }),
+      (supabase as any).from("orders")
+        .select("id, customer_name, phone, product_name, quantity, price, shipping_reference, carrier_status, carrier_status_updated_at, status")
+        .ilike("carrier_status", "%RTRN%")
+        .neq("status", "returned_received")
+        .order("carrier_status_updated_at", { ascending: false }),
+    ]);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else setRows((data as ReturnRow[]) || []);
+    if (oErr) console.error(oErr);
+    else setRtrnRows((ord as RtrnOrderRow[]) || []);
     setLoading(false);
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  const receiveRtrnOrder = async (orderId: string) => {
+    setReceivingId(orderId);
+    try {
+      const { error: fErr } = await supabase.functions.invoke("apply-order-stock", {
+        body: { order_id: orderId, reason: "return_received" },
+      });
+      if (fErr) throw fErr;
+      const { error: uErr } = await (supabase as any).from("orders")
+        .update({ status: "returned_received" }).eq("id", orderId);
+      if (uErr) throw uErr;
+      toast({ title: "تم الاستلام", description: "أُعيدت الكمية للمخزون" });
+      await load();
+    } catch (e: any) {
+      toast({ title: "تعذر الاستلام", description: e?.message || "", variant: "destructive" });
+    } finally {
+      setReceivingId(null);
+    }
+  };
 
   const refreshFromCarrier = async () => {
     setSyncing(true);
@@ -99,6 +137,18 @@ const Returns = () => {
         </Button>
       </div>
 
+      <Tabs defaultValue="lists" className="w-full">
+        <TabsList>
+          <TabsTrigger value="lists">قوائم المرتجعات</TabsTrigger>
+          <TabsTrigger value="rtrn">
+            طلبات قيد الاستلام (RTRN)
+            {rtrnRows.length > 0 && (
+              <Badge variant="secondary" className="mr-2">{rtrnRows.length}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="lists" className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
@@ -204,6 +254,62 @@ const Returns = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="rtrn">
+          <Card>
+            <CardHeader>
+              <CardTitle>طلبات بحالة "تم الإرجاع للراسل" (RTRN)</CardTitle>
+              <p className="text-sm text-muted-foreground">عند الاستلام تُعاد الكمية للمخزون وتُسجل حركة المنتجات</p>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : rtrnRows.length === 0 ? (
+                <div className="py-10 text-center text-muted-foreground">لا توجد طلبات بهذه الحالة حالياً.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-right">المرجع</TableHead>
+                        <TableHead className="text-right">العميل</TableHead>
+                        <TableHead className="text-right">المنتج</TableHead>
+                        <TableHead className="text-right">الكمية</TableHead>
+                        <TableHead className="text-right">آخر تحديث</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rtrnRows.map((o) => (
+                        <TableRow key={o.id}>
+                          <TableCell className="font-mono text-xs">{o.shipping_reference || "—"}</TableCell>
+                          <TableCell>{o.customer_name}</TableCell>
+                          <TableCell>{o.product_name}</TableCell>
+                          <TableCell>{o.quantity}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {o.carrier_status_updated_at ? new Date(o.carrier_status_updated_at).toLocaleString("ar-LY") : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Button size="sm" disabled={receivingId === o.id} onClick={() => receiveRtrnOrder(o.id)}>
+                              {receivingId === o.id ? (
+                                <Loader2 className="w-4 h-4 ml-1 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-4 h-4 ml-1" />
+                              )}
+                              تم الاستلام
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

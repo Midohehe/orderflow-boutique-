@@ -229,6 +229,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Auto-restore stock on UPKBD (تم التفريغ)
+    if (status === "UPKBD" || status === "UPKBL") {
+      for (const row of updated) {
+        try {
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ order_id: (row as any).id, reason: "order_unpacked" }),
+          });
+        } catch (e) { console.error("apply-order-stock UPKBD failed", e); }
+      }
+    }
+
     return new Response(JSON.stringify({ ok: true, matched: updated.length, shipmentId, ref, status: label }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -1028,6 +1028,51 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_movements: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          order_id: string | null
+          owner_id: string
+          product_id: string | null
+          product_name: string | null
+          qty: number
+          reason: string
+          return_id: string | null
+          variant_key: string | null
+          warehouse_code: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          owner_id: string
+          product_id?: string | null
+          product_name?: string | null
+          qty: number
+          reason: string
+          return_id?: string | null
+          variant_key?: string | null
+          warehouse_code?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          owner_id?: string
+          product_id?: string | null
+          product_name?: string | null
+          qty?: number
+          reason?: string
+          return_id?: string | null
+          variant_key?: string | null
+          warehouse_code?: string | null
+        }
+        Relationships: []
+      }
       store_settings: {
         Row: {
           created_at: string

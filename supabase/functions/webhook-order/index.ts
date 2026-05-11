@@ -462,6 +462,18 @@ Deno.serve(async (req) => {
       if (itErr) console.error("order_items insert failed", itErr);
     }
 
+    // Record stock movement (decrement)
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({ order_id: order.id, reason: "order_created" }),
+      });
+    } catch (e) { console.error("apply-order-stock failed", e); }
+
     console.log("webhook order created", order.id);
     return new Response(JSON.stringify({ ok: true, order_id: order.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

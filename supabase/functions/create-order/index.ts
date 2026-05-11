@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       console.error("match-city failed", e);
     }
 
-    const { error: iErr } = await supabase.from("orders").insert({
+    const { data: insertedOrder, error: iErr } = await supabase.from("orders").insert({
       owner_id: (product as any).owner_id,
       customer_name: customer_name || "بدون اسم",
       phone,
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
       matched_area_id,
       matched_zone_name,
       matched_area_name,
-    });
+    }).select("id").single();
 
     if (iErr) {
       console.error("order insert failed", iErr);
@@ -119,6 +119,20 @@ Deno.serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Record stock movement (decrement)
+    if (insertedOrder?.id) {
+      try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ order_id: insertedOrder.id, reason: "order_created" }),
+        });
+      } catch (e) { console.error("apply-order-stock failed", e); }
     }
 
     return new Response(JSON.stringify({ ok: true, price: totalPrice }), {
