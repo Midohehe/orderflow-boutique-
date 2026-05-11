@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical } from "lucide-react";
+import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ShippingSettings {
   id?: string;
@@ -29,6 +29,10 @@ const ShippingSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [whCount, setWhCount] = useState<number>(0);
+  const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null; stock: number; synced_at: string }>>([]);
+  const [linkedMap, setLinkedMap] = useState<Map<string, Array<{ productName: string; variantKey: string; localStock: number }>>>(new Map());
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
   const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }>>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
