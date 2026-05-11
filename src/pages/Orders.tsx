@@ -609,20 +609,27 @@ const Orders = () => {
   });
   const allShipped = orders.filter((o) => o.status === "shipped");
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
+  // Group by displayed label so codes that share the same custom_label
+  // (merged in shipping settings) appear as a single filter option.
   const shippedCarrierOptions = (() => {
-    const map = new Map<string, string>();
+    const byLabel = new Map<string, string>(); // label -> first code seen
     let hasNone = false;
     for (const o of allShipped) {
       const code = extractStatusCode(o);
       if (code) {
-        if (!map.has(code)) map.set(code, statusMap[code] || displayCarrierStatus(o));
+        const label = statusMap[code] || displayCarrierStatus(o);
+        if (!byLabel.has(label)) byLabel.set(label, code);
       } else {
         hasNone = true;
       }
     }
-    const opts = Array.from(map.entries()).map(([code, label]) => ({ code, label }));
+    const opts = Array.from(byLabel.entries()).map(([label, code]) => ({
+      code: `label:${label}`,
+      label,
+      matchCode: code,
+    }));
     opts.sort((a, b) => a.label.localeCompare(b.label, "ar"));
-    if (hasNone) opts.push({ code: "__none__", label: "بدون حالة" });
+    if (hasNone) opts.push({ code: "__none__", label: "بدون حالة", matchCode: "" });
     return opts;
   })();
   const shippedOrders = allShipped.filter((o) => {
@@ -636,6 +643,10 @@ const Orders = () => {
       const code = extractStatusCode(o);
       if (shippedCarrierFilter === "__none__") {
         if (code) return false;
+      } else if (shippedCarrierFilter.startsWith("label:")) {
+        const wanted = shippedCarrierFilter.slice("label:".length);
+        const lbl = code ? (statusMap[code] || displayCarrierStatus(o)) : "";
+        if (lbl !== wanted) return false;
       } else if (code !== shippedCarrierFilter) {
         return false;
       }
@@ -1048,7 +1059,13 @@ const Orders = () => {
                     {shippedCarrierOptions.map((opt) => {
                       const count = allShipped.filter((o) => {
                         const c = extractStatusCode(o);
-                        return opt.code === "__none__" ? !c : c === opt.code;
+                        if (opt.code === "__none__") return !c;
+                        if (opt.code.startsWith("label:")) {
+                          const wanted = opt.code.slice("label:".length);
+                          const lbl = c ? (statusMap[c] || displayCarrierStatus(o)) : "";
+                          return lbl === wanted;
+                        }
+                        return c === opt.code;
                       }).length;
                       return (
                         <SelectItem key={opt.code} value={opt.code}>
