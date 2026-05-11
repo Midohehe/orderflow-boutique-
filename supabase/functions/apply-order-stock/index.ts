@@ -44,6 +44,25 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Auth: service-role bearer OR a signed-in user owning the order.
+    const authHeader = req.headers.get("Authorization") || "";
+    const isServiceRole = authHeader.includes(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "__none__");
+    let callerUserId: string | null = null;
+    if (!isServiceRole) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "",
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: u } = await userClient.auth.getUser();
+      callerUserId = u?.user?.id ?? null;
+      if (!callerUserId) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { data: order, error: oErr } = await admin
       .from("orders")
       .select("id, owner_id, product_id, product_name, quantity, selected_color, selected_size, selected_product_code")
@@ -51,6 +70,11 @@ Deno.serve(async (req) => {
     if (oErr || !order) {
       return new Response(JSON.stringify({ error: "Order not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!isServiceRole && callerUserId && (order as any).owner_id !== callerUserId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
