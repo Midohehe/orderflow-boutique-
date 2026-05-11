@@ -33,6 +33,8 @@ const ShippingSettingsPage = () => {
   const [linkedMap, setLinkedMap] = useState<Map<string, Array<{ productName: string; variantKey: string; localStock: number }>>>(new Map());
   const [showCompare, setShowCompare] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [localProducts, setLocalProducts] = useState<Array<{ id: string; name: string; variant_warehouse_codes: Record<string, any>; variant_stock: Record<string, number>; stock: number }>>([]);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
   const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }>>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -295,9 +297,10 @@ const ShippingSettingsPage = () => {
           .order("name"),
         supabase
           .from("products")
-          .select("name, variant_warehouse_codes, variant_stock, stock"),
+          .select("id, name, variant_warehouse_codes, variant_stock, stock"),
       ]);
       setWhProducts((wh || []) as any);
+      setLocalProducts((prods || []) as any);
       const map = new Map<string, Array<{ productName: string; variantKey: string; localStock: number }>>();
       for (const p of (prods || []) as any[]) {
         const codes = (p.variant_warehouse_codes || {}) as Record<string, any>;
@@ -320,6 +323,50 @@ const ShippingSettingsPage = () => {
       setShowCompare(true);
     } finally {
       setCompareLoading(false);
+    }
+  };
+
+  const handleApplyMatch = async () => {
+    if (!confirm("سيتم استبدال كميات منتجاتك المرتبطة بالكميات الحالية في شركة الشحن. هل تريد المتابعة؟")) return;
+    setApplying(true);
+    try {
+      const stockByExtId = new Map<string, number>();
+      for (const w of whProducts) stockByExtId.set(String(w.external_id), Number(w.stock || 0));
+
+      let updatedProducts = 0;
+      let updatedVariants = 0;
+      for (const p of localProducts) {
+        const codes = (p.variant_warehouse_codes || {}) as Record<string, any>;
+        const entries = Object.entries(codes).filter(([, v]) => String(v ?? "").trim() !== "");
+        if (entries.length === 0) continue;
+        const newVariantStock: Record<string, number> = { ...(p.variant_stock || {}) };
+        let changed = false;
+        for (const [variantKey, extId] of entries) {
+          const wstock = stockByExtId.get(String(extId).trim());
+          if (wstock == null) continue;
+          if (Number(newVariantStock[variantKey] ?? -1) !== wstock) {
+            newVariantStock[variantKey] = wstock;
+            changed = true;
+            updatedVariants++;
+          }
+        }
+        if (!changed) continue;
+        const total = Object.values(newVariantStock).reduce((a, b) => a + (Number(b) || 0), 0);
+        const { error } = await supabase
+          .from("products")
+          .update({ variant_stock: newVariantStock, stock: total })
+          .eq("id", p.id);
+        if (!error) updatedProducts++;
+      }
+      toast({
+        title: "تمت المطابقة",
+        description: `تم تحديث ${updatedVariants} متغير في ${updatedProducts} منتج`,
+      });
+      await loadComparison();
+    } catch (e) {
+      toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -480,6 +527,12 @@ const ShippingSettingsPage = () => {
               {compareLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Package className="w-4 h-4 ml-2" />}
               {showCompare ? "تحديث المقارنة" : "عرض مقارنة الكميات"}
             </Button>
+            {showCompare && (
+              <Button onClick={handleApplyMatch} disabled={applying} className="w-full">
+                {applying ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <CheckCircle2 className="w-4 h-4 ml-2" />}
+                مطابقة الكميات (نسخ الكميات من شركة الشحن إلى منتجاتنا)
+              </Button>
+            )}
             {showCompare && (
               <div className="border rounded-md mt-2 max-h-[480px] overflow-auto">
                 <table className="w-full text-sm">
