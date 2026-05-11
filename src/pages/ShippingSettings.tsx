@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2 } from "lucide-react";
+import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical } from "lucide-react";
 
 interface ShippingSettings {
   id?: string;
@@ -31,6 +31,8 @@ const ShippingSettingsPage = () => {
   const [whCount, setWhCount] = useState<number>(0);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
   const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }>>([]);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [savingMappings, setSavingMappings] = useState(false);
 
   const COLOR_OPTIONS: Array<{ value: string; label: string; cls: string }> = [
@@ -72,8 +74,9 @@ const ShippingSettingsPage = () => {
     const [{ data }, { data: hidden }] = await Promise.all([
       supabase
         .from("carrier_status_mappings")
-        .select("id, status_code, custom_label, color")
-        .order("status_code"),
+        .select("id, status_code, custom_label, color, sort_order")
+        .order("sort_order", { ascending: true })
+        .order("status_code", { ascending: true }),
       supabase.from("hidden_default_carrier_codes").select("status_code"),
     ]);
     const existing = (data || []) as any[];
@@ -81,60 +84,75 @@ const ShippingSettingsPage = () => {
     const existingByCode = new Map<string, any>(existing.map((e) => [e.status_code, e]));
 
     // Group existing rows by (custom_label || color) so multiple codes that
-    // map to the same name+color appear as a single editable row.
-    const groups = new Map<string, { codes: string[]; custom_label: string; color: string }>();
+    // map to the same name+color appear as a single editable row. Track
+    // minimum sort_order per group so we can sort by user-defined order.
+    const groups = new Map<string, { codes: string[]; custom_label: string; color: string; sort_order: number }>();
     for (const e of existing) {
       const color = e.color || "default";
       const key = `${e.custom_label}||${color}`;
-      const g = groups.get(key) || { codes: [], custom_label: e.custom_label, color };
+      const g = groups.get(key) || {
+        codes: [],
+        custom_label: e.custom_label,
+        color,
+        sort_order: e.sort_order ?? 0,
+      };
       g.codes.push(e.status_code);
+      g.sort_order = Math.min(g.sort_order, e.sort_order ?? 0);
       groups.set(key, g);
     }
 
-    const merged: Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }> = [];
+    type Row = { codes: string; custom_label: string; color: string; originalCodes: string[]; sort_order: number; isDefault: boolean; defaultIdx: number };
+    const rows: Row[] = [];
     const usedDefaultCodes = new Set<string>();
 
-    // First, output default codes in order (using grouped row if any of its codes
-    // already exists in DB — otherwise show the default placeholder row).
-    for (const d of DEFAULT_CODES) {
-      if (hiddenSet.has(d.code)) continue;
-      if (usedDefaultCodes.has(d.code)) continue;
-      const ex = existingByCode.get(d.code);
-      if (ex) {
-        const key = `${ex.custom_label}||${ex.color || "default"}`;
-        const g = groups.get(key);
-        if (g) {
-          merged.push({
-            codes: g.codes.join(", "),
-            custom_label: g.custom_label,
-            color: g.color,
-            originalCodes: [...g.codes],
-          });
-          g.codes.forEach((c) => usedDefaultCodes.add(c));
-          groups.delete(key);
-        }
-      } else {
-        merged.push({
-          codes: d.code,
-          custom_label: d.label,
-          color: "default",
-          originalCodes: [],
-        });
-        usedDefaultCodes.add(d.code);
-      }
-    }
-
-    // Then any remaining custom groups (codes the user added that aren't in defaults)
+    // Add saved groups first (with their stored sort_order)
     for (const g of groups.values()) {
-      merged.push({
+      rows.push({
         codes: g.codes.join(", "),
         custom_label: g.custom_label,
         color: g.color,
         originalCodes: [...g.codes],
+        sort_order: g.sort_order,
+        isDefault: false,
+        defaultIdx: -1,
       });
+      g.codes.forEach((c) => usedDefaultCodes.add(c));
     }
 
-    setMappings(merged);
+    // Add default placeholder rows for codes never customized & not hidden
+    DEFAULT_CODES.forEach((d, i) => {
+      if (hiddenSet.has(d.code)) return;
+      if (usedDefaultCodes.has(d.code)) return;
+      if (existingByCode.has(d.code)) return;
+      rows.push({
+        codes: d.code,
+        custom_label: d.label,
+        color: "default",
+        originalCodes: [],
+        sort_order: 0,
+        isDefault: true,
+        defaultIdx: i,
+      });
+    });
+
+    // Sort: rows with explicit sort_order > 0 by that value, defaults by their
+    // natural index, ties broken by label.
+    rows.sort((a, b) => {
+      const aHas = a.sort_order > 0;
+      const bHas = b.sort_order > 0;
+      if (aHas && bHas) return a.sort_order - b.sort_order;
+      if (aHas) return -1;
+      if (bHas) return 1;
+      // both unsorted: defaults by their natural order, then customs
+      if (a.isDefault && b.isDefault) return a.defaultIdx - b.defaultIdx;
+      if (a.isDefault) return -1;
+      if (b.isDefault) return 1;
+      return a.custom_label.localeCompare(b.custom_label, "ar");
+    });
+
+    setMappings(rows.map(({ codes, custom_label, color, originalCodes }) => ({
+      codes, custom_label, color, originalCodes,
+    })));
   };
 
   useEffect(() => { loadMappings(); }, []);
@@ -194,15 +212,15 @@ const ShippingSettingsPage = () => {
 
       // Build expanded rows (one per code) and detect codes that were removed
       // from a row so we can delete their old DB entries.
-      const rows: Array<{ owner_id: string; status_code: string; custom_label: string; color: string }> = [];
+      const rows: Array<{ owner_id: string; status_code: string; custom_label: string; color: string; sort_order: number }> = [];
       const codesToDelete: string[] = [];
-      for (const m of mappings) {
+      mappings.forEach((m, idx) => {
         const label = m.custom_label.trim();
         const newCodes = parseCodes(m.codes);
         if (!label || newCodes.length === 0) {
           // Whole row is empty — drop any previously saved codes
           codesToDelete.push(...m.originalCodes);
-          continue;
+          return;
         }
         const newSet = new Set(newCodes);
         for (const oc of m.originalCodes) {
@@ -214,9 +232,10 @@ const ShippingSettingsPage = () => {
             status_code: c,
             custom_label: label,
             color: m.color || "default",
+            sort_order: (idx + 1) * 10,
           });
         }
-      }
+      });
 
       if (codesToDelete.length > 0) {
         await supabase
@@ -430,15 +449,60 @@ const ShippingSettingsPage = () => {
               </p>
             </div>
 
+            <p className="text-xs text-muted-foreground -mt-1">
+              اسحب وأفلت الصفوف لإعادة ترتيب عرض الحالات في الفلتر.
+            </p>
             <div className="space-y-2">
-              <div className="grid grid-cols-[160px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+              <div className="grid grid-cols-[24px_160px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+                <span></span>
                 <span>الأكواد (افصل بفاصلة)</span>
                 <span>الاسم المعروض</span>
                 <span>اللون</span>
                 <span></span>
               </div>
               {mappings.map((m, idx) => (
-                <div key={idx} className="grid grid-cols-[160px_1fr_120px_40px] gap-2 items-center">
+                <div
+                  key={idx}
+                  draggable
+                  onDragStart={(e) => {
+                    setDragIdx(idx);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragOverIdx !== idx) setDragOverIdx(idx);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverIdx === idx) setDragOverIdx(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIdx === null || dragIdx === idx) {
+                      setDragIdx(null);
+                      setDragOverIdx(null);
+                      return;
+                    }
+                    setMappings((prev) => {
+                      const next = [...prev];
+                      const [moved] = next.splice(dragIdx, 1);
+                      next.splice(idx, 0, moved);
+                      return next;
+                    });
+                    setDragIdx(null);
+                    setDragOverIdx(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragIdx(null);
+                    setDragOverIdx(null);
+                  }}
+                  className={`grid grid-cols-[24px_160px_1fr_120px_40px] gap-2 items-center rounded-md transition-colors ${
+                    dragOverIdx === idx && dragIdx !== null && dragIdx !== idx ? "bg-accent/40" : ""
+                  } ${dragIdx === idx ? "opacity-50" : ""}`}
+                >
+                  <div className="flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
                   <Input
                     dir="ltr"
                     value={m.codes}

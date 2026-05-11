@@ -96,6 +96,7 @@ const Orders = () => {
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
+  const [labelOrderMap, setLabelOrderMap] = useState<Record<string, number>>({});
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
 
   const COLOR_CLASSES: Record<string, string> = {
@@ -297,7 +298,7 @@ const Orders = () => {
             .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes")
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
-          supabase.from("carrier_status_mappings").select("status_code, custom_label, color"),
+          supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order"),
           supabase.from("products").select("id, name"),
         ]);
         if (cancelled) return;
@@ -312,12 +313,19 @@ const Orders = () => {
         if (mapRes.data) {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
+          const lo: Record<string, number> = {};
           (mapRes.data as any[]).forEach((r) => {
             m[String(r.status_code)] = r.custom_label;
             if (r.color) cm[String(r.status_code)] = r.color;
+            const so = Number(r.sort_order ?? 0);
+            if (so > 0) {
+              const key = String(r.custom_label);
+              if (lo[key] === undefined || so < lo[key]) lo[key] = so;
+            }
           });
           setStatusMap(m);
           setStatusColorMap(cm);
+          setLabelOrderMap(lo);
         }
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -628,7 +636,14 @@ const Orders = () => {
       label,
       matchCode: code,
     }));
-    opts.sort((a, b) => a.label.localeCompare(b.label, "ar"));
+    opts.sort((a, b) => {
+      const ao = labelOrderMap[a.label];
+      const bo = labelOrderMap[b.label];
+      if (ao !== undefined && bo !== undefined) return ao - bo;
+      if (ao !== undefined) return -1;
+      if (bo !== undefined) return 1;
+      return a.label.localeCompare(b.label, "ar");
+    });
     if (hasNone) opts.push({ code: "__none__", label: "بدون حالة", matchCode: "" });
     return opts;
   })();

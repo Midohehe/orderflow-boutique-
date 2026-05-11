@@ -72,6 +72,7 @@ export type Database = {
           custom_label: string
           id: string
           owner_id: string
+          sort_order: number
           status_code: string
           updated_at: string
         }
@@ -81,6 +82,7 @@ export type Database = {
           custom_label: string
           id?: string
           owner_id: string
+          sort_order?: number
           status_code: string
           updated_at?: string
         }
@@ -90,6 +92,7 @@ export type Database = {
           custom_label?: string
           id?: string
           owner_id?: string
+          sort_order?: number
           status_code?: string
           updated_at?: string
         }
