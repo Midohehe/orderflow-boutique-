@@ -431,19 +431,19 @@ const ShippingSettingsPage = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="grid grid-cols-[80px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
-                <span>الكود</span>
+              <div className="grid grid-cols-[160px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+                <span>الأكواد (افصل بفاصلة)</span>
                 <span>الاسم المعروض</span>
                 <span>اللون</span>
                 <span></span>
               </div>
               {mappings.map((m, idx) => (
-                <div key={idx} className="grid grid-cols-[80px_1fr_120px_40px] gap-2 items-center">
+                <div key={idx} className="grid grid-cols-[160px_1fr_120px_40px] gap-2 items-center">
                   <Input
                     dir="ltr"
-                    value={m.status_code}
-                    onChange={(e) => updateMapping(idx, "status_code", e.target.value)}
-                    placeholder="5"
+                    value={m.codes}
+                    onChange={(e) => updateMapping(idx, "codes", e.target.value)}
+                    placeholder="RTS, RTSWODF"
                     className="font-mono text-center"
                   />
                   <Input
