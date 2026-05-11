@@ -30,7 +30,7 @@ const ShippingSettingsPage = () => {
   const [syncing, setSyncing] = useState(false);
   const [whCount, setWhCount] = useState<number>(0);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
-  const [mappings, setMappings] = useState<Array<{ id?: string; status_code: string; custom_label: string; color: string }>>([]);
+  const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }>>([]);
   const [savingMappings, setSavingMappings] = useState(false);
 
   const COLOR_OPTIONS: Array<{ value: string; label: string; cls: string }> = [
@@ -78,45 +78,112 @@ const ShippingSettingsPage = () => {
     ]);
     const existing = (data || []) as any[];
     const hiddenSet = new Set(((hidden || []) as any[]).map((h) => h.status_code));
-    const merged = DEFAULT_CODES.filter((d) => !hiddenSet.has(d.code)).map((d) => {
-      const found = existing.find((e) => e.status_code === d.code);
-      return found
-        ? { id: found.id, status_code: found.status_code, custom_label: found.custom_label, color: found.color || "default" }
-        : { status_code: d.code, custom_label: d.label, color: "default" };
-    });
-    // Add any custom (non-default) codes the user already has
-    existing
-      .filter((e) => !DEFAULT_CODES.some((d) => d.code === e.status_code))
-      .forEach((e) => merged.push({ id: e.id, status_code: e.status_code, custom_label: e.custom_label, color: e.color || "default" }));
+    const existingByCode = new Map<string, any>(existing.map((e) => [e.status_code, e]));
+
+    // Group existing rows by (custom_label || color) so multiple codes that
+    // map to the same name+color appear as a single editable row.
+    const groups = new Map<string, { codes: string[]; custom_label: string; color: string }>();
+    for (const e of existing) {
+      const color = e.color || "default";
+      const key = `${e.custom_label}||${color}`;
+      const g = groups.get(key) || { codes: [], custom_label: e.custom_label, color };
+      g.codes.push(e.status_code);
+      groups.set(key, g);
+    }
+
+    const merged: Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }> = [];
+    const usedDefaultCodes = new Set<string>();
+
+    // First, output default codes in order (using grouped row if any of its codes
+    // already exists in DB — otherwise show the default placeholder row).
+    for (const d of DEFAULT_CODES) {
+      if (hiddenSet.has(d.code)) continue;
+      if (usedDefaultCodes.has(d.code)) continue;
+      const ex = existingByCode.get(d.code);
+      if (ex) {
+        const key = `${ex.custom_label}||${ex.color || "default"}`;
+        const g = groups.get(key);
+        if (g) {
+          merged.push({
+            codes: g.codes.join(", "),
+            custom_label: g.custom_label,
+            color: g.color,
+            originalCodes: [...g.codes],
+          });
+          g.codes.forEach((c) => usedDefaultCodes.add(c));
+          groups.delete(key);
+        }
+      } else {
+        merged.push({
+          codes: d.code,
+          custom_label: d.label,
+          color: "default",
+          originalCodes: [],
+        });
+        usedDefaultCodes.add(d.code);
+      }
+    }
+
+    // Then any remaining custom groups (codes the user added that aren't in defaults)
+    for (const g of groups.values()) {
+      merged.push({
+        codes: g.codes.join(", "),
+        custom_label: g.custom_label,
+        color: g.color,
+        originalCodes: [...g.codes],
+      });
+    }
+
     setMappings(merged);
   };
 
   useEffect(() => { loadMappings(); }, []);
 
-  const updateMapping = (idx: number, field: "status_code" | "custom_label" | "color", value: string) => {
+  const updateMapping = (idx: number, field: "codes" | "custom_label" | "color", value: string) => {
     setMappings((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
   };
 
   const addMapping = () => {
-    setMappings((prev) => [...prev, { status_code: "", custom_label: "", color: "default" }]);
+    setMappings((prev) => [...prev, { codes: "", custom_label: "", color: "default", originalCodes: [] }]);
   };
 
   const removeMapping = async (idx: number) => {
     const m = mappings[idx];
-    if (m.id) {
-      await supabase.from("carrier_status_mappings").delete().eq("id", m.id);
+    if (m.originalCodes.length > 0) {
+      await supabase
+        .from("carrier_status_mappings")
+        .delete()
+        .in("status_code", m.originalCodes);
     }
-    // If it's a default code, remember the deletion so it doesn't reappear.
-    if (DEFAULT_CODES.some((d) => d.code === m.status_code)) {
+    // If any of the codes are default codes, remember the deletion so they don't reappear.
+    const codesInRow = parseCodes(m.codes).concat(m.originalCodes);
+    const defaultsToHide = Array.from(new Set(codesInRow)).filter((c) =>
+      DEFAULT_CODES.some((d) => d.code === c),
+    );
+    if (defaultsToHide.length > 0) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await supabase
           .from("hidden_default_carrier_codes")
-          .upsert({ owner_id: user.id, status_code: m.status_code }, { onConflict: "owner_id,status_code" });
+          .upsert(
+            defaultsToHide.map((status_code) => ({ owner_id: user.id, status_code })),
+            { onConflict: "owner_id,status_code" },
+          );
       }
     }
     setMappings((prev) => prev.filter((_, i) => i !== idx));
     toast({ title: "تم الحذف" });
+  };
+
+  const parseCodes = (raw: string): string[] => {
+    return Array.from(
+      new Set(
+        raw
+          .split(/[,،\s]+/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
   };
 
   const saveMappings = async () => {
@@ -124,17 +191,46 @@ const ShippingSettingsPage = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("يجب تسجيل الدخول");
-      const valid = mappings.filter((m) => m.status_code.trim() && m.custom_label.trim());
-      const rows = valid.map((m) => ({
-        owner_id: user.id,
-        status_code: m.status_code.trim(),
-        custom_label: m.custom_label.trim(),
-        color: m.color || "default",
-      }));
-      const { error } = await supabase
-        .from("carrier_status_mappings")
-        .upsert(rows, { onConflict: "owner_id,status_code" });
-      if (error) throw error;
+
+      // Build expanded rows (one per code) and detect codes that were removed
+      // from a row so we can delete their old DB entries.
+      const rows: Array<{ owner_id: string; status_code: string; custom_label: string; color: string }> = [];
+      const codesToDelete: string[] = [];
+      for (const m of mappings) {
+        const label = m.custom_label.trim();
+        const newCodes = parseCodes(m.codes);
+        if (!label || newCodes.length === 0) {
+          // Whole row is empty — drop any previously saved codes
+          codesToDelete.push(...m.originalCodes);
+          continue;
+        }
+        const newSet = new Set(newCodes);
+        for (const oc of m.originalCodes) {
+          if (!newSet.has(oc)) codesToDelete.push(oc);
+        }
+        for (const c of newCodes) {
+          rows.push({
+            owner_id: user.id,
+            status_code: c,
+            custom_label: label,
+            color: m.color || "default",
+          });
+        }
+      }
+
+      if (codesToDelete.length > 0) {
+        await supabase
+          .from("carrier_status_mappings")
+          .delete()
+          .eq("owner_id", user.id)
+          .in("status_code", codesToDelete);
+      }
+      if (rows.length > 0) {
+        const { error } = await supabase
+          .from("carrier_status_mappings")
+          .upsert(rows, { onConflict: "owner_id,status_code" });
+        if (error) throw error;
+      }
       toast({ title: "تم الحفظ", description: "تم حفظ تخصيص أسماء الحالات" });
       await loadMappings();
     } catch (e) {
@@ -330,24 +426,24 @@ const ShippingSettingsPage = () => {
             <div>
               <Label className="text-base font-bold">تخصيص أسماء حالات الشحن</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                حوّل أكواد الحالات القادمة من شركة الشحن إلى أسماء تفهمها (مثلاً: الكود <span className="font-mono">5</span> ← "تم التوصيل للزبون").
+                حوّل أكواد الحالات القادمة من شركة الشحن إلى أسماء تفهمها. يمكنك إضافة أكثر من كود لنفس الاسم بفصلهم بفاصلة (مثال: <span className="font-mono">RTS, RTSWODF, RTSD</span> ← "راجع").
               </p>
             </div>
 
             <div className="space-y-2">
-              <div className="grid grid-cols-[80px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
-                <span>الكود</span>
+              <div className="grid grid-cols-[160px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+                <span>الأكواد (افصل بفاصلة)</span>
                 <span>الاسم المعروض</span>
                 <span>اللون</span>
                 <span></span>
               </div>
               {mappings.map((m, idx) => (
-                <div key={idx} className="grid grid-cols-[80px_1fr_120px_40px] gap-2 items-center">
+                <div key={idx} className="grid grid-cols-[160px_1fr_120px_40px] gap-2 items-center">
                   <Input
                     dir="ltr"
-                    value={m.status_code}
-                    onChange={(e) => updateMapping(idx, "status_code", e.target.value)}
-                    placeholder="5"
+                    value={m.codes}
+                    onChange={(e) => updateMapping(idx, "codes", e.target.value)}
+                    placeholder="RTS, RTSWODF"
                     className="font-mono text-center"
                   />
                   <Input
