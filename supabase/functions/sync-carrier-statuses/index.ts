@@ -28,6 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
   RCV: "ارتجاع للمخزن",
   UPKBL: "جاهز للتفريغ",
   UPKBD: "تم التفريغ",
+  UKDB: "تم التفريغ",
   BMR: "مناولة بين الفروع - وارد",
   BMT: "مناولة بين الفروع - صادر",
 };
@@ -182,7 +183,7 @@ Deno.serve(async (req) => {
       if (sh.notes != null && String(sh.notes).trim() !== "") {
         updatePayload.carrier_notes = String(sh.notes);
       }
-      if (composite === "UPKBD" || composite === "UPKBL") {
+      if (composite === "UPKBD" || composite === "UKDB") {
         updatePayload.status = "unpacked";
       }
       const { error: uErr } = await admin
@@ -191,7 +192,7 @@ Deno.serve(async (req) => {
       else updated++;
 
       // Auto-restore stock when carrier marks shipment as unpacked back at our warehouse
-      if (composite === "UPKBD" || composite === "UPKBL") {
+      if (composite === "UPKBD" || composite === "UKDB") {
         try {
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
             method: "POST",

@@ -81,6 +81,7 @@ const ShippingSettingsPage = () => {
     { code: "RCV", label: "ارتجاع للمخزن" },
     { code: "UPKBL", label: "جاهز للتفريغ" },
     { code: "UPKBD", label: "تم التفريغ" },
+    { code: "UKDB", label: "تم التفريغ" },
     { code: "BMR", label: "مناولة بين الفروع - وارد" },
     { code: "BMT", label: "مناولة بين الفروع - صادر" },
   ];
