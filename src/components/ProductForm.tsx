@@ -203,13 +203,14 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     return linked;
   };
 
-  // Auto-link on first EO product selection (only fills empty mappings)
+  // Auto-link EO variants whenever there are any unlinked local variants
+  // (works in both create and edit modes, even when some variants already linked).
   useEffect(() => {
     if (!product.easyOrdersProductId || !eoVariants.length || !variantKeys.length) return;
-    const empty = variantKeys.every((k) => !product.variantEasyOrdersIds?.[k]);
-    if (empty) autoLinkEoVariants(false);
+    const hasEmpty = variantKeys.some((k) => !product.variantEasyOrdersIds?.[k]);
+    if (hasEmpty) autoLinkEoVariants(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.easyOrdersProductId, eoProducts.length]);
+  }, [product.easyOrdersProductId, eoProducts.length, variantKeys.join("|")]);
 
   // Auto-link warehouse products بعد توفر ربط EasyOrders + قائمة المخزن (المرحلة 2)
   useEffect(() => {
