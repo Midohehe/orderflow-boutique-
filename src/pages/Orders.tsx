@@ -83,6 +83,7 @@ const Orders = () => {
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
+  const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
