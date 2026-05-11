@@ -528,6 +528,12 @@ const ShippingSettingsPage = () => {
               {showCompare ? "تحديث المقارنة" : "عرض مقارنة الكميات"}
             </Button>
             {showCompare && (
+              <Button onClick={handleApplyMatch} disabled={applying} className="w-full">
+                {applying ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <CheckCircle2 className="w-4 h-4 ml-2" />}
+                مطابقة الكميات (نسخ الكميات من شركة الشحن إلى منتجاتنا)
+              </Button>
+            )}
+            {showCompare && (
               <div className="border rounded-md mt-2 max-h-[480px] overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-muted">
