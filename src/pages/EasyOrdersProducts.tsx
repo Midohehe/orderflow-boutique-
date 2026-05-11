@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Package, Search } from "lucide-react";
+import { Loader2, Package, Search, Upload, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -36,6 +38,102 @@ const EasyOrdersProducts = () => {
   const [products, setProducts] = useState<EoProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [compareRows, setCompareRows] = useState<Array<{
+    productName: string;
+    eoProductId: string;
+    eoSku: string | null;
+    variants: Array<{ key: string; eoVarId: string; eoSku: string | null; eoQty: number | null; localQty: number; }>;
+    isSingle: boolean;
+    eoQty?: number | null;
+    localQty?: number;
+  }>>([]);
+
+  const loadComparison = async () => {
+    setCompareLoading(true);
+    try {
+      const [{ data: eo }, { data: local }] = await Promise.all([
+        supabase.from("easyorders_products").select("external_id, sku, variants"),
+        supabase
+          .from("products")
+          .select("name, stock, variant_stock, easyorders_product_id, variant_easyorders_ids")
+          .not("easyorders_product_id", "is", null),
+      ]);
+      const eoMap = new Map<string, any>();
+      for (const r of (eo || []) as any[]) eoMap.set(String(r.external_id), r);
+      const rows: typeof compareRows = [];
+      for (const lp of (local || []) as any[]) {
+        const eop = eoMap.get(String(lp.easyorders_product_id));
+        if (!eop) continue;
+        const varIdsMap = (lp.variant_easyorders_ids || {}) as Record<string, string>;
+        const varStock = (lp.variant_stock || {}) as Record<string, number>;
+        const eoVarById = new Map((eop.variants || []).map((v: any) => [String(v.id), v]));
+        const linkedKeys = Object.keys(varIdsMap);
+        if (linkedKeys.length > 0) {
+          rows.push({
+            productName: lp.name,
+            eoProductId: eop.external_id,
+            eoSku: eop.sku ?? null,
+            isSingle: false,
+            variants: linkedKeys.map((k) => {
+              const v: any = eoVarById.get(String(varIdsMap[k]));
+              return {
+                key: k,
+                eoVarId: varIdsMap[k],
+                eoSku: v?.sku ?? null,
+                eoQty: v?.stock ?? null,
+                localQty: Number(varStock[k] ?? 0),
+              };
+            }),
+          });
+        } else {
+          rows.push({
+            productName: lp.name,
+            eoProductId: eop.external_id,
+            eoSku: eop.sku ?? null,
+            isSingle: true,
+            variants: [],
+            eoQty: null,
+            localQty: Number(lp.stock ?? 0),
+          });
+        }
+      }
+      setCompareRows(rows);
+      setShowCompare(true);
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
+  const handlePush = async () => {
+    if (!confirm("سيتم تحديث كميات المنتجات في EasyOrders لتطابق الكميات الحالية عندك. متأكد؟")) return;
+    setPushing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("push-easyorders-quantities");
+      if (error) throw error;
+      const d: any = data || {};
+      if (d.failed > 0) {
+        toast.warning(`تم: ${d.updatedVariants} متغير، ${d.updatedProducts} منتج. فشل: ${d.failed}`);
+        console.warn("Push errors:", d.errors);
+      } else {
+        toast.success(`تمت المطابقة: ${d.updatedVariants} متغير، ${d.updatedProducts} منتج`);
+      }
+      // Refresh sync to pull latest quantities back from EO
+      await supabase.functions.invoke("sync-easyorders-products");
+      const { data: fresh } = await supabase
+        .from("easyorders_products")
+        .select("id, external_id, name, sku, variants, raw, synced_at")
+        .order("name", { ascending: true });
+      if (fresh) setProducts(fresh as any);
+      if (showCompare) await loadComparison();
+    } catch (e: any) {
+      toast.error(`فشل: ${e?.message || e}`);
+    } finally {
+      setPushing(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -103,6 +201,79 @@ const EasyOrdersProducts = () => {
           />
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">مطابقة الكميات مع EasyOrders</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            ادفع كميات منتجاتك المحلية إلى EasyOrders ليتطابق المخزون.
+            يستخدم endpoint رسمي لتحديث الكميات (لن يتلف بيانات المنتجات).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={loadComparison} disabled={compareLoading} variant="outline">
+              {compareLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {showCompare ? "تحديث المقارنة" : "عرض مقارنة الكميات"}
+            </Button>
+            <Button onClick={handlePush} disabled={pushing}>
+              {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              مطابقة الكميات (دفع كمياتنا إلى EasyOrders)
+            </Button>
+          </div>
+
+          {showCompare && (
+            <div className="overflow-x-auto border rounded-md mt-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">المنتج المحلي</TableHead>
+                    <TableHead className="text-right">المتغير</TableHead>
+                    <TableHead className="text-right">SKU في EO</TableHead>
+                    <TableHead className="text-right">كمية EO</TableHead>
+                    <TableHead className="text-right">كميتنا</TableHead>
+                    <TableHead className="text-right">الحالة</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {compareRows.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">لا توجد منتجات مرتبطة بـ EasyOrders</TableCell></TableRow>
+                  ) : compareRows.flatMap((r) => {
+                    if (r.isSingle) {
+                      const match = r.eoQty != null && r.eoQty === r.localQty;
+                      return [(
+                        <TableRow key={r.eoProductId}>
+                          <TableCell className="font-medium">{r.productName}</TableCell>
+                          <TableCell className="text-muted-foreground">—</TableCell>
+                          <TableCell className="font-mono text-xs">{r.eoSku || "—"}</TableCell>
+                          <TableCell>{r.eoQty ?? "—"}</TableCell>
+                          <TableCell className="font-semibold">{r.localQty}</TableCell>
+                          <TableCell>{match ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertCircle className="w-4 h-4 text-amber-600" />}</TableCell>
+                        </TableRow>
+                      )];
+                    }
+                    return r.variants.map((v, i) => {
+                      const match = v.eoQty != null && v.eoQty === v.localQty;
+                      return (
+                        <TableRow key={`${r.eoProductId}-${v.key}`}>
+                          {i === 0 ? (
+                            <TableCell rowSpan={r.variants.length} className="font-medium align-top">{r.productName}</TableCell>
+                          ) : null}
+                          <TableCell>{v.key}</TableCell>
+                          <TableCell className="font-mono text-xs">{v.eoSku || "—"}</TableCell>
+                          <TableCell>{v.eoQty ?? "—"}</TableCell>
+                          <TableCell className="font-semibold">{v.localQty}</TableCell>
+                          <TableCell>{match ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertCircle className="w-4 h-4 text-amber-600" />}</TableCell>
+                        </TableRow>
+                      );
+                    });
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {filtered.length === 0 ? (
         <Card>
