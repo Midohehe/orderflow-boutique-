@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
             sku,
             name: sku ?? propsLabel ?? v.name ?? null,
             variation_props: props,
+            stock: typeof v.quantity === "number" ? v.quantity : (v.quantity != null ? Number(v.quantity) : null),
           };
         }).filter((v: any) => v.id) : [];
 
