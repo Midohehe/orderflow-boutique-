@@ -1,5 +1,16 @@
 // Returns zones (cities) and optionally areas under a given zone, live from the carrier API.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { defaultCityAreas } from "../_shared/defaultCityAreas.ts";
+
+const normalizeAr = (s: string) =>
+  (s || "")
+    .replace(/[\u064B-\u0652\u0670]/g, "") // diacritics
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,7 +94,21 @@ Deno.serve(async (req) => {
     }
 
     const zonesRes = await gql(`{ listZonesDropdown { id name } }`);
-    const zones: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
+    const allItems: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
+
+    // The carrier's listZonesDropdown returns a flat union of cities AND areas
+    // (with overlapping id sequences). Filter to entries whose name matches a
+    // known Libyan city, then dedupe by normalized name.
+    const cityNameSet = new Set(Object.keys(defaultCityAreas).map(normalizeAr));
+    const seen = new Set<string>();
+    const zones: Array<{ id: number; name: string }> = [];
+    for (const it of allItems) {
+      const key = normalizeAr(it.name);
+      if (!cityNameSet.has(key)) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      zones.push(it);
+    }
     return new Response(JSON.stringify({ zones }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
