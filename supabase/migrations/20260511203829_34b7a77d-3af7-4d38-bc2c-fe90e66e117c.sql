@@ -1,0 +1,1 @@
+ALTER TABLE public.carrier_status_mappings ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
