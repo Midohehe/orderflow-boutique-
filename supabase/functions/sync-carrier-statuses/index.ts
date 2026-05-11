@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       if (sh.notes != null && String(sh.notes).trim() !== "") {
         updatePayload.carrier_notes = String(sh.notes);
       }
-      if (composite === "UPKBD" || composite === "UKDB") {
+      if (composite === "UPKBD" || composite === "UKDB" || composite === "UPKBL") {
         updatePayload.status = "unpacked";
       }
       const { error: uErr } = await admin
@@ -191,8 +191,8 @@ Deno.serve(async (req) => {
       if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); }
       else updated++;
 
-      // Auto-restore stock when carrier marks shipment as unpacked back at our warehouse
-      if (composite === "UPKBD" || composite === "UKDB") {
+      // Auto-restore stock when carrier marks shipment as ready/unpacked back at our warehouse
+      if (composite === "UPKBD" || composite === "UKDB" || composite === "UPKBL") {
         try {
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
             method: "POST",
