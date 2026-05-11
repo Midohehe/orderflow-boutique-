@@ -965,14 +965,35 @@ const Orders = () => {
         <TabsContent value="shipped" className="space-y-4">
           <Card className="card-shadow">
             <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={shippedSearch}
-                  onChange={(e) => setShippedSearch(e.target.value)}
-                  placeholder="ابحث بكود الشحن أو رقم الهاتف"
-                  className="pr-10"
-                />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={shippedSearch}
+                    onChange={(e) => setShippedSearch(e.target.value)}
+                    placeholder="ابحث بكود الشحن أو رقم الهاتف"
+                    className="pr-10"
+                  />
+                </div>
+                <Select value={shippedCarrierFilter} onValueChange={setShippedCarrierFilter}>
+                  <SelectTrigger className="sm:w-64">
+                    <SelectValue placeholder="فلترة حسب حالة الشحن" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل الحالات ({allShipped.length})</SelectItem>
+                    {shippedCarrierOptions.map((opt) => {
+                      const count = allShipped.filter((o) => {
+                        const c = extractStatusCode(o);
+                        return opt.code === "__none__" ? !c : c === opt.code;
+                      }).length;
+                      return (
+                        <SelectItem key={opt.code} value={opt.code}>
+                          {opt.label} ({count})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
