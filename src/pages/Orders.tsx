@@ -78,6 +78,7 @@ const Orders = () => {
   const [bulkStatus, setBulkStatus] = useState<Order["status"] | "">("");
   const [currencySymbol, setCurrencySymbol] = useState("د.إ");
   const [shipping, setShipping] = useState(false);
+  const [shipProgress, setShipProgress] = useState<{ done: number; total: number } | null>(null);
   const [productFilter, setProductFilter] = useState<string>("all");
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [extracting, setExtracting] = useState(false);
@@ -232,24 +233,33 @@ const Orders = () => {
       return;
     }
     setShipping(true);
+    const ids = [...selectedOrders];
+    setShipProgress({ done: 0, total: ids.length });
+    let sent = 0;
+    let lastError: string | null = null;
     try {
-      const { data, error } = await supabase.functions.invoke("ship-orders", {
-        body: { order_ids: selectedOrders, shipping_included: shippingMode === "included" },
-      });
-      if (error) throw error;
-      const sent = (data as any)?.sent ?? 0;
-      const total = (data as any)?.total ?? selectedOrders.length;
+      for (let i = 0; i < ids.length; i++) {
+        try {
+          const { data, error } = await supabase.functions.invoke("ship-orders", {
+            body: { order_ids: [ids[i]], shipping_included: shippingMode === "included" },
+          });
+          if (error) throw error;
+          sent += (data as any)?.sent ?? 0;
+        } catch (e: any) {
+          lastError = e?.context?.error || e?.message || "حدث خطأ";
+        }
+        setShipProgress({ done: i + 1, total: ids.length });
+      }
       toast({
         title: "تم الإرسال",
-        description: `تم إرسال ${sent} من ${total} طلب لشركة الشحن`,
+        description: `تم إرسال ${sent} من ${ids.length} طلب لشركة الشحن${lastError ? ` (آخر خطأ: ${lastError})` : ""}`,
+        variant: lastError && sent === 0 ? "destructive" : "default",
       });
       setSelectedOrders([]);
       fetchOrders();
-    } catch (e: any) {
-      const msg = e?.context?.error || e?.message || "حدث خطأ";
-      toast({ title: "خطأ", description: msg, variant: "destructive" });
     } finally {
       setShipping(false);
+      setShipProgress(null);
     }
   };
 
@@ -873,7 +883,9 @@ const Orders = () => {
                       className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90"
                     >
                       {shipping ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Send className="w-4 h-4 ml-2" />}
-                      إرسال لشركة الشحن
+                      {shipping && shipProgress
+                        ? `جاري الإرسال ${shipProgress.done} من ${shipProgress.total}`
+                        : "إرسال لشركة الشحن"}
                     </Button>
                     <Button variant="outline" onClick={exportPendingOrders} className="w-full sm:w-auto">
                       <Download className="w-4 h-4 ml-2" />
