@@ -36,6 +36,8 @@ function extractFromPayload(body: any): {
   let returnTypeCode: any = null;
   let collection: any = null;
   let paidToCustomer: any = null;
+  let cancellationReasonId: any = null;
+  let notes: any = null;
   for (const c of candidates) {
     if (!shipmentId) shipmentId = pick(c, ["shipmentId", "shipment_id"]);
     if (!ref) ref = pick(c, [
@@ -54,6 +56,8 @@ function extractFromPayload(body: any): {
     if (!returnTypeCode) returnTypeCode = pick(c, ["returnTypeCode", "return_type_code"]);
     if (collection === null) collection = pick(c, ["collection", "COLLECTION", "collected", "isCollected", "is_collected"]);
     if (paidToCustomer === null) paidToCustomer = pick(c, ["paidToCustomer", "paid_to_customer", "PAID_TO_CUSTOMER", "paidCustomer", "isPaidToCustomer"]);
+    if (cancellationReasonId == null) cancellationReasonId = pick(c, ["cancellationReasonId", "cancellation_reason_id"]);
+    if (notes == null) notes = pick(c, ["notes", "note", "comment", "comments"]);
   }
   // Accurate/Turbo payload uses numeric `collectedFees` and `deliveredAmount`
   // instead of explicit COLLECTION / PAID_TO_CUSTOMER booleans.
@@ -100,6 +104,8 @@ function extractFromPayload(body: any): {
     shipmentId: shipmentId != null ? String(shipmentId).trim() : null,
     ref: ref ? String(ref).trim() : null,
     status: composite,
+    cancellationReasonId: cancellationReasonId != null && String(cancellationReasonId).trim() !== "" ? String(cancellationReasonId).trim() : null,
+    notes: notes != null && String(notes).trim() !== "" ? String(notes).trim() : null,
   };
 }
 
