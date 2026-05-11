@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -84,6 +84,11 @@ const Orders = () => {
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
+  const [syncingCarrier, setSyncingCarrier] = useState(false);
+  const [carrierSyncResult, setCarrierSyncResult] = useState<null | {
+    total: number; updated: number; failed: number;
+    codes: Array<{ code: string; count: number; label: string; mapped: boolean }>;
+  }>(null);
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
@@ -341,6 +346,31 @@ const Orders = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncCarrierStatuses = async () => {
+    setSyncingCarrier(true);
+    setCarrierSyncResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-carrier-statuses", { body: {} });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "فشل المزامنة");
+      setCarrierSyncResult({
+        total: data.total ?? 0,
+        updated: data.updated ?? 0,
+        failed: data.failed ?? 0,
+        codes: data.codes ?? [],
+      });
+      toast({
+        title: "تمت المزامنة",
+        description: `تم تحديث ${data.updated} طلب من أصل ${data.total}`,
+      });
+      await fetchOrders();
+    } catch (e: any) {
+      toast({ title: "فشل المزامنة", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncingCarrier(false);
     }
   };
 
@@ -994,7 +1024,50 @@ const Orders = () => {
                     })}
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSyncCarrierStatuses}
+                  disabled={syncingCarrier}
+                  className="gap-2"
+                >
+                  {syncingCarrier ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  مزامنة حالات الشحن
+                </Button>
               </div>
+              {carrierSyncResult && (
+                <div className="mt-4 border-t pt-4 space-y-2">
+                  <div className="text-sm text-muted-foreground">
+                    تم فحص {carrierSyncResult.total} طلب — تحديث {carrierSyncResult.updated} — فشل {carrierSyncResult.failed}
+                  </div>
+                  {carrierSyncResult.codes.length === 0 ? (
+                    <div className="text-sm">لم يتم استرجاع أي حالات.</div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">الأكواد المسترجعة من شركة الشحن:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {carrierSyncResult.codes.map((c) => (
+                          <Badge
+                            key={c.code}
+                            variant={c.mapped ? "default" : "secondary"}
+                            className="text-xs"
+                            title={c.label}
+                          >
+                            <span className="font-mono">{c.code}</span>
+                            <span className="mx-1">·</span>
+                            <span>{c.label}</span>
+                            <span className="mx-1">·</span>
+                            <span>{c.count}</span>
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-2">
+                        الأكواد بلون أزرق فاتح ليس لها تسمية مخصصة — يمكنك إضافتها من إعدادات شركة الشحن.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
           {shippedOrders.length === 0 ? (
