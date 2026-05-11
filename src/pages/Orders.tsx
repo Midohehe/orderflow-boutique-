@@ -84,6 +84,11 @@ const Orders = () => {
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
+  const [syncingCarrier, setSyncingCarrier] = useState(false);
+  const [carrierSyncResult, setCarrierSyncResult] = useState<null | {
+    total: number; updated: number; failed: number;
+    codes: Array<{ code: string; count: number; label: string; mapped: boolean }>;
+  }>(null);
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
