@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical } from "lucide-react";
+import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ShippingSettings {
   id?: string;
@@ -29,6 +29,10 @@ const ShippingSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [whCount, setWhCount] = useState<number>(0);
+  const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null; stock: number; synced_at: string }>>([]);
+  const [linkedMap, setLinkedMap] = useState<Map<string, Array<{ productName: string; variantKey: string; localStock: number }>>>(new Map());
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
   const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }>>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -281,6 +285,44 @@ const ShippingSettingsPage = () => {
   };
   useEffect(() => { loadCount(); }, []);
 
+  const loadComparison = async () => {
+    setCompareLoading(true);
+    try {
+      const [{ data: wh }, { data: prods }] = await Promise.all([
+        supabase
+          .from("shipping_warehouse_products")
+          .select("external_id, code, name, stock, synced_at")
+          .order("name"),
+        supabase
+          .from("products")
+          .select("name, variant_warehouse_codes, variant_stock, stock"),
+      ]);
+      setWhProducts((wh || []) as any);
+      const map = new Map<string, Array<{ productName: string; variantKey: string; localStock: number }>>();
+      for (const p of (prods || []) as any[]) {
+        const codes = (p.variant_warehouse_codes || {}) as Record<string, any>;
+        const stocks = (p.variant_stock || {}) as Record<string, number>;
+        const entries = Object.entries(codes);
+        if (entries.length === 0) continue;
+        for (const [variantKey, extId] of entries) {
+          const key = String(extId).trim();
+          if (!key) continue;
+          const arr = map.get(key) || [];
+          arr.push({
+            productName: p.name,
+            variantKey: variantKey || "—",
+            localStock: Number(stocks?.[variantKey] ?? p.stock ?? 0),
+          });
+          map.set(key, arr);
+        }
+      }
+      setLinkedMap(map);
+      setShowCompare(true);
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -306,6 +348,7 @@ const ShippingSettingsPage = () => {
       if ((data as any)?.error) throw new Error((data as any).error);
       toast({ title: "تمت المزامنة", description: `تم جلب ${(data as any)?.count ?? 0} منتج من مخزن الشركة` });
       await loadCount();
+      await loadComparison();
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -433,6 +476,70 @@ const ShippingSettingsPage = () => {
               {syncing ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <RefreshCw className="w-4 h-4 ml-2" />}
               مزامنة منتجات المخزن من شركة الشحن
             </Button>
+            <Button onClick={loadComparison} disabled={compareLoading} variant="outline" className="w-full">
+              {compareLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Package className="w-4 h-4 ml-2" />}
+              {showCompare ? "تحديث المقارنة" : "عرض مقارنة الكميات"}
+            </Button>
+            {showCompare && (
+              <div className="border rounded-md mt-2 max-h-[480px] overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted">
+                    <tr className="text-right">
+                      <th className="p-2 font-medium">منتج المخزن (شركة الشحن)</th>
+                      <th className="p-2 font-medium">الكود</th>
+                      <th className="p-2 font-medium text-center">الكمية في الشركة</th>
+                      <th className="p-2 font-medium">المنتج المرتبط عندنا</th>
+                      <th className="p-2 font-medium text-center">الكمية عندنا</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {whProducts.length === 0 && (
+                      <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">لا توجد منتجات مزامنة بعد</td></tr>
+                    )}
+                    {whProducts.map((w) => {
+                      const links = linkedMap.get(String(w.external_id)) || [];
+                      const rowSpan = Math.max(1, links.length);
+                      if (links.length === 0) {
+                        return (
+                          <tr key={w.external_id} className="border-t">
+                            <td className="p-2">{w.name || `#${w.external_id}`}</td>
+                            <td className="p-2 font-mono text-xs">{w.code || "—"}</td>
+                            <td className="p-2 text-center font-bold">{w.stock}</td>
+                            <td className="p-2 text-muted-foreground">
+                              <span className="inline-flex items-center gap-1 text-amber-600">
+                                <AlertCircle className="w-3 h-3" /> غير مرتبط
+                              </span>
+                            </td>
+                            <td className="p-2 text-center text-muted-foreground">—</td>
+                          </tr>
+                        );
+                      }
+                      return links.map((lnk, i) => (
+                        <tr key={`${w.external_id}-${i}`} className="border-t">
+                          {i === 0 && (
+                            <>
+                              <td className="p-2 align-top" rowSpan={rowSpan}>{w.name || `#${w.external_id}`}</td>
+                              <td className="p-2 font-mono text-xs align-top" rowSpan={rowSpan}>{w.code || "—"}</td>
+                              <td className="p-2 text-center font-bold align-top" rowSpan={rowSpan}>{w.stock}</td>
+                            </>
+                          )}
+                          <td className="p-2">
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <CheckCircle2 className="w-3 h-3" />
+                            </span>
+                            {lnk.productName}
+                            {lnk.variantKey && lnk.variantKey !== "—" && (
+                              <span className="text-xs text-muted-foreground"> — {lnk.variantKey}</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">{lnk.localStock}</td>
+                        </tr>
+                      ));
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-4 space-y-2">

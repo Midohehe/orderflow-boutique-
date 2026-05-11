@@ -62,15 +62,34 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch products list
-    const prodRes = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ query: `{ listProductsDropdown { id name code } }` }),
-    });
-    const prodJson = await prodRes.json().catch(() => ({}));
-    const products: Array<{ id: number; name: string; code: string }> =
-      prodJson?.data?.listProductsDropdown || [];
+    // Fetch products list (paginated) with availableQuantity
+    const products: Array<{ id: number; name: string; code: string; availableQuantity: number }> = [];
+    const PAGE_SIZE = 100;
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const prodRes = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          query: `query($first:Int!,$page:Int!){ listProducts(first:$first,page:$page){ paginatorInfo { lastPage } data { id code name availableQuantity } } }`,
+          variables: { first: PAGE_SIZE, page },
+        }),
+      });
+      const prodJson = await prodRes.json().catch(() => ({}));
+      const lp = prodJson?.data?.listProducts;
+      if (!lp) break;
+      lastPage = Number(lp?.paginatorInfo?.lastPage || 1);
+      for (const p of (lp.data || [])) {
+        products.push({
+          id: Number(p.id),
+          name: p.name || "",
+          code: p.code || "",
+          availableQuantity: Number(p.availableQuantity ?? 0),
+        });
+      }
+      page++;
+    } while (page <= lastPage);
 
     if (products.length === 0) {
       return new Response(JSON.stringify({ ok: true, count: 0, message: "لا توجد منتجات في مخزن الشركة" }), {
@@ -84,6 +103,7 @@ Deno.serve(async (req) => {
       external_id: p.id,
       code: p.code || null,
       name: p.name || null,
+      stock: p.availableQuantity ?? 0,
       synced_at: new Date().toISOString(),
     }));
     const { error: upErr } = await admin

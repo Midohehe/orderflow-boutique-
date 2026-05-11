@@ -1,0 +1,1 @@
+ALTER TABLE public.shipping_warehouse_products ADD COLUMN IF NOT EXISTS stock integer NOT NULL DEFAULT 0;
