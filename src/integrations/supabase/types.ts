@@ -358,6 +358,8 @@ export type Database = {
       orders: {
         Row: {
           address: string
+          carrier_cancellation_reason_id: string | null
+          carrier_notes: string | null
           carrier_status: string | null
           carrier_status_raw: Json | null
           carrier_status_updated_at: string | null
@@ -391,6 +393,8 @@ export type Database = {
         }
         Insert: {
           address: string
+          carrier_cancellation_reason_id?: string | null
+          carrier_notes?: string | null
           carrier_status?: string | null
           carrier_status_raw?: Json | null
           carrier_status_updated_at?: string | null
@@ -424,6 +428,8 @@ export type Database = {
         }
         Update: {
           address?: string
+          carrier_cancellation_reason_id?: string | null
+          carrier_notes?: string | null
           carrier_status?: string | null
           carrier_status_raw?: Json | null
           carrier_status_updated_at?: string | null
