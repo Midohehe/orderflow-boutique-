@@ -186,6 +186,20 @@ Deno.serve(async (req) => {
         .from("orders").update(updatePayload).eq("id", o.id);
       if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); }
       else updated++;
+
+      // Auto-restore stock when carrier marks shipment as unpacked back at our warehouse
+      if (composite === "UPKBD" || composite === "UPKBL") {
+        try {
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ order_id: o.id, reason: "order_unpacked" }),
+          });
+        } catch (e) { console.error("apply-order-stock UPKBD failed", e); }
+      }
     }
 
     const codes = Array.from(codeStats.entries())
