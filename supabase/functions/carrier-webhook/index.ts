@@ -131,6 +131,7 @@ const STATUS_LABELS: Record<string, string> = {
   RCV: "ارتجاع للمخزن",
   UPKBL: "جاهز للتفريغ",
   UPKBD: "تم التفريغ",
+  UKDB: "تم التفريغ",
   BMR: "مناولة بين الفروع - وارد",
   BMT: "مناولة بين الفروع - صادر",
 };
@@ -206,7 +207,7 @@ Deno.serve(async (req) => {
     };
     if (cancellationReasonId !== null) updatePayload.carrier_cancellation_reason_id = cancellationReasonId;
     if (notes !== null) updatePayload.carrier_notes = notes;
-    if (status === "UPKBD" || status === "UPKBL") {
+    if (status === "UPKBD" || status === "UKDB") {
       updatePayload.status = "unpacked";
     }
 
@@ -232,8 +233,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Auto-restore stock on UPKBD (تم التفريغ)
-    if (status === "UPKBD" || status === "UPKBL") {
+    // Auto-restore stock on UPKBD/UKDB (تم التفريغ)
+    if (status === "UPKBD" || status === "UKDB") {
       for (const row of updated) {
         try {
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
