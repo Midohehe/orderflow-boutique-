@@ -93,7 +93,8 @@ function extractFromPayload(body: any): {
     if (composite.toUpperCase() === "DTR") {
       // Always keep DTR as-is, regardless of collection / paid-to-customer fields
       composite = "DTR";
-    } else {
+    } else if (composite.toUpperCase() === "RTS") {
+      // Append return type code only for RTS (e.g. RTS + WODF = RTSWODF)
       const suffix = (deliveryTypeCode ?? returnTypeCode);
       if (suffix != null && String(suffix).trim() !== "") {
         composite = composite + String(suffix).trim();

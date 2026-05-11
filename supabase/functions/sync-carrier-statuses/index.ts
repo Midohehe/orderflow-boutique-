@@ -37,8 +37,10 @@ function buildComposite(statusCode: string | null, deliveryTypeCode: any, return
   const base = String(statusCode).trim();
   if (!base) return null;
   if (base.toUpperCase() === "DTR") return "DTR";
-  const suffix = deliveryTypeCode ?? returnTypeCode;
-  if (suffix != null && String(suffix).trim() !== "") return base + String(suffix).trim();
+  if (base.toUpperCase() === "RTS") {
+    const suffix = deliveryTypeCode ?? returnTypeCode;
+    if (suffix != null && String(suffix).trim() !== "") return base + String(suffix).trim();
+  }
   return base;
 }
 
