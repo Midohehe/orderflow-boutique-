@@ -285,6 +285,44 @@ const ShippingSettingsPage = () => {
   };
   useEffect(() => { loadCount(); }, []);
 
+  const loadComparison = async () => {
+    setCompareLoading(true);
+    try {
+      const [{ data: wh }, { data: prods }] = await Promise.all([
+        supabase
+          .from("shipping_warehouse_products")
+          .select("external_id, code, name, stock, synced_at")
+          .order("name"),
+        supabase
+          .from("products")
+          .select("name, variant_warehouse_codes, variant_stock, stock"),
+      ]);
+      setWhProducts((wh || []) as any);
+      const map = new Map<string, Array<{ productName: string; variantKey: string; localStock: number }>>();
+      for (const p of (prods || []) as any[]) {
+        const codes = (p.variant_warehouse_codes || {}) as Record<string, any>;
+        const stocks = (p.variant_stock || {}) as Record<string, number>;
+        const entries = Object.entries(codes);
+        if (entries.length === 0) continue;
+        for (const [variantKey, extId] of entries) {
+          const key = String(extId).trim();
+          if (!key) continue;
+          const arr = map.get(key) || [];
+          arr.push({
+            productName: p.name,
+            variantKey: variantKey || "—",
+            localStock: Number(stocks?.[variantKey] ?? p.stock ?? 0),
+          });
+          map.set(key, arr);
+        }
+      }
+      setLinkedMap(map);
+      setShowCompare(true);
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -310,6 +348,7 @@ const ShippingSettingsPage = () => {
       if ((data as any)?.error) throw new Error((data as any).error);
       toast({ title: "تمت المزامنة", description: `تم جلب ${(data as any)?.count ?? 0} منتج من مخزن الشركة` });
       await loadCount();
+      await loadComparison();
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });
     } finally {
