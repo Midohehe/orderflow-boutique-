@@ -1183,8 +1183,6 @@ const Orders = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="cancelled" className="space-y-4">
-        </TabsContent>
         <TabsContent value="unpacked" className="space-y-4">
           {unpackedOrders.length === 0 ? (
             renderEmptyState(
@@ -1197,7 +1195,7 @@ const Orders = () => {
             </div>
           )}
         </TabsContent>
-        <TabsContent value="cancelled-real" className="space-y-4">
+        <TabsContent value="cancelled" className="space-y-4">
           {cancelledOrders.length === 0 ? (
             renderEmptyState(
               <XCircle className="w-16 h-16 text-muted-foreground mb-4" />,
