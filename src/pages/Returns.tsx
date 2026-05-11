@@ -7,7 +7,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { RefreshCw, ChevronLeft, CheckCircle2, Undo2, Loader2 } from "lucide-react";
+import { RefreshCw, ChevronLeft, CheckCircle2, Undo2, Loader2, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -47,7 +49,9 @@ const Returns = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [rtrnRows, setRtrnRows] = useState<RtrnOrderRow[]>([]);
-  const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [codeQuery, setCodeQuery] = useState("");
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -64,29 +68,77 @@ const Returns = () => {
     if (oErr) console.error(oErr);
     else setRtrnRows((ord as RtrnOrderRow[]) || []);
     setLoading(false);
+    setSelectedIds(new Set());
   };
 
   useEffect(() => {
     load();
   }, []);
 
-  const receiveRtrnOrder = async (orderId: string) => {
-    setReceivingId(orderId);
-    try {
-      const { error: fErr } = await supabase.functions.invoke("apply-order-stock", {
-        body: { order_id: orderId, reason: "return_received" },
-      });
-      if (fErr) throw fErr;
-      const { error: uErr } = await (supabase as any).from("orders")
-        .update({ status: "returned_received" }).eq("id", orderId);
-      if (uErr) throw uErr;
-      toast({ title: "تم الاستلام", description: "أُعيدت الكمية للمخزون" });
-      await load();
-    } catch (e: any) {
-      toast({ title: "تعذر الاستلام", description: e?.message || "", variant: "destructive" });
-    } finally {
-      setReceivingId(null);
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === rtrnRows.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(rtrnRows.map((r) => r.id)));
+  };
+
+  const applyCodeSelection = () => {
+    const tokens = codeQuery
+      .split(/[\s,،\n]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (tokens.length === 0) {
+      toast({ title: "أدخل كود أو أكواد", variant: "destructive" });
+      return;
     }
+    const matched = rtrnRows.filter((r) =>
+      tokens.some((t) => (r.shipping_reference || "").toLowerCase().includes(t)),
+    );
+    if (matched.length === 0) {
+      toast({ title: "لا توجد طلبات مطابقة", variant: "destructive" });
+      return;
+    }
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      matched.forEach((m) => n.add(m.id));
+      return n;
+    });
+    toast({ title: `تم تحديد ${matched.length} طلب` });
+  };
+
+  const confirmBulkReceive = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      toast({ title: "لم يتم اختيار أي طلب", variant: "destructive" });
+      return;
+    }
+    setBulkProcessing(true);
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      try {
+        const { error: fErr } = await supabase.functions.invoke("apply-order-stock", {
+          body: { order_id: id, reason: "return_received" },
+        });
+        if (fErr) throw fErr;
+        const { error: uErr } = await (supabase as any).from("orders")
+          .update({ status: "returned_received" }).eq("id", id);
+        if (uErr) throw uErr;
+        ok++;
+      } catch (e) { console.error(e); fail++; }
+    }
+    setBulkProcessing(false);
+    toast({
+      title: "اكتمل الاستلام",
+      description: `تم استلام ${ok} طلب${fail ? ` — فشل ${fail}` : ""}`,
+      variant: fail ? "destructive" : "default",
+    });
+    await load();
   };
 
   const refreshFromCarrier = async () => {
@@ -260,9 +312,32 @@ const Returns = () => {
           <Card>
             <CardHeader>
               <CardTitle>طلبات بحالة "تم الإرجاع للراسل" (RTRN)</CardTitle>
-              <p className="text-sm text-muted-foreground">عند الاستلام تُعاد الكمية للمخزون وتُسجل حركة المنتجات</p>
+              <p className="text-sm text-muted-foreground">حدد الطلبات يدوياً أو الصق أكواد المراجع، ثم اضغط "تأكيد الاستلام" لإرجاع الكميات للمخزون.</p>
             </CardHeader>
             <CardContent>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="ألصق كود أو عدة أكواد مفصولة بمسافة/فاصلة"
+                    value={codeQuery}
+                    onChange={(e) => setCodeQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") applyCodeSelection(); }}
+                    className="pr-9"
+                  />
+                </div>
+                <Button variant="outline" onClick={applyCodeSelection}>تحديد بالأكواد</Button>
+                <div className="flex-1" />
+                <Badge variant="secondary">المختار: {selectedIds.size}</Badge>
+                <Button onClick={confirmBulkReceive} disabled={bulkProcessing || selectedIds.size === 0}>
+                  {bulkProcessing ? (
+                    <Loader2 className="w-4 h-4 ml-1 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 ml-1" />
+                  )}
+                  تأكيد الاستلام
+                </Button>
+              </div>
               {loading ? (
                 <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
               ) : rtrnRows.length === 0 ? (
@@ -272,33 +347,34 @@ const Returns = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={selectedIds.size === rtrnRows.length && rtrnRows.length > 0}
+                            onCheckedChange={toggleAll}
+                          />
+                        </TableHead>
                         <TableHead className="text-right">المرجع</TableHead>
                         <TableHead className="text-right">العميل</TableHead>
                         <TableHead className="text-right">المنتج</TableHead>
                         <TableHead className="text-right">الكمية</TableHead>
                         <TableHead className="text-right">آخر تحديث</TableHead>
-                        <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {rtrnRows.map((o) => (
-                        <TableRow key={o.id}>
+                        <TableRow key={o.id} data-state={selectedIds.has(o.id) ? "selected" : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.has(o.id)}
+                              onCheckedChange={() => toggleOne(o.id)}
+                            />
+                          </TableCell>
                           <TableCell className="font-mono text-xs">{o.shipping_reference || "—"}</TableCell>
                           <TableCell>{o.customer_name}</TableCell>
                           <TableCell>{o.product_name}</TableCell>
                           <TableCell>{o.quantity}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {o.carrier_status_updated_at ? new Date(o.carrier_status_updated_at).toLocaleString("ar-LY") : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <Button size="sm" disabled={receivingId === o.id} onClick={() => receiveRtrnOrder(o.id)}>
-                              {receivingId === o.id ? (
-                                <Loader2 className="w-4 h-4 ml-1 animate-spin" />
-                              ) : (
-                                <CheckCircle2 className="w-4 h-4 ml-1" />
-                              )}
-                              تم الاستلام
-                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
