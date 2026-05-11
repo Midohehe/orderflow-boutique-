@@ -349,6 +349,31 @@ const Orders = () => {
     }
   };
 
+  const handleSyncCarrierStatuses = async () => {
+    setSyncingCarrier(true);
+    setCarrierSyncResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-carrier-statuses", { body: {} });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "فشل المزامنة");
+      setCarrierSyncResult({
+        total: data.total ?? 0,
+        updated: data.updated ?? 0,
+        failed: data.failed ?? 0,
+        codes: data.codes ?? [],
+      });
+      toast({
+        title: "تمت المزامنة",
+        description: `تم تحديث ${data.updated} طلب من أصل ${data.total}`,
+      });
+      await fetchOrders();
+    } catch (e: any) {
+      toast({ title: "فشل المزامنة", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncingCarrier(false);
+    }
+  };
+
   const handleStatusChange = async (orderId: string, newStatus: Order["status"]) => {
     try {
       const { error } = await supabase
