@@ -426,7 +426,7 @@ const ShippingSettingsPage = () => {
             <div>
               <Label className="text-base font-bold">تخصيص أسماء حالات الشحن</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                حوّل أكواد الحالات القادمة من شركة الشحن إلى أسماء تفهمها (مثلاً: الكود <span className="font-mono">5</span> ← "تم التوصيل للزبون").
+                حوّل أكواد الحالات القادمة من شركة الشحن إلى أسماء تفهمها. يمكنك إضافة أكثر من كود لنفس الاسم بفصلهم بفاصلة (مثال: <span className="font-mono">RTS, RTSWODF, RTSD</span> ← "راجع").
               </p>
             </div>
 
