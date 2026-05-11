@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
     const body: any = await req.json().catch(() => ({}));
     console.log("carrier-webhook payload", JSON.stringify(body).slice(0, 1500));
 
-    const { shipmentId, ref, status } = extractFromPayload(body);
+    const { shipmentId, ref, status, cancellationReasonId, notes } = extractFromPayload(body);
     if (!shipmentId && !ref) {
       return new Response(JSON.stringify({ error: "Missing shipmentId/reference in payload" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -198,13 +198,17 @@ Deno.serve(async (req) => {
         ? `${STATUS_LABELS[status]} (${status})`
         : String(status);
 
+    const updatePayload: Record<string, unknown> = {
+      carrier_status: label,
+      carrier_status_updated_at: new Date().toISOString(),
+      carrier_status_raw: body,
+    };
+    if (cancellationReasonId !== null) updatePayload.carrier_cancellation_reason_id = cancellationReasonId;
+    if (notes !== null) updatePayload.carrier_notes = notes;
+
     let q = supabase
       .from("orders")
-      .update({
-        carrier_status: label,
-        carrier_status_updated_at: new Date().toISOString(),
-        carrier_status_raw: body,
-      })
+      .update(updatePayload)
       .eq("owner_id", profile.user_id);
     // Prefer matching by shipment internal id, fallback to reference/code.
     if (shipmentId) q = q.eq("shipping_id", shipmentId);
