@@ -111,7 +111,7 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
         </SelectTrigger>
         <SelectContent>
           {zones.map((z) => (
-            <SelectItem key={z.external_id} value={z.name}>{z.name}</SelectItem>
+            <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>
