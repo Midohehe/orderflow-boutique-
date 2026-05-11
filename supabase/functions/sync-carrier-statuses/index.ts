@@ -173,9 +173,11 @@ Deno.serve(async (req) => {
         carrier_status_updated_at: new Date().toISOString(),
         carrier_status_raw: sh,
       };
-      const crId = sh.cancellationReason?.id ?? sh.cancellationReason?.name ?? null;
-      if (crId != null && String(crId).trim() !== "") {
-        updatePayload.carrier_cancellation_reason_id = String(crId);
+      // Prefer the human-readable name over the numeric ID so the UI shows
+      // an actual reason instead of just a code.
+      const crName = sh.cancellationReason?.name ?? sh.cancellationReason?.id ?? null;
+      if (crName != null && String(crName).trim() !== "") {
+        updatePayload.carrier_cancellation_reason_id = String(crName);
       }
       if (sh.notes != null && String(sh.notes).trim() !== "") {
         updatePayload.carrier_notes = String(sh.notes);
