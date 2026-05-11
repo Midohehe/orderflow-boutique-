@@ -48,6 +48,8 @@ interface Order {
   carrier_status?: string | null;
   carrier_status_updated_at?: string | null;
   carrier_status_raw?: any;
+  carrier_cancellation_reason_id?: string | null;
+  carrier_notes?: string | null;
 }
 
 const statusLabels: Record<Order["status"], string> = {
