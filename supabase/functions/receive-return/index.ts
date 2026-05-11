@@ -65,6 +65,22 @@ Deno.serve(async (req) => {
       await admin.from("orders").update({
         status: received ? "returned_received" : "cancelled",
       }).in("id", orderIds).eq("owner_id", ownerId);
+
+      // Restore stock on receive
+      if (received) {
+        for (const oid of orderIds) {
+          try {
+            await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({ order_id: oid, reason: "return_received", return_id: ret.id }),
+            });
+          } catch (e) { console.error("apply-order-stock return failed", e); }
+        }
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, updated_orders: orderIds.length }), {
