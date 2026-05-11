@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -33,7 +33,7 @@ interface Order {
   product_name: string;
   product_id?: string | null;
   price: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received";
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received" | "unpacked";
   created_at: string;
   selected_color?: string;
   selected_size?: string;
@@ -60,6 +60,7 @@ const statusLabels: Record<Order["status"], string> = {
   cancelled: "ملغي",
   settled: "تم استلام القيمة المالية",
   returned_received: "تم استلام المرتجع",
+  unpacked: "تم التفريغ",
 };
 
 const statusColors: Record<Order["status"], string> = {
@@ -70,6 +71,7 @@ const statusColors: Record<Order["status"], string> = {
   cancelled: "bg-destructive text-destructive-foreground",
   settled: "bg-success text-success-foreground",
   returned_received: "bg-muted text-muted-foreground",
+  unpacked: "bg-secondary text-secondary-foreground",
 };
 
 const Orders = () => {
@@ -684,6 +686,7 @@ const Orders = () => {
     return true;
   });
   const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
+  const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
   if (loading) {
@@ -910,7 +913,7 @@ const Orders = () => {
       </div>
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span className="hidden sm:inline">قيد الانتظار</span> ({pendingOrders.length})
@@ -922,6 +925,10 @@ const Orders = () => {
           <TabsTrigger value="delivered" className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4" />
             <span className="hidden sm:inline">تم الاستلام</span> ({deliveredOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="unpacked" className="flex items-center gap-2">
+            <PackageOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">تم التفريغ</span> ({unpackedOrders.length})
           </TabsTrigger>
           <TabsTrigger value="cancelled" className="flex items-center gap-2">
             <XCircle className="w-4 h-4" />
