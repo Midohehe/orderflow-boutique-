@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
     };
     if (cancellationReasonId !== null) updatePayload.carrier_cancellation_reason_id = cancellationReasonId;
     if (notes !== null) updatePayload.carrier_notes = notes;
-    if (status === "UPKBD" || status === "UKDB") {
+    if (status === "UPKBD" || status === "UKDB" || status === "UPKBL") {
       updatePayload.status = "unpacked";
     }
 
@@ -233,8 +233,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Auto-restore stock on UPKBD/UKDB (تم التفريغ)
-    if (status === "UPKBD" || status === "UKDB") {
+    // Auto-restore stock on UPKBL/UPKBD/UKDB (جاهز للتفريغ / تم التفريغ)
+    if (status === "UPKBD" || status === "UKDB" || status === "UPKBL") {
       for (const row of updated) {
         try {
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
