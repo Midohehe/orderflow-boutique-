@@ -127,9 +127,9 @@ Deno.serve(async (req) => {
       shipment(id: $id) {
         id code refNumber notes
         status { code name }
-        deliveryTypeCode
-        returnTypeCode
-        cancellationReasonId
+        deliveryType { code name }
+        returnType { code name }
+        cancellationReason { id name }
         collectedFees
         deliveredAmount
       }
@@ -148,8 +148,8 @@ Deno.serve(async (req) => {
       const statusCode = sh.status?.code ?? null;
       const composite = buildComposite(
         statusCode,
-        sh.deliveryTypeCode,
-        sh.returnTypeCode,
+        sh.deliveryType?.code,
+        sh.returnType?.code,
       );
       if (!composite) { failed++; continue; }
 
@@ -173,8 +173,9 @@ Deno.serve(async (req) => {
         carrier_status_updated_at: new Date().toISOString(),
         carrier_status_raw: sh,
       };
-      if (sh.cancellationReasonId != null && String(sh.cancellationReasonId).trim() !== "") {
-        updatePayload.carrier_cancellation_reason_id = String(sh.cancellationReasonId);
+      const crId = sh.cancellationReason?.id ?? sh.cancellationReason?.name ?? null;
+      if (crId != null && String(crId).trim() !== "") {
+        updatePayload.carrier_cancellation_reason_id = String(crId);
       }
       if (sh.notes != null && String(sh.notes).trim() !== "") {
         updatePayload.carrier_notes = String(sh.notes);
