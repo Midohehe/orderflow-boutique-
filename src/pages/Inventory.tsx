@@ -46,8 +46,9 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [selectedVariant, setSelectedVariant] = useState<string>("__none__");
-  const [addQty, setAddQty] = useState<string>("");
+  const [variantQty, setVariantQty] = useState<Record<string, string>>({});
+  const [singleQty, setSingleQty] = useState<string>("");
+  const [bulkQty, setBulkQty] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -79,52 +80,80 @@ const Inventory = () => {
 
   const resetDialog = () => {
     setSelectedProductId("");
-    setSelectedVariant("__none__");
-    setAddQty("");
+    setVariantQty({});
+    setSingleQty("");
+    setBulkQty("");
+  };
+
+  const applyBulkToAll = () => {
+    const v = bulkQty.trim();
+    if (!v) return;
+    const next: Record<string, string> = {};
+    variantKeys.forEach((k) => { next[k] = v; });
+    setVariantQty(next);
   };
 
   const submitAdd = async () => {
-    const qty = parseInt(addQty);
-    if (!selectedProductId || isNaN(qty) || qty <= 0) {
-      toast({ title: "بيانات ناقصة", description: "اختر منتجاً وأدخل كمية صالحة", variant: "destructive" });
+    if (!selectedProductId) {
+      toast({ title: "اختر منتجاً", variant: "destructive" });
       return;
     }
     const prod = products.find((p) => p.id === selectedProductId);
     if (!prod) return;
-    if (variantKeys.length > 0 && selectedVariant === "__none__") {
-      toast({ title: "اختر المتغير", variant: "destructive" });
+
+    type Entry = { variantKey: string | null; qty: number };
+    const entries: Entry[] = [];
+    if (variantKeys.length > 0) {
+      for (const k of variantKeys) {
+        const raw = (variantQty[k] || "").trim();
+        if (!raw) continue;
+        const q = parseInt(raw);
+        if (isNaN(q) || q <= 0) continue;
+        entries.push({ variantKey: k, qty: q });
+      }
+    } else {
+      const q = parseInt(singleQty);
+      if (!isNaN(q) && q > 0) entries.push({ variantKey: null, qty: q });
+    }
+
+    if (entries.length === 0) {
+      toast({ title: "أدخل كمية واحدة على الأقل", variant: "destructive" });
       return;
     }
-    const variantKey = variantKeys.length > 0 ? selectedVariant : null;
 
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error: mErr } = await (supabase as any).from("stock_movements").insert({
+      const movementsPayload = entries.map((e) => ({
         owner_id: user.id,
         product_id: prod.id,
         product_name: prod.name,
-        variant_key: variantKey,
+        variant_key: e.variantKey,
         warehouse_code: null,
-        qty,
+        qty: e.qty,
         reason: "manual_add",
         notes: "إضافة كميات يدوياً",
-      });
+      }));
+      const { error: mErr } = await (supabase as any).from("stock_movements").insert(movementsPayload);
       if (mErr) throw mErr;
 
       const newVariantStock = { ...(prod.variant_stock || {}) } as Record<string, number>;
-      if (variantKey) {
-        newVariantStock[variantKey] = Number(newVariantStock[variantKey] || 0) + qty;
+      let added = 0;
+      for (const e of entries) {
+        if (e.variantKey) {
+          newVariantStock[e.variantKey] = Number(newVariantStock[e.variantKey] || 0) + e.qty;
+        }
+        added += e.qty;
       }
-      const newStock = Number(prod.stock || 0) + qty;
+      const newStock = Number(prod.stock || 0) + added;
       const { error: uErr } = await (supabase as any).from("products")
         .update({ stock: newStock, variant_stock: newVariantStock })
         .eq("id", prod.id);
       if (uErr) throw uErr;
 
-      toast({ title: "تمت الإضافة", description: `+${qty} إلى ${prod.name}` });
+      toast({ title: "تمت الإضافة", description: `+${added} إلى ${prod.name}` });
       setDialogOpen(false);
       resetDialog();
       await load();
@@ -246,12 +275,12 @@ const Inventory = () => {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent dir="rtl">
+        <DialogContent dir="rtl" className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>إضافة كميات للمخزون</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div>
               <Label>المنتج</Label>
-              <Select value={selectedProductId} onValueChange={(v) => { setSelectedProductId(v); setSelectedVariant("__none__"); }}>
+              <Select value={selectedProductId} onValueChange={(v) => { setSelectedProductId(v); setVariantQty({}); setSingleQty(""); setBulkQty(""); }}>
                 <SelectTrigger><SelectValue placeholder="اختر المنتج" /></SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
@@ -260,23 +289,69 @@ const Inventory = () => {
                 </SelectContent>
               </Select>
             </div>
-            {variantKeys.length > 0 && (
+            {selectedProduct && variantKeys.length > 0 && (
+              <>
+                <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                  <Label className="text-xs text-muted-foreground">قيمة موحدة (اختياري) — تطبّق على جميع المتغيرات</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={bulkQty}
+                      onChange={(e) => setBulkQty(e.target.value)}
+                      placeholder="مثال: 5"
+                    />
+                    <Button type="button" variant="secondary" onClick={applyBulkToAll} disabled={!bulkQty.trim()}>
+                      تطبيق على الكل
+                    </Button>
+                  </div>
+                </div>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-right">المتغير</TableHead>
+                        <TableHead className="text-right">الكمية الحالية</TableHead>
+                        <TableHead className="text-right">إضافة</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {variantKeys.map((k) => {
+                        const cur = Number(selectedProduct.variant_stock?.[k] ?? 0);
+                        return (
+                          <TableRow key={k}>
+                            <TableCell className="text-muted-foreground">{k}</TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                cur <= 0 ? "bg-red-500/10 text-red-500"
+                                : cur < 5 ? "bg-orange-500/10 text-orange-500"
+                                : "bg-green-500/10 text-green-500"
+                              }`}>{cur}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                className="w-24"
+                                value={variantQty[k] ?? ""}
+                                placeholder="0"
+                                onChange={(e) => setVariantQty((prev) => ({ ...prev, [k]: e.target.value }))}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+            {selectedProduct && variantKeys.length === 0 && (
               <div>
-                <Label>المتغير</Label>
-                <Select value={selectedVariant} onValueChange={setSelectedVariant}>
-                  <SelectTrigger><SelectValue placeholder="اختر المتغير" /></SelectTrigger>
-                  <SelectContent>
-                    {variantKeys.map((k) => (
-                      <SelectItem key={k} value={k}>{k}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>الكمية المراد إضافتها</Label>
+                <Input type="number" min="1" value={singleQty} onChange={(e) => setSingleQty(e.target.value)} placeholder="مثال: 10" />
               </div>
             )}
-            <div>
-              <Label>الكمية المراد إضافتها</Label>
-              <Input type="number" min="1" value={addQty} onChange={(e) => setAddQty(e.target.value)} placeholder="مثال: 10" />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>إلغاء</Button>
