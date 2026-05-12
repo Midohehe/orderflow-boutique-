@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -50,7 +50,32 @@ interface Order {
   carrier_status_raw?: any;
   carrier_cancellation_reason_id?: string | null;
   carrier_notes?: string | null;
+  confirmation_status?: "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled" | null;
+  confirmation_notes?: string | null;
+  confirmation_attempts?: number | null;
+  postponed_until?: string | null;
+  confirmed_at?: string | null;
 }
+
+type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
+
+const CONFIRMATION_LABELS: Record<ConfirmationStatus, string> = {
+  unconfirmed: "بانتظار التأكيد",
+  confirmed: "مؤكد",
+  no_answer: "لم يرد",
+  postponed: "مؤجل",
+  cancelled: "ألغى الطلب",
+};
+
+const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
+  unconfirmed: "bg-muted text-muted-foreground",
+  confirmed: "bg-success text-success-foreground",
+  no_answer: "bg-warning text-warning-foreground",
+  postponed: "bg-accent text-accent-foreground",
+  cancelled: "bg-destructive text-destructive-foreground",
+};
+
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at";
 
 const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
@@ -100,6 +125,11 @@ const Orders = () => {
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [labelOrderMap, setLabelOrderMap] = useState<Record<string, number>>({});
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
+  const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
+  const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
+  const [confirmNoteValue, setConfirmNoteValue] = useState("");
+  const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
+  const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -195,7 +225,7 @@ const Orders = () => {
           quantity: 1,
           status: "pending",
         })
-        .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes")
+        .select(ORDER_SELECT_COLS)
         .maybeSingle();
       if (error) throw error;
       if (data) {
@@ -312,7 +342,7 @@ const Orders = () => {
         const [ordersRes, currencyRes, mapRes, productsRes] = await Promise.all([
           supabase
             .from("orders")
-            .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes")
+            .select(ORDER_SELECT_COLS)
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order"),
@@ -375,7 +405,7 @@ const Orders = () => {
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes")
+        .select(ORDER_SELECT_COLS)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -442,6 +472,75 @@ const Orders = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleConfirmationAction = async (
+    order: Order,
+    action: ConfirmationStatus,
+    notes?: string,
+  ) => {
+    setConfirmActionLoading(order.id);
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      const now = new Date().toISOString();
+      const update: any = {
+        confirmation_status: action,
+        confirmation_attempts: (order.confirmation_attempts || 0) + 1,
+      };
+      if (action === "confirmed") {
+        update.confirmed_at = now;
+        update.confirmed_by = uid;
+      }
+      if (notes !== undefined) update.confirmation_notes = notes || null;
+      if (action !== "postponed") update.postponed_until = null;
+
+      const { error } = await supabase.from("orders").update(update).eq("id", order.id);
+      if (error) throw error;
+
+      if (uid) {
+        await supabase.from("order_confirmation_attempts").insert({
+          order_id: order.id,
+          owner_id: uid,
+          result: action,
+          notes: notes || null,
+          created_by: uid,
+        });
+      }
+
+      // If marked cancelled in confirmation flow → cancel the order itself
+      if (action === "cancelled") {
+        await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? {
+                ...o,
+                ...update,
+                status: action === "cancelled" ? "cancelled" : o.status,
+              }
+            : o,
+        ),
+      );
+      toast({ title: "تم", description: `تم تحديث حالة التأكيد: ${CONFIRMATION_LABELS[action]}` });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر التحديث", variant: "destructive" });
+    } finally {
+      setConfirmActionLoading(null);
+      setConfirmNoteOpen(null);
+      setConfirmNoteValue("");
+    }
+  };
+
+  const openWhatsApp = (phone: string, customerName: string, productName: string) => {
+    const digits = (phone || "").replace(/\D/g, "");
+    if (!digits) return;
+    const text = encodeURIComponent(
+      `السلام عليكم ${customerName || ""}، نتواصل معك لتأكيد طلبك (${productName || ""}). هل التوصيل والمواصفات لا تزال صحيحة؟`,
+    );
+    window.open(`https://wa.me/${digits}?text=${text}`, "_blank");
   };
 
   const handleBulkStatusChange = async () => {
@@ -620,6 +719,10 @@ const Orders = () => {
   const allPending = orders.filter((o) => o.status === "pending");
   const pendingOrders = allPending.filter((o) => {
     if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
+    if (confirmationFilter !== "all") {
+      const cs = (o.confirmation_status as ConfirmationStatus | null) || "unconfirmed";
+      if (cs !== confirmationFilter) return false;
+    }
     if (pendingDateFrom) {
       const from = new Date(pendingDateFrom);
       from.setHours(0, 0, 0, 0);
@@ -632,6 +735,16 @@ const Orders = () => {
     }
     return true;
   });
+  const confirmationCounts = (() => {
+    const c: Record<ConfirmationStatus, number> = {
+      unconfirmed: 0, confirmed: 0, no_answer: 0, postponed: 0, cancelled: 0,
+    };
+    allPending.forEach((o) => {
+      const k = ((o.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
+      c[k] = (c[k] || 0) + 1;
+    });
+    return c;
+  })();
   const allShipped = orders.filter((o) => o.status === "shipped");
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
   // Group by displayed label so codes that share the same custom_label
@@ -689,6 +802,22 @@ const Orders = () => {
   const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
+  // Delivery rate by confirmation status — only orders that were sent to shipping
+  const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
+  const sentToCarrier = orders.filter((o) => !!o.shipping_reference || shippedFinalStatuses.has(o.status));
+  const isConfirmed = (o: Order) => o.confirmation_status === "confirmed";
+  const isDelivered = (o: Order) => o.status === "delivered" || o.status === "settled";
+  const confirmedSent = sentToCarrier.filter(isConfirmed);
+  const unconfirmedSent = sentToCarrier.filter((o) => !isConfirmed(o));
+  const confirmedDelivered = confirmedSent.filter(isDelivered).length;
+  const unconfirmedDelivered = unconfirmedSent.filter(isDelivered).length;
+  const confirmedRate = confirmedSent.length > 0
+    ? Math.round((confirmedDelivered / confirmedSent.length) * 100)
+    : 0;
+  const unconfirmedRate = unconfirmedSent.length > 0
+    ? Math.round((unconfirmedDelivered / unconfirmedSent.length) * 100)
+    : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -726,6 +855,16 @@ const Orders = () => {
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
                 </Badge>
+                {(() => {
+                  const cs = ((order.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
+                  return (
+                    <Badge className={CONFIRMATION_BADGE_CLASS[cs]} title={order.confirmation_notes || undefined}>
+                      {CONFIRMATION_LABELS[cs]}
+                      {cs === "postponed" && order.postponed_until ? ` (${formatDate(order.postponed_until)})` : ""}
+                      {(order.confirmation_attempts || 0) > 0 ? ` · ${order.confirmation_attempts} محاولة` : ""}
+                    </Badge>
+                  );
+                })()}
                 {duplicateCount > 1 && (
                   <Badge variant="destructive">
                     رقم مكرر ×{duplicateCount}
@@ -796,7 +935,78 @@ const Orders = () => {
                 originalAddress={order.address}
                 onSaved={(nc, na) => setOrders((prev) => prev.map((p) => p.id === order.id ? { ...p, matched_zone_name: nc, matched_area_name: na } : p))}
               />
-              
+              {showCheckbox && order.status === "pending" && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
+                  <span className="text-xs text-muted-foreground ml-1">تأكيد:</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 border-success text-success hover:bg-success hover:text-success-foreground"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => handleConfirmationAction(order, "confirmed")}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" /> مؤكد
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 border-warning text-warning hover:bg-warning hover:text-warning-foreground"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => { setConfirmNoteAction("no_answer"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
+                  >
+                    <PhoneOff className="w-3.5 h-3.5" /> لم يرد
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => { setConfirmNoteAction("postponed"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
+                  >
+                    <CalendarClock className="w-3.5 h-3.5" /> تأجيل
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => { setConfirmNoteAction("cancelled"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5" /> إلغاء
+                  </Button>
+                  {order.phone && (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 text-primary"
+                        onClick={() => { window.location.href = `tel:${order.phone}`; }}
+                      >
+                        <PhoneCall className="w-3.5 h-3.5" /> اتصال
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 text-success"
+                        onClick={() => openWhatsApp(order.phone, order.customer_name, order.product_name)}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> واتساب
+                      </Button>
+                    </>
+                  )}
+                  {order.confirmation_notes && (
+                    <span className="text-xs text-muted-foreground italic w-full">
+                      📝 {order.confirmation_notes}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           
@@ -912,6 +1122,53 @@ const Orders = () => {
         </Card>
       </div>
 
+      {/* نسبة التسليم حسب حالة التأكيد */}
+      <Card className="card-shadow">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="font-bold text-foreground">نسبة التسليم حسب حالة التأكيد (للطلبات المرسلة لشركة الشحن)</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg border-2 border-success/30 bg-success/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="w-4 h-4 text-success" />
+                <span className="font-semibold text-foreground">الطلبات المؤكدة</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-success">{confirmedRate}%</span>
+                <span className="text-sm text-muted-foreground">
+                  ({confirmedDelivered} من {confirmedSent.length})
+                </span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-success transition-all" style={{ width: `${confirmedRate}%` }} />
+              </div>
+            </div>
+            <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldAlert className="w-4 h-4 text-warning" />
+                <span className="font-semibold text-foreground">الطلبات بدون تأكيد</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-warning">{unconfirmedRate}%</span>
+                <span className="text-sm text-muted-foreground">
+                  ({unconfirmedDelivered} من {unconfirmedSent.length})
+                </span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-warning transition-all" style={{ width: `${unconfirmedRate}%` }} />
+              </div>
+            </div>
+          </div>
+          {confirmedSent.length > 0 && unconfirmedSent.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-3">
+              💡 الفرق: {confirmedRate - unconfirmedRate > 0 ? `+${confirmedRate - unconfirmedRate}` : confirmedRate - unconfirmedRate}% لصالح الطلبات المؤكدة
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending" className="flex items-center gap-2">
@@ -977,6 +1234,19 @@ const Orders = () => {
                         {productNames.map((name) => (
                           <SelectItem key={name} value={name}>{name}</SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={confirmationFilter} onValueChange={(v) => { setConfirmationFilter(v as any); setSelectedOrders([]); }}>
+                      <SelectTrigger className="w-full sm:w-52">
+                        <SelectValue placeholder="فلتر حسب التأكيد" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">كل حالات التأكيد ({allPending.length})</SelectItem>
+                        <SelectItem value="unconfirmed">بانتظار التأكيد ({confirmationCounts.unconfirmed})</SelectItem>
+                        <SelectItem value="confirmed">مؤكد ({confirmationCounts.confirmed})</SelectItem>
+                        <SelectItem value="no_answer">لم يرد ({confirmationCounts.no_answer})</SelectItem>
+                        <SelectItem value="postponed">مؤجل ({confirmationCounts.postponed})</SelectItem>
+                        <SelectItem value="cancelled">ألغى ({confirmationCounts.cancelled})</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -1262,6 +1532,38 @@ const Orders = () => {
         onOpenChange={(o) => !o && setDetailsId(null)}
         onSaved={(u) => setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p))}
       />
+
+      <AlertDialog open={!!confirmNoteOpen} onOpenChange={(o) => { if (!o) { setConfirmNoteOpen(null); setConfirmNoteValue(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{CONFIRMATION_LABELS[confirmNoteAction]}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmNoteAction === "postponed"
+                ? "اكتب موعد إعادة الاتصال أو أي ملاحظة (مثلاً: تأجيل ليوم الأحد)."
+                : confirmNoteAction === "cancelled"
+                ? "سيتم تغيير حالة الطلب إلى ملغي. اكتب سبب الإلغاء (اختياري)."
+                : "اكتب ملاحظة (اختياري)، مثل: محاولة ثانية، الهاتف مغلق…"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={confirmNoteValue}
+            onChange={(e) => setConfirmNoteValue(e.target.value)}
+            placeholder="ملاحظة..."
+            className="my-2"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const order = orders.find((o) => o.id === confirmNoteOpen);
+                if (order) handleConfirmationAction(order, confirmNoteAction, confirmNoteValue);
+              }}
+            >
+              حفظ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
