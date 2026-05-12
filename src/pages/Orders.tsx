@@ -125,6 +125,7 @@ const Orders = () => {
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [labelOrderMap, setLabelOrderMap] = useState<Record<string, number>>({});
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
+  const [statusCategoryMap, setStatusCategoryMap] = useState<Record<string, string>>({});
   const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
   const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
@@ -345,7 +346,7 @@ const Orders = () => {
             .select(ORDER_SELECT_COLS)
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
-          supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order"),
+          supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
           supabase.from("products").select("id, name"),
         ]);
         if (cancelled) return;
@@ -361,9 +362,11 @@ const Orders = () => {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
           const lo: Record<string, number> = {};
+          const catm: Record<string, string> = {};
           (mapRes.data as any[]).forEach((r) => {
             m[String(r.status_code)] = r.custom_label;
             if (r.color) cm[String(r.status_code)] = r.color;
+            if (r.category) catm[String(r.status_code)] = r.category;
             const so = Number(r.sort_order ?? 0);
             if (so > 0) {
               const key = String(r.custom_label);
@@ -373,6 +376,7 @@ const Orders = () => {
           setStatusMap(m);
           setStatusColorMap(cm);
           setLabelOrderMap(lo);
+          setStatusCategoryMap(catm);
         }
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -818,6 +822,31 @@ const Orders = () => {
     ? Math.round((unconfirmedDelivered / unconfirmedSent.length) * 100)
     : 0;
 
+  // نسبة التسليم بناءً على تصنيف أكواد حالات شركة الشحن
+  // (تم التسليم / راجع / قيد التنفيذ) — يعتمد على التصنيف المحدد في إعدادات الشحن.
+  const carrierCategoryCounts = orders.reduce(
+    (acc, o) => {
+      const code = extractStatusCode(o);
+      const cat = code ? statusCategoryMap[code] : undefined;
+      if (cat === "delivered") acc.delivered += 1;
+      else if (cat === "returned") acc.returned += 1;
+      else if (cat === "in_progress") acc.in_progress += 1;
+      return acc;
+    },
+    { delivered: 0, returned: 0, in_progress: 0 },
+  );
+  const carrierCategorizedTotal =
+    carrierCategoryCounts.delivered + carrierCategoryCounts.returned + carrierCategoryCounts.in_progress;
+  const carrierDeliveryRate = carrierCategorizedTotal > 0
+    ? Math.round((carrierCategoryCounts.delivered / carrierCategorizedTotal) * 100)
+    : 0;
+  const carrierReturnRate = carrierCategorizedTotal > 0
+    ? Math.round((carrierCategoryCounts.returned / carrierCategorizedTotal) * 100)
+    : 0;
+  const carrierInProgressRate = carrierCategorizedTotal > 0
+    ? Math.round((carrierCategoryCounts.in_progress / carrierCategorizedTotal) * 100)
+    : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -1165,6 +1194,74 @@ const Orders = () => {
             <p className="text-xs text-muted-foreground mt-3">
               💡 الفرق: {confirmedRate - unconfirmedRate > 0 ? `+${confirmedRate - unconfirmedRate}` : confirmedRate - unconfirmedRate}% لصالح الطلبات المؤكدة
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* نسبة التسليم بناءً على حالات شركة الشحن المصنّفة */}
+      <Card className="card-shadow">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="font-bold text-foreground">نسبة التسليم حسب حالات شركة الشحن</h3>
+          </div>
+          {carrierCategorizedTotal === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              لم يتم تصنيف أي حالة بعد. اذهب إلى <span className="font-semibold">إعدادات الشحن ← تخصيص أسماء حالات الشحن</span> وحدد لكل كود تصنيفه (تم التسليم / راجع / قيد التنفيذ) ليظهر الاحتساب هنا.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg border-2 border-success/30 bg-success/5 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="w-4 h-4 text-success" />
+                    <span className="font-semibold text-foreground">تم التسليم</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-success">{carrierDeliveryRate}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      ({carrierCategoryCounts.delivered} من {carrierCategorizedTotal})
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-success transition-all" style={{ width: `${carrierDeliveryRate}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="w-4 h-4 text-destructive" />
+                    <span className="font-semibold text-foreground">راجع</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-destructive">{carrierReturnRate}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      ({carrierCategoryCounts.returned} من {carrierCategorizedTotal})
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-destructive transition-all" style={{ width: `${carrierReturnRate}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-warning" />
+                    <span className="font-semibold text-foreground">قيد التنفيذ</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-warning">{carrierInProgressRate}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      ({carrierCategoryCounts.in_progress} من {carrierCategorizedTotal})
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-warning transition-all" style={{ width: `${carrierInProgressRate}%` }} />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                يتم احتساب النسب من إجمالي الطلبات المصنّفة فقط ({carrierCategorizedTotal} طلب). لتعديل التصنيفات اذهب إلى إعدادات الشحن.
+              </p>
+            </>
           )}
         </CardContent>
       </Card>
