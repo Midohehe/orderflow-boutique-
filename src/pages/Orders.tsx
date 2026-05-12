@@ -1333,6 +1333,8 @@ const Orders = () => {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
 
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
