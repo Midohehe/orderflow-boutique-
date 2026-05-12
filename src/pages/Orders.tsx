@@ -1198,6 +1198,74 @@ const Orders = () => {
         </CardContent>
       </Card>
 
+      {/* نسبة التسليم بناءً على حالات شركة الشحن المصنّفة */}
+      <Card className="card-shadow">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="font-bold text-foreground">نسبة التسليم حسب حالات شركة الشحن</h3>
+          </div>
+          {carrierCategorizedTotal === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              لم يتم تصنيف أي حالة بعد. اذهب إلى <span className="font-semibold">إعدادات الشحن ← تخصيص أسماء حالات الشحن</span> وحدد لكل كود تصنيفه (تم التسليم / راجع / قيد التنفيذ) ليظهر الاحتساب هنا.
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg border-2 border-success/30 bg-success/5 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="w-4 h-4 text-success" />
+                    <span className="font-semibold text-foreground">تم التسليم</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-success">{carrierDeliveryRate}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      ({carrierCategoryCounts.delivered} من {carrierCategorizedTotal})
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-success transition-all" style={{ width: `${carrierDeliveryRate}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="w-4 h-4 text-destructive" />
+                    <span className="font-semibold text-foreground">راجع</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-destructive">{carrierReturnRate}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      ({carrierCategoryCounts.returned} من {carrierCategorizedTotal})
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-destructive transition-all" style={{ width: `${carrierReturnRate}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-4 h-4 text-warning" />
+                    <span className="font-semibold text-foreground">قيد التنفيذ</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-warning">{carrierInProgressRate}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      ({carrierCategoryCounts.in_progress} من {carrierCategorizedTotal})
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-warning transition-all" style={{ width: `${carrierInProgressRate}%` }} />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                يتم احتساب النسب من إجمالي الطلبات المصنّفة فقط ({carrierCategorizedTotal} طلب). لتعديل التصنيفات اذهب إلى إعدادات الشحن.
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending" className="flex items-center gap-2">
