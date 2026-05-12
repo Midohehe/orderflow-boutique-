@@ -9,6 +9,7 @@ import { TrendingUp, DollarSign, CheckCircle, Filter, Boxes, Save } from "lucide
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
+import { isolateLatin } from "@/lib/bidi";
   Table,
   TableBody,
   TableCell,
