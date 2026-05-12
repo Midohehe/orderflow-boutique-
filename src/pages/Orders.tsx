@@ -825,7 +825,14 @@ const Orders = () => {
 
   // نسبة التسليم بناءً على تصنيف أكواد حالات شركة الشحن
   // (تم التسليم / راجع / قيد التنفيذ) — يعتمد على التصنيف المحدد في إعدادات الشحن.
-  const carrierCategoryCounts = orders.reduce(
+  const carrierRateProductOptions = Array.from(
+    new Set(orders.map((o) => o.product_name).filter(Boolean) as string[]),
+  ).sort((a, b) => a.localeCompare(b, "ar"));
+  const carrierRateOrders =
+    carrierRateProductFilter === "all"
+      ? orders
+      : orders.filter((o) => o.product_name === carrierRateProductFilter);
+  const carrierCategoryCounts = carrierRateOrders.reduce(
     (acc, o) => {
       const code = extractStatusCode(o);
       const cat = code ? statusCategoryMap[code] : undefined;
