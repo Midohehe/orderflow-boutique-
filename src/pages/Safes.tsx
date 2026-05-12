@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wallet, Plus, Loader2, History, ArrowDownCircle } from "lucide-react";
+import { Wallet, Plus, Loader2, History, ArrowDownCircle, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -49,6 +50,10 @@ const Safes = () => {
   const [movementsSafe, setMovementsSafe] = useState<Safe | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movLoading, setMovLoading] = useState(false);
+  const [movFilterType, setMovFilterType] = useState<string>("all");
+  const [movFilterDateFrom, setMovFilterDateFrom] = useState<string>("");
+  const [movFilterDateTo, setMovFilterDateTo] = useState<string>("");
+  const [filteredMovements, setFilteredMovements] = useState<Movement[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -101,12 +106,29 @@ const Safes = () => {
 
   const openMovements = async (safe: Safe) => {
     setMovementsSafe(safe); setMovementsOpen(true); setMovLoading(true);
+    setMovFilterType("all"); setMovFilterDateFrom(""); setMovFilterDateTo("");
     const { data } = await supabase.from("safe_movements")
       .select("id, amount, movement_type, notes, created_at")
       .eq("safe_id", safe.id).order("created_at", { ascending: false });
-    setMovements((data as Movement[]) || []);
+    const all = (data as Movement[]) || [];
+    setMovements(all);
+    setFilteredMovements(all);
     setMovLoading(false);
   };
+
+  useEffect(() => {
+    let list = [...movements];
+    if (movFilterType !== "all") list = list.filter((m) => m.movement_type === movFilterType);
+    if (movFilterDateFrom) {
+      const d = new Date(movFilterDateFrom); d.setHours(0,0,0,0);
+      list = list.filter((m) => new Date(m.created_at) >= d);
+    }
+    if (movFilterDateTo) {
+      const d = new Date(movFilterDateTo); d.setHours(23,59,59,999);
+      list = list.filter((m) => new Date(m.created_at) <= d);
+    }
+    setFilteredMovements(list);
+  }, [movements, movFilterType, movFilterDateFrom, movFilterDateTo]);
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -186,31 +208,61 @@ const Safes = () => {
           <DialogHeader><DialogTitle>حركات خزينة: {movementsSafe?.name}</DialogTitle></DialogHeader>
           {movLoading ? (
             <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
-          ) : movements.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">لا توجد حركات</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">التاريخ</TableHead>
-                  <TableHead className="text-right">النوع</TableHead>
-                  <TableHead className="text-right">المبلغ</TableHead>
-                  <TableHead className="text-right">ملاحظات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {movements.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="text-xs">{new Date(m.created_at).toLocaleString("ar-SA")}</TableCell>
-                    <TableCell>{TYPE_LABEL[m.movement_type] || m.movement_type}</TableCell>
-                    <TableCell className={Number(m.amount) >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
-                      {Number(m.amount).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm">{m.notes || "-"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <div className="flex flex-wrap gap-3 items-end bg-muted/40 p-3 rounded-lg">
+                <div className="flex-1 min-w-[160px]">
+                  <Label className="text-xs mb-1 block">نوع الحركة</Label>
+                  <Select value={movFilterType} onValueChange={setMovFilterType}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="الكل" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">الكل</SelectItem>
+                      {Object.entries(TYPE_LABEL).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Label className="text-xs mb-1 block">من تاريخ</Label>
+                  <Input type="date" value={movFilterDateFrom} onChange={(e) => setMovFilterDateFrom(e.target.value)} className="h-9" />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Label className="text-xs mb-1 block">إلى تاريخ</Label>
+                  <Input type="date" value={movFilterDateTo} onChange={(e) => setMovFilterDateTo(e.target.value)} className="h-9" />
+                </div>
+                <Button variant="outline" size="sm" className="h-9" onClick={() => { setMovFilterType("all"); setMovFilterDateFrom(""); setMovFilterDateTo(""); }}>
+                  إلغاء الفلترة
+                </Button>
+              </div>
+
+              {filteredMovements.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">لا توجد حركات مطابقة</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-right">التاريخ</TableHead>
+                      <TableHead className="text-right">النوع</TableHead>
+                      <TableHead className="text-right">المبلغ</TableHead>
+                      <TableHead className="text-right">ملاحظات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMovements.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-xs">{new Date(m.created_at).toLocaleString("ar-SA")}</TableCell>
+                        <TableCell>{TYPE_LABEL[m.movement_type] || m.movement_type}</TableCell>
+                        <TableCell className={Number(m.amount) >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
+                          {Number(m.amount).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-sm">{m.notes || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
