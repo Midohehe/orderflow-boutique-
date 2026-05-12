@@ -1236,6 +1236,19 @@ const Orders = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    <Select value={confirmationFilter} onValueChange={(v) => { setConfirmationFilter(v as any); setSelectedOrders([]); }}>
+                      <SelectTrigger className="w-full sm:w-52">
+                        <SelectValue placeholder="فلتر حسب التأكيد" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">كل حالات التأكيد ({allPending.length})</SelectItem>
+                        <SelectItem value="unconfirmed">بانتظار التأكيد ({confirmationCounts.unconfirmed})</SelectItem>
+                        <SelectItem value="confirmed">مؤكد ({confirmationCounts.confirmed})</SelectItem>
+                        <SelectItem value="no_answer">لم يرد ({confirmationCounts.no_answer})</SelectItem>
+                        <SelectItem value="postponed">مؤجل ({confirmationCounts.postponed})</SelectItem>
+                        <SelectItem value="cancelled">ألغى ({confirmationCounts.cancelled})</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <div className="flex items-center gap-1">
                         <span className="text-sm text-muted-foreground whitespace-nowrap">من:</span>
