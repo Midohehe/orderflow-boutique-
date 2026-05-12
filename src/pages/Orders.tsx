@@ -663,38 +663,46 @@ const Orders = () => {
     }
 
     // تنسيق ملف الإكسل المطلوب من شركة الشحن
-    const excelData = pendingOrders.map((order, index) => ({
-      "رقم السطر": index + 1,
-      "الخدمة": "شحن عادي",
-      "نوع الطلب": "FDP",
-      "اسم المرسل اليه": order.customer_name,
-      "المحافظه": order.city,
-      "اسم المنطقه": order.city,
-      "رقم الموبايل": order.phone,
-      "رقم الهاتف": order.phone,
-      "الرمز البريدي للمرسل اليه": "",
-      "العنوان": order.address,
-      "خط الطول": "",
-      "خط العرض": "",
-      "وصف الطرد": order.product_name,
-      "عدد القطع": order.quantity || 1,
-      "الوزن": 1,
-      "السعر": Number(order.price) || 0,
-      "نوع السعر": shippingMode === "included" ? "INCLD" : "EXCLD",
-      "نوع التحصيل": "COLC",
-      "رقم المرجع": order.id.slice(0, 12).toUpperCase(),
-      "ملاحظات": order.selected_size || order.selected_color || "",
-      "رقم البولويصة": "",
-      "الراسل الفرعي": "",
-      "المحافظة": order.city,
-      "المنطقة": order.city,
-      "رقم الموبايل ": order.phone,
-      "رقم الهاتف ": order.phone,
-      "الرمز البريدي للراسل": "",
-      "العنوان ": order.address,
-      "فتح الطرد": "N",
-      "فئة العملات": "ANY",
-    }));
+    const excelData = pendingOrders.map((order, index) => {
+      const cityCorrected = (order as any).matched_zone_name || order.city;
+      const areaCorrected = (order as any).matched_area_name || (order as any).matched_zone_name || order.city;
+      const productName = isolateLatin(order.product_name);
+      const notes = isolateLatin(order.selected_size || order.selected_color || "");
+      const address = isolateLatin(order.address);
+      const customerName = isolateLatin(order.customer_name);
+      return {
+        "رقم السطر": index + 1,
+        "الخدمة": "شحن عادي",
+        "نوع الطلب": "FDP",
+        "اسم المرسل اليه": customerName,
+        "المحافظه": cityCorrected,
+        "اسم المنطقه": areaCorrected,
+        "رقم الموبايل": order.phone,
+        "رقم الهاتف": order.phone,
+        "الرمز البريدي للمرسل اليه": "",
+        "العنوان": address,
+        "خط الطول": "",
+        "خط العرض": "",
+        "وصف الطرد": productName,
+        "عدد القطع": order.quantity || 1,
+        "الوزن": 1,
+        "السعر": Number(order.price) || 0,
+        "نوع السعر": shippingMode === "included" ? "INCLD" : "EXCLD",
+        "نوع التحصيل": "COLC",
+        "رقم المرجع": order.id.slice(0, 12).toUpperCase(),
+        "ملاحظات": notes,
+        "رقم البولويصة": "",
+        "الراسل الفرعي": "",
+        "المحافظة": cityCorrected,
+        "المنطقة": areaCorrected,
+        "رقم الموبايل ": order.phone,
+        "رقم الهاتف ": order.phone,
+        "الرمز البريدي للراسل": "",
+        "العنوان ": address,
+        "فتح الطرد": "N",
+        "فئة العملات": "ANY",
+      };
+    });
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelData);
