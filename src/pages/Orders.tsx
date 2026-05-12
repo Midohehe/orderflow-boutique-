@@ -719,6 +719,10 @@ const Orders = () => {
   const allPending = orders.filter((o) => o.status === "pending");
   const pendingOrders = allPending.filter((o) => {
     if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
+    if (confirmationFilter !== "all") {
+      const cs = (o.confirmation_status as ConfirmationStatus | null) || "unconfirmed";
+      if (cs !== confirmationFilter) return false;
+    }
     if (pendingDateFrom) {
       const from = new Date(pendingDateFrom);
       from.setHours(0, 0, 0, 0);
@@ -731,6 +735,16 @@ const Orders = () => {
     }
     return true;
   });
+  const confirmationCounts = (() => {
+    const c: Record<ConfirmationStatus, number> = {
+      unconfirmed: 0, confirmed: 0, no_answer: 0, postponed: 0, cancelled: 0,
+    };
+    allPending.forEach((o) => {
+      const k = ((o.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
+      c[k] = (c[k] || 0) + 1;
+    });
+    return c;
+  })();
   const allShipped = orders.filter((o) => o.status === "shipped");
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
   // Group by displayed label so codes that share the same custom_label
