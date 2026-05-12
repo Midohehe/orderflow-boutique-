@@ -916,6 +916,10 @@ const Orders = () => {
             )}
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="font-mono" title="كود الطلب المحلي">
+                  <Hash className="w-3 h-3 ml-1" />
+                  {localCodeMap[order.id] || "—"}
+                </Badge>
                 <h3 className="font-semibold text-foreground">{order.customer_name}</h3>
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
