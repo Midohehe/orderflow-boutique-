@@ -474,6 +474,75 @@ const Orders = () => {
     }
   };
 
+  const handleConfirmationAction = async (
+    order: Order,
+    action: ConfirmationStatus,
+    notes?: string,
+  ) => {
+    setConfirmActionLoading(order.id);
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      const now = new Date().toISOString();
+      const update: any = {
+        confirmation_status: action,
+        confirmation_attempts: (order.confirmation_attempts || 0) + 1,
+      };
+      if (action === "confirmed") {
+        update.confirmed_at = now;
+        update.confirmed_by = uid;
+      }
+      if (notes !== undefined) update.confirmation_notes = notes || null;
+      if (action !== "postponed") update.postponed_until = null;
+
+      const { error } = await supabase.from("orders").update(update).eq("id", order.id);
+      if (error) throw error;
+
+      if (uid) {
+        await supabase.from("order_confirmation_attempts").insert({
+          order_id: order.id,
+          owner_id: uid,
+          result: action,
+          notes: notes || null,
+          created_by: uid,
+        });
+      }
+
+      // If marked cancelled in confirmation flow → cancel the order itself
+      if (action === "cancelled") {
+        await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? {
+                ...o,
+                ...update,
+                status: action === "cancelled" ? "cancelled" : o.status,
+              }
+            : o,
+        ),
+      );
+      toast({ title: "تم", description: `تم تحديث حالة التأكيد: ${CONFIRMATION_LABELS[action]}` });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر التحديث", variant: "destructive" });
+    } finally {
+      setConfirmActionLoading(null);
+      setConfirmNoteOpen(null);
+      setConfirmNoteValue("");
+    }
+  };
+
+  const openWhatsApp = (phone: string, customerName: string, productName: string) => {
+    const digits = (phone || "").replace(/\D/g, "");
+    if (!digits) return;
+    const text = encodeURIComponent(
+      `السلام عليكم ${customerName || ""}، نتواصل معك لتأكيد طلبك (${productName || ""}). هل التوصيل والمواصفات لا تزال صحيحة؟`,
+    );
+    window.open(`https://wa.me/${digits}?text=${text}`, "_blank");
+  };
+
   const handleBulkStatusChange = async () => {
     if (selectedOrders.length === 0 || !bulkStatus) {
       toast({
