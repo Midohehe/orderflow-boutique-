@@ -641,11 +641,12 @@ const ShippingSettingsPage = () => {
               اسحب وأفلت الصفوف لإعادة ترتيب عرض الحالات في الفلتر.
             </p>
             <div className="space-y-2">
-              <div className="grid grid-cols-[24px_160px_1fr_120px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
+              <div className="grid grid-cols-[24px_160px_1fr_120px_140px_40px] gap-2 text-xs font-bold text-muted-foreground px-1">
                 <span></span>
                 <span>الأكواد (افصل بفاصلة)</span>
                 <span>الاسم المعروض</span>
                 <span>اللون</span>
+                <span>تصنيف نسبة التسليم</span>
                 <span></span>
               </div>
               {mappings.map((m, idx) => (
@@ -684,7 +685,7 @@ const ShippingSettingsPage = () => {
                     setDragIdx(null);
                     setDragOverIdx(null);
                   }}
-                  className={`grid grid-cols-[24px_160px_1fr_120px_40px] gap-2 items-center rounded-md transition-colors ${
+                  className={`grid grid-cols-[24px_160px_1fr_120px_140px_40px] gap-2 items-center rounded-md transition-colors ${
                     dragOverIdx === idx && dragIdx !== null && dragIdx !== idx ? "bg-accent/40" : ""
                   } ${dragIdx === idx ? "opacity-50" : ""}`}
                 >
@@ -709,6 +710,15 @@ const ShippingSettingsPage = () => {
                     className="h-10 rounded-md border border-input bg-background px-2 text-sm"
                   >
                     {COLOR_OPTIONS.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={m.category || "none"}
+                    onChange={(e) => updateMapping(idx, "category", e.target.value)}
+                    className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {CATEGORY_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
                   </select>
