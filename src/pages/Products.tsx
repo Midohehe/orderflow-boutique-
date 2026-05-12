@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
+import { isolateLatin } from "@/lib/bidi";
 
 const ProductForm = lazy(() => import("@/components/ProductForm"));
 
