@@ -111,7 +111,7 @@ const Orders = () => {
   const [shipProgress, setShipProgress] = useState<{ done: number; total: number } | null>(null);
   const [productFilter, setProductFilter] = useState<string>("all");
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
-  const [openableMode, setOpenableMode] = useState<"yes" | "no">("no");
+  const [openableMode, setOpenableMode] = useState<"yes" | "no">("yes");
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
