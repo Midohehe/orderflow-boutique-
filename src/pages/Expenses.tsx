@@ -14,14 +14,16 @@ import { toast } from "@/hooks/use-toast";
 
 interface Safe { id: string; name: string; balance: number; }
 interface ExpenseType { id: string; name: string; }
+interface Product { id: string; name: string; }
 interface Expense {
   id: string; amount: number; notes: string | null; created_at: string;
-  safe_id: string; expense_type_id: string | null;
+  safe_id: string; expense_type_id: string | null; product_id: string | null;
 }
 
 const Expenses = () => {
   const [safes, setSafes] = useState<Safe[]>([]);
   const [types, setTypes] = useState<ExpenseType[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +31,7 @@ const Expenses = () => {
   const [amount, setAmount] = useState("");
   const [typeId, setTypeId] = useState("");
   const [safeId, setSafeId] = useState("");
+  const [productId, setProductId] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -36,14 +39,16 @@ const Expenses = () => {
 
   const load = async () => {
     setLoading(true);
-    const [sa, ty, ex] = await Promise.all([
+    const [sa, ty, ex, pr] = await Promise.all([
       supabase.from("safes").select("id, name, balance").order("created_at"),
       supabase.from("expense_types").select("id, name").order("created_at"),
-      supabase.from("expenses").select("id, amount, notes, created_at, safe_id, expense_type_id").order("created_at", { ascending: false }),
+      supabase.from("expenses").select("id, amount, notes, created_at, safe_id, expense_type_id, product_id").order("created_at", { ascending: false }),
+      supabase.from("products").select("id, name").order("name"),
     ]);
     setSafes((sa.data as Safe[]) || []);
     setTypes((ty.data as ExpenseType[]) || []);
     setExpenses((ex.data as Expense[]) || []);
+    setProducts((pr.data as Product[]) || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -57,7 +62,7 @@ const Expenses = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("expenses").insert({
       amount: amt, safe_id: safeId, expense_type_id: typeId || null,
-      notes: notes || null, owner_id: user!.id,
+      notes: notes || null, owner_id: user!.id, product_id: productId || null,
     });
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
     await supabase.from("safes").update({ balance: Number(safe.balance) - amt }).eq("id", safeId);
@@ -66,7 +71,7 @@ const Expenses = () => {
       notes: notes || (typeId ? types.find(t => t.id === typeId)?.name : null), owner_id: user!.id,
     });
     toast({ title: "تمت إضافة المصروف" });
-    setAmount(""); setTypeId(""); setSafeId(""); setNotes(""); setAddOpen(false); setSaving(false);
+    setAmount(""); setTypeId(""); setSafeId(""); setProductId(""); setNotes(""); setAddOpen(false); setSaving(false);
     load();
   };
 
@@ -87,6 +92,7 @@ const Expenses = () => {
 
   const safeName = (id: string) => safes.find(s => s.id === id)?.name || "-";
   const typeName2 = (id: string | null) => id ? (types.find(t => t.id === id)?.name || "-") : "-";
+  const productName = (id: string | null) => id ? (products.find(p => p.id === id)?.name || "-") : "-";
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
@@ -118,6 +124,7 @@ const Expenses = () => {
                       <TableHead className="text-right">التاريخ</TableHead>
                       <TableHead className="text-right">النوع</TableHead>
                       <TableHead className="text-right">الخزينة</TableHead>
+                      <TableHead className="text-right">المنتج</TableHead>
                       <TableHead className="text-right">المبلغ</TableHead>
                       <TableHead className="text-right">ملاحظات</TableHead>
                     </TableRow>
@@ -128,6 +135,7 @@ const Expenses = () => {
                         <TableCell className="text-xs">{new Date(e.created_at).toLocaleString("ar-SA")}</TableCell>
                         <TableCell>{typeName2(e.expense_type_id)}</TableCell>
                         <TableCell>{safeName(e.safe_id)}</TableCell>
+                        <TableCell>{productName(e.product_id)}</TableCell>
                         <TableCell className="text-red-500 font-bold">{Number(e.amount).toFixed(2)}</TableCell>
                         <TableCell className="text-sm">{e.notes || "-"}</TableCell>
                       </TableRow>
@@ -186,6 +194,16 @@ const Expenses = () => {
               <Select value={safeId} onValueChange={setSafeId}>
                 <SelectTrigger><SelectValue placeholder="اختر الخزينة" /></SelectTrigger>
                 <SelectContent>{safes.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({Number(s.balance).toFixed(2)})</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>المنتج (اختياري)</Label>
+              <Select value={productId || "__none"} onValueChange={(v) => setProductId(v === "__none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="اختر المنتج" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">بدون منتج</SelectItem>
+                  {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div><Label>ملاحظات</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
