@@ -1209,9 +1209,22 @@ const Orders = () => {
       {/* نسبة التسليم بناءً على حالات شركة الشحن المصنّفة */}
       <Card className="card-shadow">
         <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">نسبة التسليم حسب حالات شركة الشحن</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <h3 className="font-bold text-foreground">نسبة التسليم حسب حالات شركة الشحن</h3>
+            </div>
+            <Select value={carrierRateProductFilter} onValueChange={setCarrierRateProductFilter}>
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectValue placeholder="اختر المنتج" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المنتجات</SelectItem>
+                {carrierRateProductOptions.map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {carrierCategorizedTotal === 0 ? (
             <p className="text-sm text-muted-foreground">
