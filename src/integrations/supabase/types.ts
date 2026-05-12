@@ -67,6 +67,7 @@ export type Database = {
       }
       carrier_status_mappings: {
         Row: {
+          category: string | null
           color: string
           created_at: string
           custom_label: string
@@ -77,6 +78,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string | null
           color?: string
           created_at?: string
           custom_label: string
@@ -87,6 +89,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string | null
           color?: string
           created_at?: string
           custom_label?: string
