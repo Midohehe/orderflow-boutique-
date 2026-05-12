@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const endpoint: string = settings.endpoint || "https://turboex.ly:8001/graphql";
+    const { data: appS } = await admin.from("app_settings").select("shipping_endpoint").maybeSingle();
+    const endpoint: string = (appS as any)?.shipping_endpoint || settings.endpoint || "https://turboex.ly:8001/graphql";
 
     const loginRes = await fetch(endpoint, {
       method: "POST", headers: { "Content-Type": "application/json" },
