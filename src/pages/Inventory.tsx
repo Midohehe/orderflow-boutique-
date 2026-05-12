@@ -275,12 +275,12 @@ const Inventory = () => {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent dir="rtl">
+        <DialogContent dir="rtl" className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>إضافة كميات للمخزون</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div>
               <Label>المنتج</Label>
-              <Select value={selectedProductId} onValueChange={(v) => { setSelectedProductId(v); setSelectedVariant("__none__"); }}>
+              <Select value={selectedProductId} onValueChange={(v) => { setSelectedProductId(v); setVariantQty({}); setSingleQty(""); setBulkQty(""); }}>
                 <SelectTrigger><SelectValue placeholder="اختر المنتج" /></SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
@@ -289,23 +289,69 @@ const Inventory = () => {
                 </SelectContent>
               </Select>
             </div>
-            {variantKeys.length > 0 && (
+            {selectedProduct && variantKeys.length > 0 && (
+              <>
+                <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                  <Label className="text-xs text-muted-foreground">قيمة موحدة (اختياري) — تطبّق على جميع المتغيرات</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={bulkQty}
+                      onChange={(e) => setBulkQty(e.target.value)}
+                      placeholder="مثال: 5"
+                    />
+                    <Button type="button" variant="secondary" onClick={applyBulkToAll} disabled={!bulkQty.trim()}>
+                      تطبيق على الكل
+                    </Button>
+                  </div>
+                </div>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-right">المتغير</TableHead>
+                        <TableHead className="text-right">الكمية الحالية</TableHead>
+                        <TableHead className="text-right">إضافة</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {variantKeys.map((k) => {
+                        const cur = Number(selectedProduct.variant_stock?.[k] ?? 0);
+                        return (
+                          <TableRow key={k}>
+                            <TableCell className="text-muted-foreground">{k}</TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                cur <= 0 ? "bg-red-500/10 text-red-500"
+                                : cur < 5 ? "bg-orange-500/10 text-orange-500"
+                                : "bg-green-500/10 text-green-500"
+                              }`}>{cur}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                className="w-24"
+                                value={variantQty[k] ?? ""}
+                                placeholder="0"
+                                onChange={(e) => setVariantQty((prev) => ({ ...prev, [k]: e.target.value }))}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+            {selectedProduct && variantKeys.length === 0 && (
               <div>
-                <Label>المتغير</Label>
-                <Select value={selectedVariant} onValueChange={setSelectedVariant}>
-                  <SelectTrigger><SelectValue placeholder="اختر المتغير" /></SelectTrigger>
-                  <SelectContent>
-                    {variantKeys.map((k) => (
-                      <SelectItem key={k} value={k}>{k}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>الكمية المراد إضافتها</Label>
+                <Input type="number" min="1" value={singleQty} onChange={(e) => setSingleQty(e.target.value)} placeholder="مثال: 10" />
               </div>
             )}
-            <div>
-              <Label>الكمية المراد إضافتها</Label>
-              <Input type="number" min="1" value={addQty} onChange={(e) => setAddQty(e.target.value)} placeholder="مثال: 10" />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>إلغاء</Button>
