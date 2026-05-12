@@ -18,6 +18,7 @@ const baseMenuItems = [
   { icon: Boxes, label: "منتجات ايزي اوردرز", path: "/dashboard/easyorders-products", external: false, adminOnly: false, dynamicStore: false },
   { icon: ShoppingCart, label: "الطلبيات", path: "/dashboard/orders", external: false, adminOnly: false, dynamicStore: false },
   { icon: Calculator, label: "الحسابات المالية", path: "/dashboard/financial", external: false, adminOnly: false, dynamicStore: false },
+  { icon: Boxes, label: "المخزون", path: "/dashboard/inventory", external: false, adminOnly: false, dynamicStore: false },
   { icon: Wallet, label: "استلام التسويات المالية", path: "/dashboard/settlements", external: false, adminOnly: false, dynamicStore: false },
   { icon: Undo2, label: "استلام المرتجعات", path: "/dashboard/returns", external: false, adminOnly: false, dynamicStore: false },
   { icon: ArrowLeftRight, label: "حركة المنتجات", path: "/dashboard/stock-movements", external: false, adminOnly: false, dynamicStore: false },

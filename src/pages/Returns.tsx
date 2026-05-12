@@ -52,6 +52,7 @@ const Returns = () => {
   const [rtrnRows, setRtrnRows] = useState<RtrnOrderRow[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [codeQuery, setCodeQuery] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const load = async () => {
@@ -111,6 +112,25 @@ const Returns = () => {
       return n;
     });
     toast({ title: `تم تحديد ${matched.length} طلب` });
+  };
+
+  const handleBarcodeScan = (raw: string) => {
+    const t = raw.trim().toLowerCase();
+    if (!t) return;
+    const match = rtrnRows.find((r) => (r.shipping_reference || "").toLowerCase() === t)
+      || rtrnRows.find((r) => (r.shipping_reference || "").toLowerCase().includes(t));
+    if (!match) {
+      toast({ title: "لم يتم العثور على طلب", description: raw, variant: "destructive" });
+      setBarcode("");
+      return;
+    }
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      n.add(match.id);
+      return n;
+    });
+    toast({ title: "تمت إضافة الطلب", description: match.shipping_reference || "" });
+    setBarcode("");
   };
 
   const confirmBulkReceive = async () => {
@@ -317,6 +337,17 @@ const Returns = () => {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap items-center gap-2 mb-4">
+                <div className="relative w-full sm:w-[280px]">
+                  <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-primary" />
+                  <Input
+                    autoFocus
+                    placeholder="باركود — امسح الكود واضغط Enter"
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleBarcodeScan(barcode); }}
+                    className="pr-9 border-primary/40 focus-visible:ring-primary"
+                  />
+                </div>
                 <div className="relative flex-1 min-w-[240px]">
                   <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
