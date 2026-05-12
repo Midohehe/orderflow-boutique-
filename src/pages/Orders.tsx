@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -50,7 +50,32 @@ interface Order {
   carrier_status_raw?: any;
   carrier_cancellation_reason_id?: string | null;
   carrier_notes?: string | null;
+  confirmation_status?: "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled" | null;
+  confirmation_notes?: string | null;
+  confirmation_attempts?: number | null;
+  postponed_until?: string | null;
+  confirmed_at?: string | null;
 }
+
+type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
+
+const CONFIRMATION_LABELS: Record<ConfirmationStatus, string> = {
+  unconfirmed: "بانتظار التأكيد",
+  confirmed: "مؤكد",
+  no_answer: "لم يرد",
+  postponed: "مؤجل",
+  cancelled: "ألغى الطلب",
+};
+
+const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
+  unconfirmed: "bg-muted text-muted-foreground",
+  confirmed: "bg-success text-success-foreground",
+  no_answer: "bg-warning text-warning-foreground",
+  postponed: "bg-accent text-accent-foreground",
+  cancelled: "bg-destructive text-destructive-foreground",
+};
+
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at";
 
 const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
