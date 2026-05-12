@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -134,6 +134,7 @@ const Orders = () => {
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
+  const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
