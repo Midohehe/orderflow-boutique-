@@ -510,12 +510,21 @@ Deno.serve(async (req) => {
       }
 
       const hasWarehouseLink = !!(shipmentProducts && allLinesHaveWh);
+      const qtyLabel = (q: number) => (q === 1 ? "قطعة" : "قطع");
+      // Aggregate quantities per warehouse product so duplicate lines are summed
+      const aggQty = new Map<number, number>();
+      for (const sp of shipmentProducts || []) {
+        aggQty.set(sp.productId, (aggQty.get(sp.productId) || 0) + (Number(sp.quantity) || 0));
+      }
       const warehouseDescription = hasWarehouseLink
-        ? Array.from(new Set(
-            (shipmentProducts || [])
-              .map((sp) => whProductNameById.get(sp.productId))
-              .filter((n): n is string => !!n && n.trim().length > 0)
-          )).join("\n")
+        ? Array.from(aggQty.entries())
+            .map(([pid, qty]) => {
+              const name = whProductNameById.get(pid);
+              if (!name || !name.trim()) return null;
+              return `${name.trim()} ${qty} ${qtyLabel(qty)}`;
+            })
+            .filter((s): s is string => !!s)
+            .join("\n")
         : "";
       const input: Record<string, unknown> = {
         serviceId: defaultServiceId,
