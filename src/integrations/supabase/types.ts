@@ -164,6 +164,72 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          expense_type_id: string | null
+          id: string
+          notes: string | null
+          owner_id: string
+          safe_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          expense_type_id?: string | null
+          id?: string
+          notes?: string | null
+          owner_id: string
+          safe_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          expense_type_id?: string | null
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          safe_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_expense_type_id_fkey"
+            columns: ["expense_type_id"]
+            isOneToOne: false
+            referencedRelation: "expense_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_safe_id_fkey"
+            columns: ["safe_id"]
+            isOneToOne: false
+            referencedRelation: "safes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       header_settings: {
         Row: {
           created_at: string
@@ -681,6 +747,41 @@ export type Database = {
         }
         Relationships: []
       }
+      purchases: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          owner_id: string
+          safe_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          owner_id: string
+          safe_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          safe_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_safe_id_fkey"
+            columns: ["safe_id"]
+            isOneToOne: false
+            referencedRelation: "safes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       return_shipments: {
         Row: {
           area_name: string | null
@@ -824,6 +925,77 @@ export type Database = {
           shipment_count?: number
           shipments_synced_at?: string | null
           transaction_type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      safe_movements: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          movement_type: string
+          notes: string | null
+          owner_id: string
+          reference_id: string | null
+          safe_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          movement_type: string
+          notes?: string | null
+          owner_id: string
+          reference_id?: string | null
+          safe_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          movement_type?: string
+          notes?: string | null
+          owner_id?: string
+          reference_id?: string | null
+          safe_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safe_movements_safe_id_fkey"
+            columns: ["safe_id"]
+            isOneToOne: false
+            referencedRelation: "safes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      safes: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          owner_id?: string
           updated_at?: string
         }
         Relationships: []
