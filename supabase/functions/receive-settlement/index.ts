@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: settlement } = await admin
-      .from("settlements").select("id, owner_id, payment_amount, received")
+      .from("settlements").select("id, owner_id, payment_amount, received, code")
       .eq("id", body.settlement_id).maybeSingle();
     if (!settlement || settlement.owner_id !== ownerId) {
       return new Response(JSON.stringify({ error: "Not found" }), {
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         await admin.from("safe_movements").insert({
           safe_id: safeId, amount, movement_type: "deposit",
           reference_id: settlement.id,
-          notes: `إيداع قيمة تسوية ${settlement.id}`,
+          notes: `إيداع قيمة تسوية ${settlement.code || settlement.id}`,
           owner_id: ownerId,
         });
       }
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
           await admin.from("safe_movements").insert({
             safe_id: m.safe_id, amount: -Number(m.amount), movement_type: "adjustment",
             reference_id: settlement.id,
-            notes: "تراجع عن استلام تسوية",
+            notes: `تراجع عن استلام تسوية ${settlement.code || settlement.id}`,
             owner_id: ownerId,
           });
         }
