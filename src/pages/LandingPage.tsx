@@ -8,6 +8,7 @@ import { Check, ShoppingBag, Phone, MapPin, User, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isolateLatin } from "@/lib/bidi";
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
 const loadDOMPurify = async () => {

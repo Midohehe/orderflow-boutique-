@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { isolateLatin } from "@/lib/bidi";
 
 interface Order {
   id: string;
