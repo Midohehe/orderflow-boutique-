@@ -134,6 +134,9 @@ const FinancialAccounts = () => {
               <div>
                 <p className="text-sm text-muted-foreground">صافي الربح</p>
                 <p className={`text-xl font-bold ${totalProfit >= 0 ? "text-green-500" : "text-red-500"}`}>{totalProfit.toFixed(2)}</p>
+                {selectedProduct === "all" && totalExpenses > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">بعد خصم مصروفات: {totalExpenses.toFixed(2)}</p>
+                )}
               </div>
             </div>
           </CardContent>
