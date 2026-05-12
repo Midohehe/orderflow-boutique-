@@ -125,6 +125,11 @@ const Orders = () => {
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [labelOrderMap, setLabelOrderMap] = useState<Record<string, number>>({});
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
+  const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
+  const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
+  const [confirmNoteValue, setConfirmNoteValue] = useState("");
+  const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
+  const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
