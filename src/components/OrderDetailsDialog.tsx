@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Plus, Trash2, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { isolateLatin } from "@/lib/bidi";
 
 interface Props {
   orderId: string | null;
@@ -395,7 +396,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                       <div className="rounded border bg-muted/30 p-2 text-xs space-y-1">
                         <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">الاسم المجلوب من ايزي اوردرز:</span>
-                          <span className="font-medium text-foreground truncate">{it.product_name || "—"}</span>
+                          <span className="font-medium text-foreground truncate">{isolateLatin(it.product_name) || "—"}</span>
                         </div>
                         <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">معرف منتج ايزي اوردرز:</span>
@@ -404,7 +405,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                         <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">اسم المتغير:</span>
                           <span className="font-medium text-foreground truncate">
-                            {[it.selected_color, it.selected_size, it.selected_product_code].filter(Boolean).join(" - ") || "—"}
+                            {isolateLatin([it.selected_color, it.selected_size, it.selected_product_code].filter(Boolean).join(" - ")) || "—"}
                           </span>
                         </div>
                         <div className="flex justify-between gap-2">
