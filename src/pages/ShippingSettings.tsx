@@ -537,15 +537,24 @@ const ShippingSettingsPage = () => {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="endpoint">رابط الـ API</Label>
-            <Input
-              id="endpoint"
-              dir="ltr"
-              value={settings.endpoint}
-              onChange={(e) => setSettings({ ...settings, endpoint: e.target.value })}
-            />
-          </div>
+          {isAdmin && (
+            <div className="space-y-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
+              <Label htmlFor="endpoint" className="font-bold">رابط الـ API (عام لجميع المتاجر)</Label>
+              <p className="text-xs text-muted-foreground">يُدار من السوبر ادمن فقط ويُطبَّق على جميع المتاجر تلقائياً.</p>
+              <div className="flex gap-2">
+                <Input
+                  id="endpoint"
+                  dir="ltr"
+                  value={globalEndpoint}
+                  onChange={(e) => setGlobalEndpoint(e.target.value)}
+                />
+                <Button type="button" onClick={saveGlobalEndpoint} disabled={savingEndpoint} variant="secondary">
+                  {savingEndpoint && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                  حفظ الرابط
+                </Button>
+              </div>
+            </div>
+          )}
 
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
