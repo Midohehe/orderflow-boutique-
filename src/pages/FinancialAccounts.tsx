@@ -28,6 +28,7 @@ interface ProductRow {
 const FinancialAccounts = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [productsList, setProductsList] = useState<ProductRow[]>([]);
+  const [totalExpenses, setTotalExpenses] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
 
@@ -39,14 +40,17 @@ const FinancialAccounts = () => {
         const productsQuery = user
           ? supabase.from("products").select("id, name, purchase_price").eq("owner_id", user.id)
           : supabase.from("products").select("id, name, purchase_price");
-        const [ordersRes, productsRes] = await Promise.all([
+        const [ordersRes, productsRes, expensesRes] = await Promise.all([
           supabase.from("orders").select("id, product_name, price, status, customer_name, created_at").order("created_at", { ascending: false }),
           productsQuery,
+          supabase.from("expenses").select("amount"),
         ]);
         if (ordersRes.error) throw ordersRes.error;
         if (productsRes.error) throw productsRes.error;
         setOrders(ordersRes.data || []);
         setProductsList((productsRes.data as ProductRow[]) || []);
+        const expSum = (expensesRes.data || []).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+        setTotalExpenses(expSum);
       } catch (error) {
         console.error(error);
         toast({ title: "خطأ", description: "حدث خطأ أثناء تحميل البيانات", variant: "destructive" });
@@ -68,7 +72,7 @@ const FinancialAccounts = () => {
     const prod = productByName.get(order.product_name);
     return sum + (prod ? Number(prod.purchase_price) : 0);
   }, 0);
-  const totalProfit = totalRevenue - totalPurchaseCost;
+  const totalProfit = totalRevenue - totalPurchaseCost - (selectedProduct === "all" ? totalExpenses : 0);
 
   const getOrderProfit = (order: Order) => {
     const prod = productByName.get(order.product_name);
@@ -130,6 +134,9 @@ const FinancialAccounts = () => {
               <div>
                 <p className="text-sm text-muted-foreground">صافي الربح</p>
                 <p className={`text-xl font-bold ${totalProfit >= 0 ? "text-green-500" : "text-red-500"}`}>{totalProfit.toFixed(2)}</p>
+                {selectedProduct === "all" && totalExpenses > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">بعد خصم مصروفات: {totalExpenses.toFixed(2)}</p>
+                )}
               </div>
             </div>
           </CardContent>
