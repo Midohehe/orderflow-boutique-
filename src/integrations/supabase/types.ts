@@ -257,6 +257,36 @@ export type Database = {
         }
         Relationships: []
       }
+      order_confirmation_attempts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          order_id: string
+          owner_id: string
+          result: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id: string
+          owner_id: string
+          result: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string
+          owner_id?: string
+          result?: string
+        }
+        Relationships: []
+      }
       order_form_fields: {
         Row: {
           created_at: string
@@ -367,6 +397,11 @@ export type Database = {
           carrier_status_raw: Json | null
           carrier_status_updated_at: string | null
           city: string
+          confirmation_attempts: number
+          confirmation_notes: string | null
+          confirmation_status: string
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           customer_name: string
           id: string
@@ -377,6 +412,7 @@ export type Database = {
           matched_zone_name: string | null
           owner_id: string
           phone: string
+          postponed_until: string | null
           price: number
           product_id: string | null
           product_name: string
@@ -402,6 +438,11 @@ export type Database = {
           carrier_status_raw?: Json | null
           carrier_status_updated_at?: string | null
           city: string
+          confirmation_attempts?: number
+          confirmation_notes?: string | null
+          confirmation_status?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           customer_name: string
           id?: string
@@ -412,6 +453,7 @@ export type Database = {
           matched_zone_name?: string | null
           owner_id: string
           phone: string
+          postponed_until?: string | null
           price: number
           product_id?: string | null
           product_name: string
@@ -437,6 +479,11 @@ export type Database = {
           carrier_status_raw?: Json | null
           carrier_status_updated_at?: string | null
           city?: string
+          confirmation_attempts?: number
+          confirmation_notes?: string | null
+          confirmation_status?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           customer_name?: string
           id?: string
@@ -447,6 +494,7 @@ export type Database = {
           matched_zone_name?: string | null
           owner_id?: string
           phone?: string
+          postponed_until?: string | null
           price?: number
           product_id?: string | null
           product_name?: string
