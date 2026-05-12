@@ -46,8 +46,9 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [selectedVariant, setSelectedVariant] = useState<string>("__none__");
-  const [addQty, setAddQty] = useState<string>("");
+  const [variantQty, setVariantQty] = useState<Record<string, string>>({});
+  const [singleQty, setSingleQty] = useState<string>("");
+  const [bulkQty, setBulkQty] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -79,52 +80,80 @@ const Inventory = () => {
 
   const resetDialog = () => {
     setSelectedProductId("");
-    setSelectedVariant("__none__");
-    setAddQty("");
+    setVariantQty({});
+    setSingleQty("");
+    setBulkQty("");
+  };
+
+  const applyBulkToAll = () => {
+    const v = bulkQty.trim();
+    if (!v) return;
+    const next: Record<string, string> = {};
+    variantKeys.forEach((k) => { next[k] = v; });
+    setVariantQty(next);
   };
 
   const submitAdd = async () => {
-    const qty = parseInt(addQty);
-    if (!selectedProductId || isNaN(qty) || qty <= 0) {
-      toast({ title: "بيانات ناقصة", description: "اختر منتجاً وأدخل كمية صالحة", variant: "destructive" });
+    if (!selectedProductId) {
+      toast({ title: "اختر منتجاً", variant: "destructive" });
       return;
     }
     const prod = products.find((p) => p.id === selectedProductId);
     if (!prod) return;
-    if (variantKeys.length > 0 && selectedVariant === "__none__") {
-      toast({ title: "اختر المتغير", variant: "destructive" });
+
+    type Entry = { variantKey: string | null; qty: number };
+    const entries: Entry[] = [];
+    if (variantKeys.length > 0) {
+      for (const k of variantKeys) {
+        const raw = (variantQty[k] || "").trim();
+        if (!raw) continue;
+        const q = parseInt(raw);
+        if (isNaN(q) || q <= 0) continue;
+        entries.push({ variantKey: k, qty: q });
+      }
+    } else {
+      const q = parseInt(singleQty);
+      if (!isNaN(q) && q > 0) entries.push({ variantKey: null, qty: q });
+    }
+
+    if (entries.length === 0) {
+      toast({ title: "أدخل كمية واحدة على الأقل", variant: "destructive" });
       return;
     }
-    const variantKey = variantKeys.length > 0 ? selectedVariant : null;
 
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { error: mErr } = await (supabase as any).from("stock_movements").insert({
+      const movementsPayload = entries.map((e) => ({
         owner_id: user.id,
         product_id: prod.id,
         product_name: prod.name,
-        variant_key: variantKey,
+        variant_key: e.variantKey,
         warehouse_code: null,
-        qty,
+        qty: e.qty,
         reason: "manual_add",
         notes: "إضافة كميات يدوياً",
-      });
+      }));
+      const { error: mErr } = await (supabase as any).from("stock_movements").insert(movementsPayload);
       if (mErr) throw mErr;
 
       const newVariantStock = { ...(prod.variant_stock || {}) } as Record<string, number>;
-      if (variantKey) {
-        newVariantStock[variantKey] = Number(newVariantStock[variantKey] || 0) + qty;
+      let added = 0;
+      for (const e of entries) {
+        if (e.variantKey) {
+          newVariantStock[e.variantKey] = Number(newVariantStock[e.variantKey] || 0) + e.qty;
+        }
+        added += e.qty;
       }
-      const newStock = Number(prod.stock || 0) + qty;
+      const newStock = Number(prod.stock || 0) + added;
       const { error: uErr } = await (supabase as any).from("products")
         .update({ stock: newStock, variant_stock: newVariantStock })
         .eq("id", prod.id);
       if (uErr) throw uErr;
 
-      toast({ title: "تمت الإضافة", description: `+${qty} إلى ${prod.name}` });
+      toast({ title: "تمت الإضافة", description: `+${added} إلى ${prod.name}` });
       setDialogOpen(false);
       resetDialog();
       await load();
