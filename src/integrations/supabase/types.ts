@@ -1100,6 +1100,7 @@ export type Database = {
           raw: Json | null
           received: boolean
           received_at: string | null
+          safe_id: string | null
           safe_name: string | null
           settlement_date: string | null
           shipment_count: number
@@ -1123,6 +1124,7 @@ export type Database = {
           raw?: Json | null
           received?: boolean
           received_at?: string | null
+          safe_id?: string | null
           safe_name?: string | null
           settlement_date?: string | null
           shipment_count?: number
@@ -1146,6 +1148,7 @@ export type Database = {
           raw?: Json | null
           received?: boolean
           received_at?: string | null
+          safe_id?: string | null
           safe_name?: string | null
           settlement_date?: string | null
           shipment_count?: number
@@ -1153,7 +1156,15 @@ export type Database = {
           transaction_type?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "settlements_safe_id_fkey"
+            columns: ["safe_id"]
+            isOneToOne: false
+            referencedRelation: "safes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shipping_settings: {
         Row: {
