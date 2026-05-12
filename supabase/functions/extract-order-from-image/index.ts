@@ -46,11 +46,15 @@ Deno.serve(async (req) => {
     // Load product list (optional, helps AI match product_name)
     const { data: products } = await admin
       .from("products")
-      .select("id, name, price")
+      .select("id, name, price, colors, sizes, product_codes")
       .eq("owner_id", ownerId)
       .eq("is_visible", true);
 
-    const productHints = (products || []).map((p) => `- ${p.name}`).join("\n");
+    const productHints = (products || []).map((p) => {
+      const colors = (p.colors || []).join("، ") || "—";
+      const sizes = (p.sizes || []).join("، ") || "—";
+      return `- "${p.name}" | السعر الافتراضي: ${p.price} | الألوان: [${colors}] | المقاسات: [${sizes}]`;
+    }).join("\n");
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -63,27 +67,35 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `أنت مساعد ذكي لاستخراج بيانات طلب من صورة بالعربية (سكرين شوت محادثة، ورقة، أو نموذج). النص قد يكون غير مرتب — حدد كل حقل بناءً على معناه لا على موقعه.
+            content: `أنت مساعد لاستخراج طلب من صورة بالعربية. الصورة قد تحتوي على عدة منتجات، لكل منتج عدة متغيرات (لون/مقاس) بكميات وأسعار مختلفة، ثم بيانات الزبون (اسم/هاتف/مدينة/منطقة).
 
-اقرأ كل النص ثم استخرج بالترتيب التالي مع التحقق:
+الترتيب الشائع في النص:
+- اسم منتج
+- ثم تحته أسطر متغيرات بالشكل: "<لون> <مقاس>" ثم "الكمية N" ثم "السعر X" (السعر اختياري)
+- يمكن أن يتكرر متغير ثاني تحت نفس المنتج
+- ثم اسم منتج آخر بنفس الشكل
+- في النهاية: المدينة والمنطقة وأحياناً الاسم والهاتف
 
-1) product_name — اسم المنتج: ابحث أولاً عن أي اسم يطابق قائمة المنتجات أدناه (مطابقة جزئية مقبولة). إن لم يوجد فاستخدم أبرز اسم منتج مذكور.
-2) city + address — المدينة والمنطقة: أي ذكر لمكان في ليبيا. المدينة الكبرى (طرابلس، بنغازي، مصراتة، الزاوية، سبها، البيضاء، طبرق، زليتن، الخمس، إلخ) تذهب في city، والحي/المنطقة التفصيلية (تاجوراء، الفرناج، قرجي، إلخ) تذهب في address. إذا ذُكر حي فقط استنتج المدينة منه (تاجوراء→طرابلس، قرجي→طرابلس).
-3) phone — رقم الهاتف: أي تسلسل أرقام ليبي (يبدأ غالباً بـ 09 أو +218)، استخرج الأرقام فقط.
-4) quantity — عدد القطع: ابحث عن "قطعة/قطع/حبة/عدد/×/x" أو رقم بجانب كلمة كمية. الافتراضي 1.
-5) variant + selected_color + selected_size — أي تفاصيل الفايرنت: اللون (أحمر، أزرق...)، المقاس (S/M/L/40/42)، الموديل/النوع.
-6) customer_name — اسم الزبون إن وُجد.
-7) price — السعر الإجمالي رقم فقط بدون عملة، إن ذُكر.
+قواعد صارمة جداً:
+1) لكل سطر متغير أنشئ عنصراً مستقلاً في items[].
+2) اسم المنتج (product_name) يجب أن يطابق اسماً من القائمة أدناه (مطابقة جزئية مقبولة). إن لم يطابق أي منتج، اترك product_name كما كُتب لكن ضع matched=false.
+3) اللون (selected_color) يجب أن يكون من قائمة ألوان ذلك المنتج فقط. لا تخترع لوناً. إن لم يطابق، اتركه null.
+4) المقاس (selected_size) يجب أن يكون من قائمة مقاسات ذلك المنتج فقط (حساس لحالة الأحرف غير مهم: xl=XL). لا تخترع مقاساً. إن لم يطابق، null.
+5) الكمية (quantity) رقم صحيح، الافتراضي 1.
+6) unit_price رقم اختياري إن ذُكر صراحة بجانب المتغير. لا تحسب أو تخمّن.
+7) لا تنشئ سطر "إجمالي الكمية" — احسبها أنت لاحقاً من items.
 
-قواعد صارمة:
-- لا تخلط بين city و address. لو وجدت حياً فقط، ضعه في address واستنتج city.
-- phone أرقام فقط بدون مسافات أو رموز.
-- تجاهل الشعارات والإعلانات والتوقيعات والتواريخ.
-- إن لم يوجد حقل اتركه null عدا product_name و quantity.
+بيانات الزبون (مرة واحدة لكل الطلب):
+- city: المدينة الكبرى (طرابلس، بنغازي، مصراتة، الزاوية، سبها، البيضاء، طبرق، زليتن، الخمس...). إذا ذُكر حي فقط استنتج المدينة (تاجوراء→طرابلس، شبنه→بنغازي، قرجي→طرابلس).
+- address: الحي/المنطقة التفصيلية.
+- phone: أرقام فقط بدون مسافات.
+- customer_name: إن وُجد.
 
-أخرج JSON فقط بهذه الحقول:
-{ "product_name": string, "variant": string|null, "selected_color": string|null, "selected_size": string|null, "quantity": number, "price": number|null, "customer_name": string|null, "phone": string|null, "city": string|null, "address": string|null }
-${productHints ? `\nقائمة المنتجات للمطابقة (طابق أقرب اسم منها إن أمكن):\n${productHints}` : ""}`,
+أعد JSON عبر الأداة save_order بالشكل:
+{ "items": [ { "product_name": str, "selected_color": str|null, "selected_size": str|null, "quantity": int, "unit_price": number|null } , ... ], "customer_name": str|null, "phone": str|null, "city": str|null, "address": str|null }
+
+قائمة المنتجات المتاحة (التزم بها حرفياً للمطابقة):
+${productHints || "(لا يوجد)"}`,
           },
           {
             role: "user",
@@ -101,18 +113,26 @@ ${productHints ? `\nقائمة المنتجات للمطابقة (طابق أق�
             parameters: {
               type: "object",
               properties: {
-                product_name: { type: "string" },
-                variant: { type: "string" },
-                selected_color: { type: "string" },
-                selected_size: { type: "string" },
-                quantity: { type: "number" },
-                price: { type: "number" },
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      product_name: { type: "string" },
+                      selected_color: { type: "string" },
+                      selected_size: { type: "string" },
+                      quantity: { type: "number" },
+                      unit_price: { type: "number" },
+                    },
+                    required: ["product_name", "quantity"],
+                  },
+                },
                 customer_name: { type: "string" },
                 phone: { type: "string" },
                 city: { type: "string" },
                 address: { type: "string" },
               },
-              required: ["product_name", "quantity"],
+              required: ["items"],
             },
           },
         }],
@@ -137,25 +157,45 @@ ${productHints ? `\nقائمة المنتجات للمطابقة (طابق أق�
     }
     const fields = JSON.parse(argsStr);
 
-    // Match product
-    let matchedProduct = products?.find((p) => p.id === product_id);
-    if (!matchedProduct && fields.product_name) {
-      const n = String(fields.product_name).trim().toLowerCase();
-      matchedProduct = products?.find((p) =>
-        p.name.toLowerCase() === n || p.name.toLowerCase().includes(n) || n.includes(p.name.toLowerCase())
-      );
+    // Validate & match items strictly against the product list
+    const norm = (s: any) => String(s || "").trim().toLowerCase();
+    const rawItems: any[] = Array.isArray(fields.items) ? fields.items : [];
+    if (rawItems.length === 0) {
+      return new Response(JSON.stringify({ error: "لم يتم العثور على أي منتج في الصورة" }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const quantity = Math.max(1, Math.min(999, Math.floor(Number(fields.quantity) || 1)));
-    const price = matchedProduct
-      ? Number(matchedProduct.price) * quantity
-      : Number(fields.price) || 0;
+    const matchedItems = rawItems.map((it) => {
+      const nameRaw = String(it.product_name || "").trim();
+      const n = norm(nameRaw);
+      const prod = (products || []).find((p) =>
+        norm(p.name) === n || norm(p.name).includes(n) || n.includes(norm(p.name))
+      );
+      const colorRaw = it.selected_color ? String(it.selected_color).trim() : null;
+      const sizeRaw = it.selected_size ? String(it.selected_size).trim() : null;
+      const color = prod && colorRaw
+        ? (prod.colors || []).find((c: string) => norm(c) === norm(colorRaw)) || null
+        : null;
+      const size = prod && sizeRaw
+        ? (prod.sizes || []).find((s: string) => norm(s) === norm(sizeRaw)) || null
+        : null;
+      const qty = Math.max(1, Math.min(999, Math.floor(Number(it.quantity) || 1)));
+      const unit = prod ? Number(prod.price) : Number(it.unit_price) || 0;
+      return {
+        product_id: prod?.id || null,
+        product_name: prod?.name || nameRaw || "غير محدد",
+        selected_color: color,
+        selected_size: size,
+        quantity: qty,
+        unit_price: unit,
+        subtotal: unit * qty,
+      };
+    });
 
-    const variantNotes = [
-      fields.variant ? `الفايرنت: ${fields.variant}` : null,
-      fields.selected_color ? `اللون: ${fields.selected_color}` : null,
-      fields.selected_size ? `المقاس: ${fields.selected_size}` : null,
-    ].filter(Boolean).join(" / ");
+    const totalPrice = matchedItems.reduce((s, x) => s + x.subtotal, 0);
+    const totalQuantity = matchedItems.reduce((s, x) => s + x.quantity, 0);
+    const head = matchedItems[0];
 
     // Auto-match city via existing function (only if city/address provided)
     let matched_zone_id: number | null = null;
@@ -188,14 +228,16 @@ ${productHints ? `\nقائمة المنتجات للمطابقة (طابق أق�
       phone: String(fields.phone || ""),
       address: fields.address || "",
       city: fields.city || "",
-      product_id: matchedProduct?.id || null,
-      product_name: matchedProduct?.name || fields.product_name || "غير محدد",
-      price,
-      quantity,
+      product_id: head.product_id,
+      product_name: matchedItems.length > 1
+        ? `${head.product_name} +${matchedItems.length - 1}`
+        : head.product_name,
+      price: totalPrice,
+      quantity: totalQuantity,
       status: "pending",
-      selected_color: fields.selected_color || null,
-      selected_size: fields.selected_size || null,
-      selected_product_code: variantNotes || null,
+      selected_color: head.selected_color,
+      selected_size: head.selected_size,
+      selected_product_code: null,
       matched_zone_id,
       matched_area_id,
       matched_zone_name,
@@ -209,7 +251,23 @@ ${productHints ? `\nقائمة المنتجات للمطابقة (طابق أق�
       });
     }
 
-    return new Response(JSON.stringify({ ok: true, order: inserted, extracted: fields }), {
+    // Insert order_items rows
+    if (inserted?.id) {
+      const rows = matchedItems.map((it) => ({
+        order_id: inserted.id,
+        owner_id: ownerId,
+        product_id: it.product_id,
+        product_name: it.product_name,
+        quantity: it.quantity,
+        price: it.unit_price,
+        selected_color: it.selected_color,
+        selected_size: it.selected_size,
+      }));
+      const { error: itemsErr } = await admin.from("order_items").insert(rows);
+      if (itemsErr) console.error("order_items insert error", itemsErr);
+    }
+
+    return new Response(JSON.stringify({ ok: true, order: inserted, items: matchedItems, extracted: fields }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
