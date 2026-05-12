@@ -225,7 +225,7 @@ const Orders = () => {
           quantity: 1,
           status: "pending",
         })
-        .select("id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes")
+        .select(ORDER_SELECT_COLS)
         .maybeSingle();
       if (error) throw error;
       if (data) {
