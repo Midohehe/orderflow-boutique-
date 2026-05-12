@@ -23,6 +23,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
+import { isolateLatin } from "@/lib/bidi";
 
 interface Order {
   id: string;
@@ -929,7 +930,7 @@ const Orders = () => {
                 </span>
               </div>
               <div className="flex items-center gap-4 flex-wrap">
-                <span className="text-foreground">{order.product_name}</span>
+                <span className="text-foreground">{isolateLatin(order.product_name)}</span>
                 <span className="text-primary font-bold">{order.price} {currencySymbol}</span>
                 {order.shipping_reference && (
                   <Badge variant="outline" className="font-mono">
