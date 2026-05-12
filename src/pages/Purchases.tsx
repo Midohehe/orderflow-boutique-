@@ -12,31 +12,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 interface Safe { id: string; name: string; balance: number; }
-interface Purchase { id: string; amount: number; notes: string | null; created_at: string; safe_id: string; product_id: string | null; }
-interface Product { id: string; name: string; }
+interface Purchase { id: string; amount: number; notes: string | null; created_at: string; safe_id: string; }
 
 const Purchases = () => {
   const [safes, setSafes] = useState<Safe[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [safeId, setSafeId] = useState("");
-  const [productId, setProductId] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [sa, pu, pr] = await Promise.all([
+    const [sa, pu] = await Promise.all([
       supabase.from("safes").select("id, name, balance").order("created_at"),
-      supabase.from("purchases").select("id, amount, notes, created_at, safe_id, product_id").order("created_at", { ascending: false }),
-      supabase.from("products").select("id, name").order("name"),
+      supabase.from("purchases").select("id, amount, notes, created_at, safe_id").order("created_at", { ascending: false }),
     ]);
     setSafes((sa.data as Safe[]) || []);
     setPurchases((pu.data as Purchase[]) || []);
-    setProducts((pr.data as Product[]) || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -49,7 +44,7 @@ const Purchases = () => {
     if (!safe) { setSaving(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("purchases").insert({
-      amount: amt, safe_id: safeId, notes: notes || null, owner_id: user!.id, product_id: productId || null,
+      amount: amt, safe_id: safeId, notes: notes || null, owner_id: user!.id,
     });
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
     await supabase.from("safes").update({ balance: Number(safe.balance) - amt }).eq("id", safeId);
@@ -58,13 +53,12 @@ const Purchases = () => {
       notes: notes || "مشتريات", owner_id: user!.id,
     });
     toast({ title: "تمت إضافة عملية الشراء" });
-    setAmount(""); setSafeId(""); setProductId(""); setNotes(""); setOpen(false); setSaving(false);
+    setAmount(""); setSafeId(""); setNotes(""); setOpen(false); setSaving(false);
     load();
   };
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   const safeName = (id: string) => safes.find(s => s.id === id)?.name || "-";
-  const productName = (id: string | null) => id ? (products.find(p => p.id === id)?.name || "-") : "-";
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
@@ -86,7 +80,6 @@ const Purchases = () => {
                 <TableRow>
                   <TableHead className="text-right">التاريخ</TableHead>
                   <TableHead className="text-right">الخزينة</TableHead>
-                  <TableHead className="text-right">المنتج</TableHead>
                   <TableHead className="text-right">المبلغ</TableHead>
                   <TableHead className="text-right">ملاحظات</TableHead>
                 </TableRow>
@@ -96,7 +89,6 @@ const Purchases = () => {
                   <TableRow key={p.id}>
                     <TableCell className="text-xs">{new Date(p.created_at).toLocaleString("ar-SA")}</TableCell>
                     <TableCell>{safeName(p.safe_id)}</TableCell>
-                    <TableCell>{productName(p.product_id)}</TableCell>
                     <TableCell className="text-orange-500 font-bold">{Number(p.amount).toFixed(2)}</TableCell>
                     <TableCell className="text-sm">{p.notes || "-"}</TableCell>
                   </TableRow>
@@ -117,16 +109,6 @@ const Purchases = () => {
               <Select value={safeId} onValueChange={setSafeId}>
                 <SelectTrigger><SelectValue placeholder="اختر الخزينة" /></SelectTrigger>
                 <SelectContent>{safes.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({Number(s.balance).toFixed(2)})</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>المنتج (اختياري)</Label>
-              <Select value={productId || "__none"} onValueChange={(v) => setProductId(v === "__none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="اختر المنتج" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">بدون منتج</SelectItem>
-                  {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
               </Select>
             </div>
             <div><Label>ملاحظات</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
