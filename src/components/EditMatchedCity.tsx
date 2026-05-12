@@ -4,6 +4,7 @@ import { Pencil, Check, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useUserContext } from "@/hooks/useUserContext";
 
 interface Props {
   orderId: string;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAddress, onSaved }: Props) => {
+  const { isAdmin } = useUserContext();
   const [editing, setEditing] = useState(false);
   const [c, setC] = useState(city || "");
   const [a, setA] = useState(area || "");
@@ -96,9 +98,11 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
       <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 inline-flex items-center gap-2">
         <span><span className="font-semibold">المدينة المصححة:</span> {city || "—"}</span>
         {area && <span>• <span className="font-semibold">المنطقة:</span> {area}</span>}
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
-          <Pencil className="w-3 h-3" />
-        </Button>
+        {isAdmin && (
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
+            <Pencil className="w-3 h-3" />
+          </Button>
+        )}
       </div>
     );
   }
