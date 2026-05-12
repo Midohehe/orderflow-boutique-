@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         await admin.from("safe_movements").insert({
           safe_id: safeId, amount, movement_type: "deposit",
           reference_id: settlement.id,
-          notes: `إيداع قيمة تسوية ${settlement.id}`,
+          notes: `إيداع قيمة تسوية ${settlement.code || settlement.id}`,
           owner_id: ownerId,
         });
       }
