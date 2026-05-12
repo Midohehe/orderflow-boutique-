@@ -855,6 +855,16 @@ const Orders = () => {
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
                 </Badge>
+                {(() => {
+                  const cs = ((order.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
+                  return (
+                    <Badge className={CONFIRMATION_BADGE_CLASS[cs]} title={order.confirmation_notes || undefined}>
+                      {CONFIRMATION_LABELS[cs]}
+                      {cs === "postponed" && order.postponed_until ? ` (${formatDate(order.postponed_until)})` : ""}
+                      {(order.confirmation_attempts || 0) > 0 ? ` · ${order.confirmation_attempts} محاولة` : ""}
+                    </Badge>
+                  );
+                })()}
                 {duplicateCount > 1 && (
                   <Badge variant="destructive">
                     رقم مكرر ×{duplicateCount}
@@ -925,7 +935,78 @@ const Orders = () => {
                 originalAddress={order.address}
                 onSaved={(nc, na) => setOrders((prev) => prev.map((p) => p.id === order.id ? { ...p, matched_zone_name: nc, matched_area_name: na } : p))}
               />
-              
+              {showCheckbox && order.status === "pending" && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
+                  <span className="text-xs text-muted-foreground ml-1">تأكيد:</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 border-success text-success hover:bg-success hover:text-success-foreground"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => handleConfirmationAction(order, "confirmed")}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" /> مؤكد
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 border-warning text-warning hover:bg-warning hover:text-warning-foreground"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => { setConfirmNoteAction("no_answer"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
+                  >
+                    <PhoneOff className="w-3.5 h-3.5" /> لم يرد
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => { setConfirmNoteAction("postponed"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
+                  >
+                    <CalendarClock className="w-3.5 h-3.5" /> تأجيل
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    disabled={confirmActionLoading === order.id}
+                    onClick={() => { setConfirmNoteAction("cancelled"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5" /> إلغاء
+                  </Button>
+                  {order.phone && (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 text-primary"
+                        onClick={() => { window.location.href = `tel:${order.phone}`; }}
+                      >
+                        <PhoneCall className="w-3.5 h-3.5" /> اتصال
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 text-success"
+                        onClick={() => openWhatsApp(order.phone, order.customer_name, order.product_name)}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> واتساب
+                      </Button>
+                    </>
+                  )}
+                  {order.confirmation_notes && (
+                    <span className="text-xs text-muted-foreground italic w-full">
+                      📝 {order.confirmation_notes}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           
