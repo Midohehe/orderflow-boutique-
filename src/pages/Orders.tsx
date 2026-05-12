@@ -131,6 +131,7 @@ const Orders = () => {
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
+  const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
