@@ -44,6 +44,7 @@ export type Database = {
       app_settings: {
         Row: {
           id: string
+          shipping_endpoint: string
           subscription_currency: string
           subscription_price: number
           system_name: string
@@ -51,6 +52,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          shipping_endpoint?: string
           subscription_currency?: string
           subscription_price?: number
           system_name?: string
@@ -58,6 +60,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          shipping_endpoint?: string
           subscription_currency?: string
           subscription_price?: number
           system_name?: string

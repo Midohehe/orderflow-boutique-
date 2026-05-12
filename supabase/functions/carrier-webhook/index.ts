@@ -186,11 +186,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Look up custom mapping for this owner first
+    // Look up global custom mapping (managed by superadmin)
     const { data: mapping } = await supabase
       .from("carrier_status_mappings")
       .select("custom_label")
-      .eq("owner_id", profile.user_id)
       .eq("status_code", String(status))
       .maybeSingle();
 

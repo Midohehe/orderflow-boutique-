@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const endpoint: string = settings.endpoint || "https://turboex.ly:8001/graphql";
+    const { data: appS } = await admin.from("app_settings").select("shipping_endpoint").maybeSingle();
+    const endpoint: string = (appS as any)?.shipping_endpoint || settings.endpoint || "https://turboex.ly:8001/graphql";
 
     const loginRes = await fetch(endpoint, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -113,9 +114,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Pre-load custom mappings
+    // Pre-load global custom mappings (managed by superadmin)
     const { data: mappings } = await admin
-      .from("carrier_status_mappings").select("status_code, custom_label").eq("owner_id", ownerId);
+      .from("carrier_status_mappings").select("status_code, custom_label");
     const mappingMap = new Map<string, string>();
     (mappings || []).forEach((m: any) => mappingMap.set(String(m.status_code), m.custom_label));
 

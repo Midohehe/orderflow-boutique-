@@ -76,7 +76,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const endpoint: string = settings.endpoint || "https://turboex.ly:8001/graphql";
+    const { data: appS } = await admin.from("app_settings").select("shipping_endpoint").maybeSingle();
+    const endpoint: string = (appS as any)?.shipping_endpoint || settings.endpoint || "https://turboex.ly:8001/graphql";
 
     // 1) Login via GraphQL to get token
     const loginQuery = {
