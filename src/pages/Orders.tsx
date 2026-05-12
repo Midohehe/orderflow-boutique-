@@ -1122,6 +1122,53 @@ const Orders = () => {
         </Card>
       </div>
 
+      {/* نسبة التسليم حسب حالة التأكيد */}
+      <Card className="card-shadow">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="font-bold text-foreground">نسبة التسليم حسب حالة التأكيد (للطلبات المرسلة لشركة الشحن)</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg border-2 border-success/30 bg-success/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="w-4 h-4 text-success" />
+                <span className="font-semibold text-foreground">الطلبات المؤكدة</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-success">{confirmedRate}%</span>
+                <span className="text-sm text-muted-foreground">
+                  ({confirmedDelivered} من {confirmedSent.length})
+                </span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-success transition-all" style={{ width: `${confirmedRate}%` }} />
+              </div>
+            </div>
+            <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldAlert className="w-4 h-4 text-warning" />
+                <span className="font-semibold text-foreground">الطلبات بدون تأكيد</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-warning">{unconfirmedRate}%</span>
+                <span className="text-sm text-muted-foreground">
+                  ({unconfirmedDelivered} من {unconfirmedSent.length})
+                </span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
+                <div className="h-full bg-warning transition-all" style={{ width: `${unconfirmedRate}%` }} />
+              </div>
+            </div>
+          </div>
+          {confirmedSent.length > 0 && unconfirmedSent.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-3">
+              💡 الفرق: {confirmedRate - unconfirmedRate > 0 ? `+${confirmedRate - unconfirmedRate}` : confirmedRate - unconfirmedRate}% لصالح الطلبات المؤكدة
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending" className="flex items-center gap-2">
