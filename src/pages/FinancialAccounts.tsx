@@ -1,14 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, DollarSign, CheckCircle, Filter } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  TrendingUp, DollarSign, CheckCircle, Filter, Wallet, Receipt, ShoppingBag,
+  Package, ArrowUpRight, ArrowDownRight, Percent, BarChart3, PieChart as PieIcon,
+  CircleDollarSign, ShoppingCart, Hourglass,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
+  BarChart, Bar, PieChart, Pie, Cell, Legend,
+} from "recharts";
 
 interface Order {
   id: string;
@@ -18,191 +28,481 @@ interface Order {
   customer_name: string;
   created_at: string;
 }
+interface ProductRow { id: string; name: string; purchase_price: number; }
+interface ExpenseRow { id: string; amount: number; created_at: string; expense_type_id: string | null; }
+interface PurchaseRow { id: string; amount: number; created_at: string; }
+interface SafeRow { id: string; name: string; balance: number; }
+interface ExpenseTypeRow { id: string; name: string; }
 
-interface ProductRow {
-  id: string;
-  name: string;
-  purchase_price: number;
-}
+const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const FinancialAccounts = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [productsList, setProductsList] = useState<ProductRow[]>([]);
-  const [totalExpenses, setTotalExpenses] = useState(0);
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseTypeRow[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
+  const [safes, setSafes] = useState<SafeRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
 
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        const productsQuery = user
-          ? supabase.from("products").select("id, name, purchase_price").eq("owner_id", user.id)
-          : supabase.from("products").select("id, name, purchase_price");
-        const [ordersRes, productsRes, expensesRes] = await Promise.all([
+        const [o, p, e, et, pu, sa] = await Promise.all([
           supabase.from("orders").select("id, product_name, price, status, customer_name, created_at").order("created_at", { ascending: false }),
-          productsQuery,
-          supabase.from("expenses").select("amount"),
+          supabase.from("products").select("id, name, purchase_price"),
+          supabase.from("expenses").select("id, amount, created_at, expense_type_id"),
+          supabase.from("expense_types").select("id, name"),
+          supabase.from("purchases").select("id, amount, created_at"),
+          supabase.from("safes").select("id, name, balance"),
         ]);
-        if (ordersRes.error) throw ordersRes.error;
-        if (productsRes.error) throw productsRes.error;
-        setOrders(ordersRes.data || []);
-        setProductsList((productsRes.data as ProductRow[]) || []);
-        const expSum = (expensesRes.data || []).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-        setTotalExpenses(expSum);
-      } catch (error) {
-        console.error(error);
-        toast({ title: "خطأ", description: "حدث خطأ أثناء تحميل البيانات", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+        setOrders((o.data as Order[]) || []);
+        setProducts((p.data as ProductRow[]) || []);
+        setExpenses((e.data as ExpenseRow[]) || []);
+        setExpenseTypes((et.data as ExpenseTypeRow[]) || []);
+        setPurchases((pu.data as PurchaseRow[]) || []);
+        setSafes((sa.data as SafeRow[]) || []);
+      } catch (err) {
+        console.error(err);
+        toast({ title: "خطأ", description: "تعذر تحميل البيانات", variant: "destructive" });
+      } finally { setLoading(false); }
+    })();
   }, []);
 
-  const deliveredOrders = orders.filter((o) => o.status === "delivered");
-  const uniqueProducts = [...new Set(deliveredOrders.map((o) => o.product_name))];
-  const filteredDeliveredOrders =
-    selectedProduct === "all" ? deliveredOrders : deliveredOrders.filter((o) => o.product_name === selectedProduct);
-
-  const productByName = new Map(productsList.map((p) => [p.name, p]));
-  const totalRevenue = filteredDeliveredOrders.reduce((sum, o) => sum + Number(o.price), 0);
-  const totalPurchaseCost = filteredDeliveredOrders.reduce((sum, order) => {
-    const prod = productByName.get(order.product_name);
-    return sum + (prod ? Number(prod.purchase_price) : 0);
-  }, 0);
-  const totalProfit = totalRevenue - totalPurchaseCost - (selectedProduct === "all" ? totalExpenses : 0);
-
-  const getOrderProfit = (order: Order) => {
-    const prod = productByName.get(order.product_name);
-    return Number(order.price) - (prod ? Number(prod.purchase_price) : 0);
+  const inDateRange = (iso: string) => {
+    const t = new Date(iso).getTime();
+    if (dateFrom) {
+      const f = new Date(dateFrom); f.setHours(0,0,0,0);
+      if (t < f.getTime()) return false;
+    }
+    if (dateTo) {
+      const td = new Date(dateTo); td.setHours(23,59,59,999);
+      if (t > td.getTime()) return false;
+    }
+    return true;
   };
 
+  const productByName = useMemo(() => new Map(products.map(p => [p.name, p])), [products]);
+
+  const filteredOrders = useMemo(
+    () => orders.filter(o => inDateRange(o.created_at) && (selectedProduct === "all" || o.product_name === selectedProduct)),
+    [orders, dateFrom, dateTo, selectedProduct]
+  );
+  const deliveredOrders = useMemo(() => filteredOrders.filter(o => o.status === "delivered" || o.status === "settled"), [filteredOrders]);
+  const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
+  const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
+
+  // Core financials
+  const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
+  const totalCOGS = deliveredOrders.reduce((s, o) => {
+    const pr = productByName.get(o.product_name);
+    return s + (pr ? Number(pr.purchase_price) : 0);
+  }, 0);
+  const grossProfit = totalRevenue - totalCOGS;
+  const totalExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
+  const totalPurchases = selectedProduct === "all" ? filteredPurchases.reduce((s, p) => s + Number(p.amount), 0) : 0;
+  const netProfit = grossProfit - totalExpenses;
+
+  const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+  const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+  const roi = totalCOGS > 0 ? (grossProfit / totalCOGS) * 100 : 0;
+  const expenseRatio = totalRevenue > 0 ? (totalExpenses / totalRevenue) * 100 : 0;
+
+  // Order status breakdown
+  const statusCounts = filteredOrders.reduce<Record<string, number>>((acc, o) => {
+    acc[o.status] = (acc[o.status] || 0) + 1;
+    return acc;
+  }, {});
+  const totalOrders = filteredOrders.length;
+  const deliveredCount = deliveredOrders.length;
+  const conversionRate = totalOrders > 0 ? (deliveredCount / totalOrders) * 100 : 0;
+  const avgOrderValue = deliveredCount > 0 ? totalRevenue / deliveredCount : 0;
+
+  const totalSafesBalance = safes.reduce((s, x) => s + Number(x.balance), 0);
+  const pendingSettlement = orders.filter(o => o.status === "delivered" && inDateRange(o.created_at)).reduce((s, o) => s + Number(o.price), 0);
+
+  // Monthly trends (last 12 months)
+  const monthlyData = useMemo(() => {
+    const months: Record<string, { month: string; revenue: number; profit: number; expenses: number; purchases: number }> = {};
+    const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months[monthKey(d)] = { month: d.toLocaleDateString("ar-LY", { month: "short", year: "2-digit" }), revenue: 0, profit: 0, expenses: 0, purchases: 0 };
+    }
+    deliveredOrders.forEach(o => {
+      const k = monthKey(new Date(o.created_at));
+      if (months[k]) {
+        const pr = productByName.get(o.product_name);
+        const cost = pr ? Number(pr.purchase_price) : 0;
+        months[k].revenue += Number(o.price);
+        months[k].profit += Number(o.price) - cost;
+      }
+    });
+    filteredExpenses.forEach(e => {
+      const k = monthKey(new Date(e.created_at));
+      if (months[k]) months[k].expenses += Number(e.amount);
+    });
+    filteredPurchases.forEach(p => {
+      const k = monthKey(new Date(p.created_at));
+      if (months[k]) months[k].purchases += Number(p.amount);
+    });
+    return Object.values(months);
+  }, [deliveredOrders, filteredExpenses, filteredPurchases, productByName]);
+
+  // Expenses by type
+  const expensesByType = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredExpenses.forEach(e => {
+      const name = expenseTypes.find(t => t.id === e.expense_type_id)?.name || "غير محدد";
+      map[name] = (map[name] || 0) + Number(e.amount);
+    });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [filteredExpenses, expenseTypes]);
+
+  // Top products by revenue
+  const topProducts = useMemo(() => {
+    const map: Record<string, { revenue: number; profit: number; count: number }> = {};
+    deliveredOrders.forEach(o => {
+      const pr = productByName.get(o.product_name);
+      const cost = pr ? Number(pr.purchase_price) : 0;
+      if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0 };
+      map[o.product_name].revenue += Number(o.price);
+      map[o.product_name].profit += Number(o.price) - cost;
+      map[o.product_name].count += 1;
+    });
+    return Object.entries(map)
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+  }, [deliveredOrders, productByName]);
+
+  const uniqueProducts = useMemo(() => Array.from(new Set(orders.map(o => o.product_name))).sort(), [orders]);
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
   }
+
+  const KPI = ({ icon: Icon, label, value, sub, color, trend }: any) => (
+    <Card className={`bg-gradient-to-br ${color}`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">{label}</p>
+            <p className="text-xl font-bold">{value}</p>
+            {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
+          </div>
+          <div className="p-2 rounded-lg bg-background/40 backdrop-blur"><Icon className="w-5 h-5" /></div>
+        </div>
+        {typeof trend === "number" && (
+          <div className={`flex items-center gap-1 text-xs mt-2 ${trend >= 0 ? "text-green-600" : "text-red-500"}`}>
+            {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+            {trend.toFixed(1)}%
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">الحسابات المالية</h1>
-        <p className="text-muted-foreground">متابعة الأرباح من الطلبات المسلّمة</p>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><CircleDollarSign className="w-7 h-7 text-primary" />الحسابات المالية</h1>
+        <p className="text-muted-foreground text-sm">لوحة محاسبية شاملة للمبيعات، المشتريات، المصروفات والأرباح</p>
       </div>
 
+      {/* Filters */}
       <Card className="card-shadow">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <Filter className="w-5 h-5 text-muted-foreground" />
-            <Label className="text-sm font-medium">فلترة حسب المنتج:</Label>
+        <CardContent className="p-4 flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">الفلاتر</span></div>
+          <div>
+            <Label className="text-xs mb-1 block">من تاريخ</Label>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <Label className="text-xs mb-1 block">إلى تاريخ</Label>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div>
+            <Label className="text-xs mb-1 block">المنتج</Label>
             <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-              <SelectTrigger className="w-64"><SelectValue placeholder="اختر المنتج" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">جميع المنتجات</SelectItem>
-                {uniqueProducts.map((p) => (
-                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                ))}
+                {uniqueProducts.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
-            {selectedProduct !== "all" && (
-              <Button variant="outline" size="sm" onClick={() => setSelectedProduct("all")}>إلغاء الفلترة</Button>
-            )}
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/20 rounded-lg"><DollarSign className="w-5 h-5 text-green-500" /></div>
-              <div>
-                <p className="text-sm text-muted-foreground">إجمالي المبيعات</p>
-                <p className="text-xl font-bold text-foreground">{totalRevenue.toFixed(2)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg"><TrendingUp className="w-5 h-5 text-purple-500" /></div>
-              <div>
-                <p className="text-sm text-muted-foreground">صافي الربح</p>
-                <p className={`text-xl font-bold ${totalProfit >= 0 ? "text-green-500" : "text-red-500"}`}>{totalProfit.toFixed(2)}</p>
-                {selectedProduct === "all" && totalExpenses > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">بعد خصم مصروفات: {totalExpenses.toFixed(2)}</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-500/20 rounded-lg"><CheckCircle className="w-5 h-5 text-orange-500" /></div>
-              <div>
-                <p className="text-sm text-muted-foreground">طلبات مكتملة</p>
-                <p className="text-xl font-bold text-foreground">{filteredDeliveredOrders.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-green-500/30">
-        <CardHeader className="bg-gradient-to-r from-green-500/10 to-transparent">
-          <CardTitle className="flex items-center gap-2 text-green-600">
-            <CheckCircle className="w-5 h-5" />
-            الطلبات المستلمة والأرباح
-            {selectedProduct !== "all" && (
-              <span className="text-sm font-normal text-muted-foreground">({selectedProduct})</span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredDeliveredOrders.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>لا توجد طلبات مستلمة حتى الآن</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">العميل</TableHead>
-                  <TableHead className="text-right">المنتج</TableHead>
-                  <TableHead className="text-right">سعر البيع</TableHead>
-                  <TableHead className="text-right">سعر الشراء</TableHead>
-                  <TableHead className="text-right">الربح</TableHead>
-                  <TableHead className="text-right">التاريخ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDeliveredOrders.map((order) => {
-                  const prod = productByName.get(order.product_name);
-                  const purchasePrice = prod ? Number(prod.purchase_price) : 0;
-                  const profit = getOrderProfit(order);
-                  return (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.customer_name}</TableCell>
-                      <TableCell>{order.product_name}</TableCell>
-                      <TableCell>{Number(order.price).toFixed(2)}</TableCell>
-                      <TableCell>{purchasePrice.toFixed(2)}</TableCell>
-                      <TableCell className={profit >= 0 ? "text-green-500 font-bold" : "text-red-500 font-bold"}>{profit.toFixed(2)}</TableCell>
-                      <TableCell className="text-muted-foreground">{new Date(order.created_at).toLocaleDateString("ar-SA")}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          {(dateFrom || dateTo || selectedProduct !== "all") && (
+            <Button variant="outline" size="sm" className="h-9" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedProduct("all"); }}>إلغاء الفلترة</Button>
           )}
         </CardContent>
       </Card>
+
+      {/* Top KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={`${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
+        <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
+        <KPI icon={Receipt} label="المصروفات" value={fmt(totalExpenses)} sub={`${expenseRatio.toFixed(1)}% من المبيعات`} color="from-orange-500/10 to-orange-600/5 border-orange-500/20" />
+        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={`هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KPI icon={ShoppingBag} label="المشتريات (مخزون)" value={fmt(totalPurchases)} sub="لا تؤثر على الأرباح" color="from-amber-500/10 to-amber-600/5 border-amber-500/20" />
+        <KPI icon={Wallet} label="رصيد الخزائن" value={fmt(totalSafesBalance)} sub={`${safes.length} خزينة`} color="from-violet-500/10 to-violet-600/5 border-violet-500/20" />
+        <KPI icon={Hourglass} label="بانتظار التسوية" value={fmt(pendingSettlement)} sub="مسلّم وغير مستلم مالياً" color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
+        <KPI icon={ShoppingCart} label="متوسط قيمة الطلب" value={fmt(avgOrderValue)} sub={`نسبة التسليم ${conversionRate.toFixed(1)}%`} color="from-pink-500/10 to-pink-600/5 border-pink-500/20" />
+      </div>
+
+      {/* Ratios */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الإجمالي</p><p className="text-lg font-bold">{grossMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الصافي</p><p className={`text-lg font-bold ${netMargin >= 0 ? "text-green-600" : "text-red-500"}`}>{netMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">العائد على التكلفة (ROI)</p><p className="text-lg font-bold">{roi.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">نسبة المصروفات</p><p className="text-lg font-bold">{expenseRatio.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+      </div>
+
+      <Tabs defaultValue="overview">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
+          <TabsTrigger value="trends">الاتجاهات الشهرية</TabsTrigger>
+          <TabsTrigger value="products">أداء المنتجات</TabsTrigger>
+          <TabsTrigger value="expenses">تحليل المصروفات</TabsTrigger>
+          <TabsTrigger value="orders">تفاصيل الطلبات</TabsTrigger>
+        </TabsList>
+
+        {/* Overview */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="w-4 h-4" />ملخص الإيرادات والمصروفات</CardTitle></CardHeader>
+              <CardContent className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[
+                    { name: "المبيعات", value: totalRevenue, fill: "#10b981" },
+                    { name: "تكلفة البضاعة", value: totalCOGS, fill: "#3b82f6" },
+                    { name: "المصروفات", value: totalExpenses, fill: "#f59e0b" },
+                    { name: "صافي الربح", value: netProfit, fill: netProfit >= 0 ? "#22c55e" : "#ef4444" },
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v: any) => fmt(Number(v))} />
+                    <Bar dataKey="value" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><PieIcon className="w-4 h-4" />حالات الطلبات</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Object.entries(statusCounts).length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">لا توجد بيانات</p>
+                  ) : (
+                    Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => {
+                      const pct = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
+                      return (
+                        <div key={status}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>{status}</span>
+                            <span className="font-medium">{count} ({pct.toFixed(1)}%)</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">أرصدة الخزائن</CardTitle></CardHeader>
+            <CardContent>
+              {safes.length === 0 ? (
+                <p className="text-center text-muted-foreground py-6">لا توجد خزائن</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {safes.map(s => (
+                    <div key={s.id} className="p-3 rounded-lg border bg-muted/30">
+                      <p className="text-xs text-muted-foreground">{s.name}</p>
+                      <p className={`text-lg font-bold ${Number(s.balance) >= 0 ? "text-green-600" : "text-red-500"}`}>{fmt(s.balance)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Monthly trends */}
+        <TabsContent value="trends" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">المبيعات والأرباح خلال 12 شهر</CardTitle></CardHeader>
+            <CardContent className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" /><YAxis /><Tooltip formatter={(v: any) => fmt(Number(v))} /><Legend />
+                  <Line type="monotone" dataKey="revenue" name="المبيعات" stroke="#10b981" strokeWidth={2} />
+                  <Line type="monotone" dataKey="profit" name="الربح" stroke="#3b82f6" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">المصروفات والمشتريات شهرياً</CardTitle></CardHeader>
+            <CardContent className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" /><YAxis /><Tooltip formatter={(v: any) => fmt(Number(v))} /><Legend />
+                  <Bar dataKey="expenses" name="المصروفات" fill="#f59e0b" />
+                  <Bar dataKey="purchases" name="المشتريات" fill="#8b5cf6" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Top products */}
+        <TabsContent value="products" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">أفضل المنتجات حسب الإيرادات</CardTitle></CardHeader>
+            <CardContent>
+              {topProducts.length === 0 ? (
+                <p className="text-center text-muted-foreground py-6">لا توجد بيانات</p>
+              ) : (
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead className="text-right">المنتج</TableHead>
+                    <TableHead className="text-right">عدد الطلبات</TableHead>
+                    <TableHead className="text-right">الإيرادات</TableHead>
+                    <TableHead className="text-right">الربح</TableHead>
+                    <TableHead className="text-right">الهامش %</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {topProducts.map(p => {
+                      const m = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+                      return (
+                        <TableRow key={p.name}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell>{p.count}</TableCell>
+                          <TableCell>{fmt(p.revenue)}</TableCell>
+                          <TableCell className={p.profit >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>{fmt(p.profit)}</TableCell>
+                          <TableCell>{m.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Expenses analysis */}
+        <TabsContent value="expenses" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><PieIcon className="w-4 h-4" />توزيع المصروفات حسب النوع</CardTitle></CardHeader>
+              <CardContent className="h-72">
+                {expensesByType.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={expensesByType} dataKey="value" nameKey="name" outerRadius={90} label={(e: any) => `${e.name}: ${fmt(e.value)}`}>
+                        {expensesByType.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => fmt(Number(v))} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">تفاصيل أنواع المصروفات</CardTitle></CardHeader>
+              <CardContent>
+                {expensesByType.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
+                ) : (
+                  <Table>
+                    <TableHeader><TableRow><TableHead className="text-right">النوع</TableHead><TableHead className="text-right">المبلغ</TableHead><TableHead className="text-right">النسبة</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {expensesByType.sort((a, b) => b.value - a.value).map(et => {
+                        const pct = totalExpenses > 0 ? (et.value / totalExpenses) * 100 : 0;
+                        return (
+                          <TableRow key={et.name}>
+                            <TableCell>{et.name}</TableCell>
+                            <TableCell className="font-bold text-red-500">{fmt(et.value)}</TableCell>
+                            <TableCell>{pct.toFixed(1)}%</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Orders detail */}
+        <TabsContent value="orders" className="space-y-4">
+          <Card className="border-green-500/30">
+            <CardHeader className="bg-gradient-to-r from-green-500/10 to-transparent">
+              <CardTitle className="flex items-center gap-2 text-green-600 text-base">
+                <CheckCircle className="w-5 h-5" />الطلبات المسلّمة والأرباح ({deliveredOrders.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {deliveredOrders.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground"><CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>لا توجد طلبات مسلّمة</p></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead className="text-right">العميل</TableHead>
+                      <TableHead className="text-right">المنتج</TableHead>
+                      <TableHead className="text-right">سعر البيع</TableHead>
+                      <TableHead className="text-right">سعر الشراء</TableHead>
+                      <TableHead className="text-right">الربح</TableHead>
+                      <TableHead className="text-right">التاريخ</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {deliveredOrders.map(o => {
+                        const pr = productByName.get(o.product_name);
+                        const pp = pr ? Number(pr.purchase_price) : 0;
+                        const profit = Number(o.price) - pp;
+                        return (
+                          <TableRow key={o.id}>
+                            <TableCell className="font-medium">{o.customer_name}</TableCell>
+                            <TableCell>{o.product_name}</TableCell>
+                            <TableCell>{fmt(o.price)}</TableCell>
+                            <TableCell>{fmt(pp)}</TableCell>
+                            <TableCell className={profit >= 0 ? "text-green-500 font-bold" : "text-red-500 font-bold"}>{fmt(profit)}</TableCell>
+                            <TableCell className="text-muted-foreground text-xs">{new Date(o.created_at).toLocaleDateString("ar-LY")}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
