@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -134,6 +134,7 @@ const Orders = () => {
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
+  const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -728,6 +729,17 @@ const Orders = () => {
 
   const displayProductName = (o: Order): string =>
     (o.product_id && productsMap[o.product_id]) || o.product_name || "";
+  // Local sequential code per order: assigned in creation order (oldest = 01)
+  const localCodeMap: Record<string, string> = (() => {
+    const sorted = [...orders].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const map: Record<string, string> = {};
+    sorted.forEach((o, i) => {
+      map[o.id] = String(i + 1).padStart(2, "0");
+    });
+    return map;
+  })();
   const productNames = Array.from(
     new Set(orders.map(displayProductName).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
@@ -904,6 +916,10 @@ const Orders = () => {
             )}
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="font-mono" title="كود الطلب المحلي">
+                  <Hash className="w-3 h-3 ml-1" />
+                  {localCodeMap[order.id] || "—"}
+                </Badge>
                 <h3 className="font-semibold text-foreground">{order.customer_name}</h3>
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
@@ -1175,6 +1191,21 @@ const Orders = () => {
         </Card>
       </div>
 
+      {/* زر إظهار/إخفاء إحصائيات نسبة التسليم */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowDeliveryStats((v) => !v)}
+          className="gap-2"
+        >
+          {showDeliveryStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showDeliveryStats ? "إخفاء نسب التسليم" : "إظهار نسب التسليم"}
+        </Button>
+      </div>
+
+      {showDeliveryStats && (
+      <>
       {/* نسبة التسليم حسب حالة التأكيد */}
       <Card className="card-shadow">
         <CardContent className="p-4">
@@ -1302,6 +1333,8 @@ const Orders = () => {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
 
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
