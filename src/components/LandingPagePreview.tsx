@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, ShoppingBag, Phone, MapPin, User } from "lucide-react";
 import DOMPurify from "dompurify";
-import { isolateLatin } from "@/lib/bidi";
 
 interface Product {
   id: string;

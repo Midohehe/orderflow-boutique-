@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, ShoppingBag } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
-import { isolateLatin } from "@/lib/bidi";
 
 interface Product {
   id: string;
