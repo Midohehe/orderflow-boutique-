@@ -822,6 +822,31 @@ const Orders = () => {
     ? Math.round((unconfirmedDelivered / unconfirmedSent.length) * 100)
     : 0;
 
+  // نسبة التسليم بناءً على تصنيف أكواد حالات شركة الشحن
+  // (تم التسليم / راجع / قيد التنفيذ) — يعتمد على التصنيف المحدد في إعدادات الشحن.
+  const carrierCategoryCounts = orders.reduce(
+    (acc, o) => {
+      const code = extractStatusCode(o);
+      const cat = code ? statusCategoryMap[code] : undefined;
+      if (cat === "delivered") acc.delivered += 1;
+      else if (cat === "returned") acc.returned += 1;
+      else if (cat === "in_progress") acc.in_progress += 1;
+      return acc;
+    },
+    { delivered: 0, returned: 0, in_progress: 0 },
+  );
+  const carrierCategorizedTotal =
+    carrierCategoryCounts.delivered + carrierCategoryCounts.returned + carrierCategoryCounts.in_progress;
+  const carrierDeliveryRate = carrierCategorizedTotal > 0
+    ? Math.round((carrierCategoryCounts.delivered / carrierCategorizedTotal) * 100)
+    : 0;
+  const carrierReturnRate = carrierCategorizedTotal > 0
+    ? Math.round((carrierCategoryCounts.returned / carrierCategorizedTotal) * 100)
+    : 0;
+  const carrierInProgressRate = carrierCategorizedTotal > 0
+    ? Math.round((carrierCategoryCounts.in_progress / carrierCategorizedTotal) * 100)
+    : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
