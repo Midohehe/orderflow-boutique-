@@ -1191,6 +1191,21 @@ const Orders = () => {
         </Card>
       </div>
 
+      {/* زر إظهار/إخفاء إحصائيات نسبة التسليم */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowDeliveryStats((v) => !v)}
+          className="gap-2"
+        >
+          {showDeliveryStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showDeliveryStats ? "إخفاء نسب التسليم" : "إظهار نسب التسليم"}
+        </Button>
+      </div>
+
+      {showDeliveryStats && (
+      <>
       {/* نسبة التسليم حسب حالة التأكيد */}
       <Card className="card-shadow">
         <CardContent className="p-4">
