@@ -208,31 +208,61 @@ const Safes = () => {
           <DialogHeader><DialogTitle>حركات خزينة: {movementsSafe?.name}</DialogTitle></DialogHeader>
           {movLoading ? (
             <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
-          ) : movements.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">لا توجد حركات</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">التاريخ</TableHead>
-                  <TableHead className="text-right">النوع</TableHead>
-                  <TableHead className="text-right">المبلغ</TableHead>
-                  <TableHead className="text-right">ملاحظات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {movements.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="text-xs">{new Date(m.created_at).toLocaleString("ar-SA")}</TableCell>
-                    <TableCell>{TYPE_LABEL[m.movement_type] || m.movement_type}</TableCell>
-                    <TableCell className={Number(m.amount) >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
-                      {Number(m.amount).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm">{m.notes || "-"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <div className="flex flex-wrap gap-3 items-end bg-muted/40 p-3 rounded-lg">
+                <div className="flex-1 min-w-[160px]">
+                  <Label className="text-xs mb-1 block">نوع الحركة</Label>
+                  <Select value={movFilterType} onValueChange={setMovFilterType}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="الكل" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">الكل</SelectItem>
+                      {Object.entries(TYPE_LABEL).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Label className="text-xs mb-1 block">من تاريخ</Label>
+                  <Input type="date" value={movFilterDateFrom} onChange={(e) => setMovFilterDateFrom(e.target.value)} className="h-9" />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Label className="text-xs mb-1 block">إلى تاريخ</Label>
+                  <Input type="date" value={movFilterDateTo} onChange={(e) => setMovFilterDateTo(e.target.value)} className="h-9" />
+                </div>
+                <Button variant="outline" size="sm" className="h-9" onClick={() => { setMovFilterType("all"); setMovFilterDateFrom(""); setMovFilterDateTo(""); }}>
+                  إلغاء الفلترة
+                </Button>
+              </div>
+
+              {filteredMovements.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">لا توجد حركات مطابقة</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-right">التاريخ</TableHead>
+                      <TableHead className="text-right">النوع</TableHead>
+                      <TableHead className="text-right">المبلغ</TableHead>
+                      <TableHead className="text-right">ملاحظات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMovements.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-xs">{new Date(m.created_at).toLocaleString("ar-SA")}</TableCell>
+                        <TableCell>{TYPE_LABEL[m.movement_type] || m.movement_type}</TableCell>
+                        <TableCell className={Number(m.amount) >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
+                          {Number(m.amount).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-sm">{m.notes || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
