@@ -802,6 +802,22 @@ const Orders = () => {
   const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
 
+  // Delivery rate by confirmation status — only orders that were sent to shipping
+  const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
+  const sentToCarrier = orders.filter((o) => !!o.shipping_reference || shippedFinalStatuses.has(o.status));
+  const isConfirmed = (o: Order) => o.confirmation_status === "confirmed";
+  const isDelivered = (o: Order) => o.status === "delivered" || o.status === "settled";
+  const confirmedSent = sentToCarrier.filter(isConfirmed);
+  const unconfirmedSent = sentToCarrier.filter((o) => !isConfirmed(o));
+  const confirmedDelivered = confirmedSent.filter(isDelivered).length;
+  const unconfirmedDelivered = unconfirmedSent.filter(isDelivered).length;
+  const confirmedRate = confirmedSent.length > 0
+    ? Math.round((confirmedDelivered / confirmedSent.length) * 100)
+    : 0;
+  const unconfirmedRate = unconfirmedSent.length > 0
+    ? Math.round((unconfirmedDelivered / unconfirmedSent.length) * 100)
+    : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
