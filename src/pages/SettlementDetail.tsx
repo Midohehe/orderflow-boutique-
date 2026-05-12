@@ -11,6 +11,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { ArrowRight, CheckCircle2, Loader2, RefreshCw, Link2, Link2Off, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -52,18 +54,23 @@ const SettlementDetail = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [marking, setMarking] = useState(false);
+  const [safes, setSafes] = useState<{ id: string; name: string; balance: number }[]>([]);
+  const [selectedSafeId, setSelectedSafeId] = useState<string>("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const load = async () => {
     if (!id) return;
     setLoading(true);
-    const [sRes, shRes] = await Promise.all([
+    const [sRes, shRes, safesRes] = await Promise.all([
       supabase.from("settlements").select("*").eq("id", id).maybeSingle(),
       supabase.from("settlement_shipments").select("*").eq("settlement_id", id)
         .order("shipment_code"),
+      supabase.from("safes").select("id, name, balance").order("created_at"),
     ]);
     if (sRes.error) toast({ title: "خطأ", description: sRes.error.message, variant: "destructive" });
     setSettlement(sRes.data as Settlement | null);
     setRows((shRes.data as ShipmentRow[]) || []);
+    setSafes((safesRes.data as any[]) || []);
     setLoading(false);
     // Auto-sync if shipments not loaded yet
     if (sRes.data && !(sRes.data as Settlement).shipments_synced_at) {
@@ -98,18 +105,20 @@ const SettlementDetail = () => {
     }
   };
 
-  const setReceived = async (received: boolean) => {
+  const setReceived = async (received: boolean, safeId?: string) => {
     if (!id) return;
     setMarking(true);
     try {
       const { data, error } = await supabase.functions.invoke("receive-settlement", {
-        body: { settlement_id: id, received },
+        body: { settlement_id: id, received, safe_id: safeId || null },
       });
       if (error) throw error;
       toast({
         title: received ? "تم تأكيد الاستلام" : "تم التراجع",
         description: `تم تحديث ${data?.updated_orders ?? 0} طلب`,
       });
+      setConfirmOpen(false);
+      setSelectedSafeId("");
       await load();
     } catch (e: any) {
       toast({ title: "خطأ", description: e?.message, variant: "destructive" });
@@ -173,13 +182,11 @@ const SettlementDetail = () => {
               تراجع عن الاستلام
             </Button>
           ) : (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={marking || rows.length === 0}>
-                  <CheckCircle2 className="w-4 h-4 ml-2" />
-                  تأكيد استلام التسوية
-                </Button>
-              </AlertDialogTrigger>
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <Button disabled={marking || rows.length === 0} onClick={() => setConfirmOpen(true)}>
+                <CheckCircle2 className="w-4 h-4 ml-2" />
+                تأكيد استلام التسوية
+              </Button>
               <AlertDialogContent dir="rtl">
                 <AlertDialogHeader>
                   <AlertDialogTitle>تأكيد استلام التسوية المالية</AlertDialogTitle>
@@ -188,9 +195,32 @@ const SettlementDetail = () => {
                     وستظهر مبالغها في الخزنة. هل تريد المتابعة؟
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <div className="space-y-2 py-2">
+                  <Label>الخزينة المستلمة فيها المبلغ</Label>
+                  {safes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">لا توجد خزائن. أضف خزينة من تبويب الخزائن أولاً.</p>
+                  ) : (
+                    <Select value={selectedSafeId} onValueChange={setSelectedSafeId}>
+                      <SelectTrigger><SelectValue placeholder="اختر الخزينة" /></SelectTrigger>
+                      <SelectContent>
+                        {safes.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name} ({Number(s.balance).toFixed(2)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    سيتم إيداع {Number(settlement.payment_amount).toFixed(2)} في الخزينة المختارة.
+                  </p>
+                </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => setReceived(true)}>
+                  <AlertDialogAction
+                    disabled={!selectedSafeId || marking}
+                    onClick={(e) => { e.preventDefault(); setReceived(true, selectedSafeId); }}
+                  >
                     نعم، تم الاستلام
                   </AlertDialogAction>
                 </AlertDialogFooter>
