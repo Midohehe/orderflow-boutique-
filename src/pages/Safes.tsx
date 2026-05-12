@@ -105,12 +105,29 @@ const Safes = () => {
 
   const openMovements = async (safe: Safe) => {
     setMovementsSafe(safe); setMovementsOpen(true); setMovLoading(true);
+    setMovFilterType("all"); setMovFilterDateFrom(""); setMovFilterDateTo("");
     const { data } = await supabase.from("safe_movements")
       .select("id, amount, movement_type, notes, created_at")
       .eq("safe_id", safe.id).order("created_at", { ascending: false });
-    setMovements((data as Movement[]) || []);
+    const all = (data as Movement[]) || [];
+    setMovements(all);
+    setFilteredMovements(all);
     setMovLoading(false);
   };
+
+  useEffect(() => {
+    let list = [...movements];
+    if (movFilterType !== "all") list = list.filter((m) => m.movement_type === movFilterType);
+    if (movFilterDateFrom) {
+      const d = new Date(movFilterDateFrom); d.setHours(0,0,0,0);
+      list = list.filter((m) => new Date(m.created_at) >= d);
+    }
+    if (movFilterDateTo) {
+      const d = new Date(movFilterDateTo); d.setHours(23,59,59,999);
+      list = list.filter((m) => new Date(m.created_at) <= d);
+    }
+    setFilteredMovements(list);
+  }, [movements, movFilterType, movFilterDateFrom, movFilterDateTo]);
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
