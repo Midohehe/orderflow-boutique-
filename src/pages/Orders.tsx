@@ -825,13 +825,19 @@ const Orders = () => {
 
   // نسبة التسليم بناءً على تصنيف أكواد حالات شركة الشحن
   // (تم التسليم / راجع / قيد التنفيذ) — يعتمد على التصنيف المحدد في إعدادات الشحن.
-  const carrierRateProductOptions = Array.from(
-    new Set(orders.map((o) => o.product_name).filter(Boolean) as string[]),
-  ).sort((a, b) => a.localeCompare(b, "ar"));
+  // اعرض فقط منتجات النظام الرئيسية (الموجودة في جدول المنتجات)
+  const mainProductNames = new Set(Object.values(productsMap));
+  const carrierRateProductOptions = Array.from(mainProductNames)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, "ar"));
   const carrierRateOrders =
     carrierRateProductFilter === "all"
       ? orders
-      : orders.filter((o) => o.product_name === carrierRateProductFilter);
+      : orders.filter(
+          (o) =>
+            ((o.product_id && productsMap[o.product_id]) || o.product_name) ===
+            carrierRateProductFilter,
+        );
   const carrierCategoryCounts = carrierRateOrders.reduce(
     (acc, o) => {
       const code = extractStatusCode(o);
