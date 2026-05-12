@@ -22,6 +22,7 @@ const corsHeaders = {
 interface Body {
   order_ids: string[];
   shipping_included?: boolean;
+  openable?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -555,7 +556,7 @@ Deno.serve(async (req) => {
         typeCode: "FDP",
         priceTypeCode: body.shipping_included ? "INCLD" : "EXCLD",
         paymentTypeCode: "COLC",
-        openableCode: "N",
+        openableCode: body.openable ? "Y" : "N",
         banknoteCode: "ANY",
         refNumber: o.id.slice(0, 12).toUpperCase(),
         notes: [
