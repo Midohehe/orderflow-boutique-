@@ -664,6 +664,7 @@ const ShippingSettingsPage = () => {
             </div>
           </div>
 
+          {isAdmin && (
           <div className="border-t pt-4 space-y-3">
             <div>
               <Label className="text-base font-bold">تخصيص أسماء حالات الشحن</Label>
@@ -781,6 +782,7 @@ const ShippingSettingsPage = () => {
               </Button>
             </div>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
