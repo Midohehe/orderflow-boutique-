@@ -125,6 +125,7 @@ const Orders = () => {
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [labelOrderMap, setLabelOrderMap] = useState<Record<string, number>>({});
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
+  const [statusCategoryMap, setStatusCategoryMap] = useState<Record<string, string>>({});
   const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
   const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
@@ -345,7 +346,7 @@ const Orders = () => {
             .select(ORDER_SELECT_COLS)
             .order("created_at", { ascending: false }),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
-          supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order"),
+          supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
           supabase.from("products").select("id, name"),
         ]);
         if (cancelled) return;
@@ -361,9 +362,11 @@ const Orders = () => {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
           const lo: Record<string, number> = {};
+          const catm: Record<string, string> = {};
           (mapRes.data as any[]).forEach((r) => {
             m[String(r.status_code)] = r.custom_label;
             if (r.color) cm[String(r.status_code)] = r.color;
+            if (r.category) catm[String(r.status_code)] = r.category;
             const so = Number(r.sort_order ?? 0);
             if (so > 0) {
               const key = String(r.custom_label);
@@ -373,6 +376,7 @@ const Orders = () => {
           setStatusMap(m);
           setStatusColorMap(cm);
           setLabelOrderMap(lo);
+          setStatusCategoryMap(catm);
         }
       } catch (error) {
         console.error("Error fetching orders:", error);
