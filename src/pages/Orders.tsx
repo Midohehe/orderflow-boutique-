@@ -1532,6 +1532,38 @@ const Orders = () => {
         onOpenChange={(o) => !o && setDetailsId(null)}
         onSaved={(u) => setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p))}
       />
+
+      <AlertDialog open={!!confirmNoteOpen} onOpenChange={(o) => { if (!o) { setConfirmNoteOpen(null); setConfirmNoteValue(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{CONFIRMATION_LABELS[confirmNoteAction]}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmNoteAction === "postponed"
+                ? "اكتب موعد إعادة الاتصال أو أي ملاحظة (مثلاً: تأجيل ليوم الأحد)."
+                : confirmNoteAction === "cancelled"
+                ? "سيتم تغيير حالة الطلب إلى ملغي. اكتب سبب الإلغاء (اختياري)."
+                : "اكتب ملاحظة (اختياري)، مثل: محاولة ثانية، الهاتف مغلق…"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={confirmNoteValue}
+            onChange={(e) => setConfirmNoteValue(e.target.value)}
+            placeholder="ملاحظة..."
+            className="my-2"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const order = orders.find((o) => o.id === confirmNoteOpen);
+                if (order) handleConfirmationAction(order, confirmNoteAction, confirmNoteValue);
+              }}
+            >
+              حفظ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
