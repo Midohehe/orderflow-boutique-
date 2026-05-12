@@ -114,9 +114,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Pre-load custom mappings
+    // Pre-load global custom mappings (managed by superadmin)
     const { data: mappings } = await admin
-      .from("carrier_status_mappings").select("status_code, custom_label").eq("owner_id", ownerId);
+      .from("carrier_status_mappings").select("status_code, custom_label");
     const mappingMap = new Map<string, string>();
     (mappings || []).forEach((m: any) => mappingMap.set(String(m.status_code), m.custom_label));
 

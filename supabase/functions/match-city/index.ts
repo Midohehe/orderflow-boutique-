@@ -235,13 +235,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Build full (city|area) candidate list from defaults (minus hidden) + user corrections.
+    // Build full (city|area) candidate list from defaults (minus hidden) + corrections.
+    // Hidden defaults & corrections are managed globally by superadmin.
     let hidden = new Set<string>();
-    if (owner_id) {
+    {
       const { data: hiddenRows } = await admin
         .from("hidden_default_cities")
-        .select("city,area")
-        .eq("owner_id", owner_id);
+        .select("city,area");
       hidden = new Set((hiddenRows || []).map((r: any) => `${r.city}||${r.area}`));
     }
     const list: Pair[] = [];
@@ -251,11 +251,10 @@ Deno.serve(async (req) => {
       }
     }
     let overrides: Array<{ city: string; area: string; input_text: string | null }> = [];
-    if (owner_id) {
+    {
       const { data: corrections } = await admin
         .from("city_corrections")
-        .select("city,area,input_text")
-        .eq("owner_id", owner_id);
+        .select("city,area,input_text");
       for (const r of (corrections || []) as Array<{ city: string; area: string; input_text: string | null }>) {
         list.push({ city: r.city, area: r.area });
         overrides.push(r);
