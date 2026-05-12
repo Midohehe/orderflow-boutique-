@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
           await admin.from("safe_movements").insert({
             safe_id: m.safe_id, amount: -Number(m.amount), movement_type: "adjustment",
             reference_id: settlement.id,
-            notes: "تراجع عن استلام تسوية",
+            notes: `تراجع عن استلام تسوية ${settlement.code || settlement.id}`,
             owner_id: ownerId,
           });
         }
