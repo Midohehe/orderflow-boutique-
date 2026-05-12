@@ -193,6 +193,7 @@ export type Database = {
           id: string
           notes: string | null
           owner_id: string
+          product_id: string | null
           safe_id: string
         }
         Insert: {
@@ -202,6 +203,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_id: string
+          product_id?: string | null
           safe_id: string
         }
         Update: {
@@ -211,6 +213,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_id?: string
+          product_id?: string | null
           safe_id?: string
         }
         Relationships: [
@@ -754,6 +757,7 @@ export type Database = {
           id: string
           notes: string | null
           owner_id: string
+          product_id: string | null
           safe_id: string
         }
         Insert: {
@@ -762,6 +766,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_id: string
+          product_id?: string | null
           safe_id: string
         }
         Update: {
@@ -770,6 +775,7 @@ export type Database = {
           id?: string
           notes?: string | null
           owner_id?: string
+          product_id?: string | null
           safe_id?: string
         }
         Relationships: [
