@@ -729,6 +729,17 @@ const Orders = () => {
 
   const displayProductName = (o: Order): string =>
     (o.product_id && productsMap[o.product_id]) || o.product_name || "";
+  // Local sequential code per order: assigned in creation order (oldest = 01)
+  const localCodeMap: Record<string, string> = (() => {
+    const sorted = [...orders].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const map: Record<string, string> = {};
+    sorted.forEach((o, i) => {
+      map[o.id] = String(i + 1).padStart(2, "0");
+    });
+    return map;
+  })();
   const productNames = Array.from(
     new Set(orders.map(displayProductName).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
