@@ -111,6 +111,7 @@ const Orders = () => {
   const [shipProgress, setShipProgress] = useState<{ done: number; total: number } | null>(null);
   const [productFilter, setProductFilter] = useState<string>("all");
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
+  const [openableMode, setOpenableMode] = useState<"yes" | "no">("no");
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
@@ -316,7 +317,7 @@ const Orders = () => {
       for (let i = 0; i < ids.length; i++) {
         try {
           const { data, error } = await supabase.functions.invoke("ship-orders", {
-            body: { order_ids: [ids[i]], shipping_included: shippingMode === "included" },
+            body: { order_ids: [ids[i]], shipping_included: shippingMode === "included", openable: openableMode === "yes" },
           });
           if (error) throw error;
           sent += (data as any)?.sent ?? 0;
@@ -699,7 +700,7 @@ const Orders = () => {
         "رقم الهاتف ": order.phone,
         "الرمز البريدي للراسل": "",
         "العنوان ": address,
-        "فتح الطرد": "N",
+        "فتح الطرد": openableMode === "yes" ? "Y" : "N",
         "فئة العملات": "ANY",
       };
     });
@@ -1418,6 +1419,15 @@ const Orders = () => {
                       <SelectContent>
                         <SelectItem value="excluded">غير شامل الشحن</SelectItem>
                         <SelectItem value="included">شامل الشحن</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={openableMode} onValueChange={(v) => setOpenableMode(v as any)}>
+                      <SelectTrigger className="w-full sm:w-44">
+                        <SelectValue placeholder="فتح الطرد" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">غير مسموح بفتح الطرد</SelectItem>
+                        <SelectItem value="yes">مسموح بفتح الطرد</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
