@@ -33,6 +33,8 @@ const REASON_LABEL: Record<string, string> = {
   order_unpacked: "تفريغ من شركة الشحن",
   return_received: "استلام مرتجع",
   manual: "حركة يدوية",
+  manual_add: "إضافة كميات",
+  manual_remove: "سحب كميات",
 };
 
 const StockMovements = () => {
@@ -131,7 +133,8 @@ const StockMovements = () => {
                 <SelectItem value="order_created">إنشاء طلب</SelectItem>
                 <SelectItem value="order_unpacked">تفريغ من شركة الشحن</SelectItem>
                 <SelectItem value="return_received">استلام مرتجع</SelectItem>
-                <SelectItem value="manual">حركة يدوية</SelectItem>
+                <SelectItem value="manual_add">إضافة كميات</SelectItem>
+                <SelectItem value="manual_remove">سحب كميات</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={load} disabled={loading}>تحديث</Button>
