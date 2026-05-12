@@ -33,6 +33,8 @@ const REASON_LABEL: Record<string, string> = {
   order_unpacked: "تفريغ من شركة الشحن",
   return_received: "استلام مرتجع",
   manual: "حركة يدوية",
+  manual_add: "إضافة كميات",
+  manual_remove: "سحب كميات",
 };
 
 const StockMovements = () => {
