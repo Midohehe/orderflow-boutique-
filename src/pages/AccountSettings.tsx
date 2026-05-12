@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, UserCircle, Webhook, Copy, RefreshCw } from "lucide-react";
 import CityCorrections from "@/components/CityCorrections";
+import { useUserContext } from "@/hooks/useUserContext";
 
 const AccountSettings = () => {
   const { user } = useAuth();
+  const { isAdmin } = useUserContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [username, setUsername] = useState("");
@@ -314,7 +316,7 @@ const AccountSettings = () => {
         </CardContent>
       </Card>
 
-      <CityCorrections />
+      {isAdmin && <CityCorrections />}
     </div>
   );
 };
