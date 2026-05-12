@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, CheckCircle2, AlertCircle } from "lucide-react";
+import { useUserContext } from "@/hooks/useUserContext";
 
 interface ShippingSettings {
   id?: string;
@@ -24,7 +25,10 @@ const DEFAULT: ShippingSettings = {
 };
 
 const ShippingSettingsPage = () => {
+  const { isAdmin } = useUserContext();
   const [settings, setSettings] = useState<ShippingSettings>(DEFAULT);
+  const [globalEndpoint, setGlobalEndpoint] = useState<string>("https://turboex.ly:8001/graphql");
+  const [savingEndpoint, setSavingEndpoint] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -425,6 +429,28 @@ const ShippingSettingsPage = () => {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("shipping_endpoint")
+        .limit(1)
+        .maybeSingle();
+      if ((data as any)?.shipping_endpoint) setGlobalEndpoint((data as any).shipping_endpoint);
+    })();
+  }, []);
+
+  const saveGlobalEndpoint = async () => {
+    setSavingEndpoint(true);
+    const { data: existing } = await supabase.from("app_settings").select("id").limit(1).maybeSingle();
+    const { error } = existing
+      ? await supabase.from("app_settings").update({ shipping_endpoint: globalEndpoint.trim() } as any).eq("id", (existing as any).id)
+      : await supabase.from("app_settings").insert({ shipping_endpoint: globalEndpoint.trim() } as any);
+    setSavingEndpoint(false);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else toast({ title: "تم الحفظ", description: "تم حفظ رابط API الشحن العام" });
+  };
 
   const handleSave = async () => {
     setSaving(true);
