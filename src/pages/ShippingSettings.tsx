@@ -36,7 +36,7 @@ const ShippingSettingsPage = () => {
   const [applying, setApplying] = useState(false);
   const [localProducts, setLocalProducts] = useState<Array<{ id: string; name: string; variant_warehouse_codes: Record<string, any>; variant_stock: Record<string, number>; stock: number }>>([]);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
-  const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; originalCodes: string[] }>>([]);
+  const [mappings, setMappings] = useState<Array<{ codes: string; custom_label: string; color: string; category: string; originalCodes: string[] }>>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [savingMappings, setSavingMappings] = useState(false);
@@ -92,11 +92,18 @@ const ShippingSettingsPage = () => {
     { code: "BMT", label: "مناولة بين الفروع - صادر" },
   ];
 
+  const CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: "none", label: "— لا يحتسب —" },
+    { value: "delivered", label: "تم التسليم" },
+    { value: "returned", label: "راجع" },
+    { value: "in_progress", label: "قيد التنفيذ" },
+  ];
+
   const loadMappings = async () => {
     const [{ data }, { data: hidden }] = await Promise.all([
       supabase
         .from("carrier_status_mappings")
-        .select("id, status_code, custom_label, color, sort_order")
+        .select("id, status_code, custom_label, color, sort_order, category")
         .order("sort_order", { ascending: true })
         .order("status_code", { ascending: true }),
       supabase.from("hidden_default_carrier_codes").select("status_code"),
@@ -108,14 +115,16 @@ const ShippingSettingsPage = () => {
     // Group existing rows by (custom_label || color) so multiple codes that
     // map to the same name+color appear as a single editable row. Track
     // minimum sort_order per group so we can sort by user-defined order.
-    const groups = new Map<string, { codes: string[]; custom_label: string; color: string; sort_order: number }>();
+    const groups = new Map<string, { codes: string[]; custom_label: string; color: string; category: string; sort_order: number }>();
     for (const e of existing) {
       const color = e.color || "default";
-      const key = `${e.custom_label}||${color}`;
+      const category = e.category || "none";
+      const key = `${e.custom_label}||${color}||${category}`;
       const g = groups.get(key) || {
         codes: [],
         custom_label: e.custom_label,
         color,
+        category,
         sort_order: e.sort_order ?? 0,
       };
       g.codes.push(e.status_code);
@@ -123,7 +132,7 @@ const ShippingSettingsPage = () => {
       groups.set(key, g);
     }
 
-    type Row = { codes: string; custom_label: string; color: string; originalCodes: string[]; sort_order: number; isDefault: boolean; defaultIdx: number };
+    type Row = { codes: string; custom_label: string; color: string; category: string; originalCodes: string[]; sort_order: number; isDefault: boolean; defaultIdx: number };
     const rows: Row[] = [];
     const usedDefaultCodes = new Set<string>();
 
@@ -133,6 +142,7 @@ const ShippingSettingsPage = () => {
         codes: g.codes.join(", "),
         custom_label: g.custom_label,
         color: g.color,
+        category: g.category,
         originalCodes: [...g.codes],
         sort_order: g.sort_order,
         isDefault: false,
@@ -150,6 +160,7 @@ const ShippingSettingsPage = () => {
         codes: d.code,
         custom_label: d.label,
         color: "default",
+        category: "none",
         originalCodes: [],
         sort_order: 0,
         isDefault: true,
@@ -172,19 +183,19 @@ const ShippingSettingsPage = () => {
       return a.custom_label.localeCompare(b.custom_label, "ar");
     });
 
-    setMappings(rows.map(({ codes, custom_label, color, originalCodes }) => ({
-      codes, custom_label, color, originalCodes,
+    setMappings(rows.map(({ codes, custom_label, color, category, originalCodes }) => ({
+      codes, custom_label, color, category, originalCodes,
     })));
   };
 
   useEffect(() => { loadMappings(); }, []);
 
-  const updateMapping = (idx: number, field: "codes" | "custom_label" | "color", value: string) => {
+  const updateMapping = (idx: number, field: "codes" | "custom_label" | "color" | "category", value: string) => {
     setMappings((prev) => prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m)));
   };
 
   const addMapping = () => {
-    setMappings((prev) => [...prev, { codes: "", custom_label: "", color: "default", originalCodes: [] }]);
+    setMappings((prev) => [...prev, { codes: "", custom_label: "", color: "default", category: "none", originalCodes: [] }]);
   };
 
   const removeMapping = async (idx: number) => {
@@ -234,7 +245,7 @@ const ShippingSettingsPage = () => {
 
       // Build expanded rows (one per code) and detect codes that were removed
       // from a row so we can delete their old DB entries.
-      const rows: Array<{ owner_id: string; status_code: string; custom_label: string; color: string; sort_order: number }> = [];
+      const rows: Array<{ owner_id: string; status_code: string; custom_label: string; color: string; category: string | null; sort_order: number }> = [];
       const codesToDelete: string[] = [];
       mappings.forEach((m, idx) => {
         const label = m.custom_label.trim();
@@ -254,6 +265,7 @@ const ShippingSettingsPage = () => {
             status_code: c,
             custom_label: label,
             color: m.color || "default",
+            category: m.category && m.category !== "none" ? m.category : null,
             sort_order: (idx + 1) * 10,
           });
         }
