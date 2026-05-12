@@ -49,6 +49,10 @@ const Safes = () => {
   const [movementsSafe, setMovementsSafe] = useState<Safe | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movLoading, setMovLoading] = useState(false);
+  const [movFilterType, setMovFilterType] = useState<string>("all");
+  const [movFilterDateFrom, setMovFilterDateFrom] = useState<string>("");
+  const [movFilterDateTo, setMovFilterDateTo] = useState<string>("");
+  const [filteredMovements, setFilteredMovements] = useState<Movement[]>([]);
 
   const load = async () => {
     setLoading(true);
