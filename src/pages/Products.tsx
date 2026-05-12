@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
+import { isolateLatin } from "@/lib/bidi";
 
 const ProductForm = lazy(() => import("@/components/ProductForm"));
 
@@ -659,7 +660,7 @@ const Products = () => {
               </div>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-foreground">{product.name}</h3>
+                  <h3 className="font-semibold text-foreground">{isolateLatin(product.name)}</h3>
                   <div className="text-left">
                     <span className="text-primary font-bold">{product.price} {storeSettings.currency_symbol}</span>
                     {product.original_price && (

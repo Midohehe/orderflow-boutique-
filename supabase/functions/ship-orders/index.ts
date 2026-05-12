@@ -3,6 +3,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { initialLibyanLocations } from "../_shared/locationData.ts";
 
+// Bidi isolation for mixed Arabic/Latin: wrap Latin/digit runs (XL, 2XL, SKUs)
+// with U+2066 LRI ... U+2069 PDI so they don't reorder inside RTL text.
+const LATIN_RUN = /[A-Za-z0-9]+(?:[._\-+/][A-Za-z0-9]+)*/g;
+const isolateLatin = (s: unknown): string => {
+  if (s === null || s === undefined) return "";
+  const t = String(s);
+  if (!t || t.includes("\u2066")) return t;
+  return t.replace(LATIN_RUN, (m) => `\u2066${m}\u2069`);
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -521,7 +531,7 @@ Deno.serve(async (req) => {
             .map(([pid, qty]) => {
               const name = whProductNameById.get(pid);
               if (!name || !name.trim()) return null;
-              return `${name.trim()} ${qty} ${qtyLabel(qty)}`;
+              return `${isolateLatin(name.trim())} ${qty} ${qtyLabel(qty)}`;
             })
             .filter((s): s is string => !!s)
             .join("\n")
@@ -537,10 +547,10 @@ Deno.serve(async (req) => {
         description: hasWarehouseLink
           ? (warehouseDescription || undefined)
           : [
-              o.product_name,
-              o.selected_color ? `اللون: ${o.selected_color}` : null,
-              o.selected_size ? `المقاس: ${o.selected_size}` : null,
-              o.selected_product_code ? `الكود: ${o.selected_product_code}` : null,
+              isolateLatin(o.product_name),
+              o.selected_color ? `اللون: ${isolateLatin(o.selected_color)}` : null,
+              o.selected_size ? `المقاس: ${isolateLatin(o.selected_size)}` : null,
+              o.selected_product_code ? `الكود: ${isolateLatin(o.selected_product_code)}` : null,
             ].filter(Boolean).join(" - "),
         typeCode: "FDP",
         priceTypeCode: body.shipping_included ? "INCLD" : "EXCLD",
@@ -549,9 +559,9 @@ Deno.serve(async (req) => {
         banknoteCode: "ANY",
         refNumber: o.id.slice(0, 12).toUpperCase(),
         notes: [
-          o.selected_color,
-          o.selected_size,
-          o.selected_product_code,
+          isolateLatin(o.selected_color),
+          isolateLatin(o.selected_size),
+          isolateLatin(o.selected_product_code),
           (needsConfirmation && areaName && norm(areaName).includes(norm("استلام مكتب")))
             ? "اتصل بالزبون للتاكيد"
             : null,
