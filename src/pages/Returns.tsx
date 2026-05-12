@@ -52,6 +52,7 @@ const Returns = () => {
   const [rtrnRows, setRtrnRows] = useState<RtrnOrderRow[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [codeQuery, setCodeQuery] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const load = async () => {
@@ -111,6 +112,25 @@ const Returns = () => {
       return n;
     });
     toast({ title: `تم تحديد ${matched.length} طلب` });
+  };
+
+  const handleBarcodeScan = (raw: string) => {
+    const t = raw.trim().toLowerCase();
+    if (!t) return;
+    const match = rtrnRows.find((r) => (r.shipping_reference || "").toLowerCase() === t)
+      || rtrnRows.find((r) => (r.shipping_reference || "").toLowerCase().includes(t));
+    if (!match) {
+      toast({ title: "لم يتم العثور على طلب", description: raw, variant: "destructive" });
+      setBarcode("");
+      return;
+    }
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      n.add(match.id);
+      return n;
+    });
+    toast({ title: "تمت إضافة الطلب", description: match.shipping_reference || "" });
+    setBarcode("");
   };
 
   const confirmBulkReceive = async () => {
