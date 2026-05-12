@@ -12,7 +12,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Boxes, Plus, Loader2, DollarSign, Package } from "lucide-react";
+import { Boxes, Plus, Minus, Loader2, DollarSign, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -45,6 +45,7 @@ const Inventory = () => {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"add" | "remove">("add");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [variantQty, setVariantQty] = useState<Record<string, string>>({});
   const [singleQty, setSingleQty] = useState<string>("");
@@ -85,6 +86,12 @@ const Inventory = () => {
     setBulkQty("");
   };
 
+  const openDialog = (mode: "add" | "remove") => {
+    setDialogMode(mode);
+    resetDialog();
+    setDialogOpen(true);
+  };
+
   const applyBulkToAll = () => {
     const v = bulkQty.trim();
     if (!v) return;
@@ -93,13 +100,15 @@ const Inventory = () => {
     setVariantQty(next);
   };
 
-  const submitAdd = async () => {
+  const submit = async () => {
     if (!selectedProductId) {
       toast({ title: "اختر منتجاً", variant: "destructive" });
       return;
     }
     const prod = products.find((p) => p.id === selectedProductId);
     if (!prod) return;
+
+    const isRemove = dialogMode === "remove";
 
     type Entry = { variantKey: string | null; qty: number };
     const entries: Entry[] = [];
@@ -109,15 +118,28 @@ const Inventory = () => {
         if (!raw) continue;
         const q = parseInt(raw);
         if (isNaN(q) || q <= 0) continue;
+        if (isRemove) {
+          const cur = Number(prod.variant_stock?.[k] ?? 0);
+          if (q > cur) {
+            toast({ title: "كمية غير كافية", description: `المتغير "${k}" متوفر فقط ${cur}`, variant: "destructive" });
+            return;
+          }
+        }
         entries.push({ variantKey: k, qty: q });
       }
     } else {
       const q = parseInt(singleQty);
-      if (!isNaN(q) && q > 0) entries.push({ variantKey: null, qty: q });
+      if (!isNaN(q) && q > 0) {
+        if (isRemove && q > prod.stock) {
+          toast({ title: "الكمية في المخزن غير كافية", variant: "destructive" });
+          return;
+        }
+        entries.push({ variantKey: null, qty: q });
+      }
     }
 
     if (entries.length === 0) {
-      toast({ title: "أدخل كمية واحدة على الأقل", variant: "destructive" });
+      toast({ title: isRemove ? "أدخل كمية سحب واحدة على الأقل" : "أدخل كمية واحدة على الأقل", variant: "destructive" });
       return;
     }
 
@@ -132,28 +154,30 @@ const Inventory = () => {
         product_name: prod.name,
         variant_key: e.variantKey,
         warehouse_code: null,
-        qty: e.qty,
-        reason: "manual_add",
-        notes: "إضافة كميات يدوياً",
+        qty: isRemove ? -e.qty : e.qty,
+        reason: isRemove ? "manual_remove" : "manual_add",
+        notes: isRemove ? "سحب كميات يدوياً" : "إضافة كميات يدوياً",
       }));
       const { error: mErr } = await (supabase as any).from("stock_movements").insert(movementsPayload);
       if (mErr) throw mErr;
 
       const newVariantStock = { ...(prod.variant_stock || {}) } as Record<string, number>;
-      let added = 0;
+      let totalDelta = 0;
       for (const e of entries) {
         if (e.variantKey) {
-          newVariantStock[e.variantKey] = Number(newVariantStock[e.variantKey] || 0) + e.qty;
+          const newVal = Math.max(0, Number(newVariantStock[e.variantKey] || 0) + (isRemove ? -e.qty : e.qty));
+          newVariantStock[e.variantKey] = newVal;
         }
-        added += e.qty;
+        totalDelta += e.qty;
       }
-      const newStock = Number(prod.stock || 0) + added;
+      const newStock = Math.max(0, Number(prod.stock || 0) + (isRemove ? -totalDelta : totalDelta));
       const { error: uErr } = await (supabase as any).from("products")
         .update({ stock: newStock, variant_stock: newVariantStock })
         .eq("id", prod.id);
       if (uErr) throw uErr;
 
-      toast({ title: "تمت الإضافة", description: `+${added} إلى ${prod.name}` });
+      const verb = isRemove ? "تم السحب" : "تمت الإضافة";
+      toast({ title: verb, description: `${isRemove ? "-" : "+"}${totalDelta} إلى ${prod.name}` });
       setDialogOpen(false);
       resetDialog();
       await load();
@@ -171,10 +195,16 @@ const Inventory = () => {
           <h1 className="text-2xl font-bold text-foreground">المخزون</h1>
           <p className="text-muted-foreground">عرض كميات المنتجات وقيمة المخزون</p>
         </div>
-        <Button onClick={() => { resetDialog(); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4 ml-1" />
-          إضافة كميات
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => openDialog("remove")}>
+            <Minus className="w-4 h-4 ml-1" />
+            سحب الكميات
+          </Button>
+          <Button onClick={() => openDialog("add")}>
+            <Plus className="w-4 h-4 ml-1" />
+            إضافة كميات
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -276,7 +306,11 @@ const Inventory = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent dir="rtl" className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>إضافة كميات للمخزون</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {dialogMode === "add" ? "إضافة كميات للمخزون" : "سحب كميات من المخزون"}
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
               <Label>المنتج</Label>
@@ -312,7 +346,7 @@ const Inventory = () => {
                       <TableRow>
                         <TableHead className="text-right">المتغير</TableHead>
                         <TableHead className="text-right">الكمية الحالية</TableHead>
-                        <TableHead className="text-right">إضافة</TableHead>
+                        <TableHead className="text-right">{dialogMode === "add" ? "إضافة" : "سحب"}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -348,15 +382,15 @@ const Inventory = () => {
             )}
             {selectedProduct && variantKeys.length === 0 && (
               <div>
-                <Label>الكمية المراد إضافتها</Label>
+                <Label>{dialogMode === "add" ? "الكمية المراد إضافتها" : "الكمية المراد سحبها"}</Label>
                 <Input type="number" min="1" value={singleQty} onChange={(e) => setSingleQty(e.target.value)} placeholder="مثال: 10" />
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>إلغاء</Button>
-            <Button onClick={submitAdd} disabled={saving}>
-              {saving ? <Loader2 className="w-4 h-4 ml-1 animate-spin" /> : <Plus className="w-4 h-4 ml-1" />}
+            <Button onClick={submit} disabled={saving} variant={dialogMode === "remove" ? "destructive" : "default"}>
+              {saving ? <Loader2 className="w-4 h-4 ml-1 animate-spin" /> : dialogMode === "remove" ? <Minus className="w-4 h-4 ml-1" /> : <Plus className="w-4 h-4 ml-1" />}
               حفظ
             </Button>
           </DialogFooter>
