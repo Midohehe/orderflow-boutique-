@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: settlement } = await admin
-      .from("settlements").select("id, owner_id, payment_amount, received")
+      .from("settlements").select("id, owner_id, payment_amount, received, code")
       .eq("id", body.settlement_id).maybeSingle();
     if (!settlement || settlement.owner_id !== ownerId) {
       return new Response(JSON.stringify({ error: "Not found" }), {
