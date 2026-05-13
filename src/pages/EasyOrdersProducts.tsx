@@ -43,6 +43,7 @@ const EasyOrdersProducts = () => {
   const [compareLoading, setCompareLoading] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushingSkus, setPushingSkus] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [compareRows, setCompareRows] = useState<Array<{
     productName: string;
     eoProductId: string;
