@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ const baseMenuItems = [
   { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
   { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
   { icon: Truck, label: "شركة الشحن", path: "/dashboard/shipping", external: false, adminOnly: false, dynamicStore: false },
+  { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
 ];
 
 const adminSettingsItem = {
