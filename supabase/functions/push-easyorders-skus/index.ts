@@ -49,6 +49,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const bodyData = await req.json().catch(() => ({}));
+    const allowedProductIds: string[] | undefined = Array.isArray(bodyData?.product_ids)
+      ? bodyData.product_ids.map(String)
+      : undefined;
+
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -84,11 +89,15 @@ Deno.serve(async (req) => {
     const eoMap = new Map<string, any>();
     for (const r of (eoProds || []) as any[]) eoMap.set(String(r.external_id), r);
 
-    const { data: localProds } = await admin
+    let localQuery = admin
       .from("products")
       .select("id, name, easyorders_product_id, variant_warehouse_codes")
       .eq("owner_id", userData.user.id)
       .not("easyorders_product_id", "is", null);
+    if (allowedProductIds && allowedProductIds.length > 0) {
+      localQuery = localQuery.in("id", allowedProductIds);
+    }
+    const { data: localProds } = await localQuery;
 
     let updatedProducts = 0;
     let updatedVariants = 0;
