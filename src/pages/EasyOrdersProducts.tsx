@@ -41,6 +41,7 @@ const EasyOrdersProducts = () => {
   const [showCompare, setShowCompare] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [pushingSkus, setPushingSkus] = useState(false);
   const [compareRows, setCompareRows] = useState<Array<{
     productName: string;
     eoProductId: string;
@@ -135,6 +136,37 @@ const EasyOrdersProducts = () => {
     }
   };
 
+  const handlePushSkus = async () => {
+    if (!confirm(
+      "سيتم تعيين أكواد SKU لمتغيرات EasyOrders لتطابق أكواد شركة الشحن المحلية.\n\n" +
+      "ملاحظة: هذه العملية تحدّث المنتج بالكامل في EasyOrders (قد تُعاد إنشاء معرفات المتغيرات داخلياً) وستتم مزامنة فورية بعد ذلك. متابعة؟"
+    )) return;
+    setPushingSkus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("push-easyorders-skus");
+      if (error) throw error;
+      const d: any = data || {};
+      if (d.failed > 0) {
+        toast.warning(`تم: ${d.updatedProducts} منتج (${d.updatedVariants} متغير). تخطّي: ${d.skipped}. فشل: ${d.failed}`);
+        console.warn("Push SKUs errors:", d.errors);
+      } else {
+        toast.success(`تم تعيين الأكواد: ${d.updatedProducts} منتج (${d.updatedVariants} متغير). تخطّي: ${d.skipped}`);
+      }
+      // Resync to refresh variant IDs and SKUs locally
+      await supabase.functions.invoke("sync-easyorders-products");
+      const { data: fresh } = await supabase
+        .from("easyorders_products")
+        .select("id, external_id, name, sku, variants, raw, synced_at")
+        .order("name", { ascending: true });
+      if (fresh) setProducts(fresh as any);
+      if (showCompare) await loadComparison();
+    } catch (e: any) {
+      toast.error(`فشل: ${e?.message || e}`);
+    } finally {
+      setPushingSkus(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -219,6 +251,10 @@ const EasyOrdersProducts = () => {
             <Button onClick={handlePush} disabled={pushing}>
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               مطابقة الكميات (دفع كمياتنا إلى EasyOrders)
+            </Button>
+            <Button onClick={handlePushSkus} disabled={pushingSkus} variant="secondary">
+              {pushingSkus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              تعيين أكواد SKU من شركة الشحن
             </Button>
           </div>
 
