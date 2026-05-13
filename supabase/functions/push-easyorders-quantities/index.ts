@@ -9,6 +9,45 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function norm(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u0652\u0670]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "ا")
+    .replace(/\u0649/g, "ي")
+    .replace(/\u0624/g, "و")
+    .replace(/\u0626/g, "ي")
+    .replace(/\u0629/g, "ه")
+    .replace(/3xj/g, "3xl")
+    .replace(/\s+/g, " ");
+}
+
+function variantKeyFromProps(variant: any): string {
+  const props = Array.isArray(variant?.variation_props) ? variant.variation_props : [];
+  return props
+    .map((p: any) => String(p?.variation_prop ?? p?.value ?? "").trim())
+    .filter(Boolean)
+    .join(" - ");
+}
+
+function findVariantByKey(variants: any[], wantedKey: string): any | null {
+  const wanted = norm(wantedKey);
+  return variants.find((variant) => {
+    const propsKey = variantKeyFromProps(variant);
+    const candidates = [
+      propsKey,
+      variant?.name,
+      variant?.sku,
+      variant?.taager_code,
+    ];
+    return candidates.some((value) => {
+      const current = norm(value);
+      return !!current && (current === wanted || current.includes(wanted) || wanted.includes(current));
+    });
+  }) ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -103,7 +142,7 @@ Deno.serve(async (req) => {
         const productTaager = eo.sku ?? null;
         for (const key of linkedKeys) {
           const eoVarId = variantIdsMap[key];
-          const v = eoVarById.get(String(eoVarId));
+          const v = eoVarById.get(String(eoVarId)) ?? findVariantByKey(eoVariants, key);
           const variantTaager = v?.sku ?? v?.taager_code ?? null;
           if (!variantTaager) {
             failed++;

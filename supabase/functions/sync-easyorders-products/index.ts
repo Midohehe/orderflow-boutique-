@@ -17,6 +17,7 @@ function norm(v: unknown): string {
     .replace(/\u0624/g, "\u0648")
     .replace(/\u0626/g, "\u064A")
     .replace(/\u0629/g, "\u0647")
+    .replace(/3xj/g, "3xl")
     .replace(/\s+/g, " ");
 }
 
@@ -163,9 +164,17 @@ Deno.serve(async (req) => {
             for (const p of props) {
               const val = p?.variation_prop ?? p?.value ?? "";
               if (!val) continue;
-              const c = colors.find((x) => norm(x) === norm(val) || norm(val).includes(norm(x)));
+              const c = colors.find((x) => {
+                const nx = norm(x);
+                const nv = norm(val);
+                return nx === nv || nv.includes(nx) || nx.includes(nv);
+              });
               if (c && !color) { color = c; continue; }
-              const s = sizes.find((x) => norm(x) === norm(val) || norm(val).includes(norm(x)));
+              const s = sizes.find((x) => {
+                const nx = norm(x);
+                const nv = norm(val);
+                return nx === nv || nv.includes(nx) || nx.includes(nv);
+              });
               if (s && !size) { size = s; continue; }
             }
             // Build variant key consistent with ProductForm convention
