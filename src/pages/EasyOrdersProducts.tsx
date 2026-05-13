@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Package, Search, Upload, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -42,8 +41,6 @@ const EasyOrdersProducts = () => {
   const [showCompare, setShowCompare] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
   const [pushing, setPushing] = useState(false);
-  const [pushingSkus, setPushingSkus] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [compareRows, setCompareRows] = useState<Array<{
     productName: string;
     eoProductId: string;
@@ -110,17 +107,6 @@ const EasyOrdersProducts = () => {
     }
   };
 
-  const toggleProduct = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const selectAll = () => setSelectedIds(new Set(filtered.map((p) => p.id)));
-  const deselectAll = () => setSelectedIds(new Set());
-
   const handlePush = async () => {
     if (!confirm("سيتم تحديث كميات المنتجات في EasyOrders لتطابق الكميات الحالية عندك. متأكد؟")) return;
     setPushing(true);
@@ -146,43 +132,6 @@ const EasyOrdersProducts = () => {
       toast.error(`فشل: ${e?.message || e}`);
     } finally {
       setPushing(false);
-    }
-  };
-
-  const handlePushSkus = async () => {
-    if (selectedIds.size === 0) {
-      toast.error("اختر منتج واحد على الأقل.");
-      return;
-    }
-    if (!confirm(
-      `سيتم تعيين أكواد SKU لـ ${selectedIds.size} منتج/متغير في EasyOrders لتطابق أكواد شركة الشحن المحلية.\n\n` +
-      "ملاحظة: هذه العملية تحدّث المنتج بالكامل في EasyOrders (قد تُعاد إنشاء معرفات المتغيرات داخلياً) وستتم مزامنة فورية بعد ذلك. متابعة؟"
-    )) return;
-    setPushingSkus(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("push-easyorders-skus", {
-        body: { product_ids: Array.from(selectedIds) },
-      });
-      if (error) throw error;
-      const d: any = data || {};
-      if (d.failed > 0) {
-        toast.warning(`تم: ${d.updatedProducts} منتج (${d.updatedVariants} متغير). تخطّي: ${d.skipped}. فشل: ${d.failed}`);
-        console.warn("Push SKUs errors:", d.errors);
-      } else {
-        toast.success(`تم تعيين الأكواد: ${d.updatedProducts} منتج (${d.updatedVariants} متغير). تخطّي: ${d.skipped}`);
-      }
-      // Resync to refresh variant IDs and SKUs locally
-      await supabase.functions.invoke("sync-easyorders-products");
-      const { data: fresh } = await supabase
-        .from("easyorders_products")
-        .select("id, external_id, name, sku, variants, raw, synced_at")
-        .order("name", { ascending: true });
-      if (fresh) setProducts(fresh as any);
-      if (showCompare) await loadComparison();
-    } catch (e: any) {
-      toast.error(`فشل: ${e?.message || e}`);
-    } finally {
-      setPushingSkus(false);
     }
   };
 
@@ -271,24 +220,6 @@ const EasyOrdersProducts = () => {
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               مطابقة الكميات (دفع كمياتنا إلى EasyOrders)
             </Button>
-            <Button onClick={handlePushSkus} disabled={pushingSkus || selectedIds.size === 0} variant="secondary">
-              {pushingSkus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              تعيين أكواد SKU من شركة الشحن ({selectedIds.size} منتج/متغير مختار)
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <Button size="sm" variant="ghost" onClick={selectAll}>
-              اختيار الكل
-            </Button>
-            <Button size="sm" variant="ghost" onClick={deselectAll}>
-              إلغاء الكل
-            </Button>
-            {selectedIds.size > 0 && (
-              <Badge variant="outline" className="text-xs">
-                {selectedIds.size} منتج/متغير مختار
-              </Badge>
-            )}
           </div>
 
           {showCompare && (
@@ -370,12 +301,6 @@ const EasyOrdersProducts = () => {
                   <AccordionItem key={p.id} value={p.id}>
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex flex-1 flex-wrap items-center gap-2 text-right">
-                        <Checkbox
-                          checked={selectedIds.has(p.id)}
-                          onCheckedChange={() => toggleProduct(p.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label="اختيار المنتج"
-                        />
                         <span className="font-semibold">{p.name || `#${p.external_id}`}</span>
                         {p.sku && (
                           <Badge variant="outline" className="font-mono text-xs">
