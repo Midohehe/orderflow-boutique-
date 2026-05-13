@@ -398,6 +398,17 @@ const Orders = () => {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (openId) {
+      setDetailsId(openId);
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+
   const fetchCurrencySettings = async () => {
     try {
       const { data, error } = await supabase
