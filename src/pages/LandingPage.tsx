@@ -600,13 +600,31 @@ const LandingPage = () => {
       const sizesArray = itemVariants.map(v => v.size).filter(Boolean);
       const codesArray = itemVariants.map(v => v.productCode).filter(Boolean);
 
+      // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
+      const findField = (...keywords: string[]) => {
+        const f = formFields.find((fld) => {
+          const hay = `${fld.label || ""} ${fld.field_key || ""}`.toLowerCase();
+          return keywords.some((k) => hay.includes(k.toLowerCase()));
+        });
+        return f ? (formData[f.field_key] || "") : "";
+      };
+      const customer_name =
+        formData.name || findField("name", "اسم");
+      const phone =
+        formData.phone || findField("phone", "tel", "هاتف", "رقم", "جوال", "موبايل");
+      const city =
+        formData.city || findField("city", "مدينة");
+      const address =
+        formData.address ||
+        findField("address", "منطقة", "عنوان", "حي", "شارع");
+
       // Price is recomputed server-side to prevent client-side tampering
       const { error } = await supabase.functions.invoke("create-order", {
         body: {
-          customer_name: formData.name || "",
-          phone: formData.phone || "",
-          address: formData.address || "",
-          city: formData.city || "",
+          customer_name,
+          phone,
+          address,
+          city,
           product_id: product?.id,
           quantity: quantity,
           selected_color: colorsArray.join(", ") || null,
@@ -628,10 +646,10 @@ const LandingPage = () => {
             productName: product?.name,
             price: product?.price,
             currencySymbol: storeSettings.currency_symbol,
-            customerName: formData.name,
-            phone: formData.phone,
-            city: formData.city,
-            address: formData.address,
+            customerName: customer_name,
+            phone,
+            city,
+            address,
           },
         },
       });
