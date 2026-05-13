@@ -136,6 +136,7 @@ const Orders = () => {
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
