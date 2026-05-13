@@ -1370,6 +1370,152 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_conversations: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          id: string
+          last_message_at: string
+          last_message_preview: string | null
+          order_id: string | null
+          owner_id: string
+          phone: string
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          last_message_at?: string
+          last_message_preview?: string | null
+          order_id?: string | null
+          owner_id: string
+          phone: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          last_message_at?: string
+          last_message_preview?: string | null
+          order_id?: string | null
+          owner_id?: string
+          phone?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          direction: string
+          error: string | null
+          green_message_id: string | null
+          id: string
+          media_filename: string | null
+          media_mime: string | null
+          media_url: string | null
+          message_type: string
+          order_id: string | null
+          owner_id: string
+          raw: Json | null
+          status: string
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          direction: string
+          error?: string | null
+          green_message_id?: string | null
+          id?: string
+          media_filename?: string | null
+          media_mime?: string | null
+          media_url?: string | null
+          message_type?: string
+          order_id?: string | null
+          owner_id: string
+          raw?: Json | null
+          status?: string
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          error?: string | null
+          green_message_id?: string | null
+          id?: string
+          media_filename?: string | null
+          media_mime?: string | null
+          media_url?: string | null
+          message_type?: string
+          order_id?: string | null
+          owner_id?: string
+          raw?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_settings: {
+        Row: {
+          api_token: string
+          api_url: string
+          auto_confirm_enabled: boolean
+          confirm_template: string
+          created_at: string
+          enabled: boolean
+          id: string
+          instance_id: string
+          owner_id: string
+          updated_at: string
+          webhook_token: string | null
+          welcome_template: string
+        }
+        Insert: {
+          api_token?: string
+          api_url?: string
+          auto_confirm_enabled?: boolean
+          confirm_template?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          instance_id?: string
+          owner_id: string
+          updated_at?: string
+          webhook_token?: string | null
+          welcome_template?: string
+        }
+        Update: {
+          api_token?: string
+          api_url?: string
+          auto_confirm_enabled?: boolean
+          confirm_template?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          instance_id?: string
+          owner_id?: string
+          updated_at?: string
+          webhook_token?: string | null
+          welcome_template?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
