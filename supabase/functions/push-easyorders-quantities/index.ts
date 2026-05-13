@@ -97,29 +97,35 @@ Deno.serve(async (req) => {
 
       const linkedKeys = Object.keys(variantIdsMap);
       if (linkedKeys.length > 0) {
-        // Variant-based product
+        // Variant-based product: push each variant by its own SKU using the SKU endpoint.
+        // EasyOrders' variant endpoint requires a product-level taager_code, which most
+        // variant products don't have. The per-SKU endpoint works with variant SKUs directly.
         const productTaager = eo.sku ?? null;
-        if (!productTaager) {
-          // Fallback: try first linked variant's product_taager — EO needs product taager_code
-          // If product has no taager_code at all, we cannot use the variants endpoint.
-          failed++;
-          errors.push({ product: lp.name, error: "EO product has no taager_code (SKU). Set a SKU in EasyOrders first." });
-          continue;
-        }
         for (const key of linkedKeys) {
           const eoVarId = variantIdsMap[key];
           const v = eoVarById.get(String(eoVarId));
           const variantTaager = v?.sku ?? v?.taager_code ?? null;
           if (!variantTaager) {
             failed++;
-            errors.push({ product: lp.name, variant: key, error: "Variant taager_code missing in EO" });
+            errors.push({ product: lp.name, variant: key, error: "Variant SKU missing in EasyOrders" });
             continue;
           }
           const qty = Number(variantStock[key] ?? 0);
-          const url = `https://api.easy-orders.net/api/v1/external-apps/products/variants/${encodeURIComponent(productTaager)}/${encodeURIComponent(variantTaager)}/quantity`;
+          // Try per-SKU endpoint first (works even when product has no top-level taager_code)
+          const url = `https://api.easy-orders.net/api/v1/external-apps/products/sku/${encodeURIComponent(variantTaager)}/quantity`;
           const res = await patchQty(url, qty);
-          if (res.ok) updatedVariants++;
-          else { failed++; errors.push({ product: lp.name, variant: key, status: res.status, body: res.body }); }
+          if (res.ok) { updatedVariants++; continue; }
+          // Fallback to the variant endpoint if product has a taager_code
+          if (productTaager) {
+            const url2 = `https://api.easy-orders.net/api/v1/external-apps/products/variants/${encodeURIComponent(productTaager)}/${encodeURIComponent(variantTaager)}/quantity`;
+            const res2 = await patchQty(url2, qty);
+            if (res2.ok) { updatedVariants++; continue; }
+            failed++;
+            errors.push({ product: lp.name, variant: key, status: res2.status, body: res2.body });
+          } else {
+            failed++;
+            errors.push({ product: lp.name, variant: key, status: res.status, body: res.body });
+          }
         }
       } else {
         // Single product (no variants)
