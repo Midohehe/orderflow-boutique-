@@ -34,6 +34,7 @@ const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
 const HeaderSettings = lazy(() => import("./pages/HeaderSettings"));
 const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
+const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const Settings = lazy(() => import("./pages/Settings"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -95,6 +96,7 @@ const App = () => {
                 <Route path="currency" element={<CurrencySettings />} />
                 <Route path="header" element={<HeaderSettings />} />
                 <Route path="shipping" element={<ShippingSettings />} />
+                <Route path="whatsapp" element={<WhatsAppPage />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="account" element={<AccountSettings />} />
               </Route>
