@@ -219,6 +219,27 @@ Deno.serve(async (req) => {
           } catch (e) {
             console.error("auto-reply failed", e);
           }
+
+          return new Response("ok");
+        }
+      }
+
+      // AI auto-reply for non-confirmation messages
+      if (settings.ai_auto_reply_enabled) {
+        try {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+          // Fire-and-forget AI reply (do not block webhook response)
+          fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${anonKey}`,
+            },
+            body: JSON.stringify({ owner_id: ownerId, conversation_id: conversationId, phone }),
+          }).catch((e) => console.error("ai-reply trigger failed", e));
+        } catch (e) {
+          console.error("ai-reply trigger error", e);
         }
       }
 
