@@ -370,6 +370,12 @@ const EasyOrdersProducts = () => {
                   <AccordionItem key={p.id} value={p.id}>
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex flex-1 flex-wrap items-center gap-2 text-right">
+                        <Checkbox
+                          checked={selectedIds.has(p.id)}
+                          onCheckedChange={() => toggleProduct(p.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="اختيار المنتج"
+                        />
                         <span className="font-semibold">{p.name || `#${p.external_id}`}</span>
                         {p.sku && (
                           <Badge variant="outline" className="font-mono text-xs">
