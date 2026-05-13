@@ -213,6 +213,10 @@ export default function WhatsAppPage() {
                   <Label htmlFor="wa-auto">تأكيد تلقائي للطلبات</Label>
                   <Switch id="wa-auto" checked={!!settings.auto_confirm_enabled} onCheckedChange={(v) => setSettings({ ...settings, auto_confirm_enabled: v })} />
                 </div>
+                <div className="flex items-center justify-between p-3 border rounded-md">
+                  <Label htmlFor="wa-ai">رد ذكي تلقائي بالذكاء الاصطناعي</Label>
+                  <Switch id="wa-ai" checked={!!settings.ai_auto_reply_enabled} onCheckedChange={(v) => setSettings({ ...settings, ai_auto_reply_enabled: v })} />
+                </div>
                 <div>
                   <Label>قالب رسالة التأكيد</Label>
                   <Textarea rows={8} value={settings.confirm_template || ""} onChange={(e) => setSettings({ ...settings, confirm_template: e.target.value })} />
