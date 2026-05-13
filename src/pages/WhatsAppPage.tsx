@@ -129,6 +129,7 @@ export default function WhatsAppPage() {
       api_token: settings.api_token,
       api_url: settings.api_url,
       auto_confirm_enabled: settings.auto_confirm_enabled,
+      ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
       welcome_template: settings.welcome_template,
     }).eq("id", settings.id);
