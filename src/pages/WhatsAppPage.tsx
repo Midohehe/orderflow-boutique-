@@ -116,7 +116,7 @@ export default function WhatsAppPage() {
     if (data) setSettings(data);
     else {
       // create default row
-      const { data: created } = await supabase.from("whatsapp_settings").insert({}).select("*").single();
+      const { data: created } = await supabase.from("whatsapp_settings").insert({ owner_id: ownerId! }).select("*").single();
       setSettings(created);
     }
   }
