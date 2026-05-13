@@ -110,6 +110,17 @@ const EasyOrdersProducts = () => {
     }
   };
 
+  const toggleProduct = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(filtered.map((p) => p.id)));
+  const deselectAll = () => setSelectedIds(new Set());
+
   const handlePush = async () => {
     if (!confirm("سيتم تحديث كميات المنتجات في EasyOrders لتطابق الكميات الحالية عندك. متأكد؟")) return;
     setPushing(true);
