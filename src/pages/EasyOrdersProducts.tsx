@@ -271,10 +271,24 @@ const EasyOrdersProducts = () => {
               {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               مطابقة الكميات (دفع كمياتنا إلى EasyOrders)
             </Button>
-            <Button onClick={handlePushSkus} disabled={pushingSkus} variant="secondary">
+            <Button onClick={handlePushSkus} disabled={pushingSkus || selectedIds.size === 0} variant="secondary">
               {pushingSkus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              تعيين أكواد SKU من شركة الشحن
+              تعيين أكواد SKU من شركة الشحن ({selectedIds.size} منتج/متغير مختار)
             </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button size="sm" variant="ghost" onClick={selectAll}>
+              اختيار الكل
+            </Button>
+            <Button size="sm" variant="ghost" onClick={deselectAll}>
+              إلغاء الكل
+            </Button>
+            {selectedIds.size > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {selectedIds.size} منتج/متغير مختار
+              </Badge>
+            )}
           </div>
 
           {showCompare && (
