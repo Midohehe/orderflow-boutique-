@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.whatsapp-send-confirmation]
 verify_jwt = false
+
+[functions.whatsapp-ai-reply]
+verify_jwt = false
