@@ -182,9 +182,9 @@ Deno.serve(async (req) => {
       if (msgType === "text" && convOrderId && settings.auto_confirm_enabled) {
         const intent = parseConfirmIntent(content);
         if (intent) {
-          const newStatus = intent === "confirm" ? "confirmed" : "cancelled";
+          // Mirror the manual confirm flow in Orders page:
+          // only update confirmation_status (keep order.status as-is so workflow tabs stay correct).
           await supabase.from("orders").update({
-            status: newStatus,
             confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
             confirmed_at: new Date().toISOString(),
           }).eq("id", convOrderId).eq("owner_id", ownerId);
