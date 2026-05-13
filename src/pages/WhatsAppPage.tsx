@@ -129,6 +129,7 @@ export default function WhatsAppPage() {
       api_token: settings.api_token,
       api_url: settings.api_url,
       auto_confirm_enabled: settings.auto_confirm_enabled,
+      ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
       welcome_template: settings.welcome_template,
     }).eq("id", settings.id);
@@ -212,6 +213,10 @@ export default function WhatsAppPage() {
                 <div className="flex items-center justify-between p-3 border rounded-md">
                   <Label htmlFor="wa-auto">تأكيد تلقائي للطلبات</Label>
                   <Switch id="wa-auto" checked={!!settings.auto_confirm_enabled} onCheckedChange={(v) => setSettings({ ...settings, auto_confirm_enabled: v })} />
+                </div>
+                <div className="flex items-center justify-between p-3 border rounded-md">
+                  <Label htmlFor="wa-ai">رد ذكي تلقائي بالذكاء الاصطناعي</Label>
+                  <Switch id="wa-ai" checked={!!settings.ai_auto_reply_enabled} onCheckedChange={(v) => setSettings({ ...settings, ai_auto_reply_enabled: v })} />
                 </div>
                 <div>
                   <Label>قالب رسالة التأكيد</Label>
