@@ -133,6 +133,18 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ order_id: insertedOrder.id, reason: "order_created" }),
         });
       } catch (e) { console.error("apply-order-stock failed", e); }
+
+      // Fire-and-forget WhatsApp confirmation
+      try {
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send-confirmation`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ order_id: insertedOrder.id }),
+        }).catch((e) => console.error("wa-confirm failed", e));
+      } catch (e) { console.error("wa-confirm failed", e); }
     }
 
     return new Response(JSON.stringify({ ok: true, price: totalPrice }), {
