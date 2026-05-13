@@ -81,12 +81,22 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
 
   const selectedEoProduct = eoProducts.find((p) => p.external_id === product.easyOrdersProductId);
   const eoVariants: Array<{ id: string; name: string | null; sku: string | null; props: any[] }> = Array.isArray(selectedEoProduct?.variants)
-    ? (selectedEoProduct!.variants as any[]).map((v) => ({
-        id: String(v.id ?? ""),
-        name: v.name ?? (Array.isArray(v.variation_props) ? v.variation_props.map((p: any) => p.variation_prop).join(" / ") : null),
-        sku: v.sku ?? null,
-        props: Array.isArray(v.variation_props) ? v.variation_props : [],
-      })).filter((v) => v.id)
+    ? (selectedEoProduct!.variants as any[]).map((v) => {
+        const props = Array.isArray(v.variation_props)
+          ? v.variation_props
+          : (Array.isArray(v.props) ? v.props : []);
+        const fromProps = props.map((p: any) => p?.variation_prop).filter(Boolean).join(" - ");
+        const rawName = (v.name ?? "").toString().trim();
+        const sku = (v.sku ?? "").toString().trim() || null;
+        // إذا كان الاسم فارغاً أو مطابقاً للـ SKU، نبنيه من خصائص الفروقات (لون - مقاس)
+        const displayName = rawName && rawName !== (sku || "") ? rawName : (fromProps || rawName || null);
+        return {
+          id: String(v.id ?? ""),
+          name: displayName,
+          sku,
+          props,
+        };
+      }).filter((v) => v.id)
     : [];
 
   const variantKeys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
