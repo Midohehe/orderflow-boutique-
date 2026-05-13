@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -135,6 +136,7 @@ const Orders = () => {
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -395,6 +397,17 @@ const Orders = () => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (openId) {
+      setDetailsId(openId);
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
 
   const fetchCurrencySettings = async () => {
     try {
