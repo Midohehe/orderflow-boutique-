@@ -139,13 +139,19 @@ const EasyOrdersProducts = () => {
   };
 
   const handlePushSkus = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("اختر منتج واحد على الأقل.");
+      return;
+    }
     if (!confirm(
-      "سيتم تعيين أكواد SKU لمتغيرات EasyOrders لتطابق أكواد شركة الشحن المحلية.\n\n" +
+      `سيتم تعيين أكواد SKU لـ ${selectedIds.size} منتج/متغير في EasyOrders لتطابق أكواد شركة الشحن المحلية.\n\n` +
       "ملاحظة: هذه العملية تحدّث المنتج بالكامل في EasyOrders (قد تُعاد إنشاء معرفات المتغيرات داخلياً) وستتم مزامنة فورية بعد ذلك. متابعة؟"
     )) return;
     setPushingSkus(true);
     try {
-      const { data, error } = await supabase.functions.invoke("push-easyorders-skus");
+      const { data, error } = await supabase.functions.invoke("push-easyorders-skus", {
+        body: { product_ids: Array.from(selectedIds) },
+      });
       if (error) throw error;
       const d: any = data || {};
       if (d.failed > 0) {
