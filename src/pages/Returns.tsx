@@ -37,7 +37,7 @@ const Returns = () => {
     setLoading(true);
     const { data: ord, error: oErr } = await (supabase as any).from("orders")
       .select("id, customer_name, phone, product_name, quantity, price, shipping_reference, carrier_status, carrier_status_updated_at, status")
-      .ilike("carrier_status", "%RTRN%")
+      .or("carrier_status.ilike.%RTRN%,carrier_status.ilike.%ارجاع%,carrier_status.ilike.%إرجاع%,carrier_status.ilike.%مرتجع%,carrier_status.ilike.%راجع%,carrier_status.ilike.%returned%")
       .neq("status", "returned_received")
       .order("carrier_status_updated_at", { ascending: false });
     if (oErr) console.error(oErr);
