@@ -104,27 +104,6 @@ const renderBarcode = (text: string, id: string): string => {
   </div>`;
 };
 
-const barcodeInitScript = (): string => {
-  return `
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-<script>
-window.addEventListener('load', function(){
-  var codes = document.querySelectorAll('[data-barcode]');
-  codes.forEach(function(el){
-    try {
-      JsBarcode("#" + el.id, el.getAttribute('data-barcode'), {
-        format: "CODE128",
-        lineColor: "#000",
-        width: 2,
-        height: 50,
-        displayValue: false,
-        margin: 0
-      });
-    } catch(e) {}
-  });
-});
-</script>`;
-};
 
 export const buildStickerHtml = (
   orders: StickerOrder[],
