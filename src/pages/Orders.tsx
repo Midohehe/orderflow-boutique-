@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2 } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -57,6 +57,7 @@ interface Order {
   confirmation_attempts?: number | null;
   postponed_until?: string | null;
   confirmed_at?: string | null;
+  is_deleted?: boolean;
 }
 
 type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
@@ -77,7 +78,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted";
 
 const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
@@ -625,11 +626,11 @@ const Orders = () => {
   const handleBulkDelete = async (orderIds: string[]) => {
     if (orderIds.length === 0) return;
     try {
-      const { error } = await supabase.from("orders").delete().in("id", orderIds);
+      const { error } = await supabase.from("orders").update({ is_deleted: true }).in("id", orderIds);
       if (error) throw error;
-      setOrders((prev) => prev.filter((o) => !orderIds.includes(o.id)));
+      setOrders((prev) => prev.map((o) => orderIds.includes(o.id) ? { ...o, is_deleted: true } : o));
       setSelectedOrders((prev) => prev.filter((id) => !orderIds.includes(id)));
-      toast({ title: "تم الحذف", description: `تم حذف ${orderIds.length} طلب. لا تؤثر هذه الطلبات على الأرباح أو المشتريات.` });
+      toast({ title: "تم النقل للمحذوفة", description: `تم نقل ${orderIds.length} طلب لقائمة المحذوفة. يمكنك استرجاعها لاحقًا.` });
     } catch (e) {
       console.error(e);
       toast({ title: "خطأ", description: "حدث خطأ أثناء الحذف", variant: "destructive" });
@@ -640,17 +641,17 @@ const Orders = () => {
     try {
       const { error } = await supabase
         .from("orders")
-        .delete()
+        .update({ is_deleted: true })
         .eq("id", orderId);
 
       if (error) throw error;
 
-      setOrders(orders.filter((order) => order.id !== orderId));
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, is_deleted: true } : o));
       setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
       
       toast({
-        title: "تم الحذف",
-        description: "تم حذف الطلب بنجاح",
+        title: "تم النقل للمحذوفة",
+        description: "نُقل الطلب لقائمة المحذوفة. يمكنك استرجاعه لاحقًا.",
       });
     } catch (error) {
       console.error("Error deleting order:", error);
@@ -659,6 +660,20 @@ const Orders = () => {
         description: "حدث خطأ أثناء حذف الطلب",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleRestoreOrder = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ is_deleted: false, status: "pending" })
+        .eq("id", orderId);
+      if (error) throw error;
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, is_deleted: false, status: "pending" } : o));
+      toast({ title: "تم الاسترجاع", description: "أُعيد الطلب إلى قيد الانتظار." });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر الاسترجاع", variant: "destructive" });
     }
   };
 
@@ -759,7 +774,7 @@ const Orders = () => {
   const productNames = Array.from(
     new Set(orders.map(displayProductName).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
-  const allPending = orders.filter((o) => o.status === "pending");
+  const allPending = orders.filter((o) => o.status === "pending" && !o.is_deleted);
   const pendingOrders = allPending.filter((o) => {
     if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
     if (confirmationFilter !== "all") {
@@ -788,7 +803,7 @@ const Orders = () => {
     });
     return c;
   })();
-  const allShipped = orders.filter((o) => o.status === "shipped");
+  const allShipped = orders.filter((o) => o.status === "shipped" && !o.is_deleted);
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
   // Group by displayed label so codes that share the same custom_label
   // (merged in shipping settings) appear as a single filter option.
@@ -841,12 +856,13 @@ const Orders = () => {
     }
     return true;
   });
-  const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
-  const cancelledOrders = orders.filter((o) => o.status === "cancelled");
-  const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received");
+  const deliveredOrders = orders.filter((o) => (o.status === "delivered" || o.status === "settled") && !o.is_deleted);
+  const cancelledOrders = orders.filter((o) => o.status === "cancelled" && !o.is_deleted);
+  const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received" && !o.is_deleted);
+  const deletedOrders = orders.filter((o) => !!o.is_deleted);
   const unpackedSearchNorm = unpackedSearch.trim().toLowerCase();
   const unpackedOrders = orders.filter((o) => {
-    if (o.status !== "unpacked") return false;
+    if (o.status !== "unpacked" || o.is_deleted) return false;
     if (unpackedSearchNorm) {
       const matches =
         (o.shipping_reference || "").toLowerCase().includes(unpackedSearchNorm) ||
@@ -1118,26 +1134,11 @@ const Orders = () => {
           </div>
           
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <Select
-              value={order.status}
-              onValueChange={(value) => handleStatusChange(order.id, value as Order["status"])}
-            >
-              <SelectTrigger className="flex-1 md:w-40 md:flex-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">قيد الانتظار</SelectItem>
-                <SelectItem value="shipped">جاري التوصيل</SelectItem>
-                <SelectItem value="delivered">تم الاستلام</SelectItem>
-                <SelectItem value="cancelled">ملغي</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Button variant="outline" size="icon" onClick={() => setDetailsId(order.id)} title="تفاصيل وتعديل">
               <Eye className="w-4 h-4" />
             </Button>
             
-            {order.status === "pending" && (
+            {(order.status === "pending" || order.status === "shipped") && !order.is_deleted && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="icon">
@@ -1146,9 +1147,9 @@ const Orders = () => {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>هل أنت متأكد من حذف هذا الطلب؟</AlertDialogTitle>
+                    <AlertDialogTitle>نقل الطلب للمحذوفة؟</AlertDialogTitle>
                     <AlertDialogDescription>
-                      سيتم حذف طلب {order.customer_name} نهائياً ولا يمكن التراجع عن هذا الإجراء.
+                      سيتم نقل طلب {order.customer_name} لقائمة المحذوفة. يمكنك استرجاعه لاحقًا من تبويب "محذوفة".
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -1159,6 +1160,18 @@ const Orders = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            )}
+            {order.is_deleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => handleRestoreOrder(order.id)}
+                title="استرجاع لقيد الانتظار"
+              >
+                <RotateCcw className="w-4 h-4" />
+                استرجاع
+              </Button>
             )}
           </div>
         </div>
@@ -1375,7 +1388,7 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="pending" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span className="hidden sm:inline">قيد الانتظار</span> ({pendingOrders.length})
@@ -1400,6 +1413,10 @@ const Orders = () => {
             <Undo2 className="w-4 h-4" />
             <span className="hidden sm:inline">المرتجعات المؤكدة</span> ({returnedReceivedOrders.length})
           </TabsTrigger>
+          <TabsTrigger value="deleted" className="flex items-center gap-2">
+            <Archive className="w-4 h-4" />
+            <span className="hidden sm:inline">محذوفة</span> ({deletedOrders.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
@@ -1415,23 +1432,6 @@ const Orders = () => {
                       />
                       <span className="text-sm text-foreground">تحديد الكل ({selectedOrders.filter(id => pendingOrders.some(o => o.id === id)).length} محدد)</span>
                     </div>
-                    <Select value={bulkStatus} onValueChange={(v) => setBulkStatus(v as Order["status"])}>
-                      <SelectTrigger className="w-full sm:w-40">
-                        <SelectValue placeholder="اختر الحالة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="shipped">جاري التوصيل</SelectItem>
-                        <SelectItem value="delivered">تم الاستلام</SelectItem>
-                        <SelectItem value="cancelled">ملغي</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={handleBulkStatusChange}
-                      disabled={selectedOrders.length === 0 || !bulkStatus}
-                      className="w-full sm:w-auto"
-                    >
-                      تحديث الحالة
-                    </Button>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
                     <Select value={productFilter} onValueChange={(v) => { setProductFilter(v); setSelectedOrders([]); }}>
@@ -1796,6 +1796,18 @@ const Orders = () => {
           ) : (
             <div className="space-y-4">
               {returnedReceivedOrders.map((order) => renderOrderCard(order))}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="deleted" className="space-y-4">
+          {deletedOrders.length === 0 ? (
+            renderEmptyState(
+              <Archive className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد طلبات محذوفة"
+            )
+          ) : (
+            <div className="space-y-4">
+              {deletedOrders.map((order) => renderOrderCard(order))}
             </div>
           )}
         </TabsContent>

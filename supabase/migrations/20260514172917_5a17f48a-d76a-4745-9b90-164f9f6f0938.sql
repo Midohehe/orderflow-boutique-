@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false; CREATE INDEX IF NOT EXISTS idx_orders_is_deleted ON public.orders(is_deleted);
