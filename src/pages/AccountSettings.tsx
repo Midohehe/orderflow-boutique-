@@ -1,16 +1,19 @@
 import { UserCircle } from "lucide-react";
 import CityCorrections from "@/components/CityCorrections";
 import { useUserContext } from "@/hooks/useUserContext";
+import { PageHeader } from "@/components/PageHeader";
 
 const AccountSettings = () => {
   const { isAdmin } = useUserContext();
 
   return (
     <div className="space-y-6 max-w-2xl" dir="rtl">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><UserCircle className="w-7 h-7" /> حسابي</h1>
-        <p className="text-muted-foreground">يمكنك تعديل بيانات الحساب من تبويب "هيدر المتجر".</p>
-      </div>
+      <PageHeader
+        icon={UserCircle}
+        title="حسابي"
+        description='يمكنك تعديل بيانات الحساب من تبويب "هيدر المتجر".'
+        iconGradient="from-sky-500 to-blue-600"
+      />
 
       {isAdmin && <CityCorrections />}
     </div>
