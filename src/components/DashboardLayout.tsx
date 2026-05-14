@@ -11,28 +11,48 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-const baseMenuItems = [
-  { icon: LayoutDashboard, label: "لوحة التحكم", path: "/dashboard", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Store, label: "مشاهدة المتجر", path: "/store", external: true, adminOnly: false, dynamicStore: true },
-  { icon: Package, label: "المنتجات", path: "/dashboard/products", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Boxes, label: "منتجات ايزي اوردرز", path: "/dashboard/easyorders-products", external: false, adminOnly: false, dynamicStore: false },
-  { icon: ShoppingCart, label: "الطلبيات", path: "/dashboard/orders", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Calculator, label: "الحسابات المالية", path: "/dashboard/financial", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Boxes, label: "المخزون", path: "/dashboard/inventory", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Wallet, label: "الخزائن", path: "/dashboard/safes", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Receipt, label: "المصروفات", path: "/dashboard/expenses", external: false, adminOnly: false, dynamicStore: false },
-  { icon: ShoppingBag, label: "المشتريات", path: "/dashboard/purchases", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Wallet, label: "استلام التسويات المالية", path: "/dashboard/settlements", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Undo2, label: "استلام المرتجعات", path: "/dashboard/returns", external: false, adminOnly: false, dynamicStore: false },
-  { icon: ArrowLeftRight, label: "حركة المنتجات", path: "/dashboard/stock-movements", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Crosshair, label: "إعدادات البيكسل", path: "/dashboard/pixel", external: false, adminOnly: false, dynamicStore: false },
-  { icon: FileText, label: "نموذج الطلب", path: "/dashboard/order-form", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Heart, label: "صفحة الشكر", path: "/dashboard/thank-you", external: false, adminOnly: false, dynamicStore: false },
-  { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
-  { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Truck, label: "شركة الشحن", path: "/dashboard/shipping", external: false, adminOnly: false, dynamicStore: false },
-  { icon: Printer, label: "تصميم ستيكر الشحن", path: "/dashboard/sticker-designer", external: false, adminOnly: false, dynamicStore: false },
-  { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
+const baseMenuGroups = [
+  {
+    label: null,
+    items: [
+      { icon: LayoutDashboard, label: "لوحة التحكم", path: "/dashboard", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Store, label: "مشاهدة المتجر", path: "/store", external: true, adminOnly: false, dynamicStore: true },
+      { icon: ShoppingCart, label: "الطلبيات", path: "/dashboard/orders", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Undo2, label: "استلام المرتجعات", path: "/dashboard/returns", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
+  {
+    label: "المنتجات",
+    items: [
+      { icon: Package, label: "المنتجات", path: "/dashboard/products", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Boxes, label: "منتجات ايزي اوردرز", path: "/dashboard/easyorders-products", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Boxes, label: "المخزون", path: "/dashboard/inventory", external: false, adminOnly: false, dynamicStore: false },
+      { icon: ArrowLeftRight, label: "حركة المنتجات", path: "/dashboard/stock-movements", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
+  {
+    label: "المالية",
+    items: [
+      { icon: Calculator, label: "الحسابات المالية", path: "/dashboard/financial", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Wallet, label: "الخزائن", path: "/dashboard/safes", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Receipt, label: "المصروفات", path: "/dashboard/expenses", external: false, adminOnly: false, dynamicStore: false },
+      { icon: ShoppingBag, label: "المشتريات", path: "/dashboard/purchases", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Wallet, label: "استلام التسويات المالية", path: "/dashboard/settlements", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
+  {
+    label: null,
+    items: [
+      { icon: Crosshair, label: "إعدادات البيكسل", path: "/dashboard/pixel", external: false, adminOnly: false, dynamicStore: false },
+      { icon: FileText, label: "نموذج الطلب", path: "/dashboard/order-form", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Heart, label: "صفحة الشكر", path: "/dashboard/thank-you", external: false, adminOnly: false, dynamicStore: false },
+      { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
+      { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Truck, label: "شركة الشحن", path: "/dashboard/shipping", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Printer, label: "تصميم ستيكر الشحن", path: "/dashboard/sticker-designer", external: false, adminOnly: false, dynamicStore: false },
+      { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
 ];
 
 const adminSettingsItem = {
