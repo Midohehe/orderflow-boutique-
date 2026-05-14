@@ -123,6 +123,9 @@ const Orders = () => {
   }>(null);
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
+  const [unpackedDateFrom, setUnpackedDateFrom] = useState<string>("");
+  const [unpackedDateTo, setUnpackedDateTo] = useState<string>("");
+  const [unpackedSearch, setUnpackedSearch] = useState("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
