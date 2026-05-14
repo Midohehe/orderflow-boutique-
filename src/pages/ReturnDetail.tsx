@@ -318,7 +318,7 @@ const ReturnDetail = () => {
         <CardContent>
           {rows.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
-              لا توجد شحنات. اضغط "تحديث الشحنات".
+              لا توجد شحنات. امسح كود شحنة أو اكتب رقم الطلب لإضافته.
             </div>
           ) : (
             <div className="overflow-x-auto">
