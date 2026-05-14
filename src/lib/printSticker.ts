@@ -94,21 +94,16 @@ const renderValue = (key: string, order: StickerOrder, currencySymbol: string, s
   }
 };
 
-// Simple Code-128-ish barcode rendered via barlines using a deterministic pattern.
-// For label scanning we use an SVG with text fallback; full barcode is rendered with
-// a CSS-based pattern using JsBarcode-like encoding would require a lib. We render the
-// reference as monospace large text + bars derived from char codes.
-const renderBarcode = (text: string): string => {
+// Generate a real scannable Code-128 barcode SVG using JsBarcode.
+// The caller HTML must load the JsBarcode CDN script before calling this.
+const renderBarcode = (text: string, id: string): string => {
   if (!text) return "";
-  const bars = Array.from(text).map((ch) => {
-    const w = (ch.charCodeAt(0) % 4) + 1;
-    return `<span style="display:inline-block;width:${w}px;height:40px;background:#000;margin-right:1px;"></span>`;
-  }).join("");
   return `<div style="text-align:center;margin:6px 0;direction:ltr;">
-    <div style="display:inline-flex;align-items:center;background:#fff;padding:4px;border:1px solid #000;">${bars}</div>
+    <svg id="${id}"></svg>
     <div style="font-family:monospace;font-size:12px;letter-spacing:1px;margin-top:2px;">${escape(text)}</div>
   </div>`;
 };
+
 
 export const buildStickerHtml = (
   orders: StickerOrder[],
@@ -122,9 +117,10 @@ export const buildStickerHtml = (
   const stickers = orders.map((order) => {
     const rows = enabledFields.map((f) => {
       if (f.key === "shipping_reference" && settings.show_barcode) {
-        return `<div class="sticker-row sticker-barcode-row">
+        const bcId = `bc-${order.id}-${Math.random().toString(36).slice(2, 9)}`;
+        return `<div class="sticker-row sticker-barcode-row" data-barcode="${escape(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName))}" id="${bcId}">
           <div class="sticker-label">${escape(f.label)}</div>
-          ${renderBarcode(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName))}
+          ${renderBarcode(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName), bcId)}
         </div>`;
       }
       const val = renderValue(f.key, order, ctx.currencySymbol, ctx.storeName);
@@ -177,7 +173,24 @@ export const buildStickerHtml = (
 <body>
 ${stickers || `<div style="padding:24px;text-align:center;">لا توجد طلبات للطباعة</div>`}
 <script>
-window.addEventListener('load', function(){ setTimeout(function(){ window.focus(); window.print(); }, 250); });
+function initBarcodes(){
+  var codes = document.querySelectorAll('[data-barcode]');
+  codes.forEach(function(el){
+    try {
+      JsBarcode("#" + el.id, el.getAttribute('data-barcode'), {
+        format: "CODE128",
+        lineColor: "#000",
+        width: 2,
+        height: 50,
+        displayValue: false,
+        margin: 0
+      });
+    } catch(e) {}
+  });
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
+  onload="initBarcodes(); setTimeout(function(){ window.focus(); window.print(); }, 300);">
 </script>
 </body>
 </html>`;
