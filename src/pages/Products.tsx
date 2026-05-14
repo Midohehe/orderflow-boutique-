@@ -453,6 +453,8 @@ const Products = () => {
       colors: product.colors?.join(", ") || "",
       sizes: product.sizes?.join(", ") || "",
       warehouseLinked: true,
+      upsellEnabled: false,
+      upsellOffers: [],
     });
     setIsEditOpen(true);
 
