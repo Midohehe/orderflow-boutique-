@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer } from "lucide-react";
+import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -141,6 +142,8 @@ const Orders = () => {
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
+  const [storeName, setStoreName] = useState<string>("");
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -350,7 +353,9 @@ const Orders = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ordersRes, currencyRes, mapRes, productsRes] = await Promise.all([
+        const { data: userRes } = await supabase.auth.getUser();
+        const uid = userRes.user?.id;
+        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes] = await Promise.all([
           supabase
             .from("orders")
             .select(ORDER_SELECT_COLS)
@@ -358,6 +363,12 @@ const Orders = () => {
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
           supabase.from("products").select("id, name"),
+          uid
+            ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+          uid
+            ? supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle()
+            : Promise.resolve({ data: null } as any),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
@@ -368,6 +379,20 @@ const Orders = () => {
           setProductsMap(pm);
         }
         if (currencyRes.data) setCurrencySymbol(currencyRes.data.currency_symbol);
+        if (stickerRes?.data) {
+          const s: any = stickerRes.data;
+          setStickerSettings({
+            page_width_mm: s.page_width_mm ?? 100,
+            page_height_mm: s.page_height_mm ?? 150,
+            font_size: s.font_size ?? 12,
+            header_text: s.header_text ?? "",
+            footer_text: s.footer_text ?? "",
+            show_barcode: s.show_barcode ?? true,
+            show_logo: s.show_logo ?? false,
+            fields: Array.isArray(s.fields) && s.fields.length > 0 ? s.fields : DEFAULT_STICKER_SETTINGS.fields,
+          });
+        }
+        if (headerRes?.data?.logo_text) setStoreName(headerRes.data.logo_text);
         if (mapRes.data) {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
@@ -953,6 +978,38 @@ const Orders = () => {
     pendingPhoneCounts[k] = (pendingPhoneCounts[k] || 0) + 1;
   });
 
+  const toStickerOrder = (o: Order): StickerOrder => ({
+    id: o.id,
+    customer_name: o.customer_name,
+    phone: o.phone,
+    address: o.address,
+    city: o.city,
+    matched_zone_name: o.matched_zone_name,
+    matched_area_name: o.matched_area_name,
+    product_name: o.product_name,
+    selected_color: o.selected_color,
+    selected_size: o.selected_size,
+    selected_product_code: o.selected_product_code,
+    quantity: o.quantity ?? null,
+    price: o.price ?? null,
+    shipping_reference: o.shipping_reference ?? null,
+    carrier_status: displayCarrierStatus(o),
+    created_at: o.created_at,
+    local_code: localCodeMap[o.id] || null,
+  });
+
+  const printOrders = (orderList: Order[]) => {
+    if (orderList.length === 0) {
+      toast({ title: "تنبيه", description: "لا توجد طلبات للطباعة", variant: "destructive" });
+      return;
+    }
+    printStickers(
+      orderList.map(toStickerOrder),
+      stickerSettings,
+      { currencySymbol, storeName },
+    );
+  };
+
   const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => (
     <Card
       key={order.id}
@@ -1136,6 +1193,14 @@ const Orders = () => {
           <div className="flex items-center gap-2 w-full md:w-auto">
             <Button variant="outline" size="icon" onClick={() => setDetailsId(order.id)} title="تفاصيل وتعديل">
               <Eye className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => printOrders([order])}
+              title="طباعة ستيكر بيانات الشحنة"
+            >
+              <Printer className="w-4 h-4" />
             </Button>
             
             {(order.status === "pending" || order.status === "shipped") && !order.is_deleted && (
@@ -1611,6 +1676,40 @@ const Orders = () => {
                   مزامنة حالات الشحن
                 </Button>
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t pt-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={shippedOrders.length > 0 && shippedOrders.every((o) => selectedOrders.includes(o.id))}
+                    onCheckedChange={() => toggleSelectAll(shippedOrders.map((o) => o.id))}
+                  />
+                  <span className="text-sm text-foreground">
+                    تحديد الكل ({selectedOrders.filter((id) => shippedOrders.some((o) => o.id === id)).length} محدد)
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    printOrders(shippedOrders.filter((o) => selectedOrders.includes(o.id)))
+                  }
+                  disabled={selectedOrders.filter((id) => shippedOrders.some((o) => o.id === id)).length === 0}
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  طباعة المحدد
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => printOrders(shippedOrders)}
+                  disabled={shippedOrders.length === 0}
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  طباعة كل الظاهر
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  لتعديل بيانات الستيكر، اذهب إلى "تصميم ستيكر الشحن" من القائمة.
+                </span>
+              </div>
               {carrierSyncResult && (
                 <div className="mt-4 border-t pt-4 space-y-2">
                   <div className="text-sm text-muted-foreground">
@@ -1653,7 +1752,7 @@ const Orders = () => {
             )
           ) : (
             <div className="space-y-4">
-              {shippedOrders.map((order) => renderOrderCard(order))}
+              {shippedOrders.map((order) => renderOrderCard(order, true))}
             </div>
           )}
         </TabsContent>
