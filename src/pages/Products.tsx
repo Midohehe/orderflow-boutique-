@@ -479,7 +479,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids, warehouse_linked")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_offers")
           .eq("id", product.id)
           .single()
       );
