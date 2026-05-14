@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
@@ -212,10 +213,12 @@ const FinancialAccounts = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><CircleDollarSign className="w-7 h-7 text-primary" />الحسابات المالية</h1>
-        <p className="text-muted-foreground text-sm">لوحة محاسبية شاملة للمبيعات، المشتريات، المصروفات والأرباح</p>
-      </div>
+      <PageHeader
+        icon={CircleDollarSign}
+        title="الحسابات المالية"
+        description="لوحة محاسبية شاملة للمبيعات، المشتريات، المصروفات والأرباح"
+        iconGradient="from-emerald-500 to-teal-600"
+      />
 
       {/* Filters */}
       <Card className="card-shadow">
