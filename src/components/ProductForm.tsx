@@ -460,6 +460,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                   type="button"
                   variant="destructive"
                   size="sm"
+                  className="bg-red-500 hover:bg-red-600 text-white border-none shadow-md hover:shadow-lg transition-all"
                   onClick={() => {
                     const next = product.upsellOffers.filter((_, i) => i !== idx);
                     updateField("upsellOffers", next);
