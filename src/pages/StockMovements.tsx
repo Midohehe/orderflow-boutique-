@@ -13,6 +13,7 @@ import { Boxes, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { isolateLatin } from "@/lib/bidi";
+import { PageHeader } from "@/components/PageHeader";
 
 interface MovementRow {
   id: string;
@@ -79,12 +80,12 @@ const StockMovements = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">حركة المنتجات</h1>
-          <p className="text-muted-foreground">سجل كل تأثير على المخزون من الطلبات والمرتجعات</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Boxes}
+        title="حركة المنتجات"
+        description="سجل كل تأثير على المخزون من الطلبات والمرتجعات"
+        iconGradient="from-indigo-500 to-blue-600"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>

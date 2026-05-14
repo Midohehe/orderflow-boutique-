@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Receipt, Plus, Loader2, Trash2, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Safe { id: string; name: string; balance: number; }
 interface ExpenseType { id: string; name: string; }
@@ -90,10 +91,12 @@ const Expenses = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Receipt className="w-6 h-6 text-primary" />المصروفات</h1>
-        <p className="text-muted-foreground text-sm">إدارة المصروفات وأنواعها</p>
-      </div>
+      <PageHeader
+        icon={Receipt}
+        title="المصروفات"
+        description="إدارة المصروفات وأنواعها"
+        iconGradient="from-rose-500 to-red-600"
+      />
 
       <Tabs defaultValue="list">
         <TabsList>
@@ -103,7 +106,7 @@ const Expenses = () => {
 
         <TabsContent value="list" className="space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setAddOpen(true)} disabled={safes.length === 0}>
+            <Button onClick={() => setAddOpen(true)} disabled={safes.length === 0} className="shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700">
               <Plus className="w-4 h-4" />إضافة مصروف
             </Button>
           </div>

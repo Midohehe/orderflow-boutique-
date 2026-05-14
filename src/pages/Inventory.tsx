@@ -15,6 +15,7 @@ import {
 import { Boxes, Plus, Minus, Loader2, DollarSign, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 interface ProductRow {
   id: string;
@@ -190,22 +191,24 @@ const Inventory = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">المخزون</h1>
-          <p className="text-muted-foreground">عرض كميات المنتجات وقيمة المخزون</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => openDialog("remove")}>
-            <Minus className="w-4 h-4 ml-1" />
-            سحب الكميات
-          </Button>
-          <Button onClick={() => openDialog("add")}>
-            <Plus className="w-4 h-4 ml-1" />
-            إضافة كميات
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Boxes}
+        title="المخزون"
+        description="عرض كميات المنتجات وقيمة المخزون"
+        iconGradient="from-blue-500 to-cyan-600"
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => openDialog("remove")} className="shadow-sm hover:shadow-md transition-shadow border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700">
+              <Minus className="w-4 h-4 ml-1" />
+              سحب الكميات
+            </Button>
+            <Button onClick={() => openDialog("add")} className="shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700">
+              <Plus className="w-4 h-4 ml-1" />
+              إضافة كميات
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">

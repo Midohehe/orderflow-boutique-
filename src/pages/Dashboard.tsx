@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import DashboardStats from "@/components/DashboardStats";
 import { useUserContext } from "@/hooks/useUserContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarCheck, CalendarClock, Infinity as InfinityIcon, Wallet } from "lucide-react";
+import { CalendarCheck, CalendarClock, Infinity as InfinityIcon, Wallet, LayoutDashboard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { PageHeader } from "@/components/PageHeader";
 
 const formatDate = (iso?: string | null) => {
   if (!iso) return null;
@@ -39,10 +40,12 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">لوحة التحكم</h1>
-        <p className="text-muted-foreground">نظرة عامة على أداء متجرك</p>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="لوحة التحكم"
+        description="نظرة عامة على أداء متجرك"
+        iconGradient="from-blue-500 to-indigo-600"
+      />
 
       {!isAdmin && profile && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
