@@ -1194,6 +1194,14 @@ const Orders = () => {
             <Button variant="outline" size="icon" onClick={() => setDetailsId(order.id)} title="تفاصيل وتعديل">
               <Eye className="w-4 h-4" />
             </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => printOrders([order])}
+              title="طباعة ستيكر بيانات الشحنة"
+            >
+              <Printer className="w-4 h-4" />
+            </Button>
             
             {(order.status === "pending" || order.status === "shipped") && !order.is_deleted && (
               <AlertDialog>
