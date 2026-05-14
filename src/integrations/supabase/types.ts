@@ -664,6 +664,8 @@ export type Database = {
           slug: string
           stock: number
           updated_at: string
+          upsell_enabled: boolean
+          upsell_offers: Json
           variant_easyorders_ids: Json
           variant_stock: Json
           variant_warehouse_codes: Json
@@ -687,6 +689,8 @@ export type Database = {
           slug: string
           stock?: number
           updated_at?: string
+          upsell_enabled?: boolean
+          upsell_offers?: Json
           variant_easyorders_ids?: Json
           variant_stock?: Json
           variant_warehouse_codes?: Json
@@ -710,6 +714,8 @@ export type Database = {
           slug?: string
           stock?: number
           updated_at?: string
+          upsell_enabled?: boolean
+          upsell_offers?: Json
           variant_easyorders_ids?: Json
           variant_stock?: Json
           variant_warehouse_codes?: Json

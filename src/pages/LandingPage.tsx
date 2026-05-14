@@ -27,6 +27,8 @@ interface Product {
   product_codes?: string[];
   colors?: string[];
   sizes?: string[];
+  upsell_enabled?: boolean;
+  upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
 }
 
 interface PixelSettings {
@@ -112,6 +114,7 @@ const LandingPage = () => {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
+  const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
   
   
@@ -184,7 +187,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers";
         const productPromise = supabase
           .from("products")
           .select(productLightSelect)
@@ -220,6 +223,8 @@ const LandingPage = () => {
             product_codes: matched.product_codes || [],
             colors: matched.colors || [],
             sizes: matched.sizes || [],
+            upsell_enabled: !!matched.upsell_enabled,
+            upsell_offers: Array.isArray(matched.upsell_offers) ? matched.upsell_offers : [],
           };
           setProduct(loadedProduct);
 
@@ -630,7 +635,7 @@ const LandingPage = () => {
           selected_color: colorsArray.join(", ") || null,
           selected_size: sizesArray.join(", ") || null,
           selected_product_code: codesArray.join(", ") || null,
-          
+          upsell_index: selectedUpsellIndex,
         },
       });
 
@@ -795,6 +800,7 @@ const LandingPage = () => {
                         const newQty = Math.max(1, quantity - 1);
                         setQuantity(newQty);
                         setItemVariants(prev => prev.slice(0, newQty));
+                        setSelectedUpsellIndex(null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
                     >
@@ -807,18 +813,71 @@ const LandingPage = () => {
                         const newQty = quantity + 1;
                         setQuantity(newQty);
                         setItemVariants(prev => [...prev, { color: "", size: "", productCode: "" }]);
+                        setSelectedUpsellIndex(null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
                     >
                       +
                     </button>
                   </div>
-                  {quantity > 1 && (
+                  {(quantity > 1 || selectedUpsellIndex !== null) && (
                     <p className="text-sm text-muted-foreground">
-                      الإجمالي: {(parseFloat(product.price) * quantity).toFixed(2)} {storeSettings.currency_symbol}
+                      الإجمالي:{" "}
+                      {selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
+                        ? product.upsell_offers[selectedUpsellIndex].price.toFixed(2)
+                        : (parseFloat(product.price) * quantity).toFixed(2)}{" "}
+                      {storeSettings.currency_symbol}
                     </p>
                   )}
                 </div>
+
+                {/* Upsell Offers */}
+                {product.upsell_enabled && product.upsell_offers && product.upsell_offers.length > 0 && (
+                  <div className="space-y-2 p-3 sm:p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
+                    <Label className="text-sm sm:text-base font-bold text-primary">🎁 عروض خاصة</Label>
+                    <div className="space-y-2">
+                      {product.upsell_offers.map((offer, idx) => {
+                        const selected = selectedUpsellIndex === idx;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              if (selected) {
+                                setSelectedUpsellIndex(null);
+                              } else {
+                                setSelectedUpsellIndex(idx);
+                                setQuantity(offer.quantity);
+                                setItemVariants((prev) => {
+                                  const next = [...prev];
+                                  while (next.length < offer.quantity) next.push({ color: "", size: "", productCode: "" });
+                                  return next.slice(0, offer.quantity);
+                                });
+                              }
+                            }}
+                            className={`w-full text-right p-3 rounded-lg border-2 transition-all flex items-center justify-between gap-3 ${
+                              selected
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-background hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm sm:text-base">
+                                {offer.label || `اشترِ ${offer.quantity} قطع`}
+                              </div>
+                              <div className={`text-xs ${selected ? "opacity-90" : "text-muted-foreground"}`}>
+                                {offer.quantity} قطعة
+                              </div>
+                            </div>
+                            <div className={`text-lg sm:text-xl font-bold whitespace-nowrap ${selected ? "" : "text-primary"}`}>
+                              {offer.price} {storeSettings.currency_symbol}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Product Variants Selection for each item */}
                 {itemVariants.map((item, index) => {

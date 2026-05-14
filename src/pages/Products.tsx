@@ -50,6 +50,8 @@ const emptyFormData: ProductFormData = {
   colors: "",
   sizes: "",
   warehouseLinked: true,
+  upsellEnabled: false,
+  upsellOffers: [],
 };
 
 const Products = () => {
@@ -256,6 +258,14 @@ const Products = () => {
           variantKeys.map((k) => [k, (newProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: newProduct.warehouseLinked !== false,
+      upsell_enabled: !!newProduct.upsellEnabled,
+      upsell_offers: (newProduct.upsellOffers || [])
+        .map((o) => ({
+          quantity: Math.max(1, parseInt(o.quantity) || 0),
+          price: Math.max(0, parseFloat(o.price) || 0),
+          label: (o.label || "").trim(),
+        }))
+        .filter((o) => o.quantity > 0 && o.price > 0),
       }).select("id").single();
 
       if (error) {
@@ -371,6 +381,14 @@ const Products = () => {
           variantKeys.map((k) => [k, (editProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: editProduct.warehouseLinked !== false,
+      upsell_enabled: !!editProduct.upsellEnabled,
+      upsell_offers: (editProduct.upsellOffers || [])
+        .map((o) => ({
+          quantity: Math.max(1, parseInt(o.quantity) || 0),
+          price: Math.max(0, parseFloat(o.price) || 0),
+          label: (o.label || "").trim(),
+        }))
+        .filter((o) => o.quantity > 0 && o.price > 0),
       };
       if (imagesChanged) updatePayload.images = editProduct.images;
 
@@ -451,6 +469,8 @@ const Products = () => {
       colors: product.colors?.join(", ") || "",
       sizes: product.sizes?.join(", ") || "",
       warehouseLinked: true,
+      upsellEnabled: false,
+      upsellOffers: [],
     });
     setIsEditOpen(true);
 
@@ -459,7 +479,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids, warehouse_linked")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_offers")
           .eq("id", product.id)
           .single()
       );
@@ -490,6 +510,14 @@ const Products = () => {
             )
           : {},
         warehouseLinked: (data as any).warehouse_linked !== false,
+        upsellEnabled: !!(data as any).upsell_enabled,
+        upsellOffers: Array.isArray((data as any).upsell_offers)
+          ? ((data as any).upsell_offers as any[]).map((o) => ({
+              quantity: String(o?.quantity ?? ""),
+              price: String(o?.price ?? ""),
+              label: String(o?.label ?? ""),
+            }))
+          : [],
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
