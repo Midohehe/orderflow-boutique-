@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, KeyRound, CalendarPlus, Power, Save } from "lucide-react";
+import { Loader2, UserPlus, Trash2, KeyRound, CalendarPlus, Power, Save, Settings as SettingsIcon } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -182,10 +183,12 @@ const Settings = () => {
 
   return (
     <div className="space-y-6" dir="rtl">
-      <div>
-        <h1 className="text-2xl font-bold">الإعدادات - إدارة المستخدمين</h1>
-        <p className="text-muted-foreground">إنشاء حسابات جديدة، تمديد الاشتراكات وتغيير كلمات المرور</p>
-      </div>
+      <PageHeader
+        icon={SettingsIcon}
+        title="الإعدادات - إدارة المستخدمين"
+        description="إنشاء حسابات جديدة، تمديد الاشتراكات وتغيير كلمات المرور"
+        iconGradient="from-slate-600 to-slate-800"
+      />
 
       <Card>
         <CardHeader><CardTitle>اسم النظام</CardTitle></CardHeader>
