@@ -635,7 +635,7 @@ const LandingPage = () => {
           selected_color: colorsArray.join(", ") || null,
           selected_size: sizesArray.join(", ") || null,
           selected_product_code: codesArray.join(", ") || null,
-          
+          upsell_index: selectedUpsellIndex,
         },
       });
 
