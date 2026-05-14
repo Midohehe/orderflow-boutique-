@@ -342,17 +342,14 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
-        ) : data.locked_insufficient_balance ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-            <div className="p-3 rounded-full bg-destructive/10 text-destructive">
-              <Lock className="w-8 h-8" />
-            </div>
-            <h3 className="font-bold text-foreground">الطلب مقفل</h3>
-            <p className="text-sm text-muted-foreground max-w-md">
-              تم إخفاء بيانات هذا الطلب لأن رصيد محفظتك غير كافٍ. اشحن محفظتك بكرت شحن لفتح الطلب وعرض/تعديل بياناته.
-            </p>
-          </div>
         ) : (
+          <>
+          {data.locked_insufficient_balance && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm mb-2">
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>الطلب مقفل بسبب نفاد الرصيد — لا يمكن إرساله لشركة التوصيل حتى شحن المحفظة.</span>
+            </div>
+          )}
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {TEXT_FIELDS.map((f) => (
@@ -517,10 +514,11 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
 
             <p className="text-xs text-muted-foreground">السعر الإجمالي والمنتج الرئيسي للطلب يُحسبان تلقائياً من المنتجات أعلاه.</p>
           </div>
+          </>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={save} disabled={saving || loading || !!data?.locked_insufficient_balance}>
+          <Button onClick={save} disabled={saving || loading}>
             {saving && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
             حفظ التعديلات
           </Button>
