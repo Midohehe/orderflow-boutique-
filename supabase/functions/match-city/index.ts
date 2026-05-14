@@ -370,6 +370,27 @@ Deno.serve(async (req) => {
         if (bestArea) push(bestArea, 1 + bestCityByText.score, "best-city");
       }
 
+      // NEW: For each "candidate city" (top local match + best-by-text + exact
+      // city tokens in input), find the closest area inside it by token-level
+      // fuzzy matching. Lets "بنغازي بوعطني" map to the closest Benghazi area.
+      const candidateCities = new Set<string>();
+      if (topLocal) candidateCities.add(topLocal.row.city);
+      if (bestCityByText && bestCityByText.score >= 0.6) candidateCities.add(bestCityByText.city);
+      const inputToks = [...tokens(city || ""), ...tokens(address || "")];
+      for (const uc of uniqueCities) {
+        const ucN = norm(uc);
+        if (inputToks.some((t) => t === ucN || (ucN.length >= 4 && (t.includes(ucN) || ucN.includes(t) && t.length >= 4)))) {
+          candidateCities.add(uc);
+        }
+      }
+      for (const cc of candidateCities) {
+        const ba = findBestAreaInCity(list, cc, inputToks);
+        if (ba && ba.score >= 0.6) {
+          const pair = list.find((r) => r.city === cc && r.area === ba.area);
+          if (pair) push(pair, 1.5 + ba.score, "fuzzy-area");
+        }
+      }
+
       candidates.sort((a, b) => b.weight - a.weight);
       console.log("match-city candidates", { city, address, candidates: candidates.slice(0, 5).map((c) => ({ ...c.pair, w: c.weight, s: c.src })) });
 
