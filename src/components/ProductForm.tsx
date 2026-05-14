@@ -433,11 +433,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       </SectionCard>
 
       {/* Upsell Offers */}
-      <div className="border-t pt-6 mt-6">
-        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30 mb-4">
+      <SectionCard icon={TrendingUp} title="عروض Upsell" description="اعرض حزم بكميات أكبر بأسعار مميزة" iconColor="bg-orange-500">
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border-2 border-dashed bg-muted/40">
           <div className="flex-1 min-w-0">
-            <Label className="block">تفعيل عروض Upsell</Label>
-            <p className="text-xs text-muted-foreground mt-1">
+            <Label className="block font-semibold">تفعيل عروض Upsell</Label>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               اعرض على المشتري عروض كمية بأسعار خاصة (مثال: اشترِ 4 قطع بسعر 320). عند اختيار العرض في صفحة الهبوط يتم تحديث الكمية والسعر تلقائياً.
             </p>
           </div>
@@ -520,14 +520,10 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             </Button>
           </div>
         )}
-      </div>
+      </SectionCard>
 
       {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
-      <div className="border-t pt-6 mt-6 space-y-3">
-        <h3 className="text-lg font-semibold">المنتج الرئيسي في EasyOrders</h3>
-        <p className="text-sm text-muted-foreground">
-          اختر المنتج الرئيسي من EasyOrders. سيتم عرض متغيراته فقط في خيارات الربط أدناه.
-        </p>
+      <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
         <SearchableSelect
           value={product.easyOrdersProductId || "__none__"}
           onChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
@@ -543,7 +539,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           ]}
         />
         {eoProducts.length === 0 && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded border border-amber-200 dark:border-amber-900">
             لا توجد منتجات. اذهب إلى "حسابي" واضغط "مزامنة منتجات EasyOrders".
           </p>
         )}
@@ -557,12 +553,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             ربط المتغيرات تلقائياً (استبدال)
           </Button>
         )}
-      </div>
+      </SectionCard>
 
       {/* Stock Management */}
-      <div className="border-t pt-6 mt-6">
-        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          <h3 className="text-lg font-semibold">المخزون *</h3>
+      <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
         {hasVariants && whProducts.length > 0 && (
           <Button
             type="button"
@@ -673,7 +668,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           </div>
         ) : (
           <div className="space-y-2">
-            <Label>الكمية المتوفرة</Label>
+            <Label className="font-semibold">الكمية المتوفرة</Label>
             <Input
               type="number"
               min="0"
@@ -686,15 +681,12 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             </p>
           </div>
         )}
-      </div>
+      </SectionCard>
 
       {/* قائمة متغيرات EasyOrders للمنتج المختار */}
       {product.easyOrdersProductId && eoVariants.length > 0 && (
-        <div className="border-t pt-6 mt-6 space-y-3">
+        <SectionCard icon={Link2} title={`متغيرات EasyOrders (${eoVariants.length})`} description="حالة الربط لكل متغير" iconColor="bg-violet-500">
           <div className="border rounded-lg overflow-hidden">
-            <div className="bg-muted/50 px-3 py-2 text-sm font-semibold">
-              متغيرات EasyOrders ({eoVariants.length})
-            </div>
             <div className="divide-y">
               {eoVariants.map((v) => {
                 const linkedKey = Object.entries(product.variantEasyOrdersIds || {})
@@ -706,11 +698,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       <div className="text-muted-foreground font-mono truncate" dir="ltr">ID: {v.id}</div>
                     </div>
                     {linkedKey ? (
-                      <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[11px] whitespace-nowrap">
+                      <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 text-[11px] whitespace-nowrap font-semibold">
                         ↔ {linkedKey}
                       </span>
                     ) : (
-                      <span className="px-2 py-1 rounded bg-destructive/10 text-destructive text-[11px] whitespace-nowrap">
+                      <span className="px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 text-[11px] whitespace-nowrap font-semibold">
                         غير مرتبط
                       </span>
                     )}
@@ -719,12 +711,14 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               })}
             </div>
           </div>
-        </div>
+        </SectionCard>
       )}
 
-      <Button onClick={onSubmit} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-semibold" disabled={isLoading}>
-        {isLoading ? "جاري الحفظ..." : submitText}
-      </Button>
+      <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/95 backdrop-blur border-t shadow-lg">
+        <Button onClick={onSubmit} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold" disabled={isLoading}>
+          {isLoading ? "جاري الحفظ..." : submitText}
+        </Button>
+      </div>
     </div>
   );
 };
