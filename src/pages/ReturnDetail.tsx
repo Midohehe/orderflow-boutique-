@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -11,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowRight, CheckCircle2, Loader2, RefreshCw, Link2, Link2Off, Undo2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, Link2, Link2Off, Undo2, ScanLine, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -50,8 +51,10 @@ const ReturnDetail = () => {
   const [ret, setRet] = useState<ReturnRow | null>(null);
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [marking, setMarking] = useState(false);
+  const [scanValue, setScanValue] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const scanRef = useRef<HTMLInputElement | null>(null);
 
   const load = async () => {
     if (!id) return;
@@ -66,37 +69,95 @@ const ReturnDetail = () => {
     setRet(rRes.data as ReturnRow | null);
     setRows((shRes.data as ShipmentRow[]) || []);
     setLoading(false);
-    if (rRes.data && !(rRes.data as ReturnRow).shipments_synced_at) {
-      syncShipments(true);
-    }
   };
 
-  const syncShipments = async (silent = false) => {
-    if (!id) return;
-    setSyncing(true);
+  const handleScan = async (raw: string) => {
+    if (!id || !ret) return;
+    const code = raw.trim();
+    if (!code) return;
+    setScanning(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-return-shipments", {
-        body: { return_id: id },
-      });
-      if (error) throw error;
-      if (!silent) {
-        toast({
-          title: "تم تحديث الشحنات",
-          description: `${data?.count ?? 0} شحنة، مرتبط منها ${data?.linked ?? 0} بطلبات في النظام`,
-        });
-      }
       const sb = supabase as any;
+      // 1) منع التكرار
+      const dup = rows.find(
+        (r) =>
+          r.shipment_code?.toLowerCase() === code.toLowerCase() ||
+          r.ref_number?.toLowerCase() === code.toLowerCase() ||
+          (r.order_id && r.order_id.toLowerCase().startsWith(code.toLowerCase())),
+      );
+      if (dup) {
+        toast({ title: "موجود مسبقاً", description: `الكود ${code} مضاف مسبقاً للمرتجع`, variant: "destructive" });
+        return;
+      }
+      // 2) ابحث عن الطلب: shipping_id / shipping_reference / id (UUID أو أول 12 خانة)
+      const codeUpper = code.toUpperCase();
+      const filters = [
+        `shipping_id.eq.${code}`,
+        `shipping_reference.eq.${code}`,
+      ];
+      const { data: ordersByCode } = await sb
+        .from("orders")
+        .select("id, customer_name, phone, city, price, product_name, shipping_id, shipping_reference")
+        .or(filters.join(","))
+        .limit(5);
+      let order = (ordersByCode || [])[0] as any;
+      if (!order) {
+        // ابحث بمعرف النظام (UUID كامل أو أول 12 خانة)
+        const isUuid = /^[0-9a-f-]{30,}$/i.test(code);
+        if (isUuid) {
+          const { data: byId } = await sb.from("orders").select("*").eq("id", code).maybeSingle();
+          order = byId;
+        } else {
+          const { data: all } = await sb.from("orders").select("id, customer_name, phone, city, price, product_name, shipping_id, shipping_reference");
+          order = (all || []).find((o: any) => o.id.slice(0, 12).toUpperCase() === codeUpper);
+        }
+      }
+      if (!order) {
+        toast({ title: "غير موجود", description: `لم يتم العثور على طلب بالكود ${code}`, variant: "destructive" });
+        return;
+      }
+      // 3) أضف صف return_shipments
+      const { error: insErr } = await sb.from("return_shipments").insert({
+        return_id: id,
+        shipment_code: order.shipping_id || code,
+        ref_number: order.shipping_reference || order.id.slice(0, 12).toUpperCase(),
+        recipient_name: order.customer_name,
+        recipient_phone: order.phone,
+        zone_name: order.city,
+        area_name: null,
+        status_name: "مرتجع (يدوي)",
+        status_code: "RTRN_MANUAL",
+        delivered_amount: 0,
+        paid_amount: 0,
+        collected_fees: 0,
+        pieces_count: 1,
+        weight: 0,
+        order_id: order.id,
+      });
+      if (insErr) throw insErr;
+      toast({ title: "تمت الإضافة", description: `${order.customer_name || code}` });
+      setScanValue("");
+      // أعد التحميل
       const { data: sh } = await sb
         .from("return_shipments").select("*")
         .eq("return_id", id).order("shipment_code");
       setRows((sh as ShipmentRow[]) || []);
-      const { data: r } = await sb.from("returns").select("*").eq("id", id).maybeSingle();
-      setRet(r as ReturnRow | null);
+      setTimeout(() => scanRef.current?.focus(), 50);
     } catch (e: any) {
-      toast({ title: "تعذر التحديث", description: e?.message, variant: "destructive" });
+      toast({ title: "خطأ", description: e?.message, variant: "destructive" });
     } finally {
-      setSyncing(false);
+      setScanning(false);
     }
+  };
+
+  const removeRow = async (rowId: string) => {
+    const sb = supabase as any;
+    const { error } = await sb.from("return_shipments").delete().eq("id", rowId);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== rowId));
   };
 
   const setReceived = async (received: boolean) => {
@@ -164,10 +225,6 @@ const ReturnDetail = () => {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => syncShipments(false)} disabled={syncing}>
-            {syncing ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <RefreshCw className="w-4 h-4 ml-2" />}
-            تحديث الشحنات
-          </Button>
           {ret.received ? (
             <Button variant="outline" onClick={() => setReceived(false)} disabled={marking}>
               <Undo2 className="w-4 h-4 ml-2" />
@@ -200,6 +257,40 @@ const ReturnDetail = () => {
           )}
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ScanLine className="w-4 h-4" />
+            مسح / إدخال كود الشحنة أو رقم الطلب المحلي
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleScan(scanValue);
+            }}
+            className="flex items-center gap-2"
+          >
+            <Input
+              ref={scanRef}
+              autoFocus
+              value={scanValue}
+              onChange={(e) => setScanValue(e.target.value)}
+              placeholder="امسح الباركود أو اكتب الكود ثم اضغط Enter"
+              disabled={scanning || ret.received}
+              className="text-right"
+            />
+            <Button type="submit" disabled={scanning || !scanValue.trim() || ret.received}>
+              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : "إضافة"}
+            </Button>
+          </form>
+          <p className="text-xs text-muted-foreground mt-2">
+            يقبل: كود شركة الشحن، المرجع، أو معرّف الطلب في النظام (الكامل أو أول 12 خانة).
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="p-4">
@@ -241,6 +332,7 @@ const ReturnDetail = () => {
                     <TableHead className="text-right">القيمة</TableHead>
                     <TableHead className="text-right">الحالة</TableHead>
                     <TableHead className="text-right">الربط</TableHead>
+                    <TableHead className="text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -270,6 +362,13 @@ const ReturnDetail = () => {
                             <Link2Off className="w-3 h-3 ml-1" />
                             غير مرتبط
                           </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {!ret.received && (
+                          <Button variant="ghost" size="icon" onClick={() => removeRow(r.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>
