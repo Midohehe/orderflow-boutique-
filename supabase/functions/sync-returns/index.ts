@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
       typeof p?.code === "string" && p.code.toUpperCase().startsWith("RTRN")
     );
 
-    const rows = allPayments.map((p) => ({
+    const rows = rtrnPayments.map((p) => ({
       owner_id: ownerId,
       external_id: p.id,
       code: p.code,
@@ -123,6 +123,12 @@ Deno.serve(async (req) => {
       approved: !!p.approved,
       raw: p,
     }));
+
+    // امسح القوائم القديمة التي لا تبدأ بـ RTRN ثم أضف الجديدة
+    await admin.from("returns")
+      .delete()
+      .eq("owner_id", ownerId)
+      .not("code", "ilike", "RTRN%");
 
     if (rows.length > 0) {
       const { error: upErr } = await admin
