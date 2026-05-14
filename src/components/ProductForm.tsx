@@ -397,6 +397,95 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
       </div>
 
+      {/* Upsell Offers */}
+      <div className="border-t pt-6 mt-6">
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30 mb-4">
+          <div className="flex-1 min-w-0">
+            <Label className="block">تفعيل عروض Upsell</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              اعرض على المشتري عروض كمية بأسعار خاصة (مثال: اشترِ 4 قطع بسعر 320). عند اختيار العرض في صفحة الهبوط يتم تحديث الكمية والسعر تلقائياً.
+            </p>
+          </div>
+          <Switch
+            checked={!!product.upsellEnabled}
+            onCheckedChange={(v) => updateField("upsellEnabled", v)}
+          />
+        </div>
+
+        {product.upsellEnabled && (
+          <div className="space-y-3">
+            {(product.upsellOffers || []).map((offer, idx) => (
+              <div key={idx} className="grid grid-cols-1 md:grid-cols-[6rem_8rem_1fr_auto] gap-2 p-3 border rounded-lg bg-muted/20 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">عدد القطع</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={offer.quantity}
+                    onChange={(e) => {
+                      const next = [...product.upsellOffers];
+                      next[idx] = { ...next[idx], quantity: e.target.value };
+                      updateField("upsellOffers", next);
+                    }}
+                    placeholder="4"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">السعر الإجمالي</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={offer.price}
+                    onChange={(e) => {
+                      const next = [...product.upsellOffers];
+                      next[idx] = { ...next[idx], price: e.target.value };
+                      updateField("upsellOffers", next);
+                    }}
+                    placeholder="320"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">وصف العرض (يظهر للمشتري)</Label>
+                  <Input
+                    value={offer.label}
+                    onChange={(e) => {
+                      const next = [...product.upsellOffers];
+                      next[idx] = { ...next[idx], label: e.target.value };
+                      updateField("upsellOffers", next);
+                    }}
+                    placeholder="اشترِ 4 قطع بسعر 320 + شحن مجاني"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    const next = product.upsellOffers.filter((_, i) => i !== idx);
+                    updateField("upsellOffers", next);
+                  }}
+                >
+                  حذف
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                updateField("upsellOffers", [
+                  ...(product.upsellOffers || []),
+                  { quantity: "", price: "", label: "" },
+                ])
+              }
+            >
+              + إضافة عرض
+            </Button>
+          </div>
+        )}
+      </div>
+
       {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
       <div className="border-t pt-6 mt-6 space-y-3">
         <h3 className="text-lg font-semibold">المنتج الرئيسي في EasyOrders</h3>
