@@ -364,10 +364,16 @@ const Orders = () => {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
         const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
-          supabase
-            .from("orders")
-            .select(ORDER_SELECT_COLS)
-            .order("created_at", { ascending: false }),
+          (uid
+            ? supabase
+                .from("orders")
+                .select(ORDER_SELECT_COLS)
+                .eq("owner_id", uid)
+                .order("created_at", { ascending: false })
+            : supabase
+                .from("orders")
+                .select(ORDER_SELECT_COLS)
+                .order("created_at", { ascending: false })),
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
           supabase.from("products").select("id, name"),
