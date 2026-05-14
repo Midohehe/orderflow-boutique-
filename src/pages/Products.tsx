@@ -721,9 +721,8 @@ const Products = () => {
 
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    variant="outline"
                     size="sm"
-                    className="flex-1 min-w-0 gap-1 sm:gap-2 text-xs sm:text-sm"
+                    className="flex-1 min-w-0 gap-1 sm:gap-2 text-xs sm:text-sm bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all"
                     onClick={() => openPreviewPage(product.slug)}
                   >
                     <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -731,10 +730,13 @@ const Products = () => {
                     <ExternalLink className="w-2 h-2 sm:w-3 sm:h-3" />
                   </Button>
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={() => toggleVisibility(product)}
-                    className="px-2 sm:px-3"
+                    className={`px-2 sm:px-3 shadow-md hover:shadow-lg transition-all ${
+                      product.is_visible
+                        ? "bg-amber-500 hover:bg-amber-600 text-white"
+                        : "bg-green-500 hover:bg-green-600 text-white"
+                    }`}
                     title={product.is_visible ? "إخفاء المنتج" : "إظهار المنتج"}
                   >
                     {product.is_visible ? (
@@ -744,17 +746,15 @@ const Products = () => {
                     )}
                   </Button>
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={() => openEditDialog(product)}
-                    className="px-2 sm:px-3"
+                    className="px-2 sm:px-3 bg-sky-500 hover:bg-sky-600 text-white shadow-md hover:shadow-lg transition-all"
                   >
                     <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                   </Button>
                   <Button
-                    variant="outline"
                     size="sm"
-                    className="text-destructive hover:bg-destructive hover:text-destructive-foreground px-2 sm:px-3"
+                    className="bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all px-2 sm:px-3"
                     onClick={() => handleDelete(product.id)}
                   >
                     <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
