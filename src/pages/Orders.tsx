@@ -146,6 +146,7 @@ const Orders = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [storeName, setStoreName] = useState<string>("");
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -362,7 +363,7 @@ const Orders = () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
-        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes] = await Promise.all([
+        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
           supabase
             .from("orders")
             .select(ORDER_SELECT_COLS)
@@ -375,6 +376,9 @@ const Orders = () => {
             : Promise.resolve({ data: null } as any),
           uid
             ? supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+          uid
+            ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
         ]);
         if (cancelled) return;
@@ -400,6 +404,8 @@ const Orders = () => {
           });
         }
         if (headerRes?.data?.logo_text) setStoreName(headerRes.data.logo_text);
+        if (walletRes?.data) setWalletBalance(Number(walletRes.data.balance) || 0);
+        else if (uid) setWalletBalance(0);
         if (mapRes.data) {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
@@ -722,6 +728,15 @@ const Orders = () => {
       toast({
         title: "تنبيه",
         description: "لا توجد طلبات قيد الانتظار للتصدير",
+        variant: "destructive",
+      });
+      return;
+    }
+    const lockedCount = pendingOrders.filter((o) => o.locked_insufficient_balance).length;
+    if (lockedCount > 0 || (walletBalance !== null && walletBalance < 0)) {
+      toast({
+        title: "تنبيه",
+        description: "لا يمكن التصدير — رصيد المحفظة غير كافٍ أو توجد طلبات مقفلة.",
         variant: "destructive",
       });
       return;
