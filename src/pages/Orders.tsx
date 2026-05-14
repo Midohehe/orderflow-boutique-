@@ -1038,7 +1038,7 @@ const Orders = () => {
                   <Hash className="w-3 h-3 ml-1" />
                   {localCodeMap[order.id] || "—"}
                 </Badge>
-                <h3 className="font-semibold text-foreground">{order.customer_name}</h3>
+                <h3 className="font-semibold text-foreground">{order.locked_insufficient_balance ? "•••••• ••••" : order.customer_name}</h3>
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
                 </Badge>
