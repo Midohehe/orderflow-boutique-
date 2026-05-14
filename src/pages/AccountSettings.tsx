@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Save, UserCircle, Webhook, Copy, RefreshCw } from "lucide-react";
+import { Loader2, Save, UserCircle } from "lucide-react";
 import CityCorrections from "@/components/CityCorrections";
 import { useUserContext } from "@/hooks/useUserContext";
 
@@ -19,119 +19,23 @@ const AccountSettings = () => {
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
   const [originalUsername, setOriginalUsername] = useState("");
-  const [webhookToken, setWebhookToken] = useState("");
-  const [rotating, setRotating] = useState(false);
-  const [easyOrdersKey, setEasyOrdersKey] = useState("");
-  const [savingApiKey, setSavingApiKey] = useState(false);
-  const [syncOrderId, setSyncOrderId] = useState("");
-  const [syncing, setSyncing] = useState(false);
-  const [syncingProducts, setSyncingProducts] = useState(false);
-  const [eoProductsCount, setEoProductsCount] = useState(0);
-
-  const loadEoCount = async () => {
-    const { count } = await supabase.from("easyorders_products").select("id", { count: "exact", head: true });
-    setEoProductsCount(count || 0);
-  };
-
-  const syncProducts = async () => {
-    setSyncingProducts(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("sync-easyorders-products");
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error + (((data as any).details) ? ": " + (data as any).details : ""));
-      toast({ title: "تمت المزامنة", description: `تم جلب ${(data as any).count} منتج` });
-      await loadEoCount();
-    } catch (e: any) {
-      toast({ title: "فشلت المزامنة", description: e.message, variant: "destructive" });
-    } finally {
-      setSyncingProducts(false);
-    }
-  };
-
-  const syncOrder = async () => {
-  const ids = Array.from(new Set(
-      syncOrderId.split(/[\s,;\n]+/).map((s) => s.trim()).filter(Boolean)
-    ));
-    if (ids.length === 0) {
-      toast({ title: "أدخل رقم طلب واحد على الأقل", variant: "destructive" });
-      return;
-    }
-    setSyncing(true);
-    let success = 0;
-    const failures: { id: string; msg: string }[] = [];
-    for (const id of ids) {
-      try {
-        const { data, error } = await supabase.functions.invoke("sync-easyorder", {
-          body: { order_id: id },
-        });
-        if (error) throw error;
-        if ((data as any)?.error) throw new Error((data as any).error + (((data as any).details) ? ": " + (data as any).details : ""));
-        success++;
-      } catch (e: any) {
-        failures.push({ id, msg: e.message || "خطأ" });
-      }
-    }
-    if (failures.length === 0) {
-      toast({ title: "تمت المزامنة", description: `تم جلب ${success} طلب بنجاح` });
-      setSyncOrderId("");
-    } else {
-      toast({
-        title: `نجح ${success} / فشل ${failures.length}`,
-        description: failures.slice(0, 5).map((f) => `${f.id}: ${f.msg}`).join("\n"),
-        variant: "destructive",
-      });
-    }
-    setSyncing(false);
-  };
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("username, full_name, webhook_token, easyorders_api_key")
+        .select("username, full_name")
         .eq("user_id", user.id)
         .maybeSingle();
       if (data) {
         setUsername(data.username || "");
         setFullName(data.full_name || "");
         setOriginalUsername(data.username || "");
-        setWebhookToken((data as any).webhook_token || "");
-        setEasyOrdersKey((data as any).easyorders_api_key || "");
       }
       setLoading(false);
-      loadEoCount();
     })();
   }, [user]);
-
-  const saveApiKey = async () => {
-    if (!user) return;
-    setSavingApiKey(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ easyorders_api_key: easyOrdersKey.trim() || null } as any)
-      .eq("user_id", user.id);
-    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    else toast({ title: "تم الحفظ", description: "تم حفظ مفتاح EasyOrders API" });
-    setSavingApiKey(false);
-  };
-
-  const rotateToken = async () => {
-    if (!user) return;
-    if (!confirm("سيتم إبطال الرمز الحالي. هل تريد المتابعة؟")) return;
-    setRotating(true);
-    const newToken = Array.from(crypto.getRandomValues(new Uint8Array(24)))
-      .map((b) => b.toString(16).padStart(2, "0")).join("");
-    const { error } = await supabase.from("profiles").update({ webhook_token: newToken } as any).eq("user_id", user.id);
-    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    else { setWebhookToken(newToken); toast({ title: "تم التحديث", description: "تم توليد رمز جديد" }); }
-    setRotating(false);
-  };
-
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "تم النسخ" });
-  };
 
   const save = async () => {
     if (!user) return;
