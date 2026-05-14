@@ -18,6 +18,11 @@ const baseMenuGroups = [
       { icon: LayoutDashboard, label: "لوحة التحكم", path: "/dashboard", external: false, adminOnly: false, dynamicStore: false },
       { icon: Store, label: "مشاهدة المتجر", path: "/store", external: true, adminOnly: false, dynamicStore: true },
       { icon: ShoppingCart, label: "الطلبيات", path: "/dashboard/orders", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
+  {
+    label: "الطلبيات",
+    items: [
       { icon: Undo2, label: "استلام المرتجعات", path: "/dashboard/returns", external: false, adminOnly: false, dynamicStore: false },
     ],
   },
