@@ -171,27 +171,6 @@ const Settings = () => {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>سعر الاشتراك</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">يظهر هذا السعر في لوحة تحكم المستخدمين</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>السعر الشهري</Label>
-              <Input type="number" min="0" step="0.01" value={subPrice} onChange={(e) => setSubPrice(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>العملة</Label>
-              <Input value={subCurrency} onChange={(e) => setSubCurrency(e.target.value)} placeholder="د.ل" />
-            </div>
-          </div>
-          <Button onClick={saveSubPrice} disabled={savingPrice}>
-            {savingPrice ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
-            حفظ
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader><CardTitle>المحفظة ورسوم الطلبات</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">عند التفعيل، يُخصم مبلغ ثابت من محفظة المستخدم عن كل طلب جديد. إن لم يكفِ الرصيد، يتم قبول الطلب وقفل بياناته (لا يمكن إرساله للشحن) حتى يشحن المستخدم محفظته.</p>
@@ -241,18 +220,6 @@ const Settings = () => {
           <div className="space-y-2"><Label>كلمة المرور</Label><Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
           <div className="space-y-2"><Label>اسم المستخدم (للمتجر)</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") })} placeholder="ahmed" /></div>
           <div className="space-y-2"><Label>الاسم الكامل (اختياري)</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>مدة الاشتراك</Label>
-            <Select value={form.duration_months} onValueChange={(v) => setForm({ ...form, duration_months: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">شهر</SelectItem>
-                <SelectItem value="3">3 أشهر</SelectItem>
-                <SelectItem value="6">6 أشهر</SelectItem>
-                <SelectItem value="12">سنة</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <div className="md:col-span-2">
             <Button onClick={handleCreate} disabled={creating} className="w-full">
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "إنشاء المستخدم"}
@@ -265,7 +232,6 @@ const Settings = () => {
         <CardHeader><CardTitle>المستخدمون ({users.length})</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {users.map((u) => {
-            const expired = u.subscription_ends_at && new Date(u.subscription_ends_at) < new Date();
             const isAdminUser = u.roles.includes("admin");
             return (
               <div key={u.user_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -274,36 +240,11 @@ const Settings = () => {
                     <span className="font-bold">{u.username}</span>
                     {isAdminUser && <Badge variant="default">أدمن</Badge>}
                     {!u.is_active && <Badge variant="destructive">معطّل</Badge>}
-                    {expired && !isAdminUser && <Badge variant="destructive">منتهي</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">{u.email}</p>
-                  {u.subscription_ends_at && !isAdminUser && (
-                    <p className="text-xs text-muted-foreground">ينتهي: {new Date(u.subscription_ends_at).toLocaleDateString("ar")}</p>
-                  )}
                 </div>
                 {!isAdminUser && (
                   <div className="flex flex-wrap gap-2">
-                    <Dialog open={extendUser?.user_id === u.user_id} onOpenChange={(o) => !o && setExtendUser(null)}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" onClick={() => setExtendUser({ user_id: u.user_id, months: "1" })}>
-                          <CalendarPlus className="w-4 h-4 ml-1" /> تمديد
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent dir="rtl">
-                        <DialogHeader><DialogTitle>تمديد الاشتراك</DialogTitle></DialogHeader>
-                        <Select value={extendUser?.months || "1"} onValueChange={(v) => setExtendUser((p) => p ? { ...p, months: v } : null)}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">شهر</SelectItem>
-                            <SelectItem value="3">3 أشهر</SelectItem>
-                            <SelectItem value="6">6 أشهر</SelectItem>
-                            <SelectItem value="12">سنة</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button onClick={handleExtend}>تأكيد</Button>
-                      </DialogContent>
-                    </Dialog>
-
                     <Dialog open={resetPwd?.user_id === u.user_id} onOpenChange={(o) => !o && setResetPwd(null)}>
                       <DialogTrigger asChild>
                         <Button size="sm" variant="outline" onClick={() => setResetPwd({ user_id: u.user_id, password: "" })}>
