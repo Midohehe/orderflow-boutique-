@@ -1280,6 +1280,51 @@ export type Database = {
         }
         Relationships: []
       }
+      sticker_settings: {
+        Row: {
+          created_at: string
+          fields: Json
+          font_size: number
+          footer_text: string
+          header_text: string
+          id: string
+          owner_id: string
+          page_height_mm: number
+          page_width_mm: number
+          show_barcode: boolean
+          show_logo: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fields?: Json
+          font_size?: number
+          footer_text?: string
+          header_text?: string
+          id?: string
+          owner_id: string
+          page_height_mm?: number
+          page_width_mm?: number
+          show_barcode?: boolean
+          show_logo?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fields?: Json
+          font_size?: number
+          footer_text?: string
+          header_text?: string
+          id?: string
+          owner_id?: string
+          page_height_mm?: number
+          page_width_mm?: number
+          show_barcode?: boolean
+          show_logo?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_movements: {
         Row: {
           created_at: string
