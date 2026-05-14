@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowRight, CheckCircle2, Loader2, Link2, Link2Off, Undo2, ScanLine, Trash2, RefreshCw } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, Link2, Link2Off, Undo2, ScanLine, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -52,7 +52,6 @@ const ReturnDetail = () => {
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [scanValue, setScanValue] = useState("");
   const [scanning, setScanning] = useState(false);
   const scanRef = useRef<HTMLInputElement | null>(null);
@@ -70,28 +69,6 @@ const ReturnDetail = () => {
     setRet(rRes.data as ReturnRow | null);
     setRows((shRes.data as ShipmentRow[]) || []);
     setLoading(false);
-  };
-
-  const syncShipments = async (silent = false) => {
-    if (!id) return;
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("sync-return-shipments", {
-        body: { return_id: id },
-      });
-      if (error) throw error;
-      if (!silent) {
-        toast({
-          title: "تم الجلب",
-          description: `${data?.count ?? 0} شحنة، مرتبطة: ${data?.linked ?? 0}`,
-        });
-      }
-      await load();
-    } catch (e: any) {
-      if (!silent) toast({ title: "تعذر الجلب", description: e?.message, variant: "destructive" });
-    } finally {
-      setSyncing(false);
-    }
   };
 
   const handleScan = async (raw: string) => {
@@ -209,14 +186,6 @@ const ReturnDetail = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // أول ما تفتح القائمة وما فيهاش شحنات بعد، اجلبها تلقائياً
-  useEffect(() => {
-    if (ret && !ret.shipments_synced_at && rows.length === 0 && !syncing) {
-      syncShipments(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ret?.id]);
-
   const linkedCount = rows.filter((r) => r.order_id).length;
 
   if (loading) {
@@ -257,10 +226,6 @@ const ReturnDetail = () => {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => syncShipments(false)} disabled={syncing}>
-            {syncing ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <RefreshCw className="w-4 h-4 ml-2" />}
-            جلب الشحنات
-          </Button>
           {ret.received ? (
             <Button variant="outline" onClick={() => setReceived(false)} disabled={marking}>
               <Undo2 className="w-4 h-4 ml-2" />

@@ -102,11 +102,8 @@ Deno.serve(async (req) => {
       if (page > 50) break; // safety
     }
 
-    // Upsert settlements (exclude RTRN return lists which have their own table)
-    const nonRtrnPayments = allPayments.filter((p) =>
-      typeof p?.code === "string" && !p.code.toUpperCase().startsWith("RTRN")
-    );
-    const settlementRows = nonRtrnPayments.map((p) => ({
+    // Upsert settlements
+    const settlementRows = allPayments.map((p) => ({
       owner_id: ownerId,
       external_id: p.id,
       code: p.code,
