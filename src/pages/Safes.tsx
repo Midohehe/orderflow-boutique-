@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Wallet, Plus, Loader2, History, ArrowDownCircle, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Safe {
   id: string;
@@ -134,13 +135,17 @@ const Safes = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Wallet className="w-6 h-6 text-primary" />الخزائن</h1>
-          <p className="text-muted-foreground text-sm">إدارة الخزائن وعرض حركاتها</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4" />إضافة خزينة</Button>
-      </div>
+      <PageHeader
+        icon={Wallet}
+        title="الخزائن"
+        description="إدارة الخزائن وعرض حركاتها"
+        iconGradient="from-violet-500 to-purple-600"
+        action={
+          <Button onClick={() => setCreateOpen(true)} className="shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700">
+            <Plus className="w-4 h-4" />إضافة خزينة
+          </Button>
+        }
+      />
 
       {safes.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد خزائن. ابدأ بإضافة خزينة.</CardContent></Card>
