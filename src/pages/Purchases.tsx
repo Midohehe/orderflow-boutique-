@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ShoppingBag, Plus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Safe { id: string; name: string; balance: number; }
 interface Purchase { id: string; amount: number; notes: string | null; created_at: string; safe_id: string; }
@@ -62,13 +63,17 @@ const Purchases = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><ShoppingBag className="w-6 h-6 text-primary" />المشتريات</h1>
-          <p className="text-muted-foreground text-sm">المشتريات تخصم من الخزينة فقط ولا تؤثر على الأرباح</p>
-        </div>
-        <Button onClick={() => setOpen(true)} disabled={safes.length === 0}><Plus className="w-4 h-4" />إضافة عملية شراء</Button>
-      </div>
+      <PageHeader
+        icon={ShoppingBag}
+        title="المشتريات"
+        description="المشتريات تخصم من الخزينة فقط ولا تؤثر على الأرباح"
+        iconGradient="from-amber-500 to-orange-600"
+        action={
+          <Button onClick={() => setOpen(true)} disabled={safes.length === 0} className="shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700">
+            <Plus className="w-4 h-4" />إضافة عملية شراء
+          </Button>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">
