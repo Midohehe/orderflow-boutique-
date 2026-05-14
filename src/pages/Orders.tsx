@@ -1752,7 +1752,7 @@ const Orders = () => {
             )
           ) : (
             <div className="space-y-4">
-              {shippedOrders.map((order) => renderOrderCard(order))}
+              {shippedOrders.map((order) => renderOrderCard(order, true))}
             </div>
           )}
         </TabsContent>
