@@ -1428,23 +1428,6 @@ const Orders = () => {
                       />
                       <span className="text-sm text-foreground">تحديد الكل ({selectedOrders.filter(id => pendingOrders.some(o => o.id === id)).length} محدد)</span>
                     </div>
-                    <Select value={bulkStatus} onValueChange={(v) => setBulkStatus(v as Order["status"])}>
-                      <SelectTrigger className="w-full sm:w-40">
-                        <SelectValue placeholder="اختر الحالة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="shipped">جاري التوصيل</SelectItem>
-                        <SelectItem value="delivered">تم الاستلام</SelectItem>
-                        <SelectItem value="cancelled">ملغي</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={handleBulkStatusChange}
-                      disabled={selectedOrders.length === 0 || !bulkStatus}
-                      className="w-full sm:w-auto"
-                    >
-                      تحديث الحالة
-                    </Button>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
                     <Select value={productFilter} onValueChange={(v) => { setProductFilter(v); setSelectedOrders([]); }}>
