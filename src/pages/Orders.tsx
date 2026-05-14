@@ -1672,10 +1672,54 @@ const Orders = () => {
         </TabsContent>
 
         <TabsContent value="unpacked" className="space-y-4">
+          <Card className="card-shadow">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="بحث برقم الطلبية أو الهاتف أو الاسم"
+                    value={unpackedSearch}
+                    onChange={(e) => setUnpackedSearch(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">من:</span>
+                    <Input
+                      type="date"
+                      value={unpackedDateFrom}
+                      onChange={(e) => setUnpackedDateFrom(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">إلى:</span>
+                    <Input
+                      type="date"
+                      value={unpackedDateTo}
+                      onChange={(e) => setUnpackedDateTo(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                  </div>
+                  {(unpackedDateFrom || unpackedDateTo || unpackedSearch) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setUnpackedDateFrom(""); setUnpackedDateTo(""); setUnpackedSearch(""); }}
+                    >
+                      مسح
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           {unpackedOrders.length === 0 ? (
             renderEmptyState(
               <PackageOpen className="w-16 h-16 text-muted-foreground mb-4" />,
-              "لا توجد طلبات تم تفريغها"
+              unpackedSearch.trim() ? "لا توجد نتائج مطابقة" : "لا توجد طلبات تم تفريغها"
             )
           ) : (
             <div className="space-y-4">
