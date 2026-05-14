@@ -321,7 +321,13 @@ const LandingPage = () => {
     let cancelled = false;
     const run = async () => {
       const dp = await loadDOMPurify();
-      if (!cancelled) setSanitizedDescription((dp as any).sanitize(product.description));
+      if (cancelled) return;
+      let html = (dp as any).sanitize(product.description) as string;
+      // Force lazy-loading + async decoding on every embedded image/iframe
+      html = html
+        .replace(/<img\b(?![^>]*\bloading=)/gi, '<img loading="lazy" decoding="async"')
+        .replace(/<iframe\b(?![^>]*\bloading=)/gi, '<iframe loading="lazy"');
+      setSanitizedDescription(html);
     };
     if (typeof (window as any).requestIdleCallback === "function") {
       (window as any).requestIdleCallback(run, { timeout: 1500 });
@@ -334,7 +340,7 @@ const LandingPage = () => {
   // Track checkout start when user starts filling the form
   const [checkoutTracked, setCheckoutTracked] = useState(false);
 
-  const handleInputChange = async (fieldKey: string, value: string) => {
+  const handleInputChange = (fieldKey: string, value: string) => {
     setFormData({ ...formData, [fieldKey]: value });
 
     // Track checkout start on first input
@@ -353,19 +359,15 @@ const LandingPage = () => {
         });
       }
       
-      // Track checkout start
+      // Fire-and-forget so input stays buttery smooth
       const utmSource = getUtmSource();
-      console.log("Tracking checkout_start for:", slug, "utm_source:", utmSource);
-      const { error: trackError } = await supabase.from("analytics_events").insert({
+      supabase.from("analytics_events").insert({
         event_type: "checkout_start",
         product_slug: slug,
         utm_source: utmSource,
+      }).then(({ error }) => {
+        if (error) console.error("Error tracking checkout start:", error);
       });
-      if (trackError) {
-        console.error("Error tracking checkout start:", trackError);
-      } else {
-        console.log("Checkout start tracked successfully");
-      }
     }
   };
 
@@ -1022,7 +1024,7 @@ const LandingPage = () => {
 
         {/* Description */}
         {product.description && sanitizedDescription && (
-          <section className="mt-8 sm:mt-12">
+          <section className="mt-8 sm:mt-12 cv-auto">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-foreground">وصف المنتج</h2>
             <div
               className="prose prose-sm sm:prose-lg max-w-none text-foreground [&_img]:w-full [&_img]:h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain"
