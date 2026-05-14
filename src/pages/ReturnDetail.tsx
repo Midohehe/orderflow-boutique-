@@ -99,21 +99,22 @@ const ReturnDetail = () => {
         .from("orders")
         .select("id, customer_name, phone, city, price, product_name, shipping_id, shipping_reference")
         .or(filters.join(","))
+        .eq("status", "unpacked")
         .limit(5);
       let order = (ordersByCode || [])[0] as any;
       if (!order) {
         // ابحث بمعرف النظام (UUID كامل أو أول 12 خانة)
         const isUuid = /^[0-9a-f-]{30,}$/i.test(code);
         if (isUuid) {
-          const { data: byId } = await sb.from("orders").select("*").eq("id", code).maybeSingle();
+          const { data: byId } = await sb.from("orders").select("*").eq("id", code).eq("status", "unpacked").maybeSingle();
           order = byId;
         } else {
-          const { data: all } = await sb.from("orders").select("id, customer_name, phone, city, price, product_name, shipping_id, shipping_reference");
+          const { data: all } = await sb.from("orders").select("id, customer_name, phone, city, price, product_name, shipping_id, shipping_reference").eq("status", "unpacked");
           order = (all || []).find((o: any) => o.id.slice(0, 12).toUpperCase() === codeUpper);
         }
       }
       if (!order) {
-        toast({ title: "غير موجود", description: `لم يتم العثور على طلب بالكود ${code}`, variant: "destructive" });
+        toast({ title: "غير موجود", description: `لم يتم العثور على طلب "تم تفريغه" بالكود ${code}`, variant: "destructive" });
         return;
       }
       // 3) أضف صف return_shipments
