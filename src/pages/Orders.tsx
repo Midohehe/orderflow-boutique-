@@ -774,7 +774,7 @@ const Orders = () => {
   const productNames = Array.from(
     new Set(orders.map(displayProductName).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
-  const allPending = orders.filter((o) => o.status === "pending");
+  const allPending = orders.filter((o) => o.status === "pending" && !o.is_deleted);
   const pendingOrders = allPending.filter((o) => {
     if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
     if (confirmationFilter !== "all") {
@@ -803,7 +803,7 @@ const Orders = () => {
     });
     return c;
   })();
-  const allShipped = orders.filter((o) => o.status === "shipped");
+  const allShipped = orders.filter((o) => o.status === "shipped" && !o.is_deleted);
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
   // Group by displayed label so codes that share the same custom_label
   // (merged in shipping settings) appear as a single filter option.
@@ -856,12 +856,13 @@ const Orders = () => {
     }
     return true;
   });
-  const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
-  const cancelledOrders = orders.filter((o) => o.status === "cancelled");
-  const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received");
+  const deliveredOrders = orders.filter((o) => (o.status === "delivered" || o.status === "settled") && !o.is_deleted);
+  const cancelledOrders = orders.filter((o) => o.status === "cancelled" && !o.is_deleted);
+  const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received" && !o.is_deleted);
+  const deletedOrders = orders.filter((o) => !!o.is_deleted);
   const unpackedSearchNorm = unpackedSearch.trim().toLowerCase();
   const unpackedOrders = orders.filter((o) => {
-    if (o.status !== "unpacked") return false;
+    if (o.status !== "unpacked" || o.is_deleted) return false;
     if (unpackedSearchNorm) {
       const matches =
         (o.shipping_reference || "").toLowerCase().includes(unpackedSearchNorm) ||
