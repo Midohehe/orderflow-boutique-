@@ -1264,10 +1264,10 @@ const Orders = () => {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="card-shadow">
+        <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/5 border-amber-500/20 hover:shadow-lg transition-shadow">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-warning" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shrink-0">
+              <Clock className="w-6 h-6" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{pendingOrders.length}</p>
@@ -1275,10 +1275,10 @@ const Orders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card className="card-shadow">
+        <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20 hover:shadow-lg transition-shadow">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-              <Truck className="w-6 h-6 text-accent-foreground" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center shadow-md shrink-0">
+              <Truck className="w-6 h-6" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{shippedOrders.length}</p>
@@ -1286,10 +1286,10 @@ const Orders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card className="card-shadow">
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-green-500/5 border-emerald-500/20 hover:shadow-lg transition-shadow">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-success" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 text-white flex items-center justify-center shadow-md shrink-0">
+              <CheckCircle className="w-6 h-6" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{deliveredOrders.length}</p>
@@ -1297,10 +1297,10 @@ const Orders = () => {
             </div>
           </CardContent>
         </Card>
-        <Card className="card-shadow">
+        <Card className="bg-gradient-to-br from-rose-500/10 to-red-500/5 border-rose-500/20 hover:shadow-lg transition-shadow">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-              <XCircle className="w-6 h-6 text-destructive" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-red-500 text-white flex items-center justify-center shadow-md shrink-0">
+              <XCircle className="w-6 h-6" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{cancelledOrders.length}</p>
@@ -1316,9 +1316,9 @@ const Orders = () => {
           variant="outline"
           size="sm"
           onClick={() => setShowDeliveryStats((v) => !v)}
-          className="gap-2"
+          className="gap-2 shadow-sm hover:shadow-md transition-shadow border-primary/30 text-primary hover:bg-primary/5"
         >
-          {showDeliveryStats ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showDeliveryStats ? <EyeOff className="w-4 h-4" /> : <BarChart3 className="w-4 h-4" />}
           {showDeliveryStats ? "إخفاء نسب التسليم" : "إظهار نسب التسليم"}
         </Button>
       </div>
@@ -1456,34 +1456,41 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="pending" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-7 h-auto p-1 bg-muted/60 rounded-xl gap-1">
+          <TabsTrigger value="pending" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Clock className="w-4 h-4" />
-            <span className="hidden sm:inline">قيد الانتظار</span> ({pendingOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">قيد الانتظار</span>
+            <span className="text-xs font-bold">({pendingOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="shipped" className="flex items-center gap-2">
+          <TabsTrigger value="shipped" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Truck className="w-4 h-4" />
-            <span className="hidden sm:inline">جاري التوصيل</span> ({shippedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">جاري التوصيل</span>
+            <span className="text-xs font-bold">({shippedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="delivered" className="flex items-center gap-2">
+          <TabsTrigger value="delivered" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-emerald-500 data-[state=active]:to-green-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <CheckCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">تم الاستلام</span> ({deliveredOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">تم الاستلام</span>
+            <span className="text-xs font-bold">({deliveredOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="unpacked" className="flex items-center gap-2">
+          <TabsTrigger value="unpacked" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-teal-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <PackageOpen className="w-4 h-4" />
-            <span className="hidden sm:inline">تم التفريغ</span> ({unpackedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">تم التفريغ</span>
+            <span className="text-xs font-bold">({unpackedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="cancelled" className="flex items-center gap-2">
+          <TabsTrigger value="cancelled" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-rose-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <XCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">ملغي</span> ({cancelledOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">ملغي</span>
+            <span className="text-xs font-bold">({cancelledOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="returned_received" className="flex items-center gap-2">
+          <TabsTrigger value="returned_received" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-fuchsia-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Undo2 className="w-4 h-4" />
-            <span className="hidden sm:inline">المرتجعات المؤكدة</span> ({returnedReceivedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">المرتجعات المؤكدة</span>
+            <span className="text-xs font-bold">({returnedReceivedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="deleted" className="flex items-center gap-2">
+          <TabsTrigger value="deleted" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-slate-500 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Archive className="w-4 h-4" />
-            <span className="hidden sm:inline">محذوفة</span> ({deletedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">محذوفة</span>
+            <span className="text-xs font-bold">({deletedOrders.length})</span>
           </TabsTrigger>
         </TabsList>
 
