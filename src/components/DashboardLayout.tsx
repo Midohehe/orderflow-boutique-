@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -71,6 +71,22 @@ const DashboardLayout = () => {
   const { signOut } = useAuth();
   const { isAdmin, profile } = useUserContext();
   const [storeName, setStoreName] = useState("لوحة التحكم");
+  const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("sidebar_expanded_groups");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleGroup = (gi: number) => {
+    setExpandedGroups((prev) => {
+      const next = { ...prev, [gi]: !prev[gi] };
+      localStorage.setItem("sidebar_expanded_groups", JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     (async () => {
@@ -187,36 +203,49 @@ const DashboardLayout = () => {
 
         {/* Navigation */}
         <nav className="flex-1 p-2 sm:p-3 space-y-1 overflow-y-auto min-h-0 overscroll-contain [-webkit-overflow-scrolling:touch]">
-          {menuGroups.map((group, gi) => (
-            <div key={gi} className="space-y-1">
-              {group.label && sidebarOpen && (
-                <div className="px-3 pt-3 pb-1 text-xs font-bold text-sidebar-foreground/60 uppercase tracking-wide">
-                  {group.label}
-                </div>
-              )}
-              {group.label && !sidebarOpen && gi > 0 && (
-                <div className="hidden md:block mx-2 my-2 border-t border-sidebar-border" />
-              )}
-              {group.items.map((item) => {
-                const isActive = !item.external && location.pathname === item.path;
-                return (
-                  <Button
-                    key={item.path}
-                    variant="ghost"
-                    onClick={() => handleNavigation(item.path, item.external)}
-                    className={cn(
-                      "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
-                      !sidebarOpen && "md:justify-center md:px-2"
-                    )}
+          {menuGroups.map((group, gi) => {
+            const hasLabel = !!group.label;
+            const isExpanded = expandedGroups[gi] ?? !hasLabel;
+            const groupHasActive = group.items.some((item) => !item.external && location.pathname === item.path);
+            const showItems = !hasLabel || isExpanded || groupHasActive;
+
+            return (
+              <div key={gi} className="space-y-1">
+                {hasLabel && sidebarOpen && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(gi)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-semibold text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
                   >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
-                    <span className={cn(!sidebarOpen && "md:hidden")}>{item.label}</span>
-                  </Button>
-                );
-              })}
-            </div>
-          ))}
+                    <span>{group.label}</span>
+                    <ChevronLeft className={cn("w-4 h-4 transition-transform", showItems && "-rotate-90")} />
+                  </button>
+                )}
+                {hasLabel && !sidebarOpen && (
+                  <div className="hidden md:block mx-2 my-2 border-t border-sidebar-border" />
+                )}
+                {showItems && group.items.map((item) => {
+                  const isActive = !item.external && location.pathname === item.path;
+                  return (
+                    <Button
+                      key={item.path}
+                      variant="ghost"
+                      onClick={() => handleNavigation(item.path, item.external)}
+                      className={cn(
+                        "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
+                        !sidebarOpen && "md:justify-center md:px-2",
+                        hasLabel && sidebarOpen && "mr-2"
+                      )}
+                    >
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <span className={cn(!sidebarOpen && "md:hidden")}>{item.label}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="p-2 sm:p-3 border-t border-sidebar-border space-y-1">
