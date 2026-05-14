@@ -27,6 +27,37 @@ const tokens = (s: string) => norm(s).split(/[\s,،\-\/]+/).filter(Boolean);
 interface Z { external_id: number; parent_external_id: number | null; name: string; kind: string; }
 interface Pair { city: string; area: string; }
 
+// Find the best area inside a given city by fuzzy matching every token of the
+// customer input against every area name. Uses combinedScore (Lev + similar_text)
+// and also rewards substring/prefix overlap so partial words like "بوعط" match
+// "بوعطني" or "بوهديمة" by closest similarity.
+function findBestAreaInCity(
+  list: Pair[],
+  cityName: string,
+  inputTokens: string[],
+): { area: string; score: number } | null {
+  const areas = list.filter((r) => r.city === cityName).map((r) => r.area);
+  const cityNorm = norm(cityName);
+  let best: { area: string; score: number } | null = null;
+  for (const a of areas) {
+    const aN = norm(a);
+    if (!aN || aN === cityNorm) continue;
+    let topScore = 0;
+    for (const tk of inputTokens) {
+      if (!tk || tk === cityNorm || tk.length < 3) continue;
+      let s = combinedScore(tk, aN);
+      // Bonus when token is a prefix/substring of area or vice-versa.
+      if (aN.startsWith(tk) || tk.startsWith(aN)) s = Math.max(s, 0.85);
+      else if (aN.includes(tk) || tk.includes(aN)) s = Math.max(s, 0.8);
+      if (s > topScore) topScore = s;
+    }
+    if (topScore > 0 && (!best || topScore > best.score)) {
+      best = { area: a, score: topScore };
+    }
+  }
+  return best;
+}
+
 function lev(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length || !b.length) return Math.max(a.length, b.length);
