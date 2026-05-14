@@ -515,8 +515,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
           <Button
             type="button"
-            variant="secondary"
             size="sm"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg transition-all"
             onClick={() => autoLinkEoVariants(true)}
           >
             ربط المتغيرات تلقائياً (استبدال)
