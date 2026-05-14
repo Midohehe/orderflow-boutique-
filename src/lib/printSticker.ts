@@ -193,8 +193,27 @@ export const buildStickerHtml = (
 </head>
 <body>
 ${stickers || `<div style="padding:24px;text-align:center;">لا توجد طلبات للطباعة</div>`}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <script>
-window.addEventListener('load', function(){ setTimeout(function(){ window.focus(); window.print(); }, 250); });
+function initBarcodes(){
+  var codes = document.querySelectorAll('[data-barcode]');
+  codes.forEach(function(el){
+    try {
+      JsBarcode("#" + el.id, el.getAttribute('data-barcode'), {
+        format: "CODE128",
+        lineColor: "#000",
+        width: 2,
+        height: 50,
+        displayValue: false,
+        margin: 0
+      });
+    } catch(e) {}
+  });
+}
+window.addEventListener('load', function(){
+  initBarcodes();
+  setTimeout(function(){ window.focus(); window.print(); }, 400);
+});
 </script>
 </body>
 </html>`;
