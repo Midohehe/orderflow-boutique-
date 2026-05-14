@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search, Link2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/PageHeader";
 
 type Conversation = {
   id: string;
@@ -169,17 +170,18 @@ export default function WhatsAppPage() {
 
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <MessageCircle className="w-6 h-6" /> WhatsApp
-          </h1>
-          <p className="text-sm text-muted-foreground">إدارة المحادثات وتأكيد الطلبات تلقائياً</p>
-        </div>
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline"><SettingsIcon className="w-4 h-4 ml-2" /> الإعدادات</Button>
-          </DialogTrigger>
+      <PageHeader
+        icon={MessageCircle}
+        title="WhatsApp"
+        description="إدارة المحادثات وتأكيد الطلبات تلقائياً"
+        iconGradient="from-green-500 to-emerald-500"
+        action={
+          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all gap-2">
+                <SettingsIcon className="w-4 h-4" /> الإعدادات
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>إعدادات WhatsApp (Green API)</DialogTitle></DialogHeader>
             {settings && (
@@ -226,11 +228,12 @@ export default function WhatsAppPage() {
               </div>
             )}
             <DialogFooter>
-              <Button onClick={saveSettings}>حفظ</Button>
+              <Button onClick={saveSettings} className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md">حفظ</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
-      </div>
+          </Dialog>
+        }
+      />
 
       <Card className="grid grid-cols-1 md:grid-cols-[320px_1fr] h-[calc(100dvh-220px)] min-h-[500px] overflow-hidden">
         {/* Conversations list */}
@@ -315,7 +318,7 @@ export default function WhatsAppPage() {
                   rows={1}
                   className="resize-none min-h-10"
                 />
-                <Button onClick={sendMessage} disabled={sending || !input.trim()}>
+                <Button onClick={sendMessage} disabled={sending || !input.trim()} className="bg-green-500 hover:bg-green-600 text-white shadow-md">
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
