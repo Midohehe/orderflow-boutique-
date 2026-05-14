@@ -1042,6 +1042,9 @@ const Orders = () => {
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
                 </Badge>
+                {order.locked_insufficient_balance && (
+                  <Badge variant="destructive" className="gap-1">🔒 محظور — رصيد غير كافٍ</Badge>
+                )}
                 {(() => {
                   const cs = ((order.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
                   return (
@@ -1061,11 +1064,11 @@ const Orders = () => {
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Phone className="w-4 h-4" />
-                  <span dir="ltr">{order.phone}</span>
+                  <span dir="ltr">{order.locked_insufficient_balance ? "•••••••••" : order.phone}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
-                  {order.address}، {order.city}
+                  {order.locked_insufficient_balance ? "••••••••••" : `${order.address}، ${order.city}`}
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
