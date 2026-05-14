@@ -687,7 +687,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
       )}
 
-      <Button onClick={onSubmit} className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
+      <Button onClick={onSubmit} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-semibold" disabled={isLoading}>
         {isLoading ? "جاري الحفظ..." : submitText}
       </Button>
     </div>
