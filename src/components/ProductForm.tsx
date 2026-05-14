@@ -6,6 +6,7 @@ import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -26,6 +27,7 @@ export interface ProductFormData {
   productCodes: string;
   colors: string;
   sizes: string;
+  warehouseLinked: boolean;
 }
 
 interface ProductFormProps {
