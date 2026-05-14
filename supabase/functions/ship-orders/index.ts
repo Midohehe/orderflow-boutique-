@@ -472,6 +472,11 @@ Deno.serve(async (req) => {
       // Build shipmentProducts. Prefer order_items (multi-product); fall back to legacy single-row fields.
       const items = itemsByOrder.get(o.id) || [];
       const resolveWh = (productId: string | null, color: string | null, size: string | null, code: string | null, directWh: string | null, eoVariantId: string | null = null): number | undefined => {
+        // If product is configured as NOT linked to shipping warehouse, force regular shipment.
+        if (productId) {
+          const p = productsMap.get(productId);
+          if (p && p.warehouse_linked === false) return undefined;
+        }
         if (directWh) {
           const id = whProductByCode.get(String(directWh).trim());
           if (id) return id;
