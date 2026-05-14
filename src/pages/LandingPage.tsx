@@ -800,6 +800,7 @@ const LandingPage = () => {
                         const newQty = Math.max(1, quantity - 1);
                         setQuantity(newQty);
                         setItemVariants(prev => prev.slice(0, newQty));
+                        setSelectedUpsellIndex(null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
                     >
@@ -812,15 +813,20 @@ const LandingPage = () => {
                         const newQty = quantity + 1;
                         setQuantity(newQty);
                         setItemVariants(prev => [...prev, { color: "", size: "", productCode: "" }]);
+                        setSelectedUpsellIndex(null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
                     >
                       +
                     </button>
                   </div>
-                  {quantity > 1 && (
+                  {(quantity > 1 || selectedUpsellIndex !== null) && (
                     <p className="text-sm text-muted-foreground">
-                      الإجمالي: {(parseFloat(product.price) * quantity).toFixed(2)} {storeSettings.currency_symbol}
+                      الإجمالي:{" "}
+                      {selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
+                        ? product.upsell_offers[selectedUpsellIndex].price.toFixed(2)
+                        : (parseFloat(product.price) * quantity).toFixed(2)}{" "}
+                      {storeSettings.currency_symbol}
                     </p>
                   )}
                 </div>
