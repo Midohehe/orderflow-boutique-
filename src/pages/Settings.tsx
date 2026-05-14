@@ -229,6 +229,49 @@ const Settings = () => {
       </Card>
 
       <Card>
+        <CardHeader><CardTitle>المحفظة ورسوم الطلبات</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">عند التفعيل، يُخصم مبلغ ثابت من محفظة المستخدم عن كل طلب جديد. إن لم يكفِ الرصيد، يتم قبول الطلب وقفل بياناته (لا يمكن إرساله للشحن) حتى يشحن المستخدم محفظته.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>رسوم كل طلب</Label>
+              <Input type="number" min="0" step="0.01" value={orderFee} onChange={(e) => setOrderFee(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>تفعيل النظام</Label>
+              <Select value={walletEnabled ? "1" : "0"} onValueChange={(v) => setWalletEnabled(v === "1")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">مفعّل</SelectItem>
+                  <SelectItem value="0">معطّل</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button onClick={async () => {
+            setSavingWallet(true);
+            try {
+              const payload: any = { order_fee: Number(orderFee) || 0, wallet_enabled: walletEnabled, updated_at: new Date().toISOString() };
+              if (systemNameId) {
+                const { error } = await supabase.from("app_settings").update(payload).eq("id", systemNameId);
+                if (error) throw error;
+              } else {
+                const { data, error } = await supabase.from("app_settings").insert({ system_name: systemName || "النظام", ...payload }).select("id").single();
+                if (error) throw error;
+                setSystemNameId(data.id);
+              }
+              toast({ title: "تم", description: "تم حفظ إعدادات المحفظة" });
+            } catch (e: any) {
+              toast({ title: "خطأ", description: e.message, variant: "destructive" });
+            } finally { setSavingWallet(false); }
+          }} disabled={savingWallet}>
+            {savingWallet ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
+            حفظ
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> إضافة مستخدم جديد</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2"><Label>البريد الإلكتروني</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
