@@ -845,6 +845,28 @@ const Orders = () => {
   const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
   const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received");
+  const unpackedSearchNorm = unpackedSearch.trim().toLowerCase();
+  const unpackedOrders = orders.filter((o) => {
+    if (o.status !== "unpacked") return false;
+    if (unpackedSearchNorm) {
+      const matches =
+        (o.shipping_reference || "").toLowerCase().includes(unpackedSearchNorm) ||
+        (o.phone || "").toLowerCase().includes(unpackedSearchNorm) ||
+        (o.customer_name || "").toLowerCase().includes(unpackedSearchNorm);
+      if (!matches) return false;
+    }
+    if (unpackedDateFrom) {
+      const from = new Date(unpackedDateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(o.created_at) < from) return false;
+    }
+    if (unpackedDateTo) {
+      const to = new Date(unpackedDateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(o.created_at) > to) return false;
+    }
+    return true;
+  });
 
   // Delivery rate by confirmation status — only orders that were sent to shipping
   const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
