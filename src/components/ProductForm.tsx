@@ -6,6 +6,7 @@ import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -26,6 +27,7 @@ export interface ProductFormData {
   productCodes: string;
   colors: string;
   sizes: string;
+  warehouseLinked: boolean;
 }
 
 interface ProductFormProps {
@@ -342,6 +344,21 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       {/* Optional Variant Fields */}
       <div className="border-t pt-6 mt-6">
         <h3 className="text-lg font-semibold mb-4">خيارات المنتج (اختياري)</h3>
+
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30 mb-4">
+          <div className="flex-1 min-w-0">
+            <Label className="block">مرتبط بالتخزين بشركة التوصيل</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              عند التفعيل: تُرسل الطلبية لشركة الشحن مع خصم المنتج من مخزنها لديها.
+              عند الإيقاف: تُرسل كطلبية عادية ويُكتب وصف المنتج في خانة الوصف فقط دون ربط بمخزن الشركة.
+            </p>
+          </div>
+          <Switch
+            checked={product.warehouseLinked !== false}
+            onCheckedChange={(v) => updateField("warehouseLinked", v)}
+          />
+        </div>
+
         <p className="text-sm text-muted-foreground mb-4">
           أضف هذه الخيارات إذا كان للمنتج أكواد أو ألوان أو مقاسات متعددة
         </p>

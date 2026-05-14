@@ -664,6 +664,7 @@ export type Database = {
           variant_easyorders_ids: Json
           variant_stock: Json
           variant_warehouse_codes: Json
+          warehouse_linked: boolean
         }
         Insert: {
           colors?: string[] | null
@@ -686,6 +687,7 @@ export type Database = {
           variant_easyorders_ids?: Json
           variant_stock?: Json
           variant_warehouse_codes?: Json
+          warehouse_linked?: boolean
         }
         Update: {
           colors?: string[] | null
@@ -708,6 +710,7 @@ export type Database = {
           variant_easyorders_ids?: Json
           variant_stock?: Json
           variant_warehouse_codes?: Json
+          warehouse_linked?: boolean
         }
         Relationships: []
       }

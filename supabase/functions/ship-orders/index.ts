@@ -123,16 +123,17 @@ Deno.serve(async (req) => {
 
     // Fetch products to look up per-variant warehouse code (shipping company storage code)
     const productIds = Array.from(new Set((orders || []).map((o: any) => o.product_id).filter(Boolean)));
-    const productsMap = new Map<string, { variant_warehouse_codes: Record<string, string>; variant_easyorders_ids: Record<string, string>; colors: string[]; sizes: string[]; product_codes: string[] }>();
+    const productsMap = new Map<string, { variant_warehouse_codes: Record<string, string>; variant_easyorders_ids: Record<string, string>; colors: string[]; sizes: string[]; product_codes: string[]; warehouse_linked: boolean }>();
     if (productIds.length > 0) {
       const { data: prods } = await admin
         .from("products")
-        .select("id, variant_warehouse_codes, variant_easyorders_ids, colors, sizes, product_codes")
+        .select("id, variant_warehouse_codes, variant_easyorders_ids, colors, sizes, product_codes, warehouse_linked")
         .in("id", productIds);
       (prods || []).forEach((p: any) => productsMap.set(p.id, {
         variant_warehouse_codes: p.variant_warehouse_codes || {},
         variant_easyorders_ids: p.variant_easyorders_ids || {},
         colors: p.colors || [], sizes: p.sizes || [], product_codes: p.product_codes || [],
+        warehouse_linked: p.warehouse_linked !== false,
       }));
     }
 
@@ -153,12 +154,13 @@ Deno.serve(async (req) => {
       if (extraIds.length > 0) {
         const { data: extra } = await admin
           .from("products")
-          .select("id, variant_warehouse_codes, variant_easyorders_ids, colors, sizes, product_codes")
+          .select("id, variant_warehouse_codes, variant_easyorders_ids, colors, sizes, product_codes, warehouse_linked")
           .in("id", extraIds);
         (extra || []).forEach((p: any) => productsMap.set(p.id, {
           variant_warehouse_codes: p.variant_warehouse_codes || {},
           variant_easyorders_ids: p.variant_easyorders_ids || {},
           colors: p.colors || [], sizes: p.sizes || [], product_codes: p.product_codes || [],
+          warehouse_linked: p.warehouse_linked !== false,
         }));
       }
     }
@@ -470,6 +472,11 @@ Deno.serve(async (req) => {
       // Build shipmentProducts. Prefer order_items (multi-product); fall back to legacy single-row fields.
       const items = itemsByOrder.get(o.id) || [];
       const resolveWh = (productId: string | null, color: string | null, size: string | null, code: string | null, directWh: string | null, eoVariantId: string | null = null): number | undefined => {
+        // If product is configured as NOT linked to shipping warehouse, force regular shipment.
+        if (productId) {
+          const p = productsMap.get(productId);
+          if (p && p.warehouse_linked === false) return undefined;
+        }
         if (directWh) {
           const id = whProductByCode.get(String(directWh).trim());
           if (id) return id;

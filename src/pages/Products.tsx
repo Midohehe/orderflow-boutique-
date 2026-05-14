@@ -49,6 +49,7 @@ const emptyFormData: ProductFormData = {
   productCodes: "",
   colors: "",
   sizes: "",
+  warehouseLinked: true,
 };
 
 const Products = () => {
@@ -254,6 +255,7 @@ const Products = () => {
         variant_easyorders_ids: Object.fromEntries(
           variantKeys.map((k) => [k, (newProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
+      warehouse_linked: newProduct.warehouseLinked !== false,
       }).select("id").single();
 
       if (error) {
@@ -368,6 +370,7 @@ const Products = () => {
         variant_easyorders_ids: Object.fromEntries(
           variantKeys.map((k) => [k, (editProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
+      warehouse_linked: editProduct.warehouseLinked !== false,
       };
       if (imagesChanged) updatePayload.images = editProduct.images;
 
@@ -447,6 +450,7 @@ const Products = () => {
       productCodes: product.product_codes?.join(", ") || "",
       colors: product.colors?.join(", ") || "",
       sizes: product.sizes?.join(", ") || "",
+      warehouseLinked: true,
     });
     setIsEditOpen(true);
 
@@ -455,7 +459,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids, warehouse_linked")
           .eq("id", product.id)
           .single()
       );
@@ -485,6 +489,7 @@ const Products = () => {
               Object.entries((data as any).variant_easyorders_ids as Record<string, any>).map(([k, v]) => [k, String(v)])
             )
           : {},
+        warehouseLinked: (data as any).warehouse_linked !== false,
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
