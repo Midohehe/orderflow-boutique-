@@ -114,6 +114,7 @@ const LandingPage = () => {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
+  const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
   
   
