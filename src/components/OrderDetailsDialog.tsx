@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, Link2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Link2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { isolateLatin } from "@/lib/bidi";
@@ -342,6 +342,16 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
+        ) : data.locked_insufficient_balance ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+            <div className="p-3 rounded-full bg-destructive/10 text-destructive">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h3 className="font-bold text-foreground">الطلب مقفل</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              تم إخفاء بيانات هذا الطلب لأن رصيد محفظتك غير كافٍ. اشحن محفظتك بكرت شحن لفتح الطلب وعرض/تعديل بياناته.
+            </p>
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -510,7 +520,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={save} disabled={saving || loading}>
+          <Button onClick={save} disabled={saving || loading || !!data?.locked_insufficient_balance}>
             {saving && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
             حفظ التعديلات
           </Button>
