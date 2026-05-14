@@ -363,7 +363,7 @@ const Orders = () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
-        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes] = await Promise.all([
+        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
           supabase
             .from("orders")
             .select(ORDER_SELECT_COLS)
@@ -376,6 +376,9 @@ const Orders = () => {
             : Promise.resolve({ data: null } as any),
           uid
             ? supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+          uid
+            ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
         ]);
         if (cancelled) return;
