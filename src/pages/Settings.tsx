@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, KeyRound, CalendarPlus, Power, Save, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, UserPlus, Trash2, KeyRound, Power, Save, Settings as SettingsIcon } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -22,7 +22,6 @@ interface ManagedUser {
   full_name: string | null;
   email: string | null;
   is_active: boolean;
-  subscription_ends_at: string | null;
   roles: string[];
 }
 
@@ -32,16 +31,12 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
-    email: "", password: "", username: "", full_name: "", duration_months: "1",
+    email: "", password: "", username: "", full_name: "",
   });
   const [resetPwd, setResetPwd] = useState<{ user_id: string; password: string } | null>(null);
-  const [extendUser, setExtendUser] = useState<{ user_id: string; months: string } | null>(null);
   const [systemName, setSystemName] = useState("");
   const [systemNameId, setSystemNameId] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
-  const [subPrice, setSubPrice] = useState("0");
-  const [subCurrency, setSubCurrency] = useState("د.ل");
-  const [savingPrice, setSavingPrice] = useState(false);
   const [orderFee, setOrderFee] = useState("0");
   const [walletEnabled, setWalletEnabled] = useState(false);
   const [savingWallet, setSavingWallet] = useState(false);
@@ -71,36 +66,16 @@ const Settings = () => {
     if (!ctxLoading && isAdmin) {
       refresh();
       (async () => {
-        const { data } = await supabase.from("app_settings").select("id, system_name, subscription_price, subscription_currency, order_fee, wallet_enabled").limit(1).maybeSingle();
+        const { data } = await supabase.from("app_settings").select("id, system_name, order_fee, wallet_enabled").limit(1).maybeSingle();
         if (data) {
           setSystemName(data.system_name || "");
           setSystemNameId(data.id);
-          setSubPrice(String(data.subscription_price ?? 0));
-          setSubCurrency(data.subscription_currency || "د.ل");
           setOrderFee(String((data as any).order_fee ?? 0));
           setWalletEnabled(Boolean((data as any).wallet_enabled));
         }
       })();
     } else if (!ctxLoading) setLoading(false);
   }, [ctxLoading, isAdmin]);
-
-  const saveSubPrice = async () => {
-    setSavingPrice(true);
-    try {
-      const payload = { subscription_price: Number(subPrice) || 0, subscription_currency: subCurrency, updated_at: new Date().toISOString() };
-      if (systemNameId) {
-        const { error } = await supabase.from("app_settings").update(payload).eq("id", systemNameId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase.from("app_settings").insert({ system_name: systemName || "النظام", ...payload }).select("id").single();
-        if (error) throw error;
-        setSystemNameId(data.id);
-      }
-      toast({ title: "تم", description: "تم حفظ سعر الاشتراك" });
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
-    } finally { setSavingPrice(false); }
-  };
 
   const saveSystemName = async () => {
     setSavingName(true);
@@ -128,24 +103,12 @@ const Settings = () => {
     try {
       await callApi("create", form);
       toast({ title: "تم", description: "تم إنشاء المستخدم بنجاح" });
-      setForm({ email: "", password: "", username: "", full_name: "", duration_months: "1" });
+      setForm({ email: "", password: "", username: "", full_name: "" });
       refresh();
     } catch (e: any) {
       toast({ title: "خطأ", description: e.message, variant: "destructive" });
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleExtend = async () => {
-    if (!extendUser) return;
-    try {
-      await callApi("extend", { user_id: extendUser.user_id, duration_months: extendUser.months });
-      toast({ title: "تم", description: "تم تمديد الاشتراك" });
-      setExtendUser(null);
-      refresh();
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
     }
   };
 
