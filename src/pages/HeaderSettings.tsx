@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, LayoutTemplate } from "lucide-react";
+import AccountInfoCard from "@/components/AccountInfoCard";
 
 interface HeaderSettingsRow {
   id: string;
@@ -105,6 +106,8 @@ const HeaderSettings = () => {
           <p className="text-sm text-muted-foreground">عدّل شعار المتجر، التواصل، وروابط السوشيال ميديا</p>
         </div>
       </div>
+
+      <AccountInfoCard />
 
       <Card className="card-shadow">
         <CardHeader>
