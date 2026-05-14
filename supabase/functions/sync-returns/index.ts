@@ -69,8 +69,9 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // قوائم تسليم المرتجعات لدى شركة الشحن (مثل RTRN-7-001736)
-    const returnTypeCode = "RTRN";
+    // قوائم تسليم المرتجعات من شركة الشحن تبدأ بـ RTRN
+    // نجلب CUSTM ثم نصفّي القوائم التي كودها يبدأ بـ RTRN
+    const returnTypeCode = "CUSTM";
 
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
@@ -99,6 +100,11 @@ Deno.serve(async (req) => {
       page += 1;
       if (page > 50) break;
     }
+
+    // احتفظ فقط بقوائم المرتجعات (كود يبدأ بـ RTRN)
+    const rtrnPayments = allPayments.filter((p) =>
+      typeof p?.code === "string" && p.code.toUpperCase().startsWith("RTRN")
+    );
 
     const rows = allPayments.map((p) => ({
       owner_id: ownerId,
