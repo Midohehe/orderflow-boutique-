@@ -1388,7 +1388,7 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="pending" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span className="hidden sm:inline">قيد الانتظار</span> ({pendingOrders.length})
@@ -1412,6 +1412,10 @@ const Orders = () => {
           <TabsTrigger value="returned_received" className="flex items-center gap-2">
             <Undo2 className="w-4 h-4" />
             <span className="hidden sm:inline">المرتجعات المؤكدة</span> ({returnedReceivedOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="deleted" className="flex items-center gap-2">
+            <Archive className="w-4 h-4" />
+            <span className="hidden sm:inline">محذوفة</span> ({deletedOrders.length})
           </TabsTrigger>
         </TabsList>
 
