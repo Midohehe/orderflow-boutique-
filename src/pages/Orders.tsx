@@ -626,11 +626,11 @@ const Orders = () => {
   const handleBulkDelete = async (orderIds: string[]) => {
     if (orderIds.length === 0) return;
     try {
-      const { error } = await supabase.from("orders").delete().in("id", orderIds);
+      const { error } = await supabase.from("orders").update({ is_deleted: true }).in("id", orderIds);
       if (error) throw error;
-      setOrders((prev) => prev.filter((o) => !orderIds.includes(o.id)));
+      setOrders((prev) => prev.map((o) => orderIds.includes(o.id) ? { ...o, is_deleted: true } : o));
       setSelectedOrders((prev) => prev.filter((id) => !orderIds.includes(id)));
-      toast({ title: "تم الحذف", description: `تم حذف ${orderIds.length} طلب. لا تؤثر هذه الطلبات على الأرباح أو المشتريات.` });
+      toast({ title: "تم النقل للمحذوفة", description: `تم نقل ${orderIds.length} طلب لقائمة المحذوفة. يمكنك استرجاعها لاحقًا.` });
     } catch (e) {
       console.error(e);
       toast({ title: "خطأ", description: "حدث خطأ أثناء الحذف", variant: "destructive" });
@@ -641,17 +641,17 @@ const Orders = () => {
     try {
       const { error } = await supabase
         .from("orders")
-        .delete()
+        .update({ is_deleted: true })
         .eq("id", orderId);
 
       if (error) throw error;
 
-      setOrders(orders.filter((order) => order.id !== orderId));
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, is_deleted: true } : o));
       setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
       
       toast({
-        title: "تم الحذف",
-        description: "تم حذف الطلب بنجاح",
+        title: "تم النقل للمحذوفة",
+        description: "نُقل الطلب لقائمة المحذوفة. يمكنك استرجاعه لاحقًا.",
       });
     } catch (error) {
       console.error("Error deleting order:", error);
@@ -660,6 +660,20 @@ const Orders = () => {
         description: "حدث خطأ أثناء حذف الطلب",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleRestoreOrder = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ is_deleted: false, status: "pending" })
+        .eq("id", orderId);
+      if (error) throw error;
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, is_deleted: false, status: "pending" } : o));
+      toast({ title: "تم الاسترجاع", description: "أُعيد الطلب إلى قيد الانتظار." });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر الاسترجاع", variant: "destructive" });
     }
   };
 
