@@ -19,6 +19,7 @@ interface OrderPayload {
   selected_size?: string | null;
   selected_product_code?: string | null;
   shipping_included?: boolean;
+  upsell_index?: number | null;
 }
 
 function s(v: unknown, max = 200): string {
@@ -33,7 +34,11 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as OrderPayload;
 
     const product_id = s(body.product_id, 64);
-    const quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
+    let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
+    const upsellIndex =
+      body.upsell_index === null || body.upsell_index === undefined
+        ? null
+        : Math.floor(Number(body.upsell_index));
     const customer_name = s(body.customer_name, 120);
     const phone = s(body.phone, 40);
     const address = s(body.address, 500);
@@ -54,7 +59,7 @@ Deno.serve(async (req) => {
     // Authoritative price lookup
     const { data: product, error: pErr } = await supabase
       .from("products")
-      .select("id, name, price, is_visible, owner_id")
+      .select("id, name, price, is_visible, owner_id, upsell_enabled, upsell_offers")
       .eq("id", product_id)
       .maybeSingle();
 
@@ -65,7 +70,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const totalPrice = Number(product.price) * quantity;
+    let totalPrice = Number(product.price) * quantity;
+    if (
+      upsellIndex !== null &&
+      (product as any).upsell_enabled &&
+      Array.isArray((product as any).upsell_offers)
+    ) {
+      const offer = (product as any).upsell_offers[upsellIndex];
+      if (offer && Number(offer.quantity) > 0 && Number(offer.price) > 0) {
+        quantity = Math.max(1, Math.min(999, Math.floor(Number(offer.quantity))));
+        totalPrice = Number(offer.price);
+      }
+    }
 
     // Auto-correct city/area against cached shipping zones (fuzzy + AI)
     let matched_zone_id: number | null = null;
