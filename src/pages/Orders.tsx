@@ -732,6 +732,15 @@ const Orders = () => {
       });
       return;
     }
+    const lockedCount = pendingOrders.filter((o) => o.locked_insufficient_balance).length;
+    if (lockedCount > 0 || (walletBalance !== null && walletBalance < 0)) {
+      toast({
+        title: "تنبيه",
+        description: "لا يمكن التصدير — رصيد المحفظة غير كافٍ أو توجد طلبات مقفلة.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // تنسيق ملف الإكسل المطلوب من شركة الشحن
     const excelData = pendingOrders.map((order, index) => {
