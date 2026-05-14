@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Package, Search, Upload, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -186,23 +187,23 @@ const EasyOrdersProducts = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <IntegrationsPanel />
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">منتجات ايزي اوردرز</h1>
-          <p className="text-sm text-muted-foreground">
-            عرض المنتجات والمتغيرات المجلوبة من EasyOrders
-          </p>
-        </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="ابحث بالاسم أو SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pr-9"
-          />
-        </div>
-      </div>
+      <PageHeader
+        icon={Package}
+        title="منتجات ايزي اوردرز"
+        description="عرض المنتجات والمتغيرات المجلوبة من EasyOrders"
+        iconGradient="from-fuchsia-500 to-purple-600"
+        action={
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="ابحث بالاسم أو SKU..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pr-9"
+            />
+          </div>
+        }
+      />
 
       <Card>
         <CardHeader>
