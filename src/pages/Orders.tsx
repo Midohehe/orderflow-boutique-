@@ -842,7 +842,6 @@ const Orders = () => {
     return true;
   });
   const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
-  const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
   const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received");
   const unpackedSearchNorm = unpackedSearch.trim().toLowerCase();
