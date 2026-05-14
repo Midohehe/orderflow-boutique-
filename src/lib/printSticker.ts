@@ -138,9 +138,10 @@ export const buildStickerHtml = (
   const stickers = orders.map((order) => {
     const rows = enabledFields.map((f) => {
       if (f.key === "shipping_reference" && settings.show_barcode) {
-        return `<div class="sticker-row sticker-barcode-row">
+        const bcId = `bc-${order.id}-${Math.random().toString(36).slice(2, 9)}`;
+        return `<div class="sticker-row sticker-barcode-row" data-barcode="${escape(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName))}" id="${bcId}">
           <div class="sticker-label">${escape(f.label)}</div>
-          ${renderBarcode(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName))}
+          ${renderBarcode(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName), bcId)}
         </div>`;
       }
       const val = renderValue(f.key, order, ctx.currencySymbol, ctx.storeName);
