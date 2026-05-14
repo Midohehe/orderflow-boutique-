@@ -514,10 +514,11 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
 
             <p className="text-xs text-muted-foreground">السعر الإجمالي والمنتج الرئيسي للطلب يُحسبان تلقائياً من المنتجات أعلاه.</p>
           </div>
+          </>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-          <Button onClick={save} disabled={saving || loading || !!data?.locked_insufficient_balance}>
+          <Button onClick={save} disabled={saving || loading}>
             {saving && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
             حفظ التعديلات
           </Button>
