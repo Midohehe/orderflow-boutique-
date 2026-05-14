@@ -69,10 +69,8 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // NOTE: The shipping company's GraphQL API does not expose returns as
-    // standalone "payment lists" — PaymentTypeCode only has CUSTM and DLVBY.
-    // Returns are individual shipments with RTRN status, fetched separately.
-    const returnTypeCode = "CUSTM";
+    // قوائم تسليم المرتجعات لدى شركة الشحن (مثل RTRN-7-001736)
+    const returnTypeCode = "RTRN";
 
     const LIST_QUERY = `query ($input: ListPaymentFilterInput!, $first: Int!, $page: Int) {
       listPayments(input: $input, first: $first, page: $page) {
