@@ -381,6 +381,14 @@ const Products = () => {
           variantKeys.map((k) => [k, (editProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: editProduct.warehouseLinked !== false,
+      upsell_enabled: !!editProduct.upsellEnabled,
+      upsell_offers: (editProduct.upsellOffers || [])
+        .map((o) => ({
+          quantity: Math.max(1, parseInt(o.quantity) || 0),
+          price: Math.max(0, parseFloat(o.price) || 0),
+          label: (o.label || "").trim(),
+        }))
+        .filter((o) => o.quantity > 0 && o.price > 0),
       };
       if (imagesChanged) updatePayload.images = editProduct.images;
 
