@@ -12,6 +12,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import IntegrationsPanel from "@/components/IntegrationsPanel";
 
 interface EoVariant {
   id?: string;
