@@ -35,12 +35,11 @@ const StoreFront = () => {
 
       if (username) {
         const { data: prof } = await supabase
-          .from("profiles").select("user_id, is_active, subscription_ends_at")
+          .from("profiles").select("user_id, is_active")
           .eq("username", username).maybeSingle();
         if (cancelled) return;
         if (!prof) { setNotFound(true); setLoading(false); return; }
-        const expired = prof.subscription_ends_at && new Date(prof.subscription_ends_at) < new Date();
-        if (!prof.is_active || expired) { setNotFound(true); setLoading(false); return; }
+        if (!prof.is_active) { setNotFound(true); setLoading(false); return; }
         resolvedOwnerId = prof.user_id;
         setOwnerId(prof.user_id);
       } else {
