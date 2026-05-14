@@ -353,7 +353,9 @@ const Orders = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ordersRes, currencyRes, mapRes, productsRes] = await Promise.all([
+        const { data: userRes } = await supabase.auth.getUser();
+        const uid = userRes.user?.id;
+        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes] = await Promise.all([
           supabase
             .from("orders")
             .select(ORDER_SELECT_COLS)
@@ -361,6 +363,12 @@ const Orders = () => {
           supabase.from("store_settings").select("currency_symbol").maybeSingle(),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
           supabase.from("products").select("id, name"),
+          uid
+            ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+          uid
+            ? supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle()
+            : Promise.resolve({ data: null } as any),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
@@ -371,6 +379,20 @@ const Orders = () => {
           setProductsMap(pm);
         }
         if (currencyRes.data) setCurrencySymbol(currencyRes.data.currency_symbol);
+        if (stickerRes?.data) {
+          const s: any = stickerRes.data;
+          setStickerSettings({
+            page_width_mm: s.page_width_mm ?? 100,
+            page_height_mm: s.page_height_mm ?? 150,
+            font_size: s.font_size ?? 12,
+            header_text: s.header_text ?? "",
+            footer_text: s.footer_text ?? "",
+            show_barcode: s.show_barcode ?? true,
+            show_logo: s.show_logo ?? false,
+            fields: Array.isArray(s.fields) && s.fields.length > 0 ? s.fields : DEFAULT_STICKER_SETTINGS.fields,
+          });
+        }
+        if (headerRes?.data?.logo_text) setStoreName(headerRes.data.logo_text);
         if (mapRes.data) {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
