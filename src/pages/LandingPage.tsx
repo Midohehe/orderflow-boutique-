@@ -145,6 +145,7 @@ const LandingPage = () => {
   };
 
   useEffect(() => {
+    const ac = new AbortController();
     const loadData = async () => {
       if (!slug) {
         setLoading(false);
@@ -196,6 +197,7 @@ const LandingPage = () => {
 
         const [profileRes, productRes] = await Promise.all([profilePromise, productPromise]);
 
+        if (ac.signal.aborted) return;
         let resolvedOwnerId: string | null = null;
         if (username) {
           const prof = (profileRes as any).data;
