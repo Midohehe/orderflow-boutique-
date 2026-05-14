@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2 } from "lucide-react";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 import {
   AlertDialog,
@@ -841,6 +841,7 @@ const Orders = () => {
   const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
   const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
+  const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received");
 
   // Delivery rate by confirmation status — only orders that were sent to shipping
   const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
@@ -1350,7 +1351,7 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="pending" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span className="hidden sm:inline">قيد الانتظار</span> ({pendingOrders.length})
@@ -1370,6 +1371,10 @@ const Orders = () => {
           <TabsTrigger value="cancelled" className="flex items-center gap-2">
             <XCircle className="w-4 h-4" />
             <span className="hidden sm:inline">ملغي</span> ({cancelledOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="returned_received" className="flex items-center gap-2">
+            <Undo2 className="w-4 h-4" />
+            <span className="hidden sm:inline">المرتجعات المؤكدة</span> ({returnedReceivedOrders.length})
           </TabsTrigger>
         </TabsList>
 
