@@ -528,19 +528,18 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       <div className="border-t pt-6 mt-6">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h3 className="text-lg font-semibold">المخزون *</h3>
-          {hasVariants && whProducts.length > 0 && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                const n = autoLinkWarehouseVariants(true);
-                // no toast import here; visible by updated Selects
-              }}
-            >
-              ربط منتجات المخزن تلقائياً (استبدال)
-            </Button>
-          )}
+        {hasVariants && whProducts.length > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg transition-all"
+            onClick={() => {
+              autoLinkWarehouseVariants(true);
+            }}
+          >
+            ربط منتجات المخزن تلقائياً (استبدال)
+          </Button>
+        )}
         </div>
 
         {hasVariants ? (
