@@ -98,7 +98,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
         setItems(list as ItemRow[]);
       }
       setLoading(false);
-    });
+    })();
   }, [open, orderId]);
 
   const update = (k: string, v: any) => setData((d: any) => ({ ...d, [k]: v }));
