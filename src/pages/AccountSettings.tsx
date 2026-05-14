@@ -1,6 +1,5 @@
 import { UserCircle } from "lucide-react";
 import CityCorrections from "@/components/CityCorrections";
-import AccountInfoCard from "@/components/AccountInfoCard";
 import { useUserContext } from "@/hooks/useUserContext";
 
 const AccountSettings = () => {
@@ -10,10 +9,8 @@ const AccountSettings = () => {
     <div className="space-y-6 max-w-2xl" dir="rtl">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><UserCircle className="w-7 h-7" /> حسابي</h1>
-        <p className="text-muted-foreground">عدّل اسم المستخدم ورابط متجرك</p>
+        <p className="text-muted-foreground">يمكنك تعديل بيانات الحساب من تبويب "هيدر المتجر".</p>
       </div>
-
-      <AccountInfoCard />
 
       {isAdmin && <CityCorrections />}
     </div>
