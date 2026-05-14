@@ -480,6 +480,7 @@ export type Database = {
           created_at: string
           customer_name: string
           id: string
+          is_deleted: boolean
           link_error: string | null
           matched_area_id: number | null
           matched_area_name: string | null
@@ -521,6 +522,7 @@ export type Database = {
           created_at?: string
           customer_name: string
           id?: string
+          is_deleted?: boolean
           link_error?: string | null
           matched_area_id?: number | null
           matched_area_name?: string | null
@@ -562,6 +564,7 @@ export type Database = {
           created_at?: string
           customer_name?: string
           id?: string
+          is_deleted?: boolean
           link_error?: string | null
           matched_area_id?: number | null
           matched_area_name?: string | null
