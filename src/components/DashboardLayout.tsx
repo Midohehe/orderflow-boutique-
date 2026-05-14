@@ -71,6 +71,22 @@ const DashboardLayout = () => {
   const { signOut } = useAuth();
   const { isAdmin, profile } = useUserContext();
   const [storeName, setStoreName] = useState("لوحة التحكم");
+  const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("sidebar_expanded_groups");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleGroup = (gi: number) => {
+    setExpandedGroups((prev) => {
+      const next = { ...prev, [gi]: !prev[gi] };
+      localStorage.setItem("sidebar_expanded_groups", JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     (async () => {
