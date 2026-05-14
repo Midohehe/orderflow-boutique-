@@ -1456,34 +1456,41 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="pending" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-7 h-auto p-1 bg-muted/60 rounded-xl gap-1">
+          <TabsTrigger value="pending" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Clock className="w-4 h-4" />
-            <span className="hidden sm:inline">قيد الانتظار</span> ({pendingOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">قيد الانتظار</span>
+            <span className="text-xs font-bold">({pendingOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="shipped" className="flex items-center gap-2">
+          <TabsTrigger value="shipped" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Truck className="w-4 h-4" />
-            <span className="hidden sm:inline">جاري التوصيل</span> ({shippedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">جاري التوصيل</span>
+            <span className="text-xs font-bold">({shippedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="delivered" className="flex items-center gap-2">
+          <TabsTrigger value="delivered" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-emerald-500 data-[state=active]:to-green-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <CheckCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">تم الاستلام</span> ({deliveredOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">تم الاستلام</span>
+            <span className="text-xs font-bold">({deliveredOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="unpacked" className="flex items-center gap-2">
+          <TabsTrigger value="unpacked" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-teal-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <PackageOpen className="w-4 h-4" />
-            <span className="hidden sm:inline">تم التفريغ</span> ({unpackedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">تم التفريغ</span>
+            <span className="text-xs font-bold">({unpackedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="cancelled" className="flex items-center gap-2">
+          <TabsTrigger value="cancelled" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-rose-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <XCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">ملغي</span> ({cancelledOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">ملغي</span>
+            <span className="text-xs font-bold">({cancelledOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="returned_received" className="flex items-center gap-2">
+          <TabsTrigger value="returned_received" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-fuchsia-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Undo2 className="w-4 h-4" />
-            <span className="hidden sm:inline">المرتجعات المؤكدة</span> ({returnedReceivedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">المرتجعات المؤكدة</span>
+            <span className="text-xs font-bold">({returnedReceivedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="deleted" className="flex items-center gap-2">
+          <TabsTrigger value="deleted" className="flex items-center gap-1.5 py-2 data-[state=active]:bg-gradient-to-br data-[state=active]:from-slate-500 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md transition-all">
             <Archive className="w-4 h-4" />
-            <span className="hidden sm:inline">محذوفة</span> ({deletedOrders.length})
+            <span className="hidden sm:inline text-xs font-medium">محذوفة</span>
+            <span className="text-xs font-bold">({deletedOrders.length})</span>
           </TabsTrigger>
         </TabsList>
 
