@@ -38,6 +38,8 @@ const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const StickerDesigner = lazy(() => import("./pages/StickerDesigner"));
 const Settings = lazy(() => import("./pages/Settings"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
+const Wallet = lazy(() => import("./pages/Wallet"));
+const AdminCards = lazy(() => import("./pages/AdminCards"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -101,6 +103,8 @@ const App = () => {
                 <Route path="sticker-designer" element={<StickerDesigner />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="account" element={<AccountSettings />} />
+                <Route path="wallet" element={<Wallet />} />
+                <Route path="admin-cards" element={<AdminCards />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
