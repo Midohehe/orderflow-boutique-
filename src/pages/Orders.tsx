@@ -1676,6 +1676,40 @@ const Orders = () => {
                   مزامنة حالات الشحن
                 </Button>
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t pt-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={shippedOrders.length > 0 && shippedOrders.every((o) => selectedOrders.includes(o.id))}
+                    onCheckedChange={() => toggleSelectAll(shippedOrders.map((o) => o.id))}
+                  />
+                  <span className="text-sm text-foreground">
+                    تحديد الكل ({selectedOrders.filter((id) => shippedOrders.some((o) => o.id === id)).length} محدد)
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    printOrders(shippedOrders.filter((o) => selectedOrders.includes(o.id)))
+                  }
+                  disabled={selectedOrders.filter((id) => shippedOrders.some((o) => o.id === id)).length === 0}
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  طباعة المحدد
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => printOrders(shippedOrders)}
+                  disabled={shippedOrders.length === 0}
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  طباعة كل الظاهر
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  لتعديل بيانات الستيكر، اذهب إلى "تصميم ستيكر الشحن" من القائمة.
+                </span>
+              </div>
               {carrierSyncResult && (
                 <div className="mt-4 border-t pt-4 space-y-2">
                   <div className="text-sm text-muted-foreground">
