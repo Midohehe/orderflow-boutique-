@@ -297,100 +297,102 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   };
 
   return (
-    <div className="space-y-6 mt-4">
-      {/* Images Upload */}
-      <div className="space-y-2">
-        <Label>صور المنتج *</Label>
+    <div className="space-y-5 mt-4">
+      {/* Images */}
+      <SectionCard icon={ImageIcon} title="صور المنتج" description="ارفع حتى 5 صور — الصورة الأولى هي الرئيسية" iconColor="bg-purple-500">
         <ImageUpload
           images={product.images}
           onImagesChange={(images) => updateField("images", images)}
           maxImages={5}
         />
-      </div>
+      </SectionCard>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>اسم المنتج *</Label>
-          <Input
-            value={product.name}
-            onChange={(e) => updateField("name", e.target.value)}
-            placeholder="أدخل اسم المنتج"
-          />
+      {/* Basic Info */}
+      <SectionCard icon={Tag} title="المعلومات الأساسية" description="اسم المنتج والرابط الفريد" iconColor="bg-blue-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="font-semibold">اسم المنتج <span className="text-red-500">*</span></Label>
+            <Input
+              value={product.name}
+              onChange={(e) => updateField("name", e.target.value)}
+              placeholder="أدخل اسم المنتج"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="font-semibold">رابط المنتج <span className="text-red-500">*</span></Label>
+            <Input
+              value={product.slug}
+              onChange={(e) => updateField("slug", e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
+              placeholder="hair-oil"
+              dir="ltr"
+              className="text-left font-mono"
+            />
+            <p className="text-xs text-muted-foreground">أحرف إنجليزية فقط — مثال: /p/hair-oil</p>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>رابط المنتج *</Label>
-          <Input
-            value={product.slug}
-            onChange={(e) => updateField("slug", e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
-            placeholder="hair-oil"
-            dir="ltr"
-            className="text-left"
-          />
-          <p className="text-xs text-muted-foreground">استخدم أحرف إنجليزية فقط، مثال: /p/hair-oil</p>
-        </div>
-      </div>
+      </SectionCard>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>السعر *</Label>
-          <Input
-            value={product.price}
-            onChange={(e) => updateField("price", e.target.value)}
-            placeholder="99"
-            type="number"
-          />
+      {/* Pricing */}
+      <SectionCard icon={DollarSign} title="التسعير" description="حدد سعر البيع وسعر التكلفة لحساب الأرباح" iconColor="bg-emerald-500">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label className="font-semibold">السعر <span className="text-red-500">*</span></Label>
+            <Input
+              value={product.price}
+              onChange={(e) => updateField("price", e.target.value)}
+              placeholder="99"
+              type="number"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="font-semibold">السعر قبل الخصم</Label>
+            <Input
+              value={product.originalPrice}
+              onChange={(e) => updateField("originalPrice", e.target.value)}
+              placeholder="149"
+              type="number"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="font-semibold">سعر الشراء</Label>
+            <Input
+              value={product.purchasePrice}
+              onChange={(e) => updateField("purchasePrice", e.target.value)}
+              placeholder="0"
+              type="number"
+            />
+            <p className="text-xs text-muted-foreground">يُستخدم لحساب الربح</p>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>السعر قبل الخصم</Label>
-          <Input
-            value={product.originalPrice}
-            onChange={(e) => updateField("originalPrice", e.target.value)}
-            placeholder="149"
-            type="number"
-          />
-        </div>
-      </div>
+      </SectionCard>
 
-      <div className="space-y-2">
-        <Label>سعر الشراء (التكلفة)</Label>
-        <Input
-          value={product.purchasePrice}
-          onChange={(e) => updateField("purchasePrice", e.target.value)}
-          placeholder="0"
-          type="number"
-        />
-        <p className="text-xs text-muted-foreground">يُستخدم لحساب الربح في الحسابات المالية</p>
-      </div>
-
-      <div className="space-y-2">
-        <Label>الوصف التفصيلي</Label>
+      {/* Description */}
+      <SectionCard icon={FileText} title="الوصف التفصيلي" description="أضف وصفاً غنياً مع صور وفيديوهات" iconColor="bg-indigo-500">
         <RichTextEditor
           value={product.description}
           onChange={(value) => updateField("description", value)}
           placeholder="أضف وصف تفصيلي للمنتج مع صور وفيديوهات..."
         />
-      </div>
+      </SectionCard>
 
-      <div className="space-y-2">
-        <Label>المميزات (سطر لكل ميزة)</Label>
+      {/* Features */}
+      <SectionCard icon={Sparkles} title="مميزات المنتج" description="سطر واحد لكل ميزة" iconColor="bg-amber-500">
         <Textarea
           value={product.features}
           onChange={(e) => updateField("features", e.target.value)}
           placeholder="جودة عالية&#10;شحن مجاني&#10;ضمان سنة"
           rows={4}
         />
-      </div>
+      </SectionCard>
 
-      {/* Optional Variant Fields */}
-      <div className="border-t pt-6 mt-6">
-        <h3 className="text-lg font-semibold mb-4">خيارات المنتج (اختياري)</h3>
-
-        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30 mb-4">
+      {/* Variants */}
+      <SectionCard icon={Layers} title="خيارات المنتج" description="ألوان، مقاسات، أو أكواد متعددة (اختياري)" iconColor="bg-pink-500">
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border-2 border-dashed bg-muted/40">
           <div className="flex-1 min-w-0">
-            <Label className="block">مرتبط بالتخزين بشركة التوصيل</Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              عند التفعيل: تُرسل الطلبية لشركة الشحن مع خصم المنتج من مخزنها لديها.
-              عند الإيقاف: تُرسل كطلبية عادية ويُكتب وصف المنتج في خانة الوصف فقط دون ربط بمخزن الشركة.
+            <Label className="block font-semibold">مرتبط بالتخزين بشركة التوصيل</Label>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              عند التفعيل: تُرسل الطلبية لشركة الشحن مع خصم المنتج من مخزنها.
+              عند الإيقاف: تُرسل كطلبية عادية دون ربط بمخزن الشركة.
             </p>
           </div>
           <Switch
@@ -399,41 +401,36 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           />
         </div>
 
-        <p className="text-sm text-muted-foreground mb-4">
-          أضف هذه الخيارات إذا كان للمنتج أكواد أو ألوان أو مقاسات متعددة
-        </p>
-
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label>أكواد المنتج (افصل بين كل كود بفاصلة)</Label>
+            <Label className="font-semibold">أكواد المنتج</Label>
             <Input
               value={product.productCodes}
               onChange={(e) => updateField("productCodes", e.target.value)}
-              placeholder="مثال: SKU-001, SKU-002, SKU-003"
+              placeholder="SKU-001, SKU-002"
               dir="ltr"
-              className="text-left"
+              className="text-left font-mono"
             />
           </div>
-
           <div className="space-y-2">
-            <Label>الألوان المتاحة (افصل بين كل لون بفاصلة)</Label>
+            <Label className="font-semibold">الألوان المتاحة</Label>
             <Input
               value={product.colors}
               onChange={(e) => updateField("colors", e.target.value)}
-              placeholder="مثال: أحمر, أزرق, أسود"
+              placeholder="أحمر, أزرق, أسود"
             />
           </div>
-
           <div className="space-y-2">
-            <Label>المقاسات المتاحة (افصل بين كل مقاس بفاصلة)</Label>
+            <Label className="font-semibold">المقاسات المتاحة</Label>
             <Input
               value={product.sizes}
               onChange={(e) => updateField("sizes", e.target.value)}
-              placeholder="مثال: S, M, L, XL"
+              placeholder="S, M, L, XL"
             />
           </div>
         </div>
-      </div>
+        <p className="text-xs text-muted-foreground">افصل بين القيم بفاصلة (,)</p>
+      </SectionCard>
 
       {/* Upsell Offers */}
       <div className="border-t pt-6 mt-6">
