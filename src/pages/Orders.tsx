@@ -1799,6 +1799,18 @@ const Orders = () => {
             </div>
           )}
         </TabsContent>
+        <TabsContent value="deleted" className="space-y-4">
+          {deletedOrders.length === 0 ? (
+            renderEmptyState(
+              <Archive className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد طلبات محذوفة"
+            )
+          ) : (
+            <div className="space-y-4">
+              {deletedOrders.map((order) => renderOrderCard(order))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
       <OrderDetailsDialog
         orderId={detailsId}
