@@ -558,7 +558,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       {/* Stock Management */}
       <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
         <div className="flex items-center justify-end gap-2 flex-wrap">
-        {hasVariants && whProducts.length > 0 && (
+        {hasVariants && whProducts.length > 0 && product.warehouseLinked !== false && (
           <Button
             type="button"
             size="sm"
@@ -578,15 +578,15 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               أدخل عدد القطع المتوفرة لكل متغير. سيظهر هذا في صفحة المخزون.
             </p>
             {/* Column headers (visible on md+) */}
-            <div className="hidden md:grid md:grid-cols-[1fr_6rem_16rem_18rem] gap-2 px-3 text-xs font-semibold text-muted-foreground">
+            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_6rem_16rem_18rem]" : "md:grid-cols-[1fr_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
               <div>المتغير المحلي</div>
               <div>الكمية</div>
-              <div>منتج المخزن (شركة الشحن)</div>
+              {product.warehouseLinked !== false && <div>منتج المخزن (شركة الشحن)</div>}
               <div>متغير EasyOrders</div>
             </div>
             <div className="grid grid-cols-1 gap-3">
               {variantKeys.map((key) => (
-                <div key={key} className="flex flex-col md:grid md:grid-cols-[1fr_6rem_16rem_18rem] md:items-start gap-2 p-3 border rounded-lg bg-muted/30">
+                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_6rem_16rem_18rem]" : "md:grid-cols-[1fr_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
                   <div className="min-w-0">
                     <div className="text-[10px] text-muted-foreground md:hidden">المتغير المحلي</div>
                     <Label className="block truncate">{key}</Label>
@@ -602,6 +602,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       className="w-full"
                     />
                   </div>
+                  {product.warehouseLinked !== false && (
                   <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">منتج المخزن (شركة الشحن)</div>
                     <SearchableSelect
@@ -628,6 +629,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       ) : null;
                     })()}
                   </div>
+                  )}
                   <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">متغير EasyOrders</div>
                     {eoVariants.length > 0 ? (
