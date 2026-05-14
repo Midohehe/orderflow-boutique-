@@ -404,6 +404,8 @@ const Orders = () => {
           });
         }
         if (headerRes?.data?.logo_text) setStoreName(headerRes.data.logo_text);
+        if (walletRes?.data) setWalletBalance(Number(walletRes.data.balance) || 0);
+        else if (uid) setWalletBalance(0);
         if (mapRes.data) {
           const m: Record<string, string> = {};
           const cm: Record<string, string> = {};
