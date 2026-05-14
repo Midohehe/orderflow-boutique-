@@ -107,6 +107,8 @@ const HeaderSettings = () => {
         </div>
       </div>
 
+      <AccountInfoCard />
+
       <Card className="card-shadow">
         <CardHeader>
           <CardTitle>الهوية</CardTitle>
