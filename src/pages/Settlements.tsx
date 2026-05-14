@@ -9,6 +9,7 @@ import {
 import { RefreshCw, ChevronLeft, CheckCircle2, Wallet, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Settlement {
   id: string;
@@ -84,20 +85,22 @@ const Settlements = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">استلام التسويات المالية</h1>
-          <p className="text-muted-foreground">سداد مستحقات العملاء من شركة الشحن</p>
-        </div>
-        <Button onClick={refreshFromCarrier} disabled={syncing}>
-          {syncing ? (
-            <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-          ) : (
-            <RefreshCw className="w-4 h-4 ml-2" />
-          )}
-          تحديث من شركة الشحن
-        </Button>
-      </div>
+      <PageHeader
+        icon={Wallet}
+        title="استلام التسويات المالية"
+        description="سداد مستحقات العملاء من شركة الشحن"
+        iconGradient="from-emerald-500 to-green-600"
+        action={
+          <Button onClick={refreshFromCarrier} disabled={syncing} className="shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700">
+            {syncing ? (
+              <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 ml-2" />
+            )}
+            تحديث من شركة الشحن
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
