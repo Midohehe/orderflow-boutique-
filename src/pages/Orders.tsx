@@ -146,6 +146,7 @@ const Orders = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [storeName, setStoreName] = useState<string>("");
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
