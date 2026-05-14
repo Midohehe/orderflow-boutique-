@@ -472,8 +472,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             ))}
             <Button
               type="button"
-              variant="secondary"
               size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all"
               onClick={() =>
                 updateField("upsellOffers", [
                   ...(product.upsellOffers || []),
