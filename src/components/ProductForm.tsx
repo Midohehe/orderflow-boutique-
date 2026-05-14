@@ -460,6 +460,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                   type="button"
                   variant="destructive"
                   size="sm"
+                  className="bg-red-500 hover:bg-red-600 text-white border-none shadow-md hover:shadow-lg transition-all"
                   onClick={() => {
                     const next = product.upsellOffers.filter((_, i) => i !== idx);
                     updateField("upsellOffers", next);
@@ -471,8 +472,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             ))}
             <Button
               type="button"
-              variant="secondary"
               size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all"
               onClick={() =>
                 updateField("upsellOffers", [
                   ...(product.upsellOffers || []),
@@ -514,8 +515,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
           <Button
             type="button"
-            variant="secondary"
             size="sm"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg transition-all"
             onClick={() => autoLinkEoVariants(true)}
           >
             ربط المتغيرات تلقائياً (استبدال)
@@ -527,19 +528,18 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       <div className="border-t pt-6 mt-6">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h3 className="text-lg font-semibold">المخزون *</h3>
-          {hasVariants && whProducts.length > 0 && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                const n = autoLinkWarehouseVariants(true);
-                // no toast import here; visible by updated Selects
-              }}
-            >
-              ربط منتجات المخزن تلقائياً (استبدال)
-            </Button>
-          )}
+        {hasVariants && whProducts.length > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg transition-all"
+            onClick={() => {
+              autoLinkWarehouseVariants(true);
+            }}
+          >
+            ربط منتجات المخزن تلقائياً (استبدال)
+          </Button>
+        )}
         </div>
 
         {hasVariants ? (
@@ -687,7 +687,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
       )}
 
-      <Button onClick={onSubmit} className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
+      <Button onClick={onSubmit} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-semibold" disabled={isLoading}>
         {isLoading ? "جاري الحفظ..." : submitText}
       </Button>
     </div>
