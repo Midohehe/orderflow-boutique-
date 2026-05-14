@@ -42,6 +42,9 @@ const Settings = () => {
   const [subPrice, setSubPrice] = useState("0");
   const [subCurrency, setSubCurrency] = useState("د.ل");
   const [savingPrice, setSavingPrice] = useState(false);
+  const [orderFee, setOrderFee] = useState("0");
+  const [walletEnabled, setWalletEnabled] = useState(false);
+  const [savingWallet, setSavingWallet] = useState(false);
 
   const callApi = async (action: string, payload: any = {}) => {
     const { data, error } = await supabase.functions.invoke("admin-manage-users", {
@@ -68,12 +71,14 @@ const Settings = () => {
     if (!ctxLoading && isAdmin) {
       refresh();
       (async () => {
-        const { data } = await supabase.from("app_settings").select("id, system_name, subscription_price, subscription_currency").limit(1).maybeSingle();
+        const { data } = await supabase.from("app_settings").select("id, system_name, subscription_price, subscription_currency, order_fee, wallet_enabled").limit(1).maybeSingle();
         if (data) {
           setSystemName(data.system_name || "");
           setSystemNameId(data.id);
           setSubPrice(String(data.subscription_price ?? 0));
           setSubCurrency(data.subscription_currency || "د.ل");
+          setOrderFee(String((data as any).order_fee ?? 0));
+          setWalletEnabled(Boolean((data as any).wallet_enabled));
         }
       })();
     } else if (!ctxLoading) setLoading(false);
