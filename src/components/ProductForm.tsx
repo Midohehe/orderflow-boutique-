@@ -9,6 +9,44 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ImageIcon,
+  Tag,
+  DollarSign,
+  FileText,
+  Sparkles,
+  Layers,
+  TrendingUp,
+  Link2,
+  Boxes,
+} from "lucide-react";
+
+const SectionCard = ({
+  icon: Icon,
+  title,
+  description,
+  iconColor = "bg-blue-500",
+  children,
+}: {
+  icon: any;
+  title: string;
+  description?: string;
+  iconColor?: string;
+  children: React.ReactNode;
+}) => (
+  <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+    <div className="flex items-start gap-3 px-4 py-3 border-b bg-muted/40">
+      <div className={`w-9 h-9 rounded-lg ${iconColor} text-white flex items-center justify-center shadow-sm shrink-0`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h3 className="text-base font-bold text-foreground leading-tight">{title}</h3>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+    </div>
+    <div className="p-4 space-y-4">{children}</div>
+  </div>
+);
 
 export interface ProductFormData {
   name: string;
