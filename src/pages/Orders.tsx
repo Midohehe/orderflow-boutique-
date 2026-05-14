@@ -321,7 +321,12 @@ const Orders = () => {
       return;
     }
     setShipping(true);
-    const ids = [...selectedOrders];
+    const lockedIds = selectedOrders.filter((id) => orders.find((o) => o.id === id)?.locked_insufficient_balance);
+    const ids = selectedOrders.filter((id) => !orders.find((o) => o.id === id)?.locked_insufficient_balance);
+    if (lockedIds.length > 0) {
+      toast({ title: "تنبيه", description: `تم تجاهل ${lockedIds.length} طلب مقفل بسبب نفاد الرصيد`, variant: "destructive" });
+    }
+    if (ids.length === 0) { setShipping(false); return; }
     setShipProgress({ done: 0, total: ids.length });
     let sent = 0;
     let lastError: string | null = null;
