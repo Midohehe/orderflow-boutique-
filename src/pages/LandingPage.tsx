@@ -825,6 +825,54 @@ const LandingPage = () => {
                   )}
                 </div>
 
+                {/* Upsell Offers */}
+                {product.upsell_enabled && product.upsell_offers && product.upsell_offers.length > 0 && (
+                  <div className="space-y-2 p-3 sm:p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
+                    <Label className="text-sm sm:text-base font-bold text-primary">🎁 عروض خاصة</Label>
+                    <div className="space-y-2">
+                      {product.upsell_offers.map((offer, idx) => {
+                        const selected = selectedUpsellIndex === idx;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              if (selected) {
+                                setSelectedUpsellIndex(null);
+                              } else {
+                                setSelectedUpsellIndex(idx);
+                                setQuantity(offer.quantity);
+                                setItemVariants((prev) => {
+                                  const next = [...prev];
+                                  while (next.length < offer.quantity) next.push({ color: "", size: "", productCode: "" });
+                                  return next.slice(0, offer.quantity);
+                                });
+                              }
+                            }}
+                            className={`w-full text-right p-3 rounded-lg border-2 transition-all flex items-center justify-between gap-3 ${
+                              selected
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-background hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm sm:text-base">
+                                {offer.label || `اشترِ ${offer.quantity} قطع`}
+                              </div>
+                              <div className={`text-xs ${selected ? "opacity-90" : "text-muted-foreground"}`}>
+                                {offer.quantity} قطعة
+                              </div>
+                            </div>
+                            <div className={`text-lg sm:text-xl font-bold whitespace-nowrap ${selected ? "" : "text-primary"}`}>
+                              {offer.price} {storeSettings.currency_symbol}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Product Variants Selection for each item */}
                 {itemVariants.map((item, index) => {
                   const hasVariants = (product.colors && product.colors.length > 0) || 
