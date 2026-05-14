@@ -85,14 +85,17 @@ const DashboardLayout = () => {
     })();
   }, [profile?.user_id]);
 
-  const menuItems = baseMenuItems
-    .filter((item) => !item.adminOnly || isAdmin)
-    .map((item) => {
-      if (item.dynamicStore && profile?.username) {
-        return { ...item, path: `/store/${profile.username}` };
-      }
-      return item;
-    });
+  const menuGroups = baseMenuGroups.map((group) => ({
+    label: group.label,
+    items: group.items
+      .filter((item) => !item.adminOnly || isAdmin)
+      .map((item) => {
+        if (item.dynamicStore && profile?.username) {
+          return { ...item, path: `/store/${profile.username}` };
+        }
+        return item;
+      }),
+  }));
 
   useEffect(() => {
     const syncSidebarWithViewport = () => {
@@ -184,24 +187,36 @@ const DashboardLayout = () => {
 
         {/* Navigation */}
         <nav className="flex-1 p-2 sm:p-3 space-y-1 overflow-y-auto min-h-0 overscroll-contain [-webkit-overflow-scrolling:touch]">
-          {menuItems.map((item) => {
-            const isActive = !item.external && location.pathname === item.path;
-            return (
-              <Button
-                key={item.path}
-                variant="ghost"
-                onClick={() => handleNavigation(item.path, item.external)}
-                className={cn(
-                  "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
-                  !sidebarOpen && "md:justify-center md:px-2"
-                )}
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span className={cn(!sidebarOpen && "md:hidden")}>{item.label}</span>
-              </Button>
-            );
-          })}
+          {menuGroups.map((group, gi) => (
+            <div key={gi} className="space-y-1">
+              {group.label && sidebarOpen && (
+                <div className="px-3 pt-3 pb-1 text-xs font-bold text-sidebar-foreground/60 uppercase tracking-wide">
+                  {group.label}
+                </div>
+              )}
+              {group.label && !sidebarOpen && gi > 0 && (
+                <div className="hidden md:block mx-2 my-2 border-t border-sidebar-border" />
+              )}
+              {group.items.map((item) => {
+                const isActive = !item.external && location.pathname === item.path;
+                return (
+                  <Button
+                    key={item.path}
+                    variant="ghost"
+                    onClick={() => handleNavigation(item.path, item.external)}
+                    className={cn(
+                      "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
+                      !sidebarOpen && "md:justify-center md:px-2"
+                    )}
+                  >
+                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    <span className={cn(!sidebarOpen && "md:hidden")}>{item.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="p-2 sm:p-3 border-t border-sidebar-border space-y-1">
