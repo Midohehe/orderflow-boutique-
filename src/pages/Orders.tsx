@@ -978,6 +978,38 @@ const Orders = () => {
     pendingPhoneCounts[k] = (pendingPhoneCounts[k] || 0) + 1;
   });
 
+  const toStickerOrder = (o: Order): StickerOrder => ({
+    id: o.id,
+    customer_name: o.customer_name,
+    phone: o.phone,
+    address: o.address,
+    city: o.city,
+    matched_zone_name: o.matched_zone_name,
+    matched_area_name: o.matched_area_name,
+    product_name: o.product_name,
+    selected_color: o.selected_color,
+    selected_size: o.selected_size,
+    selected_product_code: o.selected_product_code,
+    quantity: o.quantity ?? null,
+    price: o.price ?? null,
+    shipping_reference: o.shipping_reference ?? null,
+    carrier_status: displayCarrierStatus(o),
+    created_at: o.created_at,
+    local_code: localCodeMap[o.id] || null,
+  });
+
+  const printOrders = (orderList: Order[]) => {
+    if (orderList.length === 0) {
+      toast({ title: "تنبيه", description: "لا توجد طلبات للطباعة", variant: "destructive" });
+      return;
+    }
+    printStickers(
+      orderList.map(toStickerOrder),
+      stickerSettings,
+      { currencySymbol, storeName },
+    );
+  };
+
   const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => (
     <Card
       key={order.id}
