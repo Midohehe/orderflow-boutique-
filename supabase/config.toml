@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.whatsapp-ai-reply]
 verify_jwt = false
+
+[functions.landing-ssr]
+verify_jwt = false
