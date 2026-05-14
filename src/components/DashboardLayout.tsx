@@ -41,13 +41,18 @@ const baseMenuGroups = [
     ],
   },
   {
-    label: null,
+    label: "إعدادات المتجر",
     items: [
       { icon: Crosshair, label: "إعدادات البيكسل", path: "/dashboard/pixel", external: false, adminOnly: false, dynamicStore: false },
       { icon: FileText, label: "نموذج الطلب", path: "/dashboard/order-form", external: false, adminOnly: false, dynamicStore: false },
       { icon: Heart, label: "صفحة الشكر", path: "/dashboard/thank-you", external: false, adminOnly: false, dynamicStore: false },
       { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
+  {
+    label: null,
+    items: [
       { icon: Truck, label: "شركة الشحن", path: "/dashboard/shipping", external: false, adminOnly: false, dynamicStore: false },
       { icon: Printer, label: "تصميم ستيكر الشحن", path: "/dashboard/sticker-designer", external: false, adminOnly: false, dynamicStore: false },
       { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
