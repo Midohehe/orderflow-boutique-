@@ -37,10 +37,7 @@ export const useUserContext = () => {
     })();
   }, [user, authLoading]);
 
-  const subscriptionActive = isAdmin || (
-    profile?.is_active === true &&
-    (!profile?.subscription_ends_at || new Date(profile.subscription_ends_at) > new Date())
-  );
+  const subscriptionActive = isAdmin || profile?.is_active === true;
 
   return { profile, isAdmin, subscriptionActive, loading };
 };
