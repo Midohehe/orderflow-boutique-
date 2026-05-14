@@ -27,6 +27,8 @@ interface Product {
   product_codes?: string[];
   colors?: string[];
   sizes?: string[];
+  upsell_enabled?: boolean;
+  upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
 }
 
 interface PixelSettings {
@@ -184,7 +186,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers";
         const productPromise = supabase
           .from("products")
           .select(productLightSelect)
@@ -220,6 +222,8 @@ const LandingPage = () => {
             product_codes: matched.product_codes || [],
             colors: matched.colors || [],
             sizes: matched.sizes || [],
+            upsell_enabled: !!matched.upsell_enabled,
+            upsell_offers: Array.isArray(matched.upsell_offers) ? matched.upsell_offers : [],
           };
           setProduct(loadedProduct);
 
