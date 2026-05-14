@@ -12,6 +12,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import IntegrationsPanel from "@/components/IntegrationsPanel";
 
 interface EoVariant {
   id?: string;
@@ -184,6 +185,7 @@ const EasyOrdersProducts = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <IntegrationsPanel />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">منتجات ايزي اوردرز</h1>
