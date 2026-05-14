@@ -28,6 +28,8 @@ export interface ProductFormData {
   colors: string;
   sizes: string;
   warehouseLinked: boolean;
+  upsellEnabled: boolean;
+  upsellOffers: Array<{ quantity: string; price: string; label: string }>;
 }
 
 interface ProductFormProps {
