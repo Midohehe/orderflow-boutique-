@@ -67,11 +67,16 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   useEffect(() => {
     if (!open || !orderId) return;
     setLoading(true);
-    Promise.all([
-      supabase.from("orders").select("*").eq("id", orderId).maybeSingle(),
-      supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id").order("name"),
-      supabase.from("order_items").select("*").eq("order_id", orderId).order("created_at"),
-    ]).then(([o, p, it]) => {
+    (async () => {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      const [o, p, it] = await Promise.all([
+        supabase.from("orders").select("*").eq("id", orderId).maybeSingle(),
+        (uid
+          ? supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id").eq("owner_id", uid).order("name")
+          : supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id").order("name")),
+        supabase.from("order_items").select("*").eq("order_id", orderId).order("created_at"),
+      ]);
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
       setData(o.data || null);
       setProducts((p.data || []) as ProductLite[]);
@@ -93,7 +98,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
         setItems(list as ItemRow[]);
       }
       setLoading(false);
-    });
+    })();
   }, [open, orderId]);
 
   const update = (k: string, v: any) => setData((d: any) => ({ ...d, [k]: v }));
