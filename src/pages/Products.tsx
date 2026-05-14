@@ -510,6 +510,14 @@ const Products = () => {
             )
           : {},
         warehouseLinked: (data as any).warehouse_linked !== false,
+        upsellEnabled: !!(data as any).upsell_enabled,
+        upsellOffers: Array.isArray((data as any).upsell_offers)
+          ? ((data as any).upsell_offers as any[]).map((o) => ({
+              quantity: String(o?.quantity ?? ""),
+              price: String(o?.price ?? ""),
+              label: String(o?.label ?? ""),
+            }))
+          : [],
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
