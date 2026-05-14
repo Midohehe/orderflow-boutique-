@@ -50,6 +50,8 @@ const emptyFormData: ProductFormData = {
   colors: "",
   sizes: "",
   warehouseLinked: true,
+  upsellEnabled: false,
+  upsellOffers: [],
 };
 
 const Products = () => {
