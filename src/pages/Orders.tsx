@@ -142,6 +142,8 @@ const Orders = () => {
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
+  const [storeName, setStoreName] = useState<string>("");
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
