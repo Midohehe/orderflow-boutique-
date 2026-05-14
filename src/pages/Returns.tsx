@@ -159,11 +159,16 @@ const Returns = () => {
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">استلام المرتجعات</h1>
-          <p className="text-muted-foreground">استلام البضاعة المرتجعة من شركة الشحن وإعادتها للمخزون</p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md shrink-0">
+            <RefreshCw className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">استلام المرتجعات</h1>
+            <p className="text-sm text-muted-foreground">استلام البضاعة المرتجعة وإعادتها للمخزون</p>
+          </div>
         </div>
-        <Button onClick={refreshFromCarrier} disabled={syncing}>
+        <Button onClick={refreshFromCarrier} disabled={syncing} className="bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all">
           {syncing ? (
             <Loader2 className="w-4 h-4 ml-2 animate-spin" />
           ) : (

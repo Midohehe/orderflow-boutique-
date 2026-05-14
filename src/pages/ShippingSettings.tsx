@@ -486,9 +486,11 @@ const ShippingSettingsPage = () => {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Truck className="w-7 h-7 text-primary" />
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 text-white flex items-center justify-center shadow-md shrink-0">
+          <Truck className="w-5 h-5" />
+        </div>
         <div>
-          <h1 className="text-2xl font-bold">إعدادات شركة الشحن</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">إعدادات شركة الشحن</h1>
           <p className="text-sm text-muted-foreground">Accurate / Turbo Express</p>
         </div>
       </div>
