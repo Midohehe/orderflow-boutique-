@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create") {
-      const { email, password, username, full_name, duration_months } = body;
+      const { email, password, username, full_name } = body;
       if (!email || !password || !username) {
         return new Response(JSON.stringify({ error: "بيانات ناقصة" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
@@ -66,16 +66,12 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: createErr?.message || "فشل الإنشاء" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const newUserId = created.user.id;
-      const months = Number(duration_months) || 1;
-      const ends = new Date();
-      ends.setMonth(ends.getMonth() + months);
-
       const { error: profErr } = await admin.from("profiles").insert({
         user_id: newUserId,
         username,
         full_name: full_name || null,
         subscription_starts_at: new Date().toISOString(),
-        subscription_ends_at: ends.toISOString(),
+        subscription_ends_at: null,
         is_active: true,
       });
       if (profErr) {
@@ -87,14 +83,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "extend") {
-      const { user_id, duration_months } = body;
-      const months = Number(duration_months) || 1;
-      const { data: prof } = await admin.from("profiles").select("subscription_ends_at").eq("user_id", user_id).maybeSingle();
-      const base = prof?.subscription_ends_at && new Date(prof.subscription_ends_at) > new Date()
-        ? new Date(prof.subscription_ends_at)
-        : new Date();
-      base.setMonth(base.getMonth() + months);
-      await admin.from("profiles").update({ subscription_ends_at: base.toISOString(), is_active: true }).eq("user_id", user_id);
+      const { user_id } = body;
+      await admin.from("profiles").update({ subscription_ends_at: null, is_active: true }).eq("user_id", user_id);
       return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
