@@ -18,6 +18,37 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
+    <!-- Pixel/CDN preconnects (warm DNS+TLS for likely third-parties) -->
+    <link rel="dns-prefetch" href="https://connect.facebook.net" />
+    <link rel="dns-prefetch" href="https://analytics.tiktok.com" />
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="https://sc-static.net" />
+
+    <!-- Font: load async with reduced weights to cut FCP/LCP -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" />
+    </noscript>
+
+    <!-- Prefetch likely next route after a successful order -->
+    <link rel="prefetch" href="/thank-you" />
+
+    <!-- Critical inline CSS to paint background instantly (avoid white flash) -->
+    <style>
+      html,body{background:hsl(220 20% 97%);color:hsl(220 30% 15%);font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0}
+      .gpu{transform:translateZ(0);will-change:transform;backface-visibility:hidden}
+    </style>
+
     
     
     <meta property="og:type" content="website" />
