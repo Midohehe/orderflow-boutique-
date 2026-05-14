@@ -1134,26 +1134,11 @@ const Orders = () => {
           </div>
           
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <Select
-              value={order.status}
-              onValueChange={(value) => handleStatusChange(order.id, value as Order["status"])}
-            >
-              <SelectTrigger className="flex-1 md:w-40 md:flex-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">قيد الانتظار</SelectItem>
-                <SelectItem value="shipped">جاري التوصيل</SelectItem>
-                <SelectItem value="delivered">تم الاستلام</SelectItem>
-                <SelectItem value="cancelled">ملغي</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Button variant="outline" size="icon" onClick={() => setDetailsId(order.id)} title="تفاصيل وتعديل">
               <Eye className="w-4 h-4" />
             </Button>
             
-            {order.status === "pending" && (
+            {(order.status === "pending" || order.status === "shipped") && !order.is_deleted && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="icon">
@@ -1162,9 +1147,9 @@ const Orders = () => {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>هل أنت متأكد من حذف هذا الطلب؟</AlertDialogTitle>
+                    <AlertDialogTitle>نقل الطلب للمحذوفة؟</AlertDialogTitle>
                     <AlertDialogDescription>
-                      سيتم حذف طلب {order.customer_name} نهائياً ولا يمكن التراجع عن هذا الإجراء.
+                      سيتم نقل طلب {order.customer_name} لقائمة المحذوفة. يمكنك استرجاعه لاحقًا من تبويب "محذوفة".
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -1175,6 +1160,18 @@ const Orders = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            )}
+            {order.is_deleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => handleRestoreOrder(order.id)}
+                title="استرجاع لقيد الانتظار"
+              >
+                <RotateCcw className="w-4 h-4" />
+                استرجاع
+              </Button>
             )}
           </div>
         </div>
