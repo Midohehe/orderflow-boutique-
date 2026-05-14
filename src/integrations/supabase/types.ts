@@ -44,27 +44,33 @@ export type Database = {
       app_settings: {
         Row: {
           id: string
+          order_fee: number
           shipping_endpoint: string
           subscription_currency: string
           subscription_price: number
           system_name: string
           updated_at: string
+          wallet_enabled: boolean
         }
         Insert: {
           id?: string
+          order_fee?: number
           shipping_endpoint?: string
           subscription_currency?: string
           subscription_price?: number
           system_name?: string
           updated_at?: string
+          wallet_enabled?: boolean
         }
         Update: {
           id?: string
+          order_fee?: number
           shipping_endpoint?: string
           subscription_currency?: string
           subscription_price?: number
           system_name?: string
           updated_at?: string
+          wallet_enabled?: boolean
         }
         Relationships: []
       }
@@ -482,6 +488,7 @@ export type Database = {
           id: string
           is_deleted: boolean
           link_error: string | null
+          locked_insufficient_balance: boolean
           matched_area_id: number | null
           matched_area_name: string | null
           matched_zone_id: number | null
@@ -524,6 +531,7 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           link_error?: string | null
+          locked_insufficient_balance?: boolean
           matched_area_id?: number | null
           matched_area_name?: string | null
           matched_zone_id?: number | null
@@ -566,6 +574,7 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           link_error?: string | null
+          locked_insufficient_balance?: boolean
           matched_area_id?: number | null
           matched_area_name?: string | null
           matched_zone_id?: number | null
@@ -802,6 +811,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recharge_cards: {
+        Row: {
+          batch_id: string | null
+          batch_label: string | null
+          code: string
+          created_at: string
+          id: string
+          used: boolean
+          used_at: string | null
+          used_by: string | null
+          value: number
+        }
+        Insert: {
+          batch_id?: string | null
+          batch_label?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          used?: boolean
+          used_at?: string | null
+          used_by?: string | null
+          value: number
+        }
+        Update: {
+          batch_id?: string | null
+          batch_label?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          used?: boolean
+          used_at?: string | null
+          used_by?: string | null
+          value?: number
+        }
+        Relationships: []
       }
       return_shipments: {
         Row: {
@@ -1427,6 +1472,71 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          reference_id: string | null
+          type: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reference_id?: string | null
+          type: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reference_id?: string | null
+          type?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           created_at: string
@@ -1581,6 +1691,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_recharge_cards: {
+        Args: { _count: number; _label?: string; _value: number }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1589,6 +1703,7 @@ export type Database = {
         Returns: boolean
       }
       is_subscription_active: { Args: { _user_id: string }; Returns: boolean }
+      redeem_card: { Args: { _code: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "user"
