@@ -1719,6 +1719,18 @@ const Orders = () => {
             </>
           )}
         </TabsContent>
+        <TabsContent value="returned_received" className="space-y-4">
+          {returnedReceivedOrders.length === 0 ? (
+            renderEmptyState(
+              <Undo2 className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد مرتجعات مؤكدة"
+            )
+          ) : (
+            <div className="space-y-4">
+              {returnedReceivedOrders.map((order) => renderOrderCard(order))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
       <OrderDetailsDialog
         orderId={detailsId}
