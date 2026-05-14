@@ -123,6 +123,9 @@ const Orders = () => {
   }>(null);
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
+  const [unpackedDateFrom, setUnpackedDateFrom] = useState<string>("");
+  const [unpackedDateTo, setUnpackedDateTo] = useState<string>("");
+  const [unpackedSearch, setUnpackedSearch] = useState("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
@@ -839,9 +842,30 @@ const Orders = () => {
     return true;
   });
   const deliveredOrders = orders.filter((o) => o.status === "delivered" || o.status === "settled");
-  const unpackedOrders = orders.filter((o) => o.status === "unpacked");
   const cancelledOrders = orders.filter((o) => o.status === "cancelled");
   const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received");
+  const unpackedSearchNorm = unpackedSearch.trim().toLowerCase();
+  const unpackedOrders = orders.filter((o) => {
+    if (o.status !== "unpacked") return false;
+    if (unpackedSearchNorm) {
+      const matches =
+        (o.shipping_reference || "").toLowerCase().includes(unpackedSearchNorm) ||
+        (o.phone || "").toLowerCase().includes(unpackedSearchNorm) ||
+        (o.customer_name || "").toLowerCase().includes(unpackedSearchNorm);
+      if (!matches) return false;
+    }
+    if (unpackedDateFrom) {
+      const from = new Date(unpackedDateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (new Date(o.created_at) < from) return false;
+    }
+    if (unpackedDateTo) {
+      const to = new Date(unpackedDateTo);
+      to.setHours(23, 59, 59, 999);
+      if (new Date(o.created_at) > to) return false;
+    }
+    return true;
+  });
 
   // Delivery rate by confirmation status — only orders that were sent to shipping
   const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
@@ -1648,10 +1672,54 @@ const Orders = () => {
         </TabsContent>
 
         <TabsContent value="unpacked" className="space-y-4">
+          <Card className="card-shadow">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="بحث برقم الطلبية أو الهاتف أو الاسم"
+                    value={unpackedSearch}
+                    onChange={(e) => setUnpackedSearch(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">من:</span>
+                    <Input
+                      type="date"
+                      value={unpackedDateFrom}
+                      onChange={(e) => setUnpackedDateFrom(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">إلى:</span>
+                    <Input
+                      type="date"
+                      value={unpackedDateTo}
+                      onChange={(e) => setUnpackedDateTo(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                  </div>
+                  {(unpackedDateFrom || unpackedDateTo || unpackedSearch) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setUnpackedDateFrom(""); setUnpackedDateTo(""); setUnpackedSearch(""); }}
+                    >
+                      مسح
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           {unpackedOrders.length === 0 ? (
             renderEmptyState(
               <PackageOpen className="w-16 h-16 text-muted-foreground mb-4" />,
-              "لا توجد طلبات تم تفريغها"
+              unpackedSearch.trim() ? "لا توجد نتائج مطابقة" : "لا توجد طلبات تم تفريغها"
             )
           ) : (
             <div className="space-y-4">
