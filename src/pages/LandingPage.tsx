@@ -183,7 +183,7 @@ const LandingPage = () => {
 
         // Run profile + product in parallel
         const profilePromise = username
-          ? supabase.from("profiles").select("user_id, is_active, subscription_ends_at").eq("username", username).maybeSingle()
+          ? supabase.from("profiles").select("user_id, is_active").eq("username", username).maybeSingle()
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
@@ -200,8 +200,7 @@ const LandingPage = () => {
         if (username) {
           const prof = (profileRes as any).data;
           if (!prof) { setLoading(false); return; }
-          const expired = prof.subscription_ends_at && new Date(prof.subscription_ends_at) < new Date();
-          if (!prof.is_active || expired) { setLoading(false); return; }
+          if (!prof.is_active) { setLoading(false); return; }
           resolvedOwnerId = prof.user_id;
           setOwnerId(prof.user_id);
         }
