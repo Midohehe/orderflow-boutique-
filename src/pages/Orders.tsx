@@ -1255,9 +1255,14 @@ const Orders = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">الطلبيات</h1>
-        <p className="text-muted-foreground">إدارة طلبات العملاء</p>
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center shadow-md shrink-0">
+          <Clock className="w-5 h-5" />
+        </div>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">الطلبيات</h1>
+          <p className="text-sm text-muted-foreground">إدارة طلبات العملاء</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
