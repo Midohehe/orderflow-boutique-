@@ -42,6 +42,9 @@ const Settings = () => {
   const [subPrice, setSubPrice] = useState("0");
   const [subCurrency, setSubCurrency] = useState("د.ل");
   const [savingPrice, setSavingPrice] = useState(false);
+  const [orderFee, setOrderFee] = useState("0");
+  const [walletEnabled, setWalletEnabled] = useState(false);
+  const [savingWallet, setSavingWallet] = useState(false);
 
   const callApi = async (action: string, payload: any = {}) => {
     const { data, error } = await supabase.functions.invoke("admin-manage-users", {
@@ -68,12 +71,14 @@ const Settings = () => {
     if (!ctxLoading && isAdmin) {
       refresh();
       (async () => {
-        const { data } = await supabase.from("app_settings").select("id, system_name, subscription_price, subscription_currency").limit(1).maybeSingle();
+        const { data } = await supabase.from("app_settings").select("id, system_name, subscription_price, subscription_currency, order_fee, wallet_enabled").limit(1).maybeSingle();
         if (data) {
           setSystemName(data.system_name || "");
           setSystemNameId(data.id);
           setSubPrice(String(data.subscription_price ?? 0));
           setSubCurrency(data.subscription_currency || "د.ل");
+          setOrderFee(String((data as any).order_fee ?? 0));
+          setWalletEnabled(Boolean((data as any).wallet_enabled));
         }
       })();
     } else if (!ctxLoading) setLoading(false);
@@ -218,6 +223,49 @@ const Settings = () => {
           </div>
           <Button onClick={saveSubPrice} disabled={savingPrice}>
             {savingPrice ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
+            حفظ
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>المحفظة ورسوم الطلبات</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">عند التفعيل، يُخصم مبلغ ثابت من محفظة المستخدم عن كل طلب جديد. إن لم يكفِ الرصيد، يتم قبول الطلب وقفل بياناته (لا يمكن إرساله للشحن) حتى يشحن المستخدم محفظته.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>رسوم كل طلب</Label>
+              <Input type="number" min="0" step="0.01" value={orderFee} onChange={(e) => setOrderFee(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>تفعيل النظام</Label>
+              <Select value={walletEnabled ? "1" : "0"} onValueChange={(v) => setWalletEnabled(v === "1")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">مفعّل</SelectItem>
+                  <SelectItem value="0">معطّل</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Button onClick={async () => {
+            setSavingWallet(true);
+            try {
+              const payload: any = { order_fee: Number(orderFee) || 0, wallet_enabled: walletEnabled, updated_at: new Date().toISOString() };
+              if (systemNameId) {
+                const { error } = await supabase.from("app_settings").update(payload).eq("id", systemNameId);
+                if (error) throw error;
+              } else {
+                const { data, error } = await supabase.from("app_settings").insert({ system_name: systemName || "النظام", ...payload }).select("id").single();
+                if (error) throw error;
+                setSystemNameId(data.id);
+              }
+              toast({ title: "تم", description: "تم حفظ إعدادات المحفظة" });
+            } catch (e: any) {
+              toast({ title: "خطأ", description: e.message, variant: "destructive" });
+            } finally { setSavingWallet(false); }
+          }} disabled={savingWallet}>
+            {savingWallet ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
             حفظ
           </Button>
         </CardContent>

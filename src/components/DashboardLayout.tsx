@@ -17,6 +17,7 @@ const baseMenuGroups = [
     items: [
       { icon: LayoutDashboard, label: "لوحة التحكم", path: "/dashboard", external: false, adminOnly: false, dynamicStore: false },
       { icon: Store, label: "مشاهدة المتجر", path: "/store", external: true, adminOnly: false, dynamicStore: true },
+      { icon: Wallet, label: "محفظتي", path: "/dashboard/wallet", external: false, adminOnly: false, dynamicStore: false },
     ],
   },
   {
@@ -43,6 +44,7 @@ const baseMenuGroups = [
       { icon: Receipt, label: "المصروفات", path: "/dashboard/expenses", external: false, adminOnly: false, dynamicStore: false },
       { icon: ShoppingBag, label: "المشتريات", path: "/dashboard/purchases", external: false, adminOnly: false, dynamicStore: false },
       { icon: Wallet, label: "استلام التسويات المالية", path: "/dashboard/settlements", external: false, adminOnly: false, dynamicStore: false },
+      { icon: SettingsIcon, label: "كروت الشحن (أدمن)", path: "/dashboard/admin-cards", external: false, adminOnly: true, dynamicStore: false },
     ],
   },
   {

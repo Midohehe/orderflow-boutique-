@@ -60,6 +60,7 @@ interface Order {
   postponed_until?: string | null;
   confirmed_at?: string | null;
   is_deleted?: boolean;
+  locked_insufficient_balance?: boolean;
 }
 
 type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
@@ -80,7 +81,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance";
 
 const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
@@ -320,7 +321,12 @@ const Orders = () => {
       return;
     }
     setShipping(true);
-    const ids = [...selectedOrders];
+    const lockedIds = selectedOrders.filter((id) => orders.find((o) => o.id === id)?.locked_insufficient_balance);
+    const ids = selectedOrders.filter((id) => !orders.find((o) => o.id === id)?.locked_insufficient_balance);
+    if (lockedIds.length > 0) {
+      toast({ title: "تنبيه", description: `تم تجاهل ${lockedIds.length} طلب مقفل بسبب نفاد الرصيد`, variant: "destructive" });
+    }
+    if (ids.length === 0) { setShipping(false); return; }
     setShipProgress({ done: 0, total: ids.length });
     let sent = 0;
     let lastError: string | null = null;
@@ -1032,10 +1038,13 @@ const Orders = () => {
                   <Hash className="w-3 h-3 ml-1" />
                   {localCodeMap[order.id] || "—"}
                 </Badge>
-                <h3 className="font-semibold text-foreground">{order.customer_name}</h3>
+                <h3 className="font-semibold text-foreground">{order.locked_insufficient_balance ? "•••••• ••••" : order.customer_name}</h3>
                 <Badge className={statusColors[order.status]}>
                   {statusLabels[order.status]}
                 </Badge>
+                {order.locked_insufficient_balance && (
+                  <Badge variant="destructive" className="gap-1">🔒 محظور — رصيد غير كافٍ</Badge>
+                )}
                 {(() => {
                   const cs = ((order.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
                   return (
@@ -1055,11 +1064,11 @@ const Orders = () => {
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Phone className="w-4 h-4" />
-                  <span dir="ltr">{order.phone}</span>
+                  <span dir="ltr">{order.locked_insufficient_balance ? "•••••••••" : order.phone}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
-                  {order.address}، {order.city}
+                  {order.locked_insufficient_balance ? "••••••••••" : `${order.address}، ${order.city}`}
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
