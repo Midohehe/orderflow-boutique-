@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Save, Printer, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
+import { Loader2, Save, Printer, ArrowUp, ArrowDown, RefreshCw, Sticker } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -146,25 +147,28 @@ const StickerDesigner = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">تصميم ستيكر بيانات الشحنة</h1>
-          <p className="text-muted-foreground">اختر البيانات والترتيب وحجم الورقة قبل الطباعة من تبويب "جاري التوصيل".</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => printStickers([SAMPLE_ORDER], settings, { currencySymbol, storeName })}
-          >
-            <Printer className="w-4 h-4 ml-2" />
-            معاينة الطباعة
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
-            حفظ
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={Sticker}
+        title="تصميم ستيكر بيانات الشحنة"
+        description='اختر البيانات والترتيب وحجم الورقة قبل الطباعة من تبويب "جاري التوصيل".'
+        iconGradient="from-pink-500 to-rose-600"
+        action={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => printStickers([SAMPLE_ORDER], settings, { currencySymbol, storeName })}
+              className="shadow-sm hover:shadow-md transition-shadow"
+            >
+              <Printer className="w-4 h-4 ml-2" />
+              معاينة الطباعة
+            </Button>
+            <Button onClick={handleSave} disabled={saving} className="shadow-md hover:shadow-lg transition-shadow bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700">
+              {saving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
+              حفظ
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-4">
