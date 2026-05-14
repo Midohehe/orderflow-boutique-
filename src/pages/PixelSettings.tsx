@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Crosshair, Facebook, BarChart3, Save, Loader2 } from "lucide-react";
+import { Crosshair, Facebook, BarChart3, Save, Loader2, Activity } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { SectionCard } from "@/components/SectionCard";
 
 interface PixelSettings {
   id?: string;
@@ -142,152 +142,121 @@ const PixelSettingsPage = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">إعدادات البيكسل</h1>
-        <p className="text-muted-foreground">إعداد أكواد التتبع والبيكسل</p>
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-md">
+          <Activity className="w-5 h-5" />
+        </div>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">إعدادات البيكسل</h1>
+          <p className="text-sm text-muted-foreground">إعداد أكواد التتبع والبيكسل</p>
+        </div>
       </div>
 
-      <div className="grid gap-6">
-        {/* Facebook Pixel */}
-        <Card className="card-shadow">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#1877F2]/10 flex items-center justify-center">
-                  <Facebook className="w-5 h-5 text-[#1877F2]" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Facebook Pixel</CardTitle>
-                  <CardDescription>تتبع تحويلات فيسبوك</CardDescription>
-                </div>
-              </div>
-              <Switch
-                checked={pixels.facebook_enabled}
-                onCheckedChange={(checked) => setPixels({ ...pixels, facebook_enabled: checked })}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label>معرف البيكسل</Label>
-              <Input
-                value={pixels.facebook_pixel_id}
-                onChange={(e) => setPixels({ ...pixels, facebook_pixel_id: e.target.value })}
-                placeholder="123456789012345"
-                dir="ltr"
-                disabled={!pixels.facebook_enabled}
-              />
-              <p className="text-xs text-muted-foreground">
-                يمكنك الحصول على معرف البيكسل من Facebook Events Manager
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-5">
+        <SectionCard
+          icon={Facebook}
+          title="Facebook Pixel"
+          description="تتبع تحويلات فيسبوك"
+          iconColor="bg-[#1877F2]"
+          action={
+            <Switch
+              checked={pixels.facebook_enabled}
+              onCheckedChange={(checked) => setPixels({ ...pixels, facebook_enabled: checked })}
+            />
+          }
+        >
+          <div className="space-y-2">
+            <Label className="font-semibold">معرف البيكسل</Label>
+            <Input
+              value={pixels.facebook_pixel_id}
+              onChange={(e) => setPixels({ ...pixels, facebook_pixel_id: e.target.value })}
+              placeholder="123456789012345"
+              dir="ltr"
+              disabled={!pixels.facebook_enabled}
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">من Facebook Events Manager</p>
+          </div>
+        </SectionCard>
 
-        {/* TikTok Pixel */}
-        <Card className="card-shadow">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-foreground/10 flex items-center justify-center">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
-                  </svg>
-                </div>
-                <div>
-                  <CardTitle className="text-lg">TikTok Pixel</CardTitle>
-                  <CardDescription>تتبع تحويلات تيك توك</CardDescription>
-                </div>
-              </div>
-              <Switch
-                checked={pixels.tiktok_enabled}
-                onCheckedChange={(checked) => setPixels({ ...pixels, tiktok_enabled: checked })}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label>معرف البيكسل</Label>
-              <Input
-                value={pixels.tiktok_pixel_id}
-                onChange={(e) => setPixels({ ...pixels, tiktok_pixel_id: e.target.value })}
-                placeholder="XXXXXXXXXXXXX"
-                dir="ltr"
-                disabled={!pixels.tiktok_enabled}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <SectionCard
+          icon={Activity}
+          title="TikTok Pixel"
+          description="تتبع تحويلات تيك توك"
+          iconColor="bg-foreground"
+          action={
+            <Switch
+              checked={pixels.tiktok_enabled}
+              onCheckedChange={(checked) => setPixels({ ...pixels, tiktok_enabled: checked })}
+            />
+          }
+        >
+          <div className="space-y-2">
+            <Label className="font-semibold">معرف البيكسل</Label>
+            <Input
+              value={pixels.tiktok_pixel_id}
+              onChange={(e) => setPixels({ ...pixels, tiktok_pixel_id: e.target.value })}
+              placeholder="XXXXXXXXXXXXX"
+              dir="ltr"
+              disabled={!pixels.tiktok_enabled}
+              className="font-mono"
+            />
+          </div>
+        </SectionCard>
 
-        {/* Google Analytics */}
-        <Card className="card-shadow">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#E37400]/10 flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-[#E37400]" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Google Analytics</CardTitle>
-                  <CardDescription>تحليلات جوجل</CardDescription>
-                </div>
-              </div>
-              <Switch
-                checked={pixels.google_enabled}
-                onCheckedChange={(checked) => setPixels({ ...pixels, google_enabled: checked })}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label>معرف التتبع</Label>
-              <Input
-                value={pixels.google_analytics_id}
-                onChange={(e) => setPixels({ ...pixels, google_analytics_id: e.target.value })}
-                placeholder="G-XXXXXXXXXX"
-                dir="ltr"
-                disabled={!pixels.google_enabled}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <SectionCard
+          icon={BarChart3}
+          title="Google Analytics"
+          description="تحليلات جوجل"
+          iconColor="bg-[#E37400]"
+          action={
+            <Switch
+              checked={pixels.google_enabled}
+              onCheckedChange={(checked) => setPixels({ ...pixels, google_enabled: checked })}
+            />
+          }
+        >
+          <div className="space-y-2">
+            <Label className="font-semibold">معرف التتبع</Label>
+            <Input
+              value={pixels.google_analytics_id}
+              onChange={(e) => setPixels({ ...pixels, google_analytics_id: e.target.value })}
+              placeholder="G-XXXXXXXXXX"
+              dir="ltr"
+              disabled={!pixels.google_enabled}
+              className="font-mono"
+            />
+          </div>
+        </SectionCard>
 
-        {/* Snapchat Pixel */}
-        <Card className="card-shadow">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#FFFC00]/10 flex items-center justify-center">
-                  <Crosshair className="w-5 h-5 text-[#FFFC00]" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Snapchat Pixel</CardTitle>
-                  <CardDescription>تتبع تحويلات سناب شات</CardDescription>
-                </div>
-              </div>
-              <Switch
-                checked={pixels.snapchat_enabled}
-                onCheckedChange={(checked) => setPixels({ ...pixels, snapchat_enabled: checked })}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label>معرف البيكسل</Label>
-              <Input
-                value={pixels.snapchat_pixel_id}
-                onChange={(e) => setPixels({ ...pixels, snapchat_pixel_id: e.target.value })}
-                placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-                dir="ltr"
-                disabled={!pixels.snapchat_enabled}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <SectionCard
+          icon={Crosshair}
+          title="Snapchat Pixel"
+          description="تتبع تحويلات سناب شات"
+          iconColor="bg-yellow-400"
+          action={
+            <Switch
+              checked={pixels.snapchat_enabled}
+              onCheckedChange={(checked) => setPixels({ ...pixels, snapchat_enabled: checked })}
+            />
+          }
+        >
+          <div className="space-y-2">
+            <Label className="font-semibold">معرف البيكسل</Label>
+            <Input
+              value={pixels.snapchat_pixel_id}
+              onChange={(e) => setPixels({ ...pixels, snapchat_pixel_id: e.target.value })}
+              placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+              dir="ltr"
+              disabled={!pixels.snapchat_enabled}
+              className="font-mono"
+            />
+          </div>
+        </SectionCard>
 
-        <Button 
-          onClick={handleSave} 
-          className="w-full md:w-auto gradient-primary text-primary-foreground gap-2"
+        <Button
+          onClick={handleSave}
+          className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2"
           disabled={saving}
         >
           {saving ? (
