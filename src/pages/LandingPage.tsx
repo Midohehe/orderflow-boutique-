@@ -312,6 +312,7 @@ const LandingPage = () => {
     };
 
     loadData();
+    return () => ac.abort();
   }, [slug]);
 
   // Sanitize description in background, after main render
@@ -741,7 +742,7 @@ const LandingPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Product Gallery */}
           <div>
-            <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4">
+            <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
                 <img
                   src={product.images[selectedImage]}
@@ -749,6 +750,8 @@ const LandingPage = () => {
                   className="w-full h-full object-contain"
                   loading="eager"
                   decoding="async"
+                  width={800}
+                  height={800}
                   {...({ fetchpriority: "high" } as any)}
                 />
               ) : (
