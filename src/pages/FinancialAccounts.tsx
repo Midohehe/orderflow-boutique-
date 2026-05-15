@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useUserContext } from "@/hooks/useUserContext";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
@@ -41,6 +42,7 @@ const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#ec4
 const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const FinancialAccounts = () => {
+  const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
@@ -55,17 +57,18 @@ const FinancialAccounts = () => {
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
 
   useEffect(() => {
+    if (ctxLoading || !effectiveOwnerId) return;
     (async () => {
       setLoading(true);
       try {
         const [o, p, oi, e, et, pu, sa] = await Promise.all([
-          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").order("created_at", { ascending: false }),
-          supabase.from("products").select("id, name, purchase_price"),
-          supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity"),
-          supabase.from("expenses").select("id, amount, created_at, expense_type_id"),
-          supabase.from("expense_types").select("id, name"),
-          supabase.from("purchases").select("id, amount, created_at"),
-          supabase.from("safes").select("id, name, balance"),
+          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("owner_id", effectiveOwnerId).order("created_at", { ascending: false }),
+          supabase.from("products").select("id, name, purchase_price").eq("owner_id", effectiveOwnerId).is("deleted_at", null),
+          supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("owner_id", effectiveOwnerId),
+          supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("owner_id", effectiveOwnerId),
+          supabase.from("expense_types").select("id, name").eq("owner_id", effectiveOwnerId),
+          supabase.from("purchases").select("id, amount, created_at").eq("owner_id", effectiveOwnerId),
+          supabase.from("safes").select("id, name, balance").eq("owner_id", effectiveOwnerId),
         ]);
         setOrders((o.data as Order[]) || []);
         setProducts((p.data as ProductRow[]) || []);
@@ -79,7 +82,7 @@ const FinancialAccounts = () => {
         toast({ title: "خطأ", description: "تعذر تحميل البيانات", variant: "destructive" });
       } finally { setLoading(false); }
     })();
-  }, []);
+  }, [effectiveOwnerId, ctxLoading]);
 
   const inDateRange = (iso: string) => {
     const t = new Date(iso).getTime();
@@ -262,7 +265,11 @@ const FinancialAccounts = () => {
     count: acc.count + p.count,
   }), { revenue: 0, cost: 0, profit: 0, count: 0 }), [shippedByProduct]);
 
-  const uniqueProducts = useMemo(() => Array.from(new Set(orders.map(o => o.product_name))).sort(), [orders]);
+  // Dropdown shows only main products from products table (not order names)
+  const uniqueProducts = useMemo(
+    () => products.map(p => p.name).filter(Boolean).sort(),
+    [products]
+  );
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
