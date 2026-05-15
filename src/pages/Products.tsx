@@ -244,10 +244,10 @@ const Products = () => {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price || !newProduct.slug) {
+    if (!newProduct.name || !newProduct.price) {
       toast({
         title: "خطأ",
-        description: "يرجى ملء اسم المنتج والسعر ورابط المنتج",
+        description: "يرجى ملء اسم المنتج والسعر",
         variant: "destructive",
       });
       return;
