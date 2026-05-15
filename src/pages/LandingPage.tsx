@@ -153,25 +153,8 @@ const LandingPage = () => {
       }
 
       try {
-        // Check cache first for non-product data
-        const cachedStoreSettings = getFromCache(CACHE_KEYS.STORE_SETTINGS);
-        const cachedPixelSettings = getFromCache(CACHE_KEYS.PIXEL_SETTINGS);
-        const cachedFormFields = getFromCache(CACHE_KEYS.FORM_FIELDS);
-
-        // Apply cached data immediately for faster initial render
+        // Owner-scoped caches will be read after we resolve the product owner.
         let loadedCurrency = "AED";
-        if (cachedStoreSettings) {
-          setStoreSettings(cachedStoreSettings);
-          loadedCurrency = cachedStoreSettings.currency_code;
-        }
-        if (cachedFormFields) {
-          setFormFields(cachedFormFields);
-          const initialFormData: Record<string, string> = {};
-          cachedFormFields.forEach((field: FormField) => {
-            initialFormData[field.field_key] = "";
-          });
-          setFormData(initialFormData);
-        }
 
         // Cached product for instant render
         const productCacheKey = CACHE_KEYS.PRODUCT + (username || '_') + slug;
@@ -245,44 +228,64 @@ const LandingPage = () => {
         const ownerForSettings = resolvedOwnerId || matched?.owner_id;
         const productResult = { data: matched } as any;
 
-        const pixelPromise = cachedPixelSettings
-          ? Promise.resolve({ data: cachedPixelSettings, error: null })
-          : (ownerForSettings
-              ? supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
-              : supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled").limit(1).maybeSingle());
-        const formFieldsPromise = cachedFormFields
-          ? Promise.resolve({ data: cachedFormFields, error: null })
-          : (ownerForSettings
-              ? supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).eq("owner_id", ownerForSettings).order("sort_order", { ascending: true })
-              : supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).order("sort_order", { ascending: true }));
-        const storePromise = cachedStoreSettings
-          ? Promise.resolve({ data: cachedStoreSettings, error: null })
-          : (ownerForSettings
-              ? supabase.from("store_settings").select("currency_symbol, currency_code").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
-              : supabase.from("store_settings").select("currency_symbol, currency_code").limit(1).maybeSingle());
+        // Owner-scoped cache keys so different stores don't pollute each other's
+        // form fields, store currency, or pixel settings.
+        const ownerSuffix = ownerForSettings || "_";
+        const storeKey = CACHE_KEYS.STORE_SETTINGS + "_" + ownerSuffix;
+        const pixelKey = CACHE_KEYS.PIXEL_SETTINGS + "_" + ownerSuffix;
+        const formKey = CACHE_KEYS.FORM_FIELDS + "_" + ownerSuffix;
+
+        const cachedStoreSettings = getFromCache(storeKey);
+        const cachedPixelSettings = getFromCache(pixelKey);
+        const cachedFormFields = getFromCache(formKey);
+
+        // Apply cache immediately for snappy paint.
+        if (cachedStoreSettings) {
+          setStoreSettings(cachedStoreSettings);
+          loadedCurrency = cachedStoreSettings.currency_code;
+        }
+        if (cachedFormFields) {
+          setFormFields(cachedFormFields);
+          const initialFormData: Record<string, string> = {};
+          (cachedFormFields as FormField[]).forEach((field) => {
+            initialFormData[field.field_key] = "";
+          });
+          setFormData((prev) => ({ ...initialFormData, ...prev }));
+        }
+
+        // Stale-while-revalidate: ALWAYS fetch fresh so admin edits show up.
+        const pixelPromise = ownerForSettings
+          ? supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
+          : supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled").limit(1).maybeSingle();
+        const formFieldsPromise = ownerForSettings
+          ? supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).eq("owner_id", ownerForSettings).order("sort_order", { ascending: true })
+          : supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).order("sort_order", { ascending: true });
+        const storePromise = ownerForSettings
+          ? supabase.from("store_settings").select("currency_symbol, currency_code").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
+          : supabase.from("store_settings").select("currency_symbol, currency_code").limit(1).maybeSingle();
 
         Promise.all([pixelPromise, formFieldsPromise, storePromise]).then(([pixelResult, formFieldsResult, storeSettingsResult]) => {
-          if (!cachedFormFields && formFieldsResult.data) {
+          if (formFieldsResult.data) {
             setFormFields(formFieldsResult.data as FormField[]);
-            setToCache(CACHE_KEYS.FORM_FIELDS, formFieldsResult.data);
+            setToCache(formKey, formFieldsResult.data);
             const initialFormData: Record<string, string> = {};
             (formFieldsResult.data as FormField[]).forEach((field: FormField) => {
               initialFormData[field.field_key] = "";
             });
-            setFormData(initialFormData);
+            setFormData((prev) => ({ ...initialFormData, ...prev }));
           }
 
-          if (!cachedStoreSettings && storeSettingsResult.data) {
+          if (storeSettingsResult.data) {
             loadedCurrency = storeSettingsResult.data.currency_code;
             setStoreSettings({
               currency_symbol: storeSettingsResult.data.currency_symbol,
               currency_code: storeSettingsResult.data.currency_code,
             });
-            setToCache(CACHE_KEYS.STORE_SETTINGS, storeSettingsResult.data);
+            setToCache(storeKey, storeSettingsResult.data);
           }
 
-          if (!cachedPixelSettings && pixelResult.data) {
-            setToCache(CACHE_KEYS.PIXEL_SETTINGS, pixelResult.data);
+          if (pixelResult.data) {
+            setToCache(pixelKey, pixelResult.data);
           }
 
           // Track page view in background (non-blocking)
