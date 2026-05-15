@@ -61,6 +61,7 @@ interface Order {
   confirmed_at?: string | null;
   is_deleted?: boolean;
   locked_insufficient_balance?: boolean;
+  insufficient_stock?: boolean;
 }
 
 type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
