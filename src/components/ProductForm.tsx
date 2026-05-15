@@ -619,6 +619,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           </div>
         )}
       </SectionCard>
+      )}
 
       {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
       <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
