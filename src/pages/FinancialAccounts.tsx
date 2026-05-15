@@ -96,6 +96,7 @@ const FinancialAccounts = () => {
     [orders, dateFrom, dateTo, selectedProduct]
   );
   const deliveredOrders = useMemo(() => filteredOrders.filter(o => o.status === "delivered" || o.status === "settled"), [filteredOrders]);
+  const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
 
@@ -183,6 +184,28 @@ const FinancialAccounts = () => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
   }, [deliveredOrders, productByName]);
+
+  // In-delivery aggregation by product
+  const shippedByProduct = useMemo(() => {
+    const map: Record<string, { revenue: number; cost: number; count: number }> = {};
+    shippedOrders.forEach(o => {
+      const pr = productByName.get(o.product_name);
+      const cost = pr ? Number(pr.purchase_price) : 0;
+      if (!map[o.product_name]) map[o.product_name] = { revenue: 0, cost: 0, count: 0 };
+      map[o.product_name].revenue += Number(o.price) * (1);
+      map[o.product_name].cost += cost;
+      map[o.product_name].count += 1;
+    });
+    return Object.entries(map)
+      .map(([name, v]) => ({ name, ...v, profit: v.revenue - v.cost }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [shippedOrders, productByName]);
+  const shippedTotals = useMemo(() => shippedByProduct.reduce((acc, p) => ({
+    revenue: acc.revenue + p.revenue,
+    cost: acc.cost + p.cost,
+    profit: acc.profit + p.profit,
+    count: acc.count + p.count,
+  }), { revenue: 0, cost: 0, profit: 0, count: 0 }), [shippedByProduct]);
 
   const uniqueProducts = useMemo(() => Array.from(new Set(orders.map(o => o.product_name))).sort(), [orders]);
 
@@ -276,6 +299,7 @@ const FinancialAccounts = () => {
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="trends">الاتجاهات الشهرية</TabsTrigger>
           <TabsTrigger value="products">أداء المنتجات</TabsTrigger>
+          <TabsTrigger value="shipped">جاري التوصيل</TabsTrigger>
           <TabsTrigger value="expenses">تحليل المصروفات</TabsTrigger>
           <TabsTrigger value="orders">تفاصيل الطلبات</TabsTrigger>
         </TabsList>
@@ -408,6 +432,61 @@ const FinancialAccounts = () => {
                     })}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Expenses analysis */}
+        {/* In-delivery (shipped) */}
+        <TabsContent value="shipped" className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KPI icon={ShoppingCart} label="عدد الطلبات قيد التوصيل" value={shippedTotals.count} sub={selectedProduct === "all" ? "كل المنتجات" : selectedProduct} color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
+            <KPI icon={Package} label="إجمالي رأس المال" value={fmt(shippedTotals.cost)} sub="سعر شراء البضاعة" color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
+            <KPI icon={DollarSign} label="إجمالي سعر البيع" value={fmt(shippedTotals.revenue)} sub="القيمة المتوقعة" color="from-green-500/10 to-green-600/5 border-green-500/20" />
+            <KPI icon={TrendingUp} label="الربح المتوقع" value={fmt(shippedTotals.profit)} sub={shippedTotals.revenue > 0 ? `هامش ${((shippedTotals.profit/shippedTotals.revenue)*100).toFixed(1)}%` : ""} color={shippedTotals.profit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
+          </div>
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Package className="w-4 h-4" />تفاصيل المنتجات قيد التوصيل</CardTitle></CardHeader>
+            <CardContent>
+              {shippedByProduct.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">لا توجد طلبات قيد التوصيل</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead className="text-right">المنتج</TableHead>
+                      <TableHead className="text-right">عدد القطع</TableHead>
+                      <TableHead className="text-right">رأس المال (شراء)</TableHead>
+                      <TableHead className="text-right">سعر البيع</TableHead>
+                      <TableHead className="text-right">الربح المتوقع</TableHead>
+                      <TableHead className="text-right">الهامش %</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {shippedByProduct.map(p => {
+                        const m = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+                        return (
+                          <TableRow key={p.name}>
+                            <TableCell className="font-medium">{p.name}</TableCell>
+                            <TableCell>{p.count}</TableCell>
+                            <TableCell className="text-blue-600 font-medium">{fmt(p.cost)}</TableCell>
+                            <TableCell className="text-green-600 font-medium">{fmt(p.revenue)}</TableCell>
+                            <TableCell className={p.profit >= 0 ? "text-emerald-600 font-bold" : "text-red-500 font-bold"}>{fmt(p.profit)}</TableCell>
+                            <TableCell>{m.toFixed(1)}%</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      <TableRow className="bg-muted/40 font-bold">
+                        <TableCell>الإجمالي</TableCell>
+                        <TableCell>{shippedTotals.count}</TableCell>
+                        <TableCell className="text-blue-600">{fmt(shippedTotals.cost)}</TableCell>
+                        <TableCell className="text-green-600">{fmt(shippedTotals.revenue)}</TableCell>
+                        <TableCell className={shippedTotals.profit >= 0 ? "text-emerald-600" : "text-red-500"}>{fmt(shippedTotals.profit)}</TableCell>
+                        <TableCell>{shippedTotals.revenue > 0 ? ((shippedTotals.profit/shippedTotals.revenue)*100).toFixed(1) : "0.0"}%</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
