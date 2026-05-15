@@ -47,6 +47,7 @@ const AdminStoreDetail = lazy(() => import("./pages/AdminStoreDetail"));
 const PermissionGroups = lazy(() => import("./pages/PermissionGroups"));
 const StoreMembers = lazy(() => import("./pages/StoreMembers"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ const App = () => {
               <Route path="/store/:username" element={<StoreFront />} />
               <Route path="/p/:slug" element={<LandingPage />} />
               <Route path="/p/:username/:slug" element={<LandingPage />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/thank-you" element={<ThankYou />} />
               <Route
                 path="/dashboard"

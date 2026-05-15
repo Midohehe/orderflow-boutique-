@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Lock, Mail, Rocket, User, AtSign, CheckCircle2 } from "lucide-react";
+import { Lock, Mail, Rocket, User, AtSign, CheckCircle2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,10 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [systemName, setSystemName] = useState("منصة وصلة");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const navigate = useNavigate();
   const { user, loading, signIn, signUp } = useAuth();
 
@@ -103,6 +107,28 @@ const Login = () => {
     }
   };
 
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail || !z.string().email().safeParse(forgotEmail).success) {
+      toast({ title: "خطأ", description: "أدخل بريد إلكتروني صالح", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      } else {
+        setForgotSent(true);
+        toast({ title: "تم", description: "تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور" });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -151,6 +177,42 @@ const Login = () => {
                 العودة لتسجيل الدخول
               </Button>
             </div>
+          ) : showForgot ? (
+            <div className="space-y-4">
+              {forgotSent ? (
+                <div className="space-y-4 text-center py-4">
+                  <CheckCircle2 className="w-16 h-16 mx-auto text-green-500" />
+                  <div className="space-y-2">
+                    <h2 className="text-lg font-bold text-foreground">تحقق من بريدك</h2>
+                    <p className="text-sm text-muted-foreground">
+                      أرسلنا رابط إعادة تعيين كلمة المرور إلى <span className="font-semibold text-foreground" dir="ltr">{forgotEmail}</span>.
+                    </p>
+                  </div>
+                  <Button variant="outline" className="w-full" onClick={() => { setShowForgot(false); setForgotSent(false); setForgotEmail(""); }}>
+                    العودة لتسجيل الدخول
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button variant="ghost" className="p-0 h-auto text-sm text-muted-foreground hover:text-foreground" onClick={() => setShowForgot(false)}>
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                    العودة لتسجيل الدخول
+                  </Button>
+                  <form onSubmit={handleForgot} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="forgot-email">البريد الإلكتروني</Label>
+                      <div className="relative">
+                        <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input id="forgot-email" type="email" placeholder="example@email.com" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} className="pr-10 text-left" dir="ltr" required />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
+                      {isLoading ? "جاري الإرسال..." : "إرسال رابط إعادة التعيين"}
+                    </Button>
+                  </form>
+                </>
+              )}
+            </div>
           ) : (
             <Tabs value={tab} onValueChange={(v) => setTab(v as "signin" | "signup")} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4">
@@ -168,10 +230,36 @@ const Login = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password-in">كلمة المرور</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password-in">كلمة المرور</Label>
+                      <button
+                        type="button"
+                        onClick={() => setShowForgot(true)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        نسيت كلمة السر؟
+                      </button>
+                    </div>
                     <div className="relative">
                       <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input id="password-in" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pr-10" required minLength={6} />
+                      <Input
+                        id="password-in"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pr-10"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
                   <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
@@ -208,7 +296,24 @@ const Login = () => {
                     <Label htmlFor="password-up">كلمة المرور</Label>
                     <div className="relative">
                       <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input id="password-up" type="password" placeholder="8 أحرف على الأقل" value={password} onChange={(e) => setPassword(e.target.value)} className="pr-10" required minLength={8} />
+                      <Input
+                        id="password-up"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="8 أحرف على الأقل"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pr-10"
+                        required
+                        minLength={8}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
                   <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
