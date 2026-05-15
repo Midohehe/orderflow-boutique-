@@ -238,7 +238,7 @@ const FinancialAccounts = () => {
               <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">جميع المنتجات</SelectItem>
-                {uniqueProducts.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                {uniqueProducts.filter(p => p && p.trim() !== "").map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
