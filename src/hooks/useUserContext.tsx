@@ -16,6 +16,9 @@ export const useUserContext = () => {
   const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [effectiveOwnerId, setEffectiveOwnerId] = useState<string | null>(null);
+  const [isSubUser, setIsSubUser] = useState(false);
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,21 +26,56 @@ export const useUserContext = () => {
     if (!user) {
       setProfile(null);
       setIsAdmin(false);
+      setEffectiveOwnerId(null);
+      setIsSubUser(false);
+      setPermissions(new Set());
       setLoading(false);
       return;
     }
     (async () => {
-      const [{ data: prof }, { data: roles }] = await Promise.all([
+      const [{ data: prof }, { data: roles }, { data: member }] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
+        supabase.from("store_members").select("id, owner_id, group_id").eq("member_user_id", user.id).maybeSingle(),
       ]);
-      setProfile(prof as UserProfile | null);
-      setIsAdmin(!!roles?.some((r: any) => r.role === "admin"));
+      const admin = !!roles?.some((r: any) => r.role === "admin");
+      setIsAdmin(admin);
+
+      if (member) {
+        // Sub-user: load parent profile + permissions
+        setIsSubUser(true);
+        setEffectiveOwnerId(member.owner_id);
+        const { data: parentProf } = await supabase
+          .from("profiles").select("*").eq("user_id", member.owner_id).maybeSingle();
+        setProfile(parentProf as UserProfile | null);
+
+        const perms = new Set<string>();
+        if (member.group_id) {
+          const { data: gPerms } = await supabase
+            .from("permission_group_items").select("permission_key").eq("group_id", member.group_id);
+          (gPerms || []).forEach((p: any) => perms.add(p.permission_key));
+        }
+        const { data: extra } = await supabase
+          .from("store_member_permissions").select("permission_key").eq("member_id", member.id);
+        (extra || []).forEach((p: any) => perms.add(p.permission_key));
+        setPermissions(perms);
+      } else {
+        setProfile(prof as UserProfile | null);
+        setIsSubUser(false);
+        setEffectiveOwnerId(user.id);
+        setPermissions(new Set()); // owner: has all (use hasPermission helper)
+      }
       setLoading(false);
     })();
   }, [user, authLoading]);
 
   const subscriptionActive = isAdmin || profile?.is_active === true;
 
-  return { profile, isAdmin, subscriptionActive, loading };
+  const hasPermission = (key: string) => {
+    if (isAdmin) return true;
+    if (!isSubUser) return true; // store owner = full access
+    return permissions.has(key);
+  };
+
+  return { profile, isAdmin, subscriptionActive, loading, effectiveOwnerId, isSubUser, permissions, hasPermission };
 };
