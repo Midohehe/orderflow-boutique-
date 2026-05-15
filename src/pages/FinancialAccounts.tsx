@@ -96,6 +96,7 @@ const FinancialAccounts = () => {
     [orders, dateFrom, dateTo, selectedProduct]
   );
   const deliveredOrders = useMemo(() => filteredOrders.filter(o => o.status === "delivered" || o.status === "settled"), [filteredOrders]);
+  const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
 
@@ -183,6 +184,28 @@ const FinancialAccounts = () => {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
   }, [deliveredOrders, productByName]);
+
+  // In-delivery aggregation by product
+  const shippedByProduct = useMemo(() => {
+    const map: Record<string, { revenue: number; cost: number; count: number }> = {};
+    shippedOrders.forEach(o => {
+      const pr = productByName.get(o.product_name);
+      const cost = pr ? Number(pr.purchase_price) : 0;
+      if (!map[o.product_name]) map[o.product_name] = { revenue: 0, cost: 0, count: 0 };
+      map[o.product_name].revenue += Number(o.price) * (1);
+      map[o.product_name].cost += cost;
+      map[o.product_name].count += 1;
+    });
+    return Object.entries(map)
+      .map(([name, v]) => ({ name, ...v, profit: v.revenue - v.cost }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [shippedOrders, productByName]);
+  const shippedTotals = useMemo(() => shippedByProduct.reduce((acc, p) => ({
+    revenue: acc.revenue + p.revenue,
+    cost: acc.cost + p.cost,
+    profit: acc.profit + p.profit,
+    count: acc.count + p.count,
+  }), { revenue: 0, cost: 0, profit: 0, count: 0 }), [shippedByProduct]);
 
   const uniqueProducts = useMemo(() => Array.from(new Set(orders.map(o => o.product_name))).sort(), [orders]);
 
