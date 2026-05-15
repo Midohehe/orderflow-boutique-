@@ -53,6 +53,7 @@ const StoreFront = () => {
         .from('products')
         .select('id, name, slug, price, original_price, images')
         .eq('is_visible', true)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (resolvedOwnerId) productsQuery.eq('owner_id', resolvedOwnerId);
 

@@ -658,6 +658,7 @@ export type Database = {
         Row: {
           colors: string[] | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           easyorders_product_id: string | null
           id: string
@@ -683,6 +684,7 @@ export type Database = {
         Insert: {
           colors?: string[] | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           easyorders_product_id?: string | null
           id?: string
@@ -708,6 +710,7 @@ export type Database = {
         Update: {
           colors?: string[] | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           easyorders_product_id?: string | null
           id?: string

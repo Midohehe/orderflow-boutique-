@@ -178,7 +178,8 @@ const LandingPage = () => {
           .from("products")
           .select(productLightSelect)
           .eq("slug", slug)
-          .eq("is_visible", true);
+          .eq("is_visible", true)
+          .is("deleted_at", null);
 
         const [profileRes, productRes] = await Promise.all([profilePromise, productPromise]);
 

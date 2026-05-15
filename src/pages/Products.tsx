@@ -2,7 +2,18 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +77,9 @@ const Products = () => {
   const [editProduct, setEditProduct] = useState<ProductFormData>(emptyFormData);
   const { isAdmin, loading: userLoading } = useUserContext();
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ" });
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const navigate = useNavigate();
 
   const runWithTimeout = async <T,>(request: PromiseLike<T>, timeoutMs = 30000): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -94,6 +108,7 @@ const Products = () => {
         let metaQuery = supabase
           .from("products")
           .select("id, name, slug, price, original_price, purchase_price, is_visible")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false });
         if (!isAdmin) metaQuery = metaQuery.eq("owner_id", user.id);
         const { data: metaData, error: metaError } = await runWithTimeout(metaQuery, 15000);
@@ -119,7 +134,7 @@ const Products = () => {
         setIsLoading(false);
 
         // Phase 2: load images in background (heavy column)
-        let imgQuery = supabase.from("products").select("id, images");
+        let imgQuery = supabase.from("products").select("id, images").is("deleted_at", null);
         if (!isAdmin) imgQuery = imgQuery.eq("owner_id", user.id);
         const { data: imgData } = await imgQuery;
         if (cancelled || !imgData) return;
@@ -163,6 +178,7 @@ const Products = () => {
       let query = supabase
         .from("products")
         .select("id, name, slug, price, original_price, purchase_price, images, is_visible")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (!isAdmin) query = query.eq("owner_id", user.id);
       const { data, error } = await runWithTimeout(query, 30000);
@@ -535,17 +551,23 @@ const Products = () => {
     window.open(`/p/${slug}`, "_blank");
   };
 
-  const handleDelete = async (id: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      const { error } = await supabase.from("products").delete().eq("id", id);
+      const { error } = await supabase
+        .from("products")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", deleteTarget.id);
 
       if (error) throw error;
 
-      await fetchProducts();
+      setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       toast({
-        title: "تم الحذف",
-        description: "تم حذف المنتج بنجاح",
+        title: "تم النقل",
+        description: "تم نقل المنتج إلى سلة المحذوفات",
       });
+      setDeleteTarget(null);
     } catch (error) {
       console.error("Error deleting product:", error);
       toast({
@@ -553,6 +575,8 @@ const Products = () => {
         description: "حدث خطأ أثناء حذف المنتج",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -607,6 +631,15 @@ const Products = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">المنتجات</h1>
           <p className="text-sm text-muted-foreground">إدارة منتجات صفحات الهبوط</p>
         </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <Button
+          variant="outline"
+          className="gap-2 w-full sm:w-auto"
+          onClick={() => navigate("/dashboard/products/trash")}
+        >
+          <Trash2 className="w-4 h-4" />
+          سلة المحذوفات
+        </Button>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
@@ -629,6 +662,7 @@ const Products = () => {
             </Suspense>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Edit Dialog - Full page */}
@@ -755,7 +789,7 @@ const Products = () => {
                   <Button
                     size="sm"
                     className="bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all px-2 sm:px-3"
-                    onClick={() => handleDelete(product.id)}
+                    onClick={() => setDeleteTarget(product)}
                   >
                     <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                   </Button>
@@ -765,6 +799,28 @@ const Products = () => {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف المنتج</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف المنتج «{deleteTarget?.name}»؟
+              سيتم نقله إلى سلة المحذوفات ويمكنك استعادته لاحقاً.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "نقل إلى السلة"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

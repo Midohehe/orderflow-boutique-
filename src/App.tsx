@@ -14,6 +14,7 @@ import DashboardLayout from "./components/DashboardLayout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
+const TrashedProducts = lazy(() => import("./pages/TrashedProducts"));
 const EasyOrdersProducts = lazy(() => import("./pages/EasyOrdersProducts"));
 const Orders = lazy(() => import("./pages/Orders"));
 const PixelSettings = lazy(() => import("./pages/PixelSettings"));
@@ -83,6 +84,7 @@ const App = () => {
               >
                 <Route index element={<Dashboard />} />
                 <Route path="products" element={<Products />} />
+                <Route path="products/trash" element={<TrashedProducts />} />
                 <Route path="easyorders-products" element={<EasyOrdersProducts />} />
                 <Route path="orders" element={<Orders />} />
                 <Route path="financial" element={<FinancialAccounts />} />

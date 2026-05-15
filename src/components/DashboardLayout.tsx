@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
-  Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart,
+  Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2,
   LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const baseMenuGroups = [
     label: "المنتجات",
     items: [
       { icon: Package, label: "المنتجات", path: "/dashboard/products", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Trash2, label: "سلة المحذوفات", path: "/dashboard/products/trash", external: false, adminOnly: false, dynamicStore: false },
       { icon: Boxes, label: "منتجات ايزي اوردرز", path: "/dashboard/easyorders-products", external: false, adminOnly: false, dynamicStore: false },
       { icon: Boxes, label: "المخزون", path: "/dashboard/inventory", external: false, adminOnly: false, dynamicStore: false },
       { icon: ArrowLeftRight, label: "حركة المنتجات", path: "/dashboard/stock-movements", external: false, adminOnly: false, dynamicStore: false },
