@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
@@ -83,6 +83,8 @@ const emptyFormData: ProductFormData = {
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [strictStock, setStrictStock] = useState(false);
+  const [strictSaving, setStrictSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -196,6 +198,15 @@ const Products = () => {
       if (!cancelled && data) {
         setStoreSettings({ currency_symbol: data.currency_symbol });
       }
+    });
+
+    // Load strict-stock toggle for current user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("strict_stock_enabled").eq("user_id", user.id).maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled && data) setStrictStock(!!(data as any).strict_stock_enabled);
+        });
     });
 
     return () => {
@@ -881,6 +892,36 @@ const Products = () => {
           >
             <Trash2 className="w-4 h-4" />
             سلة المحذوفات
+          </Button>
+          <Button
+            variant={strictStock ? "default" : "outline"}
+            className="gap-2 w-full sm:w-auto"
+            disabled={strictSaving}
+            onClick={async () => {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return;
+              const next = !strictStock;
+              setStrictSaving(true);
+              const { error } = await supabase
+                .from("profiles")
+                .update({ strict_stock_enabled: next })
+                .eq("user_id", user.id);
+              setStrictSaving(false);
+              if (error) {
+                toast({ title: "خطأ", description: error.message, variant: "destructive" });
+                return;
+              }
+              setStrictStock(next);
+              toast({
+                title: next ? "تم تفعيل تتبع المخزون الدقيق" : "تم إيقاف تتبع المخزون الدقيق",
+                description: next
+                  ? "سيتم رفض الطلبات الجديدة عند نفاد المخزون"
+                  : "ستُقبل الطلبات حتى لو لم يتوفر المخزون",
+              });
+            }}
+          >
+            {strictStock ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+            {strictStock ? "تتبع المخزون الدقيق: مفعّل" : "تتبع المخزون الدقيق"}
           </Button>
           {activeTab === "products" ? (
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>

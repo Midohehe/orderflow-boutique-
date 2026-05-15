@@ -120,6 +120,53 @@ Deno.serve(async (req) => {
     let skipped = 0;
     const errors: string[] = [];
 
+    // Strict-stock pre-check: if owner enabled it and any line would go negative,
+    // mark the order as cancelled and skip applying decrements.
+    if (body.reason === "order_created") {
+      const { data: ownerProfile } = await admin
+        .from("profiles")
+        .select("strict_stock_enabled")
+        .eq("user_id", (order as any).owner_id)
+        .maybeSingle();
+      const strict = !!(ownerProfile as any)?.strict_stock_enabled;
+
+      // Aggregate by product_id (+ variant) to detect insufficiency
+      let insufficient = false;
+      const prodCache = new Map<string, any>();
+      for (const line of lines) {
+        if (!line.product_id) continue;
+        let prod = prodCache.get(line.product_id);
+        if (!prod) {
+          const { data } = await admin
+            .from("products")
+            .select("id, stock, variant_stock")
+            .eq("id", line.product_id).maybeSingle();
+          prod = data; prodCache.set(line.product_id, data);
+        }
+        if (!prod) continue;
+        const vs = (prod.variant_stock || {}) as Record<string, number>;
+        let avail: number;
+        if (line.variant_key && Object.prototype.hasOwnProperty.call(vs, line.variant_key)) {
+          avail = Number(vs[line.variant_key]) || 0;
+        } else {
+          avail = Number(prod.stock) || 0;
+        }
+        if (line.quantity > avail) { insufficient = true; break; }
+      }
+
+      if (insufficient) {
+        // Always flag the order
+        await admin.from("orders")
+          .update({ insufficient_stock: true, ...(strict ? { status: "cancelled" } : {}) })
+          .eq("id", order.id);
+        if (strict) {
+          return new Response(JSON.stringify({
+            ok: false, blocked: true, reason: "insufficient_stock",
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+    }
+
     for (const line of lines) {
       const qty = sign * line.quantity;
       // Insert ledger row (idempotent via unique index)
@@ -151,9 +198,9 @@ Deno.serve(async (req) => {
           let newStock = Number((prod as any).stock) || 0;
           if (line.variant_key && Object.prototype.hasOwnProperty.call(vs, line.variant_key)) {
             const cur = Number(vs[line.variant_key]) || 0;
-            vs[line.variant_key] = Math.max(0, cur + qty);
+            vs[line.variant_key] = cur + qty; // allow negative
           }
-          newStock = Math.max(0, newStock + qty);
+          newStock = newStock + qty; // allow negative
           await admin.from("products")
             .update({ stock: newStock, variant_stock: vs })
             .eq("id", line.product_id);
