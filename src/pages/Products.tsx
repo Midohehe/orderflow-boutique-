@@ -889,39 +889,66 @@ const Products = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">المنتجات</h1>
-          <p className="text-sm text-muted-foreground">إدارة منتجات صفحات الهبوط</p>
+          <p className="text-sm text-muted-foreground">إدارة المنتجات وصفحات الهبوط</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-        <Button
-          variant="outline"
-          className="gap-2 w-full sm:w-auto"
-          onClick={() => navigate("/dashboard/products/trash")}
-        >
-          <Trash2 className="w-4 h-4" />
-          سلة المحذوفات
-        </Button>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
-              <Plus className="w-4 h-4" />
-              إضافة منتج
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-            <DialogHeader>
-              <DialogTitle>إضافة منتج جديد</DialogTitle>
-            </DialogHeader>
-            <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-              <ProductForm
-                product={newProduct}
-                onProductChange={setNewProduct}
-                onSubmit={handleAddProduct}
-                submitText="إضافة المنتج"
-                isLoading={isSaving}
-              />
-            </Suspense>
-          </DialogContent>
-        </Dialog>
+          <Button
+            variant="outline"
+            className="gap-2 w-full sm:w-auto"
+            onClick={() => navigate("/dashboard/products/trash")}
+          >
+            <Trash2 className="w-4 h-4" />
+            سلة المحذوفات
+          </Button>
+          {activeTab === "products" ? (
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
+                  <Plus className="w-4 h-4" />
+                  إضافة منتج
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle>إضافة منتج جديد</DialogTitle>
+                </DialogHeader>
+                <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+                  <ProductForm
+                    mode="product"
+                    product={newProduct}
+                    onProductChange={setNewProduct}
+                    onSubmit={handleAddProduct}
+                    submitText="إضافة المنتج"
+                    isLoading={isSaving}
+                  />
+                </Suspense>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Dialog open={isLpAddOpen} onOpenChange={(o) => { setIsLpAddOpen(o); if (!o) setNewLp(emptyLandingPageData); }}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
+                  <Plus className="w-4 h-4" />
+                  إنشاء صفحة هبوط
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle>إنشاء صفحة هبوط جديدة</DialogTitle>
+                </DialogHeader>
+                <LandingPageForm
+                  data={newLp}
+                  onChange={setNewLp}
+                  onSubmit={handleAddLp}
+                  submitText="إنشاء الصفحة"
+                  isLoading={isSavingLp}
+                  products={products.map((p) => ({
+                    id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
+                  }))}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -937,6 +964,7 @@ const Products = () => {
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
             <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
               <ProductForm
+                mode="product"
                 product={editProduct}
                 onProductChange={setEditProduct}
                 onSubmit={handleEditProduct}
@@ -948,6 +976,44 @@ const Products = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Landing Page Dialog */}
+      <Dialog open={isLpEditOpen} onOpenChange={(o) => { setIsLpEditOpen(o); if (!o) setEditingLpId(null); }}>
+        <DialogContent
+          className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 translate-x-0 translate-y-0 left-0 top-0 border-0 flex flex-col"
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="px-4 sm:px-6 py-4 border-b shrink-0">
+            <DialogTitle>تعديل صفحة الهبوط</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+            <LandingPageForm
+              data={editLp}
+              onChange={setEditLp}
+              onSubmit={handleUpdateLp}
+              submitText="حفظ التعديلات"
+              isLoading={isSavingLp}
+              lockProduct
+              products={products.map((p) => ({
+                id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
+              }))}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+        <TabsList className="grid grid-cols-2 max-w-md">
+          <TabsTrigger value="products" className="gap-2">
+            <Package className="w-4 h-4" />
+            المنتجات ({products.length})
+          </TabsTrigger>
+          <TabsTrigger value="landing" className="gap-2">
+            <Layout className="w-4 h-4" />
+            صفحات الهبوط ({landingPages.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="products" className="mt-6">
       {/* Products Grid */}
       {products.length === 0 ? (
         <Card className="card-shadow">
@@ -998,35 +1064,30 @@ const Products = () => {
                   </div>
                 </div>
 
-                {/* Product URL */}
-                <div className="flex items-center gap-2 mb-4 p-2 bg-muted rounded-lg">
-                  <span className="text-xs text-muted-foreground truncate flex-1" dir="ltr">
-                    /p/{product.slug}
-                  </span>
+                {/* Landing pages indicator */}
+                <div className="flex items-center justify-between gap-2 mb-4 p-2 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Layout className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground truncate">
+                      {lpCountByProduct[product.id] || 0} صفحة هبوط
+                    </span>
+                  </div>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyProductUrl(product.slug)}
+                    size="sm"
+                    className="h-6 px-2 text-xs gap-1 text-primary hover:text-primary"
+                    onClick={() => openCreateLpForProduct(product.id)}
                   >
-                    <Copy className="w-3 h-3" />
+                    <Plus className="w-3 h-3" />
+                    إضافة
                   </Button>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
-                    className="flex-1 min-w-0 gap-1 sm:gap-2 text-xs sm:text-sm bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all"
-                    onClick={() => openPreviewPage(product.slug)}
-                  >
-                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                    <span className="hidden xs:inline">معاينة</span>
-                    <ExternalLink className="w-2 h-2 sm:w-3 sm:h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
                     onClick={() => toggleVisibility(product)}
-                    className={`px-2 sm:px-3 shadow-md hover:shadow-lg transition-all ${
+                    className={`flex-1 min-w-0 px-2 sm:px-3 shadow-md hover:shadow-lg transition-all ${
                       product.is_visible
                         ? "bg-amber-500 hover:bg-amber-600 text-white"
                         : "bg-green-500 hover:bg-green-600 text-white"
@@ -1059,6 +1120,85 @@ const Products = () => {
           ))}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="landing" className="mt-6">
+          {enrichedLandingPages.length === 0 ? (
+            <Card className="card-shadow">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Layout className="w-16 h-16 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">لا توجد صفحات هبوط بعد</p>
+                <p className="text-xs text-muted-foreground">اضغط «إنشاء صفحة هبوط» لإنشاء صفحة جديدة مرتبطة بأحد منتجاتك</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {enrichedLandingPages.map((lp) => (
+                <Card key={lp.id} className={`card-shadow overflow-hidden ${!lp.is_visible ? 'opacity-60' : ''}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      {lp.product_image ? (
+                        <img src={lp.product_image} alt="" className="w-14 h-14 object-cover rounded shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded bg-muted flex items-center justify-center shrink-0">
+                          <Package className="w-6 h-6 text-muted-foreground/50" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-foreground truncate">{isolateLatin(lp.title)}</h3>
+                          {!lp.is_visible && (
+                            <Badge variant="destructive" className="text-[10px]">مخفي</Badge>
+                          )}
+                        </div>
+                        {lp.subtitle && (
+                          <p className="text-xs text-muted-foreground truncate">{lp.subtitle}</p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <Link2 className="w-3 h-3" /> {lp.product_name || "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                      <span className="text-xs text-muted-foreground truncate flex-1" dir="ltr">/p/{lp.slug}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyProductUrl(lp.slug)}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 min-w-0 gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                        onClick={() => openPreviewPage(lp.slug)}
+                      >
+                        <Eye className="w-3 h-3" />
+                        معاينة
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => openEditLp(lp)}
+                        className="px-2 bg-sky-500 hover:bg-sky-600 text-white"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-red-500 hover:bg-red-600 text-white px-2"
+                        onClick={() => setDeleteLpTarget(lp)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent dir="rtl">
@@ -1077,6 +1217,27 @@ const Products = () => {
               className="bg-red-500 hover:bg-red-600 text-white"
             >
               {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "نقل إلى السلة"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteLpTarget} onOpenChange={(open) => !open && setDeleteLpTarget(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف صفحة الهبوط</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف صفحة الهبوط «{deleteLpTarget?.title}»؟
+              لن يتأثر المنتج المرتبط، فقط الصفحة سيتم حذفها نهائيًا.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteLp(); }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              حذف
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
