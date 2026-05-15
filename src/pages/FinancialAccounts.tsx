@@ -618,8 +618,7 @@ const FinancialAccounts = () => {
                     </TableRow></TableHeader>
                     <TableBody>
                       {deliveredOrders.map(o => {
-                        const pr = productByName.get(o.product_name);
-                        const pp = pr ? Number(pr.purchase_price) : 0;
+                        const pp = orderCost(o);
                         const profit = Number(o.price) - pp;
                         return (
                           <TableRow key={o.id}>
