@@ -4,49 +4,51 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 15%;
+    /* Swiss Minimal palette: off-white canvas, deep navy ink, electric blue accent */
+    --background: 220 24% 98%;
+    --foreground: 222 64% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 30% 15%;
+    --card-foreground: 222 64% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 15%;
+    --popover-foreground: 222 64% 14%;
 
-    --primary: 217 91% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 222 64% 14%;
+    --primary-foreground: 220 24% 98%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 30% 25%;
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 222 64% 14%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 222 20% 42%;
 
-    --accent: 150 60% 45%;
+    --accent: 217 91% 55%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 91% 50%;
+    --border: 222 22% 88%;
+    --input: 222 22% 88%;
+    --ring: 217 91% 55%;
 
-    --radius: 0.75rem;
+    /* Sharper grid: smaller radius for Swiss precision */
+    --radius: 0.25rem;
 
-    --sidebar-background: 220 30% 15%;
-    --sidebar-foreground: 220 10% 90%;
-    --sidebar-primary: 217 91% 50%;
+    --sidebar-background: 222 64% 14%;
+    --sidebar-foreground: 220 18% 86%;
+    --sidebar-primary: 217 91% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 25% 22%;
-    --sidebar-accent-foreground: 220 10% 95%;
-    --sidebar-border: 220 25% 25%;
-    --sidebar-ring: 217 91% 50%;
+    --sidebar-accent: 222 50% 20%;
+    --sidebar-accent-foreground: 220 18% 96%;
+    --sidebar-border: 222 40% 22%;
+    --sidebar-ring: 217 91% 55%;
 
-    --success: 150 60% 45%;
+    --success: 155 60% 38%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 222 64% 14%;
   }
 
   .dark {
@@ -99,7 +101,13 @@
   }
 
   body {
-    @apply bg-background text-foreground font-cairo antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv11", "tnum";
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: "Archivo Black", "Tajawal", system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -107,9 +115,28 @@
   .gradient-primary {
     @apply bg-gradient-to-l from-primary to-accent;
   }
+
+  /* Swiss editorial helpers */
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  .num {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .rule {
+    @apply border-t border-border;
+  }
+  .grid-lines {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.6) 1px, transparent 1px);
+    background-size: 8.3333% 100%;
+  }
   
   .card-shadow {
-    box-shadow: 0 4px 20px -4px hsl(var(--foreground) / 0.08);
+    box-shadow: 0 1px 0 0 hsl(var(--border));
   }
   
   .animate-fade-in {
