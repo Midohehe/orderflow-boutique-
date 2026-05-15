@@ -44,13 +44,12 @@ function stripTags(s: string): string {
   return String(s ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Rewrite relative asset URLs in the upstream shell so the browser
-// loads them from the Lovable origin (or a same-origin proxied path
-// served by the Cloudflare Worker, which forwards everything else
-// upstream).
+// Keep asset URLs RELATIVE so the browser fetches them from the
+// custom domain (was-la.com). The Cloudflare Worker proxies anything
+// that isn't /p/* back to the Lovable origin — this keeps the assets
+// same-origin and avoids CORS failures on `<script crossorigin>` tags.
 function absolutizeAssets(html: string): string {
-  return html
-    .replace(/(href|src)="\/(?!\/)/g, `$1="${LOVABLE_ORIGIN}/`);
+  return html;
 }
 
 function buildHead(product: any, currency: string, pageUrl: string): string {
