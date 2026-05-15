@@ -35,6 +35,7 @@ const OrderFormSettings = () => {
   useEffect(() => {
     const loadFormFields = async () => {
       try {
+        const { data: { user } } = await supabase.auth.getUser();
         const { data, error } = await supabase
           .from("order_form_fields")
           .select("*")
@@ -42,8 +43,26 @@ const OrderFormSettings = () => {
 
         if (error) throw error;
 
-        if (data) {
-          setFormFields(data.map(f => ({
+        let rows = data || [];
+
+        // Seed default fields the first time a user opens this page so
+        // landing pages always collect the essential customer info.
+        if (user && rows.length === 0) {
+          const defaults = [
+            { field_key: "name", label: "الاسم الكامل", placeholder: "أدخل اسمك الكامل", field_type: "text", required: true, sort_order: 1 },
+            { field_key: "phone", label: "رقم الهاتف", placeholder: "أدخل رقم هاتفك", field_type: "phone", required: true, sort_order: 2 },
+            { field_key: "city", label: "المدينة", placeholder: "أدخل اسم مدينتك", field_type: "text", required: true, sort_order: 3 },
+            { field_key: "address", label: "العنوان التفصيلي", placeholder: "الشارع، رقم المبنى…", field_type: "textarea", required: true, sort_order: 4 },
+          ];
+          const { data: inserted, error: insErr } = await supabase
+            .from("order_form_fields")
+            .insert(defaults.map((d) => ({ ...d, owner_id: user.id, enabled: true })))
+            .select();
+          if (!insErr && inserted) rows = inserted;
+        }
+
+        if (rows.length) {
+          setFormFields(rows.map(f => ({
             id: f.id,
             field_key: f.field_key,
             label: f.label,
