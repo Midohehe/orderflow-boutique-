@@ -98,7 +98,9 @@ export const buildVariantKeys = (
   } else if (sizes.length) {
     keys.push(...sizes);
   }
-  if (codes.length) {
+  // Only treat product_codes as variant keys when the product has NO colors and NO sizes.
+  // When colors/sizes exist, codes are per-variant SKUs (stored in variant_skus) — not separate variants.
+  if (keys.length === 0 && codes.length) {
     codes.forEach((c) => {
       if (!keys.includes(c)) keys.push(c);
     });
