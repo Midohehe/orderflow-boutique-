@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Loader2, MousePointerClick, MessageSquare, Wallet, FormInput, ArrowUp, ArrowDown, Shield } from "lucide-react";
+import { FileText, Save, Loader2, MousePointerClick, MessageSquare, FormInput, ArrowUp, ArrowDown, Shield } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
@@ -40,8 +40,6 @@ const OrderFormSettings = () => {
   const [settings, setSettings] = useState({
     buttonText: "اطلب الآن",
     successMessage: "شكراً لك! تم استلام طلبك بنجاح",
-    codText: "الدفع عند الاستلام",
-    showCodBadge: true,
   });
 
   useEffect(() => {
@@ -95,6 +93,9 @@ const OrderFormSettings = () => {
   const handleFieldToggle = (id: string) => {
     setFormFields(formFields.map((f) => f.id === id ? { ...f, enabled: !f.enabled } : f));
   };
+  const handleFieldEdit = (id: string, patch: Partial<FormField>) => {
+    setFormFields(formFields.map((f) => f.id === id ? { ...f, ...patch } : f));
+  };
   const handleMove = (id: string, direction: -1 | 1) => {
     const sorted = [...visibleFields].sort((a, b) => a.sort_order - b.sort_order);
     const idx = sorted.findIndex(f => f.id === id);
@@ -111,7 +112,7 @@ const OrderFormSettings = () => {
     try {
       for (const f of formFields) {
         await supabase.from("order_form_fields")
-          .update({ enabled: f.enabled, sort_order: f.sort_order })
+          .update({ enabled: f.enabled, sort_order: f.sort_order, label: f.label, placeholder: f.placeholder })
           .eq("id", f.id);
       }
       toast({ title: "تم الحفظ", description: "تم حفظ إعدادات نموذج الطلب" });
@@ -154,23 +155,34 @@ const OrderFormSettings = () => {
       <div className="grid lg:grid-cols-2 gap-5">
         <SectionCard icon={FileText} title="حقول النموذج" description="إظهار/إخفاء الحقول وترتيبها" iconColor="bg-blue-500">
           {[...visibleFields].sort((a, b) => a.sort_order - b.sort_order).map((field, i, arr) => (
-            <div key={field.id} className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
-              <div className="flex flex-col gap-1">
-                <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => handleMove(field.id, -1)}>
-                  <ArrowUp className="w-4 h-4" />
-                </Button>
-                <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === arr.length - 1} onClick={() => handleMove(field.id, 1)}>
-                  <ArrowDown className="w-4 h-4" />
-                </Button>
+            <div key={field.id} className="p-4 bg-muted/50 rounded-lg border space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => handleMove(field.id, -1)}>
+                    <ArrowUp className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === arr.length - 1} onClick={() => handleMove(field.id, 1)}>
+                    <ArrowDown className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 text-xs text-muted-foreground font-mono">
+                  {field.field_key}{field.required ? " · مطلوب" : ""}
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch checked={field.enabled} onCheckedChange={() => handleFieldToggle(field.id)} />
+                  <span className="font-medium">{field.enabled ? "ظاهر" : "مخفي"}</span>
+                </label>
               </div>
-              <div className="flex-1">
-                <div className="font-semibold">{field.label}</div>
-                <div className="text-xs text-muted-foreground font-mono mt-1">{field.field_key}{field.required ? " · مطلوب" : ""}</div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">اسم الحقل</Label>
+                  <Input value={field.label} onChange={(e) => handleFieldEdit(field.id, { label: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">النص المساعد</Label>
+                  <Input value={field.placeholder} onChange={(e) => handleFieldEdit(field.id, { placeholder: e.target.value })} />
+                </div>
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Switch checked={field.enabled} onCheckedChange={() => handleFieldToggle(field.id)} />
-                <span className="font-medium">{field.enabled ? "ظاهر" : "مخفي"}</span>
-              </label>
             </div>
           ))}
           {visibleFields.length === 0 && (
@@ -189,13 +201,6 @@ const OrderFormSettings = () => {
             <div className="space-y-2">
               <Label className="font-semibold">رسالة بعد إرسال الطلب</Label>
               <Textarea value={settings.successMessage} onChange={(e) => setSettings({ ...settings, successMessage: e.target.value })} rows={3} />
-            </div>
-          </SectionCard>
-          <SectionCard icon={Wallet} title="الدفع عند الاستلام" description="شارة COD" iconColor="bg-amber-500"
-            action={<Switch checked={settings.showCodBadge} onCheckedChange={(c) => setSettings({ ...settings, showCodBadge: c })} />}>
-            <div className="space-y-2">
-              <Label className="font-semibold">نص الدفع عند الاستلام</Label>
-              <Input value={settings.codText} onChange={(e) => setSettings({ ...settings, codText: e.target.value })} disabled={!settings.showCodBadge} />
             </div>
           </SectionCard>
         </div>
