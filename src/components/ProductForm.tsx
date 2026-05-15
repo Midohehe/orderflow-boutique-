@@ -108,6 +108,75 @@ export const buildVariantKeys = (
   return keys;
 };
 
+const parseTags = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+const joinTags = (arr: string[]) => arr.join(", ");
+
+const TagsField = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) => {
+  const [input, setInput] = useState("");
+  const tags = parseTags(value);
+  const addTag = (text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    if (tags.includes(t)) return;
+    onChange(joinTags([...tags, t]));
+    setInput("");
+  };
+  const removeTag = (idx: number) => {
+    const next = tags.filter((_, i) => i !== idx);
+    onChange(joinTags(next));
+  };
+  return (
+    <div className="space-y-2">
+      <Label className="font-semibold">{label}</Label>
+      <div className="flex flex-wrap gap-2 p-2 rounded-md border border-input bg-background min-h-[2.5rem] items-center">
+        {tags.map((tag, idx) => (
+          <span
+            key={idx}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-sm font-medium"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => removeTag(idx)}
+              className="ml-1 leading-none text-primary/70 hover:text-primary"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addTag(input);
+            } else if (e.key === "Backspace" && !input && tags.length) {
+              removeTag(tags.length - 1);
+            }
+          }}
+          onBlur={() => {
+            if (input.trim()) addTag(input);
+          }}
+          placeholder={tags.length ? "" : placeholder}
+          className="flex-1 min-w-[6rem] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+        />
+      </div>
+    </div>
+  );
+};
+
 const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading }: ProductFormProps) => {
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
@@ -427,24 +496,24 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             </div>
           )}
           <div className="space-y-2">
-            <Label className="font-semibold">الألوان المتاحة</Label>
-            <Input
+            <TagsField
+              label="الألوان المتاحة"
               value={product.colors}
-              onChange={(e) => updateField("colors", e.target.value)}
-              placeholder="أحمر, أزرق, أسود"
+              onChange={(v) => updateField("colors", v)}
+              placeholder="أحمر"
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">المقاسات المتاحة</Label>
-            <Input
+            <TagsField
+              label="المقاسات المتاحة"
               value={product.sizes}
-              onChange={(e) => updateField("sizes", e.target.value)}
-              placeholder="S, M, L, XL"
+              onChange={(v) => updateField("sizes", v)}
+              placeholder="XL"
             />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          افصل بين القيم بفاصلة (,). عند إضافة ألوان أو مقاسات، يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
+          اكتب المتغير واضغط Enter لإضافته. يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
         </p>
       </SectionCard>
 
