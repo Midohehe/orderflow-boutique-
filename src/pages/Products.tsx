@@ -233,13 +233,24 @@ const Products = () => {
 
     setIsSaving(true);
     try {
-      const productCodesArray = newProduct.productCodes ? newProduct.productCodes.split(",").map(c => c.trim()).filter(Boolean) : [];
       const colorsArray = newProduct.colors ? newProduct.colors.split(",").map(c => c.trim()).filter(Boolean) : [];
       const sizesArray = newProduct.sizes ? newProduct.sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const hasColorOrSize = colorsArray.length > 0 || sizesArray.length > 0;
+      const legacyCodesArray = newProduct.productCodes ? newProduct.productCodes.split(",").map(c => c.trim()).filter(Boolean) : [];
 
       // Build variant_stock (numeric) only for existing variant keys
       const { buildVariantKeys } = await import("@/components/ProductForm");
       const variantKeys = buildVariantKeys(newProduct.colors, newProduct.sizes, newProduct.productCodes);
+      const variantSkusObj: Record<string, string> = {};
+      variantKeys.forEach((k) => {
+        const sku = (newProduct.variantSkus?.[k] || "").trim();
+        if (sku) variantSkusObj[k] = sku;
+      });
+      // For backward compatibility: when colors/sizes exist, derive product_codes from per-variant SKUs.
+      // When neither exists, keep the legacy CSV "أكواد المنتج" behavior.
+      const productCodesArray = hasColorOrSize
+        ? Array.from(new Set(Object.values(variantSkusObj).filter(Boolean)))
+        : legacyCodesArray;
       const variantStockNum: Record<string, number> = {};
       let totalVariantQty = 0;
       variantKeys.forEach((k) => {
@@ -270,6 +281,7 @@ const Products = () => {
         variant_warehouse_codes: Object.fromEntries(
           variantKeys.map((k) => [k, (newProduct.variantWarehouseCodes?.[k] || "").trim()]).filter(([, v]) => v)
         ),
+        variant_skus: variantSkusObj,
         easyorders_product_id: newProduct.easyOrdersProductId?.trim() || null,
         variant_easyorders_ids: Object.fromEntries(
           variantKeys.map((k) => [k, (newProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
