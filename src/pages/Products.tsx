@@ -2,6 +2,8 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,13 +14,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { isolateLatin } from "@/lib/bidi";
+import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
 
 const ProductForm = lazy(() => import("@/components/ProductForm"));
 
@@ -37,6 +40,17 @@ interface Product {
   is_visible: boolean;
   stock?: number;
   variant_stock?: Record<string, number>;
+}
+
+interface LandingPage {
+  id: string;
+  product_id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  is_visible: boolean;
+  product_name?: string;
+  product_image?: string;
 }
 
 interface StoreSettings {
