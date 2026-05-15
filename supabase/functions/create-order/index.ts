@@ -44,12 +44,9 @@ Deno.serve(async (req) => {
     const address = s(body.address, 500);
     const city = s(body.city, 120);
 
-    if (!product_id || !phone || !address || !city) {
-      console.error("Missing required fields", {
-        product_id, phone, address, city, customer_name,
-        body_keys: Object.keys(body || {}),
-      });
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+    if (!product_id || !phone) {
+      console.error("Missing required fields", { product_id, phone });
+      return new Response(JSON.stringify({ error: "Missing required fields (product/phone)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -116,8 +113,8 @@ Deno.serve(async (req) => {
       owner_id: (product as any).owner_id,
       customer_name: customer_name || "بدون اسم",
       phone,
-      address,
-      city,
+      address: address || "—",
+      city: city || "—",
       product_id: product.id,
       product_name: product.name,
       price: totalPrice,
