@@ -267,23 +267,9 @@ const OrderFormSettings = () => {
                     </label>
                   </div>
                 </div>
-                <Button
-                  size="icon"
-                  className="bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all"
-                  onClick={() => handleDeleteField(field.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="text-xs text-muted-foreground font-mono">{field.field_key}</div>
               </div>
             ))}
-
-            <Button
-              onClick={handleAddField}
-              className="w-full gap-2 bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              إضافة حقل جديد
-            </Button>
         </SectionCard>
 
         <div className="space-y-5">
