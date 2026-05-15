@@ -9,6 +9,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import Login from "./pages/Login";
+import Home from "./pages/Home";
 import DashboardLayout from "./components/DashboardLayout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -65,7 +66,8 @@ const App = () => {
         <BrowserRouter>
           <Suspense fallback={<PageFallback />}>
             <Routes>
-              <Route path="/" element={<Login />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
               <Route path="/store" element={<StoreFront />} />
               <Route path="/store/:username" element={<StoreFront />} />
               <Route path="/p/:slug" element={<LandingPage />} />
