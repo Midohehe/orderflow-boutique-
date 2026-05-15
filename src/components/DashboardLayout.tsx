@@ -59,7 +59,7 @@ const baseMenuGroups = [
       { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
       { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
-      { icon: Users, label: "المستخدمون الفرعيون", path: "/dashboard/members", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Users, label: "المستخدمون الفرعيون", path: "/dashboard/members", external: false, adminOnly: false, dynamicStore: false, ownerOnly: true },
     ],
   },
   {
@@ -85,7 +85,7 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
-  const { isAdmin, profile } = useUserContext();
+  const { isAdmin, isSubUser, profile } = useUserContext();
   const [storeName, setStoreName] = useState("لوحة التحكم");
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(() => {
     try {
@@ -121,6 +121,7 @@ const DashboardLayout = () => {
     label: group.label,
     items: group.items
       .filter((item) => !item.adminOnly || isAdmin)
+      .filter((item: any) => !item.ownerOnly || !isSubUser)
       .map((item) => {
         if (item.dynamicStore && profile?.username) {
           return { ...item, path: `/store/${profile.username}` };
