@@ -513,7 +513,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          افصل بين القيم بفاصلة (,). عند إضافة ألوان أو مقاسات، يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
+          اكتب المتغير واضغط Enter لإضافته. يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
         </p>
       </SectionCard>
 
