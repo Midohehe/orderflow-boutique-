@@ -58,6 +58,7 @@ export interface ProductFormData {
   variantStock: Record<string, string>;
   variantWarehouseCodes: Record<string, string>;
   variantEasyOrdersIds: Record<string, string>;
+  variantSkus: Record<string, string>;
   easyOrdersProductId: string;
   description: string;
   images: string[];
@@ -97,7 +98,9 @@ export const buildVariantKeys = (
   } else if (sizes.length) {
     keys.push(...sizes);
   }
-  if (codes.length) {
+  // Only treat product_codes as variant keys when the product has NO colors and NO sizes.
+  // When colors/sizes exist, codes are per-variant SKUs (stored in variant_skus) — not separate variants.
+  if (keys.length === 0 && codes.length) {
     codes.forEach((c) => {
       if (!keys.includes(c)) keys.push(c);
     });
@@ -143,6 +146,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
 
   const variantKeys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
   const hasVariants = variantKeys.length > 0;
+  const hasColorOrSize = !!(product.colors?.trim() || product.sizes?.trim());
 
   // Normalize Arabic for matching
   const norm = (s: string) => (s || "").toString().trim()
@@ -296,6 +300,13 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     });
   };
 
+  const updateVariantSku = (key: string, value: string) => {
+    onProductChange({
+      ...product,
+      variantSkus: { ...(product.variantSkus || {}), [key]: value },
+    });
+  };
+
   return (
     <div className="space-y-5 mt-4">
       {/* Images */}
@@ -402,16 +413,19 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label className="font-semibold">أكواد المنتج</Label>
-            <Input
-              value={product.productCodes}
-              onChange={(e) => updateField("productCodes", e.target.value)}
-              placeholder="SKU-001, SKU-002"
-              dir="ltr"
-              className="text-left font-mono"
-            />
-          </div>
+          {!hasColorOrSize && (
+            <div className="space-y-2">
+              <Label className="font-semibold">أكواد المنتج</Label>
+              <Input
+                value={product.productCodes}
+                onChange={(e) => updateField("productCodes", e.target.value)}
+                placeholder="SKU-001, SKU-002"
+                dir="ltr"
+                className="text-left font-mono"
+              />
+              <p className="text-[11px] text-muted-foreground">يُستخدم فقط عند عدم وجود ألوان ومقاسات</p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label className="font-semibold">الألوان المتاحة</Label>
             <Input
@@ -429,7 +443,9 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">افصل بين القيم بفاصلة (,)</p>
+        <p className="text-xs text-muted-foreground">
+          افصل بين القيم بفاصلة (,). عند إضافة ألوان أو مقاسات، يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
+        </p>
       </SectionCard>
 
       {/* Upsell Offers */}
@@ -575,21 +591,32 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         {hasVariants ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              أدخل عدد القطع المتوفرة لكل متغير. سيظهر هذا في صفحة المخزون.
+              أدخل الكود (SKU) وعدد القطع لكل توليفة. كل توليفة تعتبر وحدة مستقلة في المخزون.
             </p>
             {/* Column headers (visible on md+) */}
-            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_6rem_16rem_18rem]" : "md:grid-cols-[1fr_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
+            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
               <div>المتغير المحلي</div>
+              <div>كود (SKU)</div>
               <div>الكمية</div>
               {product.warehouseLinked !== false && <div>منتج المخزن (شركة الشحن)</div>}
               <div>متغير EasyOrders</div>
             </div>
             <div className="grid grid-cols-1 gap-3">
               {variantKeys.map((key) => (
-                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_6rem_16rem_18rem]" : "md:grid-cols-[1fr_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
+                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
                   <div className="min-w-0">
                     <div className="text-[10px] text-muted-foreground md:hidden">المتغير المحلي</div>
                     <Label className="block truncate">{key}</Label>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground md:hidden">كود (SKU)</div>
+                    <Input
+                      value={product.variantSkus?.[key] ?? ""}
+                      onChange={(e) => updateVariantSku(key, e.target.value)}
+                      placeholder="SKU"
+                      dir="ltr"
+                      className="w-full text-left font-mono text-xs"
+                    />
                   </div>
                   <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">الكمية</div>

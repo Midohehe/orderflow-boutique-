@@ -38,7 +38,10 @@ const buildVariantKeys = (p: ProductRow): string[] => {
     colors.forEach((c) => sizes.forEach((s) => keys.push(`${c} - ${s}`)));
   } else if (colors.length) keys.push(...colors);
   else if (sizes.length) keys.push(...sizes);
-  codes.forEach((c) => { if (!keys.includes(c)) keys.push(c); });
+  // Only use product_codes as variant keys when there are no colors/sizes (legacy code-only variants).
+  if (keys.length === 0) {
+    codes.forEach((c) => { if (!keys.includes(c)) keys.push(c); });
+  }
   return keys;
 };
 

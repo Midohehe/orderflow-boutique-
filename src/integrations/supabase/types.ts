@@ -872,6 +872,7 @@ export type Database = {
           upsell_enabled: boolean
           upsell_offers: Json
           variant_easyorders_ids: Json
+          variant_skus: Json
           variant_stock: Json
           variant_warehouse_codes: Json
           warehouse_linked: boolean
@@ -898,6 +899,7 @@ export type Database = {
           upsell_enabled?: boolean
           upsell_offers?: Json
           variant_easyorders_ids?: Json
+          variant_skus?: Json
           variant_stock?: Json
           variant_warehouse_codes?: Json
           warehouse_linked?: boolean
@@ -924,6 +926,7 @@ export type Database = {
           upsell_enabled?: boolean
           upsell_offers?: Json
           variant_easyorders_ids?: Json
+          variant_skus?: Json
           variant_stock?: Json
           variant_warehouse_codes?: Json
           warehouse_linked?: boolean
