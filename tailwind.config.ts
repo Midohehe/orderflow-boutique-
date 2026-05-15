@@ -14,9 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        cairo: ["Hind", "Noto Sans Arabic", "system-ui", "sans-serif"],
-        display: ["Archivo Black", "Tajawal", "system-ui", "sans-serif"],
-        sans: ["Hind", "Noto Sans Arabic", "system-ui", "sans-serif"],
+        cairo: ["IBM Plex Sans Arabic", "Inter", "system-ui", "sans-serif"],
+        display: ["Fraunces", "IBM Plex Sans Arabic", "Georgia", "serif"],
+        sans: ["IBM Plex Sans Arabic", "Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
       colors: {

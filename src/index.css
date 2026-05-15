@@ -4,51 +4,51 @@
 
 @layer base {
   :root {
-    /* Swiss Minimal palette: off-white canvas, deep navy ink, electric blue accent */
-    --background: 220 24% 98%;
-    --foreground: 222 64% 14%;
+    /* Notion Calm palette: warm cream canvas, charcoal ink, coral accent */
+    --background: 50 24% 98%;            /* #fafaf7 */
+    --foreground: 30 10% 20%;            /* #37352f */
 
     --card: 0 0% 100%;
-    --card-foreground: 222 64% 14%;
+    --card-foreground: 30 10% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 64% 14%;
+    --popover-foreground: 30 10% 20%;
 
-    --primary: 222 64% 14%;
-    --primary-foreground: 220 24% 98%;
+    --primary: 30 10% 20%;
+    --primary-foreground: 50 24% 98%;
 
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 222 64% 14%;
+    --secondary: 40 12% 95%;             /* #f1f1ef */
+    --secondary-foreground: 30 10% 20%;
 
-    --muted: 220 20% 94%;
-    --muted-foreground: 222 20% 42%;
+    --muted: 40 12% 95%;
+    --muted-foreground: 30 6% 45%;
 
-    --accent: 217 91% 55%;
+    --accent: 7 71% 64%;                 /* #e16259 coral */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 48%;
+    --destructive: 4 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 22% 88%;
-    --input: 222 22% 88%;
-    --ring: 217 91% 55%;
+    --border: 40 8% 89%;
+    --input: 40 8% 89%;
+    --ring: 7 71% 64%;
 
-    /* Sharper grid: smaller radius for Swiss precision */
-    --radius: 0.25rem;
+    /* Soft Notion-style corners */
+    --radius: 0.5rem;
 
-    --sidebar-background: 222 64% 14%;
-    --sidebar-foreground: 220 18% 86%;
-    --sidebar-primary: 217 91% 55%;
+    --sidebar-background: 40 14% 96%;
+    --sidebar-foreground: 30 8% 30%;
+    --sidebar-primary: 7 71% 64%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 50% 20%;
-    --sidebar-accent-foreground: 220 18% 96%;
-    --sidebar-border: 222 40% 22%;
-    --sidebar-ring: 217 91% 55%;
+    --sidebar-accent: 40 12% 92%;
+    --sidebar-accent-foreground: 30 10% 18%;
+    --sidebar-border: 40 8% 87%;
+    --sidebar-ring: 7 71% 64%;
 
-    --success: 155 60% 38%;
+    --success: 155 45% 40%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 64% 14%;
+    --warning: 35 85% 55%;
+    --warning-foreground: 30 10% 20%;
   }
 
   .dark {
@@ -106,8 +106,9 @@
   }
 
   h1, h2, h3, h4, .font-display {
-    font-family: "Archivo Black", "Tajawal", system-ui, sans-serif;
-    letter-spacing: -0.01em;
+    font-family: "Fraunces", "IBM Plex Sans Arabic", Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
 }
 
