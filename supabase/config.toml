@@ -1,31 +1,25 @@
 project_id = "iyqooryhmshlajuhabmc"
 
-[functions.whatsapp-webhook]
-verify_jwt = false
-
-[functions.create-order]
-verify_jwt = false
-
-[functions.webhook-order]
-verify_jwt = false
-
-[functions.carrier-webhook]
-verify_jwt = false
-
-[functions.match-city]
-verify_jwt = false
-
-[functions.apply-order-stock]
-verify_jwt = false
-
-[functions.whatsapp-send-confirmation]
-verify_jwt = false
-
-[functions.whatsapp-ai-reply]
-verify_jwt = false
-
-[functions.landing-ssr]
-verify_jwt = false
-
-[functions.process-email-queue]
-verify_jwt = true
+[functions]
+  [functions.apply-order-stock]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.carrier-webhook]
+    verify_jwt = false
+  [functions.create-order]
+    verify_jwt = false
+  [functions.landing-ssr]
+    verify_jwt = false
+  [functions.match-city]
+    verify_jwt = false
+  [functions.process-email-queue]
+    verify_jwt = true
+  [functions.webhook-order]
+    verify_jwt = false
+  [functions.whatsapp-ai-reply]
+    verify_jwt = false
+  [functions.whatsapp-send-confirmation]
+    verify_jwt = false
+  [functions.whatsapp-webhook]
+    verify_jwt = false
