@@ -264,34 +264,10 @@ const DashboardStats = () => {
   };
 
   const statCards = [
-    {
-      title: "الطلبيات الجديدة",
-      value: stats.newOrders,
-      icon: ShoppingCart,
-      color: "text-orange-500",
-      bgColor: "bg-orange-100 dark:bg-orange-900/30",
-    },
-    {
-      title: "إجمالي الزيارات",
-      value: stats.totalVisits,
-      icon: Eye,
-      color: "text-blue-500",
-      bgColor: "bg-blue-100 dark:bg-blue-900/30",
-    },
-    {
-      title: "بدء الشراء",
-      value: stats.checkoutStarts,
-      icon: CreditCard,
-      color: "text-purple-500",
-      bgColor: "bg-purple-100 dark:bg-purple-900/30",
-    },
-    {
-      title: "معدل التحويل",
-      value: `${stats.conversionRate}%`,
-      icon: TrendingUp,
-      color: "text-green-500",
-      bgColor: "bg-green-100 dark:bg-green-900/30",
-    },
+    { code: "01", title: "الطلبيات الجديدة", value: stats.newOrders, icon: ShoppingCart },
+    { code: "02", title: "إجمالي الزيارات", value: stats.totalVisits, icon: Eye },
+    { code: "03", title: "بدء الشراء", value: stats.checkoutStarts, icon: CreditCard },
+    { code: "04", title: "معدل التحويل", value: `${stats.conversionRate}%`, icon: TrendingUp },
   ];
 
   if (loading) {
@@ -311,23 +287,20 @@ const DashboardStats = () => {
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
-      {/* Main Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-8" dir="rtl">
+      {/* Main Stats — Swiss editorial grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-border border border-border">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">{stat.value}</div>
-            </CardContent>
-          </Card>
+          <div key={stat.title} className="bg-card p-5 flex flex-col justify-between min-h-[140px] relative group">
+            <div className="flex items-start justify-between">
+              <span className="eyebrow">{stat.code} / {stat.title}</span>
+              <stat.icon className="w-4 h-4 text-muted-foreground" strokeWidth={2} />
+            </div>
+            <div className="num font-display text-4xl md:text-5xl text-foreground leading-none mt-6">
+              {stat.value}
+            </div>
+            <div className="absolute bottom-0 right-0 h-px w-0 bg-accent transition-all duration-500 group-hover:w-full" />
+          </div>
         ))}
       </div>
 
