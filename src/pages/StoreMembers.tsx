@@ -70,7 +70,7 @@ const StoreMembers = () => {
         email: form.email,
         password: form.password,
         display_name: form.display_name || null,
-        group_id: form.group_id || null,
+        group_id: form.group_id && form.group_id !== "__none__" ? form.group_id : null,
         extra_permissions: Array.from(form.extra_permissions),
       });
       toast({ title: "تم", description: "تم إنشاء المستخدم الفرعي" });
