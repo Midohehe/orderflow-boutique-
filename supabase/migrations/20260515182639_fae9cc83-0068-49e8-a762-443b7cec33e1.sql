@@ -1,0 +1,1 @@
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS variant_skus jsonb NOT NULL DEFAULT '{}'::jsonb;
