@@ -264,6 +264,18 @@ const Products = () => {
 
     setIsSaving(true);
     try {
+      // في وضع "إضافة منتج" نولّد slug تلقائيًا (المنتج لا يملك صفحة هبوط افتراضيًا)
+      let finalSlug = newProduct.slug;
+      if (!finalSlug) {
+        const base = (newProduct.name || "product")
+          .toLowerCase()
+          .replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .replace(/[\u0600-\u06FF]/g, "")
+          .replace(/-+/g, "-") || "product";
+        const rand = Math.random().toString(36).slice(2, 8);
+        finalSlug = `${base || "product"}-${rand}`;
+      }
       const colorsArray = newProduct.colors ? newProduct.colors.split(",").map(c => c.trim()).filter(Boolean) : [];
       const sizesArray = newProduct.sizes ? newProduct.sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
       const hasColorOrSize = colorsArray.length > 0 || sizesArray.length > 0;
@@ -298,7 +310,7 @@ const Products = () => {
       const { data, error } = await supabase.from("products").insert({
         owner_id: user!.id,
         name: newProduct.name,
-        slug: newProduct.slug,
+        slug: finalSlug,
         price: parseFloat(newProduct.price),
         original_price: newProduct.originalPrice ? parseFloat(newProduct.originalPrice) : null,
         purchase_price: newProduct.purchasePrice ? parseFloat(newProduct.purchasePrice) : 0,
@@ -344,7 +356,7 @@ const Products = () => {
       const newProductData: Product = {
         id: data.id,
         name: newProduct.name,
-        slug: newProduct.slug,
+        slug: finalSlug,
         price: newProduct.price,
         original_price: newProduct.originalPrice || undefined,
         purchase_price: newProduct.purchasePrice || "0",
