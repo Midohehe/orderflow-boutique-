@@ -83,6 +83,8 @@ const emptyFormData: ProductFormData = {
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [strictStock, setStrictStock] = useState(false);
+  const [strictSaving, setStrictSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
