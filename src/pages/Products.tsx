@@ -96,6 +96,23 @@ const Products = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
 
+  // ===== صفحات الهبوط =====
+  const [activeTab, setActiveTab] = useState<"products" | "landing">("products");
+  const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
+  const [isLpAddOpen, setIsLpAddOpen] = useState(false);
+  const [isLpEditOpen, setIsLpEditOpen] = useState(false);
+  const [editingLpId, setEditingLpId] = useState<string | null>(null);
+  const [newLp, setNewLp] = useState<LandingPageFormData>(emptyLandingPageData);
+  const [editLp, setEditLp] = useState<LandingPageFormData>(emptyLandingPageData);
+  const [isSavingLp, setIsSavingLp] = useState(false);
+  const [deleteLpTarget, setDeleteLpTarget] = useState<LandingPage | null>(null);
+
+  // عداد صفحات الهبوط لكل منتج
+  const lpCountByProduct = landingPages.reduce<Record<string, number>>((acc, lp) => {
+    acc[lp.product_id] = (acc[lp.product_id] || 0) + 1;
+    return acc;
+  }, {});
+
   const runWithTimeout = async <T,>(request: PromiseLike<T>, timeoutMs = 30000): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
