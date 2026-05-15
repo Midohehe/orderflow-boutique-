@@ -413,16 +413,19 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label className="font-semibold">أكواد المنتج</Label>
-            <Input
-              value={product.productCodes}
-              onChange={(e) => updateField("productCodes", e.target.value)}
-              placeholder="SKU-001, SKU-002"
-              dir="ltr"
-              className="text-left font-mono"
-            />
-          </div>
+          {!hasColorOrSize && (
+            <div className="space-y-2">
+              <Label className="font-semibold">أكواد المنتج</Label>
+              <Input
+                value={product.productCodes}
+                onChange={(e) => updateField("productCodes", e.target.value)}
+                placeholder="SKU-001, SKU-002"
+                dir="ltr"
+                className="text-left font-mono"
+              />
+              <p className="text-[11px] text-muted-foreground">يُستخدم فقط عند عدم وجود ألوان ومقاسات</p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label className="font-semibold">الألوان المتاحة</Label>
             <Input
@@ -440,7 +443,9 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">افصل بين القيم بفاصلة (,)</p>
+        <p className="text-xs text-muted-foreground">
+          افصل بين القيم بفاصلة (,). عند إضافة ألوان أو مقاسات، يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
+        </p>
       </SectionCard>
 
       {/* Upsell Offers */}
