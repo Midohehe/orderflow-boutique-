@@ -329,6 +329,42 @@ export type Database = {
           },
         ]
       }
+      form_field_catalog: {
+        Row: {
+          admin_enabled: boolean
+          created_at: string
+          default_placeholder: string
+          default_required: boolean
+          field_key: string
+          field_type: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          admin_enabled?: boolean
+          created_at?: string
+          default_placeholder?: string
+          default_required?: boolean
+          field_key: string
+          field_type?: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_enabled?: boolean
+          created_at?: string
+          default_placeholder?: string
+          default_required?: boolean
+          field_key?: string
+          field_type?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       header_settings: {
         Row: {
           created_at: string
