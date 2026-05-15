@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
+import StoreHeader from "@/components/StoreHeader";
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
 const loadDOMPurify = async () => {
@@ -29,6 +30,7 @@ interface Product {
   sizes?: string[];
   upsell_enabled?: boolean;
   upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
+  owner_id?: string;
 }
 
 interface PixelSettings {
