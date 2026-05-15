@@ -127,7 +127,7 @@ const OrderFormSettings = () => {
     setCatalog(catalog.map(c => c.field_key === key ? { ...c, admin_enabled: value } : c));
   };
 
-  const updateCatalogField = (key: string, patch: Partial<CatalogField>) => {
+  const updateCatalogField = (key: string, patch: Partial<CatalogItem>) => {
     setCatalog(catalog.map(c => c.field_key === key ? { ...c, ...patch } : c));
   };
   const saveCatalogField = async (key: string) => {
