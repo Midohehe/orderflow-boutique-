@@ -13,21 +13,30 @@ export const PageHeader = ({
   icon: Icon,
   title,
   description,
-  iconGradient = "from-blue-500 to-indigo-500",
+  iconGradient,
   action,
 }: PageHeaderProps) => (
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-    <div className="flex items-center gap-3">
-      <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${iconGradient} text-white flex items-center justify-center shadow-md shrink-0`}>
-        <Icon className="w-5 h-5" />
+  <header className="border-b border-foreground/90 pb-4 mb-2">
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="eyebrow mb-2 flex items-center gap-2">
+          <span className="num">§ {new Date().getFullYear()}</span>
+          <span className="w-6 h-px bg-foreground/40" />
+          <span>was-la / dashboard</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Icon className="w-6 h-6 text-foreground shrink-0" strokeWidth={2.25} />
+          <h1 className="font-display text-2xl sm:text-3xl md:text-4xl text-foreground truncate leading-none">
+            {title}
+          </h1>
+        </div>
+        {description && (
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">{description}</p>
+        )}
       </div>
-      <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{title}</h1>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
-      </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
-    {action && <div className="shrink-0">{action}</div>}
-  </div>
+  </header>
 );
 
 export default PageHeader;
