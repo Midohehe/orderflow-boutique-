@@ -366,12 +366,21 @@ const Products = () => {
 
     setIsSaving(true);
     try {
-      const productCodesArray = editProduct.productCodes ? editProduct.productCodes.split(",").map(c => c.trim()).filter(Boolean) : [];
       const colorsArray = editProduct.colors ? editProduct.colors.split(",").map(c => c.trim()).filter(Boolean) : [];
       const sizesArray = editProduct.sizes ? editProduct.sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
+      const hasColorOrSize = colorsArray.length > 0 || sizesArray.length > 0;
+      const legacyCodesArray = editProduct.productCodes ? editProduct.productCodes.split(",").map(c => c.trim()).filter(Boolean) : [];
 
       const { buildVariantKeys } = await import("@/components/ProductForm");
       const variantKeys = buildVariantKeys(editProduct.colors, editProduct.sizes, editProduct.productCodes);
+      const variantSkusObj: Record<string, string> = {};
+      variantKeys.forEach((k) => {
+        const sku = (editProduct.variantSkus?.[k] || "").trim();
+        if (sku) variantSkusObj[k] = sku;
+      });
+      const productCodesArray = hasColorOrSize
+        ? Array.from(new Set(Object.values(variantSkusObj).filter(Boolean)))
+        : legacyCodesArray;
       const variantStockNum: Record<string, number> = {};
       let totalVariantQty = 0;
       variantKeys.forEach((k) => {
@@ -405,6 +414,7 @@ const Products = () => {
         variant_warehouse_codes: Object.fromEntries(
           variantKeys.map((k) => [k, (editProduct.variantWarehouseCodes?.[k] || "").trim()]).filter(([, v]) => v)
         ),
+        variant_skus: variantSkusObj,
         easyorders_product_id: editProduct.easyOrdersProductId?.trim() || null,
         variant_easyorders_ids: Object.fromEntries(
           variantKeys.map((k) => [k, (editProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
