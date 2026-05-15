@@ -299,6 +299,7 @@ const FinancialAccounts = () => {
           <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
           <TabsTrigger value="trends">الاتجاهات الشهرية</TabsTrigger>
           <TabsTrigger value="products">أداء المنتجات</TabsTrigger>
+          <TabsTrigger value="shipped">جاري التوصيل</TabsTrigger>
           <TabsTrigger value="expenses">تحليل المصروفات</TabsTrigger>
           <TabsTrigger value="orders">تفاصيل الطلبات</TabsTrigger>
         </TabsList>
