@@ -173,15 +173,29 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers";
-        const productPromise = supabase
-          .from("products")
-          .select(productLightSelect)
-          .eq("slug", slug)
-          .eq("is_visible", true)
-          .is("deleted_at", null);
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers, is_visible";
 
-        const [profileRes, productRes] = await Promise.all([profilePromise, productPromise]);
+        // أولاً: ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
+        const landingPromise = supabase
+          .from("landing_pages")
+          .select("id, product_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_offers, is_visible")
+          .eq("slug", slug)
+          .maybeSingle();
+
+        const [profileRes, landingRes] = await Promise.all([profilePromise, landingPromise]);
+        const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
+
+        // إن وُجدت صفحة هبوط: نأخذ المنتج بمعرّفه. وإلا نرجع للسلوك القديم (slug في products).
+        const productPromise = landingPage
+          ? supabase.from("products").select(productLightSelect).eq("id", landingPage.product_id).is("deleted_at", null)
+          : supabase
+              .from("products")
+              .select(productLightSelect)
+              .eq("slug", slug)
+              .eq("is_visible", true)
+              .is("deleted_at", null);
+
+        const productRes = await productPromise;
 
         if (ac.signal.aborted) return;
         let resolvedOwnerId: string | null = null;
@@ -197,32 +211,48 @@ const LandingPage = () => {
         const rows = (productRes.data as any[]) || [];
         const matched = resolvedOwnerId ? rows.find((r) => r.owner_id === resolvedOwnerId) : rows[0];
 
+        // إذا كانت الصفحة مخفية أو المنتج مخفي، أوقف
+        if (landingPage && landingPage.is_visible === false) { setLoading(false); return; }
+        if (matched && matched.is_visible === false && !landingPage) { setLoading(false); return; }
+
         let loadedProduct: Product | null = null;
         if (matched) {
+          // طبّق overrides من صفحة الهبوط إن وُجدت
+          const lp = landingPage;
+          const lpImages: string[] = Array.isArray(lp?.images) ? lp.images : [];
+          const lpHasUpsell = lp ? lp.upsell_enabled : null;
           loadedProduct = {
             id: matched.id,
             name: matched.name,
-            slug: matched.slug,
-            price: String(matched.price),
-            original_price: matched.original_price ? String(matched.original_price) : undefined,
-            description: matched.description || "",
-            images: cachedProduct?.product?.images || [],
+            slug: lp?.slug || matched.slug,
+            price: String(lp?.price ?? matched.price),
+            original_price: (lp?.original_price ?? matched.original_price) ? String(lp?.original_price ?? matched.original_price) : undefined,
+            description: (lp?.description ?? matched.description) || "",
+            images: lpImages.length ? lpImages : (cachedProduct?.product?.images || []),
             product_codes: matched.product_codes || [],
             colors: matched.colors || [],
             sizes: matched.sizes || [],
-            upsell_enabled: !!matched.upsell_enabled,
-            upsell_offers: Array.isArray(matched.upsell_offers) ? matched.upsell_offers : [],
+            upsell_enabled: lpHasUpsell != null ? !!lpHasUpsell : !!matched.upsell_enabled,
+            upsell_offers: Array.isArray(lp?.upsell_offers) && lp.upsell_offers.length
+              ? lp.upsell_offers
+              : (Array.isArray(matched.upsell_offers) ? matched.upsell_offers : []),
+            // عنوان مخصص لصفحة الهبوط (إن وُجد)
+            ...(lp?.title ? { name: lp.title } : {}),
           };
           setProduct(loadedProduct);
 
-          // Fetch heavy images separately (non-blocking) — base64 images are large
-          supabase.from("products").select("images").eq("id", matched.id).maybeSingle().then(({ data }) => {
-            if (data?.images && (data.images as string[]).length) {
-              const imgs = data.images as string[];
-              setProduct((prev) => prev ? { ...prev, images: imgs } : prev);
-              setToCache(productCacheKey, { product: { ...(loadedProduct as Product), images: imgs }, ownerId: resolvedOwnerId || matched.owner_id });
-            }
-          });
+          // Fetch heavy product images separately فقط إذا لم تكن صفحة الهبوط تملك صورها الخاصة
+          if (!lpImages.length) {
+            supabase.from("products").select("images").eq("id", matched.id).maybeSingle().then(({ data }) => {
+              if (data?.images && (data.images as string[]).length) {
+                const imgs = data.images as string[];
+                setProduct((prev) => prev ? { ...prev, images: imgs } : prev);
+                setToCache(productCacheKey, { product: { ...(loadedProduct as Product), images: imgs }, ownerId: resolvedOwnerId || matched.owner_id });
+              }
+            });
+          } else {
+            setToCache(productCacheKey, { product: loadedProduct, ownerId: resolvedOwnerId || matched.owner_id });
+          }
         }
 
         setLoading(false);

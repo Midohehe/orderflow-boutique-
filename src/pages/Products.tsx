@@ -2,6 +2,8 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,13 +14,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { isolateLatin } from "@/lib/bidi";
+import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
 
 const ProductForm = lazy(() => import("@/components/ProductForm"));
 
@@ -37,6 +40,17 @@ interface Product {
   is_visible: boolean;
   stock?: number;
   variant_stock?: Record<string, number>;
+}
+
+interface LandingPage {
+  id: string;
+  product_id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  is_visible: boolean;
+  product_name?: string;
+  product_image?: string;
 }
 
 interface StoreSettings {
@@ -81,6 +95,23 @@ const Products = () => {
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
+
+  // ===== صفحات الهبوط =====
+  const [activeTab, setActiveTab] = useState<"products" | "landing">("products");
+  const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
+  const [isLpAddOpen, setIsLpAddOpen] = useState(false);
+  const [isLpEditOpen, setIsLpEditOpen] = useState(false);
+  const [editingLpId, setEditingLpId] = useState<string | null>(null);
+  const [newLp, setNewLp] = useState<LandingPageFormData>(emptyLandingPageData);
+  const [editLp, setEditLp] = useState<LandingPageFormData>(emptyLandingPageData);
+  const [isSavingLp, setIsSavingLp] = useState(false);
+  const [deleteLpTarget, setDeleteLpTarget] = useState<LandingPage | null>(null);
+
+  // عداد صفحات الهبوط لكل منتج
+  const lpCountByProduct = landingPages.reduce<Record<string, number>>((acc, lp) => {
+    acc[lp.product_id] = (acc[lp.product_id] || 0) + 1;
+    return acc;
+  }, {});
 
   const runWithTimeout = async <T,>(request: PromiseLike<T>, timeoutMs = 30000): Promise<T> => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -213,10 +244,10 @@ const Products = () => {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price || !newProduct.slug) {
+    if (!newProduct.name || !newProduct.price) {
       toast({
         title: "خطأ",
-        description: "يرجى ملء اسم المنتج والسعر ورابط المنتج",
+        description: "يرجى ملء اسم المنتج والسعر",
         variant: "destructive",
       });
       return;
@@ -233,6 +264,18 @@ const Products = () => {
 
     setIsSaving(true);
     try {
+      // في وضع "إضافة منتج" نولّد slug تلقائيًا (المنتج لا يملك صفحة هبوط افتراضيًا)
+      let finalSlug = newProduct.slug;
+      if (!finalSlug) {
+        const base = (newProduct.name || "product")
+          .toLowerCase()
+          .replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .replace(/[\u0600-\u06FF]/g, "")
+          .replace(/-+/g, "-") || "product";
+        const rand = Math.random().toString(36).slice(2, 8);
+        finalSlug = `${base || "product"}-${rand}`;
+      }
       const colorsArray = newProduct.colors ? newProduct.colors.split(",").map(c => c.trim()).filter(Boolean) : [];
       const sizesArray = newProduct.sizes ? newProduct.sizes.split(",").map(s => s.trim()).filter(Boolean) : [];
       const hasColorOrSize = colorsArray.length > 0 || sizesArray.length > 0;
@@ -267,7 +310,7 @@ const Products = () => {
       const { data, error } = await supabase.from("products").insert({
         owner_id: user!.id,
         name: newProduct.name,
-        slug: newProduct.slug,
+        slug: finalSlug,
         price: parseFloat(newProduct.price),
         original_price: newProduct.originalPrice ? parseFloat(newProduct.originalPrice) : null,
         purchase_price: newProduct.purchasePrice ? parseFloat(newProduct.purchasePrice) : 0,
@@ -313,7 +356,7 @@ const Products = () => {
       const newProductData: Product = {
         id: data.id,
         name: newProduct.name,
-        slug: newProduct.slug,
+        slug: finalSlug,
         price: newProduct.price,
         original_price: newProduct.originalPrice || undefined,
         purchase_price: newProduct.purchasePrice || "0",
@@ -644,6 +687,194 @@ const Products = () => {
     });
   };
 
+  // ===== Landing Pages: load =====
+  useEffect(() => {
+    if (userLoading) return;
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("landing_pages")
+        .select("id, product_id, slug, title, subtitle, is_visible")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false });
+      if (cancelled || error) return;
+      setLandingPages((data || []) as any);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading]);
+
+  // أضف اسم/صورة المنتج لكل صفحة هبوط من قائمة المنتجات المحلية
+  const enrichedLandingPages: LandingPage[] = landingPages.map((lp) => {
+    const p = products.find((x) => x.id === lp.product_id);
+    return {
+      ...lp,
+      product_name: p?.name,
+      product_image: p?.images?.[0],
+    };
+  });
+
+  const validateLp = (lp: LandingPageFormData): string | null => {
+    if (!lp.productId) return "يرجى اختيار المنتج المرتبط";
+    if (!lp.title.trim()) return "يرجى إدخال العنوان";
+    if (!lp.slug.trim()) return "يرجى إدخال الرابط (slug)";
+    return null;
+  };
+
+  const handleAddLp = async () => {
+    const err = validateLp(newLp);
+    if (err) { toast({ title: "خطأ", description: err, variant: "destructive" }); return; }
+    setIsSavingLp(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase.from("landing_pages").insert({
+        owner_id: user!.id,
+        product_id: newLp.productId,
+        slug: newLp.slug.trim(),
+        title: newLp.title.trim(),
+        subtitle: newLp.subtitle.trim() || null,
+        description: newLp.description || "",
+        images: newLp.images || [],
+        price: newLp.price ? parseFloat(newLp.price) : null,
+        original_price: newLp.originalPrice ? parseFloat(newLp.originalPrice) : null,
+        upsell_enabled: !!newLp.upsellEnabled,
+        upsell_offers: (newLp.upsellOffers || [])
+          .map((o) => ({
+            quantity: Math.max(1, parseInt(o.quantity) || 0),
+            price: Math.max(0, parseFloat(o.price) || 0),
+            label: (o.label || "").trim(),
+          }))
+          .filter((o) => o.quantity > 0 && o.price > 0),
+        is_visible: newLp.isVisible !== false,
+      }).select("id, product_id, slug, title, subtitle, is_visible").single();
+      if (error) {
+        if (error.code === "23505") {
+          toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً، اختر رابطًا آخر", variant: "destructive" });
+          return;
+        }
+        throw error;
+      }
+      setLandingPages((prev) => [data as any, ...prev]);
+      setNewLp(emptyLandingPageData);
+      setIsLpAddOpen(false);
+      toast({ title: "تم", description: "تم إنشاء صفحة الهبوط" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "خطأ", description: "تعذر إنشاء صفحة الهبوط", variant: "destructive" });
+    } finally {
+      setIsSavingLp(false);
+    }
+  };
+
+  const openEditLp = async (lp: LandingPage) => {
+    setEditingLpId(lp.id);
+    setIsLpEditOpen(true);
+    const { data, error } = await supabase
+      .from("landing_pages")
+      .select("*")
+      .eq("id", lp.id)
+      .single();
+    if (error || !data) {
+      toast({ title: "خطأ", description: "تعذر تحميل صفحة الهبوط", variant: "destructive" });
+      return;
+    }
+    const d = data as any;
+    setEditLp({
+      productId: d.product_id,
+      slug: d.slug,
+      title: d.title || "",
+      subtitle: d.subtitle || "",
+      description: d.description || "",
+      images: d.images || [],
+      price: d.price != null ? String(d.price) : "",
+      originalPrice: d.original_price != null ? String(d.original_price) : "",
+      upsellEnabled: !!d.upsell_enabled,
+      upsellOffers: Array.isArray(d.upsell_offers)
+        ? (d.upsell_offers as any[]).map((o) => ({
+            quantity: String(o?.quantity ?? ""),
+            price: String(o?.price ?? ""),
+            label: String(o?.label ?? ""),
+          }))
+        : [],
+      isVisible: d.is_visible !== false,
+    });
+  };
+
+  const handleUpdateLp = async () => {
+    if (!editingLpId) return;
+    const err = validateLp(editLp);
+    if (err) { toast({ title: "خطأ", description: err, variant: "destructive" }); return; }
+    setIsSavingLp(true);
+    try {
+      const { error } = await supabase.from("landing_pages").update({
+        slug: editLp.slug.trim(),
+        title: editLp.title.trim(),
+        subtitle: editLp.subtitle.trim() || null,
+        description: editLp.description || "",
+        images: editLp.images || [],
+        price: editLp.price ? parseFloat(editLp.price) : null,
+        original_price: editLp.originalPrice ? parseFloat(editLp.originalPrice) : null,
+        upsell_enabled: !!editLp.upsellEnabled,
+        upsell_offers: (editLp.upsellOffers || [])
+          .map((o) => ({
+            quantity: Math.max(1, parseInt(o.quantity) || 0),
+            price: Math.max(0, parseFloat(o.price) || 0),
+            label: (o.label || "").trim(),
+          }))
+          .filter((o) => o.quantity > 0 && o.price > 0),
+        is_visible: editLp.isVisible !== false,
+      }).eq("id", editingLpId);
+      if (error) {
+        if (error.code === "23505") {
+          toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً", variant: "destructive" });
+          return;
+        }
+        throw error;
+      }
+      setLandingPages((prev) => prev.map((lp) => lp.id === editingLpId ? {
+        ...lp,
+        slug: editLp.slug.trim(),
+        title: editLp.title.trim(),
+        subtitle: editLp.subtitle.trim(),
+        is_visible: editLp.isVisible !== false,
+      } : lp));
+      setIsLpEditOpen(false);
+      setEditingLpId(null);
+      toast({ title: "تم", description: "تم تحديث صفحة الهبوط" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "خطأ", description: "تعذر تحديث الصفحة", variant: "destructive" });
+    } finally {
+      setIsSavingLp(false);
+    }
+  };
+
+  const handleDeleteLp = async () => {
+    if (!deleteLpTarget) return;
+    try {
+      const { error } = await supabase.from("landing_pages").delete().eq("id", deleteLpTarget.id);
+      if (error) throw error;
+      setLandingPages((prev) => prev.filter((lp) => lp.id !== deleteLpTarget.id));
+      toast({ title: "تم الحذف", description: "تم حذف صفحة الهبوط" });
+      setDeleteLpTarget(null);
+    } catch (e) {
+      console.error(e);
+      toast({ title: "خطأ", description: "تعذر الحذف", variant: "destructive" });
+    }
+  };
+
+  const openCreateLpForProduct = (productId: string) => {
+    const p = products.find((x) => x.id === productId);
+    setNewLp({
+      ...emptyLandingPageData,
+      productId,
+      title: p?.name || "",
+    });
+    setActiveTab("landing");
+    setIsLpAddOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -658,39 +889,66 @@ const Products = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">المنتجات</h1>
-          <p className="text-sm text-muted-foreground">إدارة منتجات صفحات الهبوط</p>
+          <p className="text-sm text-muted-foreground">إدارة المنتجات وصفحات الهبوط</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-        <Button
-          variant="outline"
-          className="gap-2 w-full sm:w-auto"
-          onClick={() => navigate("/dashboard/products/trash")}
-        >
-          <Trash2 className="w-4 h-4" />
-          سلة المحذوفات
-        </Button>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
-              <Plus className="w-4 h-4" />
-              إضافة منتج
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-            <DialogHeader>
-              <DialogTitle>إضافة منتج جديد</DialogTitle>
-            </DialogHeader>
-            <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-              <ProductForm
-                product={newProduct}
-                onProductChange={setNewProduct}
-                onSubmit={handleAddProduct}
-                submitText="إضافة المنتج"
-                isLoading={isSaving}
-              />
-            </Suspense>
-          </DialogContent>
-        </Dialog>
+          <Button
+            variant="outline"
+            className="gap-2 w-full sm:w-auto"
+            onClick={() => navigate("/dashboard/products/trash")}
+          >
+            <Trash2 className="w-4 h-4" />
+            سلة المحذوفات
+          </Button>
+          {activeTab === "products" ? (
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
+                  <Plus className="w-4 h-4" />
+                  إضافة منتج
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle>إضافة منتج جديد</DialogTitle>
+                </DialogHeader>
+                <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+                  <ProductForm
+                    mode="product"
+                    product={newProduct}
+                    onProductChange={setNewProduct}
+                    onSubmit={handleAddProduct}
+                    submitText="إضافة المنتج"
+                    isLoading={isSaving}
+                  />
+                </Suspense>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Dialog open={isLpAddOpen} onOpenChange={(o) => { setIsLpAddOpen(o); if (!o) setNewLp(emptyLandingPageData); }}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
+                  <Plus className="w-4 h-4" />
+                  إنشاء صفحة هبوط
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle>إنشاء صفحة هبوط جديدة</DialogTitle>
+                </DialogHeader>
+                <LandingPageForm
+                  data={newLp}
+                  onChange={setNewLp}
+                  onSubmit={handleAddLp}
+                  submitText="إنشاء الصفحة"
+                  isLoading={isSavingLp}
+                  products={products.map((p) => ({
+                    id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
+                  }))}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -706,6 +964,7 @@ const Products = () => {
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
             <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
               <ProductForm
+                mode="product"
                 product={editProduct}
                 onProductChange={setEditProduct}
                 onSubmit={handleEditProduct}
@@ -717,6 +976,44 @@ const Products = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Landing Page Dialog */}
+      <Dialog open={isLpEditOpen} onOpenChange={(o) => { setIsLpEditOpen(o); if (!o) setEditingLpId(null); }}>
+        <DialogContent
+          className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 translate-x-0 translate-y-0 left-0 top-0 border-0 flex flex-col"
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="px-4 sm:px-6 py-4 border-b shrink-0">
+            <DialogTitle>تعديل صفحة الهبوط</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+            <LandingPageForm
+              data={editLp}
+              onChange={setEditLp}
+              onSubmit={handleUpdateLp}
+              submitText="حفظ التعديلات"
+              isLoading={isSavingLp}
+              lockProduct
+              products={products.map((p) => ({
+                id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
+              }))}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+        <TabsList className="grid grid-cols-2 max-w-md">
+          <TabsTrigger value="products" className="gap-2">
+            <Package className="w-4 h-4" />
+            المنتجات ({products.length})
+          </TabsTrigger>
+          <TabsTrigger value="landing" className="gap-2">
+            <Layout className="w-4 h-4" />
+            صفحات الهبوط ({landingPages.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="products" className="mt-6">
       {/* Products Grid */}
       {products.length === 0 ? (
         <Card className="card-shadow">
@@ -767,35 +1064,30 @@ const Products = () => {
                   </div>
                 </div>
 
-                {/* Product URL */}
-                <div className="flex items-center gap-2 mb-4 p-2 bg-muted rounded-lg">
-                  <span className="text-xs text-muted-foreground truncate flex-1" dir="ltr">
-                    /p/{product.slug}
-                  </span>
+                {/* Landing pages indicator */}
+                <div className="flex items-center justify-between gap-2 mb-4 p-2 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Layout className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground truncate">
+                      {lpCountByProduct[product.id] || 0} صفحة هبوط
+                    </span>
+                  </div>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyProductUrl(product.slug)}
+                    size="sm"
+                    className="h-6 px-2 text-xs gap-1 text-primary hover:text-primary"
+                    onClick={() => openCreateLpForProduct(product.id)}
                   >
-                    <Copy className="w-3 h-3" />
+                    <Plus className="w-3 h-3" />
+                    إضافة
                   </Button>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
-                    className="flex-1 min-w-0 gap-1 sm:gap-2 text-xs sm:text-sm bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all"
-                    onClick={() => openPreviewPage(product.slug)}
-                  >
-                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                    <span className="hidden xs:inline">معاينة</span>
-                    <ExternalLink className="w-2 h-2 sm:w-3 sm:h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
                     onClick={() => toggleVisibility(product)}
-                    className={`px-2 sm:px-3 shadow-md hover:shadow-lg transition-all ${
+                    className={`flex-1 min-w-0 px-2 sm:px-3 shadow-md hover:shadow-lg transition-all ${
                       product.is_visible
                         ? "bg-amber-500 hover:bg-amber-600 text-white"
                         : "bg-green-500 hover:bg-green-600 text-white"
@@ -828,6 +1120,85 @@ const Products = () => {
           ))}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="landing" className="mt-6">
+          {enrichedLandingPages.length === 0 ? (
+            <Card className="card-shadow">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Layout className="w-16 h-16 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">لا توجد صفحات هبوط بعد</p>
+                <p className="text-xs text-muted-foreground">اضغط «إنشاء صفحة هبوط» لإنشاء صفحة جديدة مرتبطة بأحد منتجاتك</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {enrichedLandingPages.map((lp) => (
+                <Card key={lp.id} className={`card-shadow overflow-hidden ${!lp.is_visible ? 'opacity-60' : ''}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      {lp.product_image ? (
+                        <img src={lp.product_image} alt="" className="w-14 h-14 object-cover rounded shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded bg-muted flex items-center justify-center shrink-0">
+                          <Package className="w-6 h-6 text-muted-foreground/50" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-foreground truncate">{isolateLatin(lp.title)}</h3>
+                          {!lp.is_visible && (
+                            <Badge variant="destructive" className="text-[10px]">مخفي</Badge>
+                          )}
+                        </div>
+                        {lp.subtitle && (
+                          <p className="text-xs text-muted-foreground truncate">{lp.subtitle}</p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <Link2 className="w-3 h-3" /> {lp.product_name || "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                      <span className="text-xs text-muted-foreground truncate flex-1" dir="ltr">/p/{lp.slug}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyProductUrl(lp.slug)}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 min-w-0 gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white"
+                        onClick={() => openPreviewPage(lp.slug)}
+                      >
+                        <Eye className="w-3 h-3" />
+                        معاينة
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => openEditLp(lp)}
+                        className="px-2 bg-sky-500 hover:bg-sky-600 text-white"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-red-500 hover:bg-red-600 text-white px-2"
+                        onClick={() => setDeleteLpTarget(lp)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent dir="rtl">
@@ -846,6 +1217,27 @@ const Products = () => {
               className="bg-red-500 hover:bg-red-600 text-white"
             >
               {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "نقل إلى السلة"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteLpTarget} onOpenChange={(open) => !open && setDeleteLpTarget(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف صفحة الهبوط</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف صفحة الهبوط «{deleteLpTarget?.title}»؟
+              لن يتأثر المنتج المرتبط، فقط الصفحة سيتم حذفها نهائيًا.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteLp(); }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              حذف
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

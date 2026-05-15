@@ -77,6 +77,11 @@ interface ProductFormProps {
   onSubmit: () => void;
   submitText: string;
   isLoading?: boolean;
+  /**
+   * "product" = بيانات المنتج فقط (بدون slug، وصف ثري، upsell، مميزات)
+   * "landing" = نموذج كامل (للاستخدام القديم/صفحة الهبوط)
+   */
+  mode?: "product" | "landing";
 }
 
 // Build variant keys from colors/sizes/codes (same logic used in inventory page)
@@ -177,7 +182,8 @@ const TagsField = ({
   );
 };
 
-const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading }: ProductFormProps) => {
+const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing" }: ProductFormProps) => {
+  const isLandingMode = mode === "landing";
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
   };
@@ -388,8 +394,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       </SectionCard>
 
       {/* Basic Info */}
-      <SectionCard icon={Tag} title="المعلومات الأساسية" description="اسم المنتج والرابط الفريد" iconColor="bg-blue-500">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <SectionCard icon={Tag} title="المعلومات الأساسية" description={isLandingMode ? "اسم المنتج والرابط الفريد" : "اسم المنتج"} iconColor="bg-blue-500">
+        <div className={`grid grid-cols-1 ${isLandingMode ? "md:grid-cols-2" : ""} gap-4`}>
           <div className="space-y-2">
             <Label className="font-semibold">اسم المنتج <span className="text-red-500">*</span></Label>
             <Input
@@ -398,6 +404,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               placeholder="أدخل اسم المنتج"
             />
           </div>
+          {isLandingMode && (
           <div className="space-y-2">
             <Label className="font-semibold">رابط المنتج <span className="text-red-500">*</span></Label>
             <Input
@@ -409,6 +416,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             />
             <p className="text-xs text-muted-foreground">أحرف إنجليزية فقط — مثال: /p/hair-oil</p>
           </div>
+          )}
         </div>
       </SectionCard>
 
@@ -447,6 +455,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       </SectionCard>
 
       {/* Description */}
+      {isLandingMode && (
       <SectionCard icon={FileText} title="الوصف التفصيلي" description="أضف وصفاً غنياً مع صور وفيديوهات" iconColor="bg-indigo-500">
         <RichTextEditor
           value={product.description}
@@ -454,8 +463,10 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           placeholder="أضف وصف تفصيلي للمنتج مع صور وفيديوهات..."
         />
       </SectionCard>
+      )}
 
       {/* Features */}
+      {isLandingMode && (
       <SectionCard icon={Sparkles} title="مميزات المنتج" description="سطر واحد لكل ميزة" iconColor="bg-amber-500">
         <Textarea
           value={product.features}
@@ -464,6 +475,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           rows={4}
         />
       </SectionCard>
+      )}
 
       {/* Variants */}
       <SectionCard icon={Layers} title="خيارات المنتج" description="ألوان، مقاسات، أو أكواد متعددة (اختياري)" iconColor="bg-pink-500">
@@ -518,6 +530,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       </SectionCard>
 
       {/* Upsell Offers */}
+      {isLandingMode && (
       <SectionCard icon={TrendingUp} title="عروض Upsell" description="اعرض حزم بكميات أكبر بأسعار مميزة" iconColor="bg-orange-500">
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border-2 border-dashed bg-muted/40">
           <div className="flex-1 min-w-0">
@@ -606,6 +619,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           </div>
         )}
       </SectionCard>
+      )}
 
       {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
       <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
