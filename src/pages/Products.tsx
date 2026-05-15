@@ -200,6 +200,15 @@ const Products = () => {
       }
     });
 
+    // Load strict-stock toggle for current user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("strict_stock_enabled").eq("user_id", user.id).maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled && data) setStrictStock(!!(data as any).strict_stock_enabled);
+        });
+    });
+
     return () => {
       cancelled = true;
     };
