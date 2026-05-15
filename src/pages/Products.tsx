@@ -893,6 +893,36 @@ const Products = () => {
             <Trash2 className="w-4 h-4" />
             سلة المحذوفات
           </Button>
+          <Button
+            variant={strictStock ? "default" : "outline"}
+            className="gap-2 w-full sm:w-auto"
+            disabled={strictSaving}
+            onClick={async () => {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return;
+              const next = !strictStock;
+              setStrictSaving(true);
+              const { error } = await supabase
+                .from("profiles")
+                .update({ strict_stock_enabled: next })
+                .eq("user_id", user.id);
+              setStrictSaving(false);
+              if (error) {
+                toast({ title: "خطأ", description: error.message, variant: "destructive" });
+                return;
+              }
+              setStrictStock(next);
+              toast({
+                title: next ? "تم تفعيل تتبع المخزون الدقيق" : "تم إيقاف تتبع المخزون الدقيق",
+                description: next
+                  ? "سيتم رفض الطلبات الجديدة عند نفاد المخزون"
+                  : "ستُقبل الطلبات حتى لو لم يتوفر المخزون",
+              });
+            }}
+          >
+            {strictStock ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+            {strictStock ? "تتبع المخزون الدقيق: مفعّل" : "تتبع المخزون الدقيق"}
+          </Button>
           {activeTab === "products" ? (
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
