@@ -461,6 +461,68 @@ export type Database = {
         }
         Relationships: []
       }
+      landing_pages: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          images: string[]
+          is_visible: boolean
+          original_price: number | null
+          owner_id: string
+          price: number | null
+          product_id: string
+          slug: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+          upsell_enabled: boolean
+          upsell_offers: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[]
+          is_visible?: boolean
+          original_price?: number | null
+          owner_id: string
+          price?: number | null
+          product_id: string
+          slug: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          upsell_enabled?: boolean
+          upsell_offers?: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[]
+          is_visible?: boolean
+          original_price?: number | null
+          owner_id?: string
+          price?: number | null
+          product_id?: string
+          slug?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          upsell_enabled?: boolean
+          upsell_offers?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_confirmation_attempts: {
         Row: {
           created_at: string
