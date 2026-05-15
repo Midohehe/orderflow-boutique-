@@ -622,7 +622,8 @@ const LandingPage = () => {
       const phone =
         formData.phone || findField("phone", "tel", "هاتف", "رقم", "جوال", "موبايل");
       const city =
-        formData.city || findField("city", "مدينة");
+        formData.city ||
+        findField("city", "مدينة", "محافظة", "محافضة", "ولاية", "منطقة");
       const address =
         formData.address ||
         findField("address", "منطقة", "عنوان", "حي", "شارع");
