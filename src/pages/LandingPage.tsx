@@ -729,9 +729,7 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden" dir="rtl">
       {/* Header */}
-      <header className="bg-card border-b border-border py-3 px-4 text-center w-full">
-        <h2 className="text-lg sm:text-xl font-bold text-primary tracking-wider">عدسات ميار</h2>
-      </header>
+      <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
       <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
