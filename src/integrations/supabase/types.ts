@@ -609,6 +609,78 @@ export type Database = {
           },
         ]
       }
+      permission_group_items: {
+        Row: {
+          group_id: string
+          permission_key: string
+        }
+        Insert: {
+          group_id: string
+          permission_key: string
+        }
+        Update: {
+          group_id?: string
+          permission_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_group_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "permission_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permission_group_items_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      permission_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      permissions: {
+        Row: {
+          category: string
+          created_at: string
+          key: string
+          label: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          key: string
+          label: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          key?: string
+          label?: string
+        }
+        Relationships: []
+      }
       pixel_settings: {
         Row: {
           created_at: string
@@ -1424,6 +1496,71 @@ export type Database = {
         }
         Relationships: []
       }
+      store_member_permissions: {
+        Row: {
+          member_id: string
+          permission_key: string
+        }
+        Insert: {
+          member_id: string
+          permission_key: string
+        }
+        Update: {
+          member_id?: string
+          permission_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_member_permissions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "store_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_member_permissions_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      store_members: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          group_id: string | null
+          id: string
+          member_user_id: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          group_id?: string | null
+          id?: string
+          member_user_id: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          group_id?: string | null
+          id?: string
+          member_user_id?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "permission_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_settings: {
         Row: {
           created_at: string
@@ -1698,6 +1835,8 @@ export type Database = {
         Args: { _count: number; _label?: string; _value: number }
         Returns: Json
       }
+      get_effective_owner_id: { Args: { _uid: string }; Returns: string }
+      has_permission: { Args: { _key: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1705,6 +1844,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_member_of: { Args: { _owner_id: string }; Returns: boolean }
       is_subscription_active: { Args: { _user_id: string }; Returns: boolean }
       redeem_card: { Args: { _code: string }; Returns: Json }
     }
