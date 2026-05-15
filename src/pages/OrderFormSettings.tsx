@@ -127,6 +127,19 @@ const OrderFormSettings = () => {
     setCatalog(catalog.map(c => c.field_key === key ? { ...c, admin_enabled: value } : c));
   };
 
+  const updateCatalogField = (key: string, patch: Partial<CatalogField>) => {
+    setCatalog(catalog.map(c => c.field_key === key ? { ...c, ...patch } : c));
+  };
+  const saveCatalogField = async (key: string) => {
+    const c = catalog.find(x => x.field_key === key);
+    if (!c) return;
+    const { error } = await supabase.from("form_field_catalog")
+      .update({ label: c.label, default_placeholder: c.default_placeholder })
+      .eq("field_key", key);
+    if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "تم الحفظ", description: "تم تحديث الحقل" });
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -138,15 +151,24 @@ const OrderFormSettings = () => {
       {isAdmin && (
         <SectionCard icon={Shield} title="كتالوج الحقول (السوبر ادمن)" description="تحكّم في الحقول التي تظهر لأصحاب المتاجر" iconColor="bg-rose-500">
           {catalog.map((c) => (
-            <div key={c.field_key} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
-              <div className="flex-1">
-                <div className="font-semibold">{c.label}</div>
-                <div className="text-xs text-muted-foreground font-mono">{c.field_key}</div>
+            <div key={c.field_key} className="p-3 bg-muted/50 rounded-lg border space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 text-xs text-muted-foreground font-mono">{c.field_key}</div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch checked={c.admin_enabled} onCheckedChange={(v) => toggleCatalogAdmin(c.field_key, v)} />
+                  <span>{c.admin_enabled ? "متاح للمتاجر" : "مخفي عن المتاجر"}</span>
+                </label>
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Switch checked={c.admin_enabled} onCheckedChange={(v) => toggleCatalogAdmin(c.field_key, v)} />
-                <span>{c.admin_enabled ? "متاح للمتاجر" : "مخفي عن المتاجر"}</span>
-              </label>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">اسم الحقل</Label>
+                  <Input value={c.label} onChange={(e) => updateCatalogField(c.field_key, { label: e.target.value })} onBlur={() => saveCatalogField(c.field_key)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">النص المساعد الافتراضي</Label>
+                  <Input value={c.default_placeholder} onChange={(e) => updateCatalogField(c.field_key, { default_placeholder: e.target.value })} onBlur={() => saveCatalogField(c.field_key)} />
+                </div>
+              </div>
             </div>
           ))}
         </SectionCard>
