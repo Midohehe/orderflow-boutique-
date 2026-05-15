@@ -496,19 +496,19 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             </div>
           )}
           <div className="space-y-2">
-            <Label className="font-semibold">الألوان المتاحة</Label>
-            <Input
+            <TagsField
+              label="الألوان المتاحة"
               value={product.colors}
-              onChange={(e) => updateField("colors", e.target.value)}
-              placeholder="أحمر, أزرق, أسود"
+              onChange={(v) => updateField("colors", v)}
+              placeholder="أحمر"
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">المقاسات المتاحة</Label>
-            <Input
+            <TagsField
+              label="المقاسات المتاحة"
               value={product.sizes}
-              onChange={(e) => updateField("sizes", e.target.value)}
-              placeholder="S, M, L, XL"
+              onChange={(v) => updateField("sizes", v)}
+              placeholder="XL"
             />
           </div>
         </div>
