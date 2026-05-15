@@ -1420,7 +1420,7 @@ const Orders = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">كل المنتجات</SelectItem>
-                {carrierRateProductOptions.map((p) => (
+                {carrierRateProductOptions.filter(Boolean).map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
               </SelectContent>
@@ -1549,7 +1549,7 @@ const Orders = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">كل المنتجات</SelectItem>
-                        {productNames.map((name) => (
+                        {productNames.filter(Boolean).map((name) => (
                           <SelectItem key={name} value={name}>{name}</SelectItem>
                         ))}
                       </SelectContent>
