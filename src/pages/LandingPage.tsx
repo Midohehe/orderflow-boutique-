@@ -267,12 +267,16 @@ const LandingPage = () => {
           ? supabase.from("store_settings").select("currency_symbol, currency_code").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
           : supabase.from("store_settings").select("currency_symbol, currency_code").limit(1).maybeSingle();
 
-        Promise.all([pixelPromise, formFieldsPromise, storePromise]).then(([pixelResult, formFieldsResult, storeSettingsResult]) => {
+        const catalogPromise = supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true);
+
+        Promise.all([pixelPromise, formFieldsPromise, storePromise, catalogPromise]).then(([pixelResult, formFieldsResult, storeSettingsResult, catalogResult]) => {
           if (formFieldsResult.data) {
-            setFormFields(formFieldsResult.data as FormField[]);
-            setToCache(formKey, formFieldsResult.data);
+            const allowed = new Set((catalogResult.data || []).map((c: any) => c.field_key));
+            const filtered = (formFieldsResult.data as FormField[]).filter(f => allowed.size === 0 || allowed.has(f.field_key));
+            setFormFields(filtered);
+            setToCache(formKey, filtered);
             const initialFormData: Record<string, string> = {};
-            (formFieldsResult.data as FormField[]).forEach((field: FormField) => {
+            filtered.forEach((field: FormField) => {
               initialFormData[field.field_key] = "";
             });
             setFormData((prev) => ({ ...initialFormData, ...prev }));
