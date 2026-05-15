@@ -389,15 +389,6 @@ const Products = () => {
       return;
     }
 
-    if (editProduct.images.length === 0) {
-      toast({
-        title: "خطأ",
-        description: "يرجى رفع صورة واحدة على الأقل",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSaving(true);
     try {
       const colorsArray = editProduct.colors ? editProduct.colors.split(",").map(c => c.trim()).filter(Boolean) : [];
