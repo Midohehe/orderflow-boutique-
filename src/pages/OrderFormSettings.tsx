@@ -198,7 +198,7 @@ const OrderFormSettings = () => {
               <div className="grid sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">اسم الحقل</Label>
-                  <Input value={field.label} onChange={(e) => handleFieldEdit(field.id, { label: e.target.value })} />
+                  <Input value={field.label} onChange={(e) => handleFieldEdit(field.id, { label: e.target.value })} disabled={!isAdmin} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">النص المساعد</Label>
