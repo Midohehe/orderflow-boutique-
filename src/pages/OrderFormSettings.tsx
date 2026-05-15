@@ -49,14 +49,19 @@ const OrderFormSettings = () => {
         // landing pages always collect the essential customer info.
         if (user && rows.length === 0) {
           const defaults = [
-            { field_key: "name", label: "الاسم الكامل", placeholder: "أدخل اسمك الكامل", field_type: "text", required: true, sort_order: 1 },
-            { field_key: "phone", label: "رقم الهاتف", placeholder: "أدخل رقم هاتفك", field_type: "phone", required: true, sort_order: 2 },
-            { field_key: "city", label: "المدينة", placeholder: "أدخل اسم مدينتك", field_type: "text", required: true, sort_order: 3 },
-            { field_key: "address", label: "العنوان التفصيلي", placeholder: "الشارع، رقم المبنى…", field_type: "textarea", required: true, sort_order: 4 },
+            { field_key: "phone", label: "رقم الهاتف", placeholder: "أدخل رقم هاتفك", field_type: "phone", required: true, enabled: true, sort_order: 1 },
+            { field_key: "full_name", label: "الاسم الكامل", placeholder: "أدخل اسمك الكامل", field_type: "text", required: true, enabled: true, sort_order: 2 },
+            { field_key: "government", label: "المدينة", placeholder: "أدخل اسم مدينتك", field_type: "text", required: true, enabled: true, sort_order: 3 },
+            { field_key: "address", label: "العنوان التفصيلي", placeholder: "الشارع، رقم المبنى…", field_type: "textarea", required: true, enabled: true, sort_order: 4 },
+            { field_key: "note", label: "المنطقة", placeholder: "الرجاء ادخال المنطقة", field_type: "text", required: false, enabled: false, sort_order: 5 },
+            { field_key: "country", label: "الدولة", placeholder: "أدخل اسم الدولة", field_type: "text", required: false, enabled: false, sort_order: 6 },
+            { field_key: "email", label: "البريد الإلكتروني", placeholder: "example@mail.com", field_type: "email", required: false, enabled: false, sort_order: 7 },
+            { field_key: "phone_alt", label: "رقم هاتف بديل", placeholder: "رقم هاتف إضافي", field_type: "phone", required: false, enabled: false, sort_order: 8 },
+            { field_key: "sa_national_address", label: "العنوان الوطني", placeholder: "رمز العنوان الوطني", field_type: "text", required: false, enabled: false, sort_order: 9 },
           ];
           const { data: inserted, error: insErr } = await supabase
             .from("order_form_fields")
-            .insert(defaults.map((d) => ({ ...d, owner_id: user.id, enabled: true })))
+            .insert(defaults.map((d) => ({ ...d, owner_id: user.id })))
             .select();
           if (!insErr && inserted) rows = inserted;
         }
