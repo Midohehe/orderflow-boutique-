@@ -383,7 +383,7 @@ const DashboardStats = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع المنتجات</SelectItem>
-                  {products.map((product) => (
+              {products.filter(p => p.slug).map((product) => (
                     <SelectItem key={product.slug} value={product.slug}>
                       {product.name}
                     </SelectItem>
