@@ -1,93 +1,137 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Rocket, ShoppingCart, BarChart3, Truck, CreditCard, Layers, Zap, ShieldCheck, LogIn } from "lucide-react";
+import { ShoppingCart, BarChart3, Truck, CreditCard, Layers, ShieldCheck, ArrowLeft } from "lucide-react";
 
 const features = [
-  { icon: ShoppingCart, title: "صفحات هبوط احترافية", desc: "أنشئ صفحات منتجات جذابة تحوّل الزوار إلى عملاء." },
-  { icon: BarChart3, title: "تحليلات وبكسلات", desc: "تكامل مع فيسبوك، تيك توك، سناب وجوجل لقياس كل تحويل." },
-  { icon: Truck, title: "إدارة شحن وطلبات", desc: "تابع طلباتك، حالات الشحن والمرتجعات في مكان واحد." },
-  { icon: CreditCard, title: "محاسبة متكاملة", desc: "خزائن، مصاريف، مشتريات وأرباح دقيقة لكل منتج." },
-  { icon: Layers, title: "متغيرات لا محدودة", desc: "ألوان، مقاسات وأسعار مرنة لكل منتج." },
-  { icon: ShieldCheck, title: "أمان وموثوقية", desc: "بياناتك محمية وصلاحيات دقيقة لكل مستخدم." },
+  { num: "01", title: "صفحات هبوط احترافية", desc: "أنشئ صفحات منتجات جذابة تحوّل الزوار إلى عملاء.", icon: ShoppingCart },
+  { num: "02", title: "تحليلات وبكسلات", desc: "تكامل مع فيسبوك، تيك توك، سناب وجوجل لقياس كل تحويل.", icon: BarChart3 },
+  { num: "03", title: "إدارة شحن وطلبات", desc: "تابع طلباتك، حالات الشحن والمرتجعات في مكان واحد.", icon: Truck },
+  { num: "04", title: "محاسبة متكاملة", desc: "خزائن، مصاريف، مشتريات وأرباح دقيقة لكل منتج.", icon: CreditCard },
+  { num: "05", title: "متغيرات لا محدودة", desc: "ألوان، مقاسات وأسعار مرنة لكل منتج.", icon: Layers },
+  { num: "06", title: "أمان وموثوقية", desc: "بياناتك محمية وصلاحيات دقيقة لكل مستخدم.", icon: ShieldCheck },
 ];
 
 export default function Home() {
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      {/* Nav */}
-      <header className="sticky top-0 z-30 backdrop-blur bg-background/80 border-b">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald-500 flex items-center justify-center shadow">
-              <Rocket className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">وصلة</span>
+    <div dir="rtl" className="min-h-screen bg-background text-foreground">
+      {/* Nav — thin Swiss bar */}
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-foreground/10">
+        <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-foreground" />
+            <span className="font-display text-lg tracking-tight">وصلة</span>
+            <span className="eyebrow hidden sm:inline-block mr-3 pr-3 border-r border-border">commerce os / v.2026</span>
           </div>
           <Link to="/login">
-            <Button className="gap-2">
-              <LogIn className="w-4 h-4" />
+            <Button variant="default" className="rounded-none h-9 gap-2 font-semibold">
               تسجيل الدخول
+              <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="container mx-auto px-4 py-16 md:py-24 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-          <Zap className="w-4 h-4" />
-          منصة وصلة لإدارة المتاجر وصفحات الهبوط
-        </div>
-        <h1 className="text-4xl md:text-6xl font-extrabold leading-tight mb-6">
-          أطلق متجرك واربط <span className="bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">طلباتك</span>
-          <br /> في دقائق معدودة
-        </h1>
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-          منصة عربية متكاملة لإنشاء صفحات هبوط، إدارة الطلبات، تتبع الشحنات، ومحاسبة دقيقة لكل منتج، كل ذلك من لوحة تحكم واحدة.
-        </p>
-        <Link to="/login">
-          <Button size="lg" className="gap-2 text-lg h-14 px-8">
-            <LogIn className="w-5 h-5" />
-            ابدأ الآن - تسجيل الدخول
-          </Button>
-        </Link>
-      </section>
-
-      {/* Features */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-3">كل ما تحتاجه لإدارة تجارتك</h2>
-          <p className="text-muted-foreground">أدوات قوية، واجهة عربية، وتجربة سلسة.</p>
-        </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((f) => (
-            <div key={f.title} className="p-6 rounded-2xl border bg-card hover:shadow-lg transition-shadow">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-                <f.icon className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold mb-2">{f.title}</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
+      {/* Hero — editorial split */}
+      <section className="border-b border-foreground/10">
+        <div className="max-w-[1400px] mx-auto px-6 py-16 md:py-24 grid md:grid-cols-12 gap-8">
+          <div className="md:col-span-8">
+            <div className="eyebrow mb-6 flex items-center gap-3">
+              <span className="num">№ 001</span>
+              <span className="w-10 h-px bg-foreground/40" />
+              <span>منصة عربية لإدارة التجارة</span>
             </div>
-          ))}
+            <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight">
+              أطلق متجرك.
+              <br />
+              تابع طلباتك.
+              <br />
+              <span className="text-accent">احسب أرباحك.</span>
+            </h1>
+            <p className="mt-8 text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
+              صفحات هبوط، إدارة طلبات، تتبع شحنات، ومحاسبة دقيقة — كل ذلك من لوحة تحكم واحدة، بأسلوب يحترم وقتك.
+            </p>
+            <div className="mt-10 flex items-center gap-4">
+              <Link to="/login">
+                <Button size="lg" className="rounded-none h-12 px-6 font-semibold gap-2">
+                  ابدأ الآن
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              </Link>
+              <a href="#features" className="eyebrow hover:text-foreground transition-colors">↓ استكشف</a>
+            </div>
+          </div>
+
+          {/* Index card — meta grid */}
+          <aside className="md:col-span-4 md:border-r md:border-foreground/10 md:pr-6">
+            <div className="rule mb-4" />
+            <div className="space-y-3 num text-sm">
+              {[
+                ["النسخة", "26.05"],
+                ["السوق", "ليبيا / MENA"],
+                ["اللغة", "عربي — RTL"],
+                ["الحالة", "● نشط"],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between border-b border-foreground/5 pb-2">
+                  <span className="text-muted-foreground font-sans">{k}</span>
+                  <span className="text-foreground">{v}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="rounded-3xl bg-gradient-to-br from-primary to-emerald-600 p-10 md:p-16 text-center text-primary-foreground shadow-xl">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">جاهز لتنطلق مع وصلة؟</h2>
-          <p className="text-primary-foreground/90 mb-8 max-w-xl mx-auto">سجّل دخولك الآن وابدأ بإدارة متجرك وطلباتك باحترافية.</p>
-          <Link to="/login">
-            <Button size="lg" variant="secondary" className="gap-2 h-14 px-8 text-lg">
-              <LogIn className="w-5 h-5" />
-              تسجيل الدخول
-            </Button>
-          </Link>
+      {/* Features — numbered Swiss grid */}
+      <section id="features" className="border-b border-foreground/10">
+        <div className="max-w-[1400px] mx-auto px-6 py-20">
+          <div className="flex items-end justify-between mb-12 border-b border-foreground/90 pb-4">
+            <div>
+              <span className="eyebrow">§ 02 — القدرات</span>
+              <h2 className="font-display text-3xl md:text-5xl mt-2">كل ما تحتاجه. لا أكثر.</h2>
+            </div>
+            <span className="num text-sm text-muted-foreground hidden md:inline">06 / 06</span>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-px bg-foreground/10 border border-foreground/10">
+            {features.map((f) => (
+              <div key={f.title} className="bg-background p-8 group hover:bg-foreground hover:text-background transition-colors">
+                <div className="flex items-center justify-between mb-10">
+                  <span className="num text-3xl text-muted-foreground group-hover:text-background/60">{f.num}</span>
+                  <f.icon className="w-5 h-5" strokeWidth={1.75} />
+                </div>
+                <h3 className="font-display text-xl mb-3 leading-tight">{f.title}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground group-hover:text-background/70">{f.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      <footer className="border-t py-8 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} وصلة. جميع الحقوق محفوظة.
+      {/* CTA — bold inverted band */}
+      <section className="bg-foreground text-background">
+        <div className="max-w-[1400px] mx-auto px-6 py-24 grid md:grid-cols-12 gap-8 items-end">
+          <div className="md:col-span-8">
+            <span className="eyebrow text-background/60">§ 03 — ابدأ الآن</span>
+            <h2 className="font-display text-4xl md:text-6xl mt-3 leading-[0.95]">
+              متجرك يستحق<br />نظامًا جديًا.
+            </h2>
+          </div>
+          <div className="md:col-span-4 md:text-left">
+            <Link to="/login">
+              <Button size="lg" variant="secondary" className="rounded-none h-12 px-6 font-semibold gap-2 bg-background text-foreground hover:bg-accent hover:text-accent-foreground">
+                تسجيل الدخول
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-foreground/10">
+        <div className="max-w-[1400px] mx-auto px-6 py-6 flex items-center justify-between eyebrow">
+          <span>© {new Date().getFullYear()} وصلة</span>
+          <span className="num">was-la.com</span>
+        </div>
       </footer>
     </div>
   );
