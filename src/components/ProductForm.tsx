@@ -591,21 +591,32 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         {hasVariants ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              أدخل عدد القطع المتوفرة لكل متغير. سيظهر هذا في صفحة المخزون.
+              أدخل الكود (SKU) وعدد القطع لكل توليفة. كل توليفة تعتبر وحدة مستقلة في المخزون.
             </p>
             {/* Column headers (visible on md+) */}
-            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_6rem_16rem_18rem]" : "md:grid-cols-[1fr_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
+            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
               <div>المتغير المحلي</div>
+              <div>كود (SKU)</div>
               <div>الكمية</div>
               {product.warehouseLinked !== false && <div>منتج المخزن (شركة الشحن)</div>}
               <div>متغير EasyOrders</div>
             </div>
             <div className="grid grid-cols-1 gap-3">
               {variantKeys.map((key) => (
-                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_6rem_16rem_18rem]" : "md:grid-cols-[1fr_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
+                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
                   <div className="min-w-0">
                     <div className="text-[10px] text-muted-foreground md:hidden">المتغير المحلي</div>
                     <Label className="block truncate">{key}</Label>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-muted-foreground md:hidden">كود (SKU)</div>
+                    <Input
+                      value={product.variantSkus?.[key] ?? ""}
+                      onChange={(e) => updateVariantSku(key, e.target.value)}
+                      placeholder="SKU"
+                      dir="ltr"
+                      className="w-full text-left font-mono text-xs"
+                    />
                   </div>
                   <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">الكمية</div>
