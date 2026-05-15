@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Plus, Trash2, GripVertical, Loader2, MousePointerClick, MessageSquare, Wallet, FormInput } from "lucide-react";
+import { FileText, Save, Loader2, MousePointerClick, MessageSquare, Wallet, FormInput, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
@@ -94,101 +94,28 @@ const OrderFormSettings = () => {
     ));
   };
 
-  const handleRequiredToggle = (id: string) => {
-    setFormFields(formFields.map((field) =>
-      field.id === id ? { ...field, required: !field.required } : field
-    ));
-  };
-
-  const handleLabelChange = (id: string, label: string) => {
-    setFormFields(formFields.map((field) =>
-      field.id === id ? { ...field, label } : field
-    ));
-  };
-
-  const handlePlaceholderChange = (id: string, placeholder: string) => {
-    setFormFields(formFields.map((field) =>
-      field.id === id ? { ...field, placeholder } : field
-    ));
-  };
-
-  const handleAddField = async () => {
-    const newFieldKey = `custom_${Date.now()}`;
-    const newSortOrder = formFields.length > 0 ? Math.max(...formFields.map(f => f.sort_order)) + 1 : 1;
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("order_form_fields")
-        .insert({
-          owner_id: user!.id,
-          field_key: newFieldKey,
-          label: "حقل جديد",
-          placeholder: "أدخل النص هنا...",
-          field_type: "text",
-          required: false,
-          enabled: true,
-          sort_order: newSortOrder,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setFormFields([...formFields, {
-          id: data.id,
-          field_key: data.field_key,
-          label: data.label,
-          placeholder: data.placeholder,
-          field_type: data.field_type,
-          required: data.required,
-          enabled: data.enabled,
-          sort_order: data.sort_order,
-        }]);
-      }
-    } catch (error) {
-      console.error("Error adding field:", error);
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء إضافة الحقل",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteField = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("order_form_fields")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setFormFields(formFields.filter((field) => field.id !== id));
-    } catch (error) {
-      console.error("Error deleting field:", error);
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء حذف الحقل",
-        variant: "destructive",
-      });
-    }
+  const handleMove = (id: string, direction: -1 | 1) => {
+    const sorted = [...formFields].sort((a, b) => a.sort_order - b.sort_order);
+    const idx = sorted.findIndex(f => f.id === id);
+    const swapIdx = idx + direction;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    const aOrder = a.sort_order;
+    a.sort_order = b.sort_order;
+    b.sort_order = aOrder;
+    setFormFields(sorted);
   };
 
   const handleSave = async () => {
     setSaving(true);
     
     try {
-      // Update all fields
+      // Update visibility + sort order only
       for (const field of formFields) {
         const { error } = await supabase
           .from("order_form_fields")
           .update({
-            label: field.label,
-            placeholder: field.placeholder,
-            required: field.required,
             enabled: field.enabled,
             sort_order: field.sort_order,
           })
@@ -226,48 +153,31 @@ const OrderFormSettings = () => {
       <PageHeader icon={FormInput} title="تعديل نموذج الطلب" description="تخصيص حقول ورسائل النموذج" iconGradient="from-cyan-500 to-blue-500" />
 
       <div className="grid lg:grid-cols-2 gap-5">
-        <SectionCard icon={FileText} title="حقول النموذج" description="إدارة الحقول الظاهرة للعميل" iconColor="bg-blue-500">
-            {formFields.map((field) => (
+        <SectionCard icon={FileText} title="حقول النموذج" description="إظهار/إخفاء الحقول وترتيبها" iconColor="bg-blue-500">
+            {[...formFields].sort((a, b) => a.sort_order - b.sort_order).map((field, i, arr) => (
               <div
                 key={field.id}
                 className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border"
               >
-                <GripVertical className="w-4 h-4 text-muted-foreground cursor-move" />
-                <div className="flex-1 space-y-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-muted-foreground">اسم الحقل</Label>
-                    <Input
-                      value={field.label}
-                      onChange={(e) => handleLabelChange(field.id, e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-muted-foreground">النص المساعد</Label>
-                    <Input
-                      value={field.placeholder}
-                      onChange={(e) => handlePlaceholderChange(field.id, e.target.value)}
-                      placeholder="أدخل النص المساعد..."
-                    />
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <label className="flex items-center gap-2">
-                      <Switch
-                        checked={field.enabled}
-                        onCheckedChange={() => handleFieldToggle(field.id)}
-                      />
-                      <span className="font-medium">مفعل</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <Switch
-                        checked={field.required}
-                        onCheckedChange={() => handleRequiredToggle(field.id)}
-                        disabled={!field.enabled}
-                      />
-                      <span className="font-medium">مطلوب</span>
-                    </label>
-                  </div>
+                <div className="flex flex-col gap-1">
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => handleMove(field.id, -1)}>
+                    <ArrowUp className="w-4 h-4" />
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === arr.length - 1} onClick={() => handleMove(field.id, 1)}>
+                    <ArrowDown className="w-4 h-4" />
+                  </Button>
                 </div>
-                <div className="text-xs text-muted-foreground font-mono">{field.field_key}</div>
+                <div className="flex-1">
+                  <div className="font-semibold">{field.label}</div>
+                  <div className="text-xs text-muted-foreground font-mono mt-1">{field.field_key}{field.required ? " · مطلوب" : ""}</div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={field.enabled}
+                    onCheckedChange={() => handleFieldToggle(field.id)}
+                  />
+                  <span className="font-medium">{field.enabled ? "ظاهر" : "مخفي"}</span>
+                </label>
               </div>
             ))}
         </SectionCard>
