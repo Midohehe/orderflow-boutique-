@@ -42,6 +42,8 @@ const Settings = lazy(() => import("./pages/Settings"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 const Wallet = lazy(() => import("./pages/Wallet"));
 const AdminCards = lazy(() => import("./pages/AdminCards"));
+const AdminStores = lazy(() => import("./pages/AdminStores"));
+const AdminStoreDetail = lazy(() => import("./pages/AdminStoreDetail"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -109,6 +111,8 @@ const App = () => {
                 <Route path="account" element={<AccountSettings />} />
                 <Route path="wallet" element={<Wallet />} />
                 <Route path="admin-cards" element={<AdminCards />} />
+                <Route path="stores" element={<AdminStores />} />
+                <Route path="stores/:userId" element={<AdminStoreDetail />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
