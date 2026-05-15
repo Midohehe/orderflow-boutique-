@@ -671,6 +671,7 @@ export type Database = {
           created_at: string
           customer_name: string
           id: string
+          insufficient_stock: boolean
           is_deleted: boolean
           link_error: string | null
           locked_insufficient_balance: boolean
@@ -714,6 +715,7 @@ export type Database = {
           created_at?: string
           customer_name: string
           id?: string
+          insufficient_stock?: boolean
           is_deleted?: boolean
           link_error?: string | null
           locked_insufficient_balance?: boolean
@@ -757,6 +759,7 @@ export type Database = {
           created_at?: string
           customer_name?: string
           id?: string
+          insufficient_stock?: boolean
           is_deleted?: boolean
           link_error?: string | null
           locked_insufficient_balance?: boolean
@@ -1002,6 +1005,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean
+          strict_stock_enabled: boolean
           subscription_ends_at: string | null
           subscription_starts_at: string
           updated_at: string
@@ -1015,6 +1019,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          strict_stock_enabled?: boolean
           subscription_ends_at?: string | null
           subscription_starts_at?: string
           updated_at?: string
@@ -1028,6 +1033,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          strict_stock_enabled?: boolean
           subscription_ends_at?: string | null
           subscription_starts_at?: string
           updated_at?: string
