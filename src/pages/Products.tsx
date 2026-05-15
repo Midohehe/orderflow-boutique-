@@ -253,15 +253,6 @@ const Products = () => {
       return;
     }
 
-    if (newProduct.images.length === 0) {
-      toast({
-        title: "خطأ",
-        description: "يرجى رفع صورة واحدة على الأقل",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSaving(true);
     try {
       // في وضع "إضافة منتج" نولّد slug تلقائيًا (المنتج لا يملك صفحة هبوط افتراضيًا)
@@ -393,15 +384,6 @@ const Products = () => {
       toast({
         title: "خطأ",
         description: "يرجى ملء اسم المنتج والسعر ورابط المنتج",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (editProduct.images.length === 0) {
-      toast({
-        title: "خطأ",
-        description: "يرجى رفع صورة واحدة على الأقل",
         variant: "destructive",
       });
       return;
