@@ -46,6 +46,7 @@ const baseMenuGroups = [
       { icon: ShoppingBag, label: "المشتريات", path: "/dashboard/purchases", external: false, adminOnly: false, dynamicStore: false },
       { icon: Wallet, label: "استلام التسويات المالية", path: "/dashboard/settlements", external: false, adminOnly: false, dynamicStore: false },
       { icon: SettingsIcon, label: "كروت الشحن (أدمن)", path: "/dashboard/admin-cards", external: false, adminOnly: true, dynamicStore: false },
+      { icon: Store, label: "المتاجر (أدمن)", path: "/dashboard/stores", external: false, adminOnly: true, dynamicStore: false },
     ],
   },
   {

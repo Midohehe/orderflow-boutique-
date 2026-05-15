@@ -110,7 +110,7 @@ const Products = () => {
           .select("id, name, slug, price, original_price, purchase_price, is_visible")
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
-        if (!isAdmin) metaQuery = metaQuery.eq("owner_id", user.id);
+        metaQuery = metaQuery.eq("owner_id", user.id);
         const { data: metaData, error: metaError } = await runWithTimeout(metaQuery, 15000);
 
         if (metaError) throw metaError;
@@ -135,7 +135,7 @@ const Products = () => {
 
         // Phase 2: load images in background (heavy column)
         let imgQuery = supabase.from("products").select("id, images").is("deleted_at", null);
-        if (!isAdmin) imgQuery = imgQuery.eq("owner_id", user.id);
+        imgQuery = imgQuery.eq("owner_id", user.id);
         const { data: imgData } = await imgQuery;
         if (cancelled || !imgData) return;
         const imgMap = new Map<string, string[]>(
@@ -180,7 +180,7 @@ const Products = () => {
         .select("id, name, slug, price, original_price, purchase_price, images, is_visible")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
-      if (!isAdmin) query = query.eq("owner_id", user.id);
+      query = query.eq("owner_id", user.id);
       const { data, error } = await runWithTimeout(query, 30000);
 
       if (error) throw error;

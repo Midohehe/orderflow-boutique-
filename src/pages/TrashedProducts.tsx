@@ -45,7 +45,7 @@ const TrashedProducts = () => {
         .select("id, name, slug, price, images, deleted_at")
         .not("deleted_at", "is", null)
         .order("deleted_at", { ascending: false });
-      if (!isAdmin) q = q.eq("owner_id", user.id);
+      q = q.eq("owner_id", user.id);
       const { data, error } = await q;
       if (error) throw error;
       setProducts((data || []).map((p: any) => ({
