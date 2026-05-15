@@ -161,6 +161,7 @@ const StoreMembers = () => {
               <Select value={form.group_id} onValueChange={(v) => setForm({ ...form, group_id: v })}>
                 <SelectTrigger><SelectValue placeholder="بدون مجموعة" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">بدون مجموعة</SelectItem>
                   {groups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -230,10 +231,10 @@ const StoreMembers = () => {
           <div className="space-y-3">
             <div>
               <Label>المجموعة</Label>
-              <Select value={editGroup} onValueChange={setEditGroup}>
+              <Select value={editGroup || "__none__"} onValueChange={(v) => setEditGroup(v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="بدون مجموعة" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">بدون</SelectItem>
+                  <SelectItem value="__none__">بدون مجموعة</SelectItem>
                   {groups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
                 </SelectContent>
               </Select>
