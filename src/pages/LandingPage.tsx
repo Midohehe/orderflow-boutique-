@@ -173,7 +173,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers, is_visible";
 
         // أولاً: ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
