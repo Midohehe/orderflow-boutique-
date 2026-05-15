@@ -28,8 +28,10 @@ interface Order {
   status: string;
   customer_name: string;
   created_at: string;
+  quantity: number;
 }
 interface ProductRow { id: string; name: string; purchase_price: number; }
+interface OrderItemRow { id: string; order_id: string; product_id: string | null; product_name: string; price: number; quantity: number; }
 interface ExpenseRow { id: string; amount: number; created_at: string; expense_type_id: string | null; }
 interface PurchaseRow { id: string; amount: number; created_at: string; }
 interface SafeRow { id: string; name: string; balance: number; }
@@ -41,6 +43,7 @@ const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFract
 const FinancialAccounts = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseTypeRow[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
@@ -55,9 +58,10 @@ const FinancialAccounts = () => {
     (async () => {
       setLoading(true);
       try {
-        const [o, p, e, et, pu, sa] = await Promise.all([
-          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at").order("created_at", { ascending: false }),
+        const [o, p, oi, e, et, pu, sa] = await Promise.all([
+          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").order("created_at", { ascending: false }),
           supabase.from("products").select("id, name, purchase_price"),
+          supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity"),
           supabase.from("expenses").select("id, amount, created_at, expense_type_id"),
           supabase.from("expense_types").select("id, name"),
           supabase.from("purchases").select("id, amount, created_at"),
@@ -65,6 +69,7 @@ const FinancialAccounts = () => {
         ]);
         setOrders((o.data as Order[]) || []);
         setProducts((p.data as ProductRow[]) || []);
+        setOrderItems((oi.data as OrderItemRow[]) || []);
         setExpenses((e.data as ExpenseRow[]) || []);
         setExpenseTypes((et.data as ExpenseTypeRow[]) || []);
         setPurchases((pu.data as PurchaseRow[]) || []);
@@ -90,10 +95,38 @@ const FinancialAccounts = () => {
   };
 
   const productByName = useMemo(() => new Map(products.map(p => [p.name, p])), [products]);
+  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+  const itemsByOrder = useMemo(() => {
+    const map = new Map<string, OrderItemRow[]>();
+    orderItems.forEach(it => {
+      if (!map.has(it.order_id)) map.set(it.order_id, []);
+      map.get(it.order_id)!.push(it);
+    });
+    return map;
+  }, [orderItems]);
+  const purchasePriceOf = (item: OrderItemRow): number => {
+    const pr = (item.product_id && productById.get(item.product_id)) || productByName.get(item.product_name);
+    return pr ? Number(pr.purchase_price) : 0;
+  };
+  // Cost (COGS) for a single order — uses order_items if present, else fallback
+  const orderCost = (o: Order): number => {
+    const items = itemsByOrder.get(o.id);
+    if (items && items.length > 0) {
+      return items.reduce((s, it) => s + Number(it.quantity || 1) * purchasePriceOf(it), 0);
+    }
+    const pr = productByName.get(o.product_name);
+    const qty = Number(o.quantity || 1);
+    return pr ? Number(pr.purchase_price) * qty : 0;
+  };
 
+  const orderHasProduct = (o: Order, name: string): boolean => {
+    if (o.product_name === name) return true;
+    const items = itemsByOrder.get(o.id);
+    return !!(items && items.some(it => it.product_name === name));
+  };
   const filteredOrders = useMemo(
-    () => orders.filter(o => inDateRange(o.created_at) && (selectedProduct === "all" || o.product_name === selectedProduct)),
-    [orders, dateFrom, dateTo, selectedProduct]
+    () => orders.filter(o => inDateRange(o.created_at) && (selectedProduct === "all" || orderHasProduct(o, selectedProduct))),
+    [orders, dateFrom, dateTo, selectedProduct, itemsByOrder]
   );
   const deliveredOrders = useMemo(() => filteredOrders.filter(o => o.status === "delivered" || o.status === "settled"), [filteredOrders]);
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
@@ -102,10 +135,7 @@ const FinancialAccounts = () => {
 
   // Core financials
   const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
-  const totalCOGS = deliveredOrders.reduce((s, o) => {
-    const pr = productByName.get(o.product_name);
-    return s + (pr ? Number(pr.purchase_price) : 0);
-  }, 0);
+  const totalCOGS = deliveredOrders.reduce((s, o) => s + orderCost(o), 0);
   const grossProfit = totalRevenue - totalCOGS;
   const totalExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
   const totalPurchases = selectedProduct === "all" ? filteredPurchases.reduce((s, p) => s + Number(p.amount), 0) : 0;
@@ -141,8 +171,7 @@ const FinancialAccounts = () => {
     deliveredOrders.forEach(o => {
       const k = monthKey(new Date(o.created_at));
       if (months[k]) {
-        const pr = productByName.get(o.product_name);
-        const cost = pr ? Number(pr.purchase_price) : 0;
+        const cost = orderCost(o);
         months[k].revenue += Number(o.price);
         months[k].profit += Number(o.price) - cost;
       }
@@ -172,34 +201,60 @@ const FinancialAccounts = () => {
   const topProducts = useMemo(() => {
     const map: Record<string, { revenue: number; profit: number; count: number }> = {};
     deliveredOrders.forEach(o => {
-      const pr = productByName.get(o.product_name);
-      const cost = pr ? Number(pr.purchase_price) : 0;
-      if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0 };
-      map[o.product_name].revenue += Number(o.price);
-      map[o.product_name].profit += Number(o.price) - cost;
-      map[o.product_name].count += 1;
+      const items = itemsByOrder.get(o.id);
+      if (items && items.length > 0) {
+        items.forEach(it => {
+          const qty = Number(it.quantity || 1);
+          const rev = Number(it.price) * qty;
+          const cost = purchasePriceOf(it) * qty;
+          if (!map[it.product_name]) map[it.product_name] = { revenue: 0, profit: 0, count: 0 };
+          map[it.product_name].revenue += rev;
+          map[it.product_name].profit += rev - cost;
+          map[it.product_name].count += qty;
+        });
+      } else {
+        const qty = Number(o.quantity || 1);
+        const cost = orderCost(o);
+        if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0 };
+        map[o.product_name].revenue += Number(o.price);
+        map[o.product_name].profit += Number(o.price) - cost;
+        map[o.product_name].count += qty;
+      }
     });
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
-  }, [deliveredOrders, productByName]);
+  }, [deliveredOrders, productByName, itemsByOrder]);
 
   // In-delivery aggregation by product
   const shippedByProduct = useMemo(() => {
     const map: Record<string, { revenue: number; cost: number; count: number }> = {};
     shippedOrders.forEach(o => {
-      const pr = productByName.get(o.product_name);
-      const cost = pr ? Number(pr.purchase_price) : 0;
-      if (!map[o.product_name]) map[o.product_name] = { revenue: 0, cost: 0, count: 0 };
-      map[o.product_name].revenue += Number(o.price) * (1);
-      map[o.product_name].cost += cost;
-      map[o.product_name].count += 1;
+      const items = itemsByOrder.get(o.id);
+      if (items && items.length > 0) {
+        items.forEach(it => {
+          const qty = Number(it.quantity || 1);
+          const rev = Number(it.price) * qty;
+          const cost = purchasePriceOf(it) * qty;
+          if (!map[it.product_name]) map[it.product_name] = { revenue: 0, cost: 0, count: 0 };
+          map[it.product_name].revenue += rev;
+          map[it.product_name].cost += cost;
+          map[it.product_name].count += qty;
+        });
+      } else {
+        const qty = Number(o.quantity || 1);
+        const cost = orderCost(o);
+        if (!map[o.product_name]) map[o.product_name] = { revenue: 0, cost: 0, count: 0 };
+        map[o.product_name].revenue += Number(o.price);
+        map[o.product_name].cost += cost;
+        map[o.product_name].count += qty;
+      }
     });
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v, profit: v.revenue - v.cost }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [shippedOrders, productByName]);
+  }, [shippedOrders, productByName, itemsByOrder]);
   const shippedTotals = useMemo(() => shippedByProduct.reduce((acc, p) => ({
     revenue: acc.revenue + p.revenue,
     cost: acc.cost + p.cost,
@@ -563,8 +618,7 @@ const FinancialAccounts = () => {
                     </TableRow></TableHeader>
                     <TableBody>
                       {deliveredOrders.map(o => {
-                        const pr = productByName.get(o.product_name);
-                        const pp = pr ? Number(pr.purchase_price) : 0;
+                        const pp = orderCost(o);
                         const profit = Number(o.price) - pp;
                         return (
                           <TableRow key={o.id}>
