@@ -58,6 +58,7 @@ export interface ProductFormData {
   variantStock: Record<string, string>;
   variantWarehouseCodes: Record<string, string>;
   variantEasyOrdersIds: Record<string, string>;
+  variantSkus: Record<string, string>;
   easyOrdersProductId: string;
   description: string;
   images: string[];
@@ -143,6 +144,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
 
   const variantKeys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
   const hasVariants = variantKeys.length > 0;
+  const hasColorOrSize = !!(product.colors?.trim() || product.sizes?.trim());
 
   // Normalize Arabic for matching
   const norm = (s: string) => (s || "").toString().trim()
@@ -293,6 +295,13 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     onProductChange({
       ...product,
       variantEasyOrdersIds: { ...product.variantEasyOrdersIds, [key]: value },
+    });
+  };
+
+  const updateVariantSku = (key: string, value: string) => {
+    onProductChange({
+      ...product,
+      variantSkus: { ...(product.variantSkus || {}), [key]: value },
     });
   };
 
