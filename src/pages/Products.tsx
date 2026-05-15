@@ -53,6 +53,7 @@ const emptyFormData: ProductFormData = {
   variantStock: {},
   variantWarehouseCodes: {},
   variantEasyOrdersIds: {},
+  variantSkus: {},
   easyOrdersProductId: "",
   description: "",
   images: [],
@@ -477,6 +478,7 @@ const Products = () => {
         : {},
       variantWarehouseCodes: {},
       variantEasyOrdersIds: {},
+      variantSkus: {},
       easyOrdersProductId: "",
       description: product.description,
       images: product.images,
@@ -495,7 +497,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_offers")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_offers")
           .eq("id", product.id)
           .single()
       );
@@ -517,6 +519,11 @@ const Products = () => {
         variantWarehouseCodes: (data as any).variant_warehouse_codes
           ? Object.fromEntries(
               Object.entries((data as any).variant_warehouse_codes as Record<string, any>).map(([k, v]) => [k, String(v)])
+            )
+          : {},
+        variantSkus: (data as any).variant_skus
+          ? Object.fromEntries(
+              Object.entries((data as any).variant_skus as Record<string, any>).map(([k, v]) => [k, String(v)])
             )
           : {},
         easyOrdersProductId: (data as any).easyorders_product_id || "",
