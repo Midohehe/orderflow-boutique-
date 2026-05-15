@@ -258,7 +258,7 @@ const Login = () => {
                         className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         tabIndex={-1}
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? <EyeOff className="lucide lucide-eye-off w-4 h-4 text-right" /> : <Eye className="lucide lucide-eye w-4 h-4 text-right" />}
                       </button>
                     </div>
                   </div>
@@ -312,7 +312,7 @@ const Login = () => {
                         className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         tabIndex={-1}
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? <EyeOff className="lucide lucide-eye-off w-4 h-4 text-right" /> : <Eye className="lucide lucide-eye w-4 h-4 text-right" />}
                       </button>
                     </div>
                   </div>
