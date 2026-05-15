@@ -45,6 +45,10 @@ Deno.serve(async (req) => {
     const city = s(body.city, 120);
 
     if (!product_id || !phone || !address || !city) {
+      console.error("Missing required fields", {
+        product_id, phone, address, city, customer_name,
+        body_keys: Object.keys(body || {}),
+      });
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
