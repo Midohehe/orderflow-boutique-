@@ -687,6 +687,194 @@ const Products = () => {
     });
   };
 
+  // ===== Landing Pages: load =====
+  useEffect(() => {
+    if (userLoading) return;
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("landing_pages")
+        .select("id, product_id, slug, title, subtitle, is_visible")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false });
+      if (cancelled || error) return;
+      setLandingPages((data || []) as any);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading]);
+
+  // أضف اسم/صورة المنتج لكل صفحة هبوط من قائمة المنتجات المحلية
+  const enrichedLandingPages: LandingPage[] = landingPages.map((lp) => {
+    const p = products.find((x) => x.id === lp.product_id);
+    return {
+      ...lp,
+      product_name: p?.name,
+      product_image: p?.images?.[0],
+    };
+  });
+
+  const validateLp = (lp: LandingPageFormData): string | null => {
+    if (!lp.productId) return "يرجى اختيار المنتج المرتبط";
+    if (!lp.title.trim()) return "يرجى إدخال العنوان";
+    if (!lp.slug.trim()) return "يرجى إدخال الرابط (slug)";
+    return null;
+  };
+
+  const handleAddLp = async () => {
+    const err = validateLp(newLp);
+    if (err) { toast({ title: "خطأ", description: err, variant: "destructive" }); return; }
+    setIsSavingLp(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase.from("landing_pages").insert({
+        owner_id: user!.id,
+        product_id: newLp.productId,
+        slug: newLp.slug.trim(),
+        title: newLp.title.trim(),
+        subtitle: newLp.subtitle.trim() || null,
+        description: newLp.description || "",
+        images: newLp.images || [],
+        price: newLp.price ? parseFloat(newLp.price) : null,
+        original_price: newLp.originalPrice ? parseFloat(newLp.originalPrice) : null,
+        upsell_enabled: !!newLp.upsellEnabled,
+        upsell_offers: (newLp.upsellOffers || [])
+          .map((o) => ({
+            quantity: Math.max(1, parseInt(o.quantity) || 0),
+            price: Math.max(0, parseFloat(o.price) || 0),
+            label: (o.label || "").trim(),
+          }))
+          .filter((o) => o.quantity > 0 && o.price > 0),
+        is_visible: newLp.isVisible !== false,
+      }).select("id, product_id, slug, title, subtitle, is_visible").single();
+      if (error) {
+        if (error.code === "23505") {
+          toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً، اختر رابطًا آخر", variant: "destructive" });
+          return;
+        }
+        throw error;
+      }
+      setLandingPages((prev) => [data as any, ...prev]);
+      setNewLp(emptyLandingPageData);
+      setIsLpAddOpen(false);
+      toast({ title: "تم", description: "تم إنشاء صفحة الهبوط" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "خطأ", description: "تعذر إنشاء صفحة الهبوط", variant: "destructive" });
+    } finally {
+      setIsSavingLp(false);
+    }
+  };
+
+  const openEditLp = async (lp: LandingPage) => {
+    setEditingLpId(lp.id);
+    setIsLpEditOpen(true);
+    const { data, error } = await supabase
+      .from("landing_pages")
+      .select("*")
+      .eq("id", lp.id)
+      .single();
+    if (error || !data) {
+      toast({ title: "خطأ", description: "تعذر تحميل صفحة الهبوط", variant: "destructive" });
+      return;
+    }
+    const d = data as any;
+    setEditLp({
+      productId: d.product_id,
+      slug: d.slug,
+      title: d.title || "",
+      subtitle: d.subtitle || "",
+      description: d.description || "",
+      images: d.images || [],
+      price: d.price != null ? String(d.price) : "",
+      originalPrice: d.original_price != null ? String(d.original_price) : "",
+      upsellEnabled: !!d.upsell_enabled,
+      upsellOffers: Array.isArray(d.upsell_offers)
+        ? (d.upsell_offers as any[]).map((o) => ({
+            quantity: String(o?.quantity ?? ""),
+            price: String(o?.price ?? ""),
+            label: String(o?.label ?? ""),
+          }))
+        : [],
+      isVisible: d.is_visible !== false,
+    });
+  };
+
+  const handleUpdateLp = async () => {
+    if (!editingLpId) return;
+    const err = validateLp(editLp);
+    if (err) { toast({ title: "خطأ", description: err, variant: "destructive" }); return; }
+    setIsSavingLp(true);
+    try {
+      const { error } = await supabase.from("landing_pages").update({
+        slug: editLp.slug.trim(),
+        title: editLp.title.trim(),
+        subtitle: editLp.subtitle.trim() || null,
+        description: editLp.description || "",
+        images: editLp.images || [],
+        price: editLp.price ? parseFloat(editLp.price) : null,
+        original_price: editLp.originalPrice ? parseFloat(editLp.originalPrice) : null,
+        upsell_enabled: !!editLp.upsellEnabled,
+        upsell_offers: (editLp.upsellOffers || [])
+          .map((o) => ({
+            quantity: Math.max(1, parseInt(o.quantity) || 0),
+            price: Math.max(0, parseFloat(o.price) || 0),
+            label: (o.label || "").trim(),
+          }))
+          .filter((o) => o.quantity > 0 && o.price > 0),
+        is_visible: editLp.isVisible !== false,
+      }).eq("id", editingLpId);
+      if (error) {
+        if (error.code === "23505") {
+          toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً", variant: "destructive" });
+          return;
+        }
+        throw error;
+      }
+      setLandingPages((prev) => prev.map((lp) => lp.id === editingLpId ? {
+        ...lp,
+        slug: editLp.slug.trim(),
+        title: editLp.title.trim(),
+        subtitle: editLp.subtitle.trim(),
+        is_visible: editLp.isVisible !== false,
+      } : lp));
+      setIsLpEditOpen(false);
+      setEditingLpId(null);
+      toast({ title: "تم", description: "تم تحديث صفحة الهبوط" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "خطأ", description: "تعذر تحديث الصفحة", variant: "destructive" });
+    } finally {
+      setIsSavingLp(false);
+    }
+  };
+
+  const handleDeleteLp = async () => {
+    if (!deleteLpTarget) return;
+    try {
+      const { error } = await supabase.from("landing_pages").delete().eq("id", deleteLpTarget.id);
+      if (error) throw error;
+      setLandingPages((prev) => prev.filter((lp) => lp.id !== deleteLpTarget.id));
+      toast({ title: "تم الحذف", description: "تم حذف صفحة الهبوط" });
+      setDeleteLpTarget(null);
+    } catch (e) {
+      console.error(e);
+      toast({ title: "خطأ", description: "تعذر الحذف", variant: "destructive" });
+    }
+  };
+
+  const openCreateLpForProduct = (productId: string) => {
+    const p = products.find((x) => x.id === productId);
+    setNewLp({
+      ...emptyLandingPageData,
+      productId,
+      title: p?.name || "",
+    });
+    setActiveTab("landing");
+    setIsLpAddOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
