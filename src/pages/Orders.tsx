@@ -738,7 +738,36 @@ const Orders = () => {
       toast({ title: "خطأ", description: e?.message || "تعذر الاسترجاع", variant: "destructive" });
     }
   };
+  const handlePermanentDelete = async (orderId: string) => {
+    try {
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .delete()
+        .eq("order_id", orderId);
+      if (itemsError) throw itemsError;
 
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", orderId);
+      if (error) throw error;
+
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
+      setPermanentDeleteTarget(null);
+      toast({
+        title: "تم الحذف نهائياً",
+        description: "تم حذف الطلب من النظام بشكل نهائي ولا يمكن استرجاعه.",
+      });
+    } catch (e: any) {
+      console.error("Error permanently deleting order:", e);
+      toast({
+        title: "خطأ",
+        description: e?.message || "حدث خطأ أثناء الحذف النهائي",
+        variant: "destructive",
+      });
+    }
+  };
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ar-AE", {
       year: "numeric",
