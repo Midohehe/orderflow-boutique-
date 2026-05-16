@@ -473,9 +473,25 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      if (!uid) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+      // Determine effective owner: sub-users see their owner's orders; owners/admins see their own store only.
+      const { data: member } = await supabase
+        .from("store_members")
+        .select("owner_id")
+        .eq("member_user_id", uid)
+        .maybeSingle();
+      const effectiveOwnerId = member?.owner_id || uid;
+
       const { data, error } = await supabase
         .from("orders")
         .select(ORDER_SELECT_COLS)
+        .eq("owner_id", effectiveOwnerId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
