@@ -219,6 +219,11 @@ const LandingPage = () => {
         if (matched) {
           // طبّق overrides من صفحة الهبوط إن وُجدت
           const lp = landingPage;
+          // اضبط مالك المتجر (مهم لتتبع التحليلات وربط الأحداث بالمتجر الصحيح)
+          if (!resolvedOwnerId && matched.owner_id) {
+            resolvedOwnerId = matched.owner_id;
+            setOwnerId(matched.owner_id);
+          }
           const lpImages: string[] = Array.isArray(lp?.images) ? lp.images : [];
           const lpHasUpsell = lp ? lp.upsell_enabled : null;
           loadedProduct = {
@@ -332,6 +337,7 @@ const LandingPage = () => {
               event_type: "page_view",
               product_slug: slug,
               utm_source: utmSource,
+              owner_id: ownerForSettings || null,
             }).then(() => {});
           }
 
@@ -390,16 +396,41 @@ const LandingPage = () => {
     if (!checkoutTracked && value.length > 0) {
       setCheckoutTracked(true);
       
-      // Track InitiateCheckout for Facebook Pixel
-      if (window.fbq && product) {
-        window.fbq('track', 'InitiateCheckout', {
-          content_name: product.name,
-          content_ids: [product.id],
-          content_type: 'product',
-          value: parseFloat(product.price),
-          currency: storeSettings.currency_code,
-          num_items: 1,
-        });
+      // Track InitiateCheckout across all enabled pixels
+      if (product) {
+        const value = parseFloat(product.price);
+        const currency = storeSettings.currency_code;
+        if (window.fbq) {
+          window.fbq('track', 'InitiateCheckout', {
+            content_name: product.name,
+            content_ids: [product.id],
+            content_type: 'product',
+            value,
+            currency,
+            num_items: 1,
+          });
+        }
+        if (window.ttq && typeof window.ttq.track === 'function') {
+          window.ttq.track('InitiateCheckout', {
+            value,
+            currency,
+            contents: [{ content_id: product.id, content_name: product.name, quantity: 1 }],
+          });
+        }
+        if (window.gtag) {
+          window.gtag('event', 'begin_checkout', {
+            value,
+            currency,
+            items: [{ item_id: product.id, item_name: product.name, quantity: 1 }],
+          });
+        }
+        if (window.snaptr) {
+          window.snaptr('track', 'START_CHECKOUT', {
+            price: value,
+            currency,
+            item_ids: [product.id],
+          });
+        }
       }
       
       // Fire-and-forget so input stays buttery smooth
@@ -408,6 +439,7 @@ const LandingPage = () => {
         event_type: "checkout_start",
         product_slug: slug,
         utm_source: utmSource,
+          owner_id: ownerId || null,
       }).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
