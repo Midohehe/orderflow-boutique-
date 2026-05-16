@@ -142,6 +142,7 @@ const Orders = () => {
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Order | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
   const [searchParams, setSearchParams] = useSearchParams();
