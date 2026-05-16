@@ -84,7 +84,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   useEffect(() => {
     if (!selectedZone || areasMap[selectedZone.id]) return;
     setLoadingAreas(true);
-    supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id } })
+    supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id, zoneName: selectedZone.name } })
       .then(({ data, error }) => {
         if (!error) {
           setAreasMap((prev) => ({ ...prev, [selectedZone.id]: (data as any)?.areas || [] }));
