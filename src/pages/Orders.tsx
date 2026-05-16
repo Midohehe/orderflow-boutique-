@@ -1308,16 +1308,48 @@ const Orders = () => {
               </AlertDialog>
             )}
             {order.is_deleted && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() => handleRestoreOrder(order.id)}
-                title="استرجاع لقيد الانتظار"
-              >
-                <RotateCcw className="w-4 h-4" />
-                استرجاع
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => handleRestoreOrder(order.id)}
+                  title="استرجاع لقيد الانتظار"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  استرجاع
+                </Button>
+                <AlertDialog open={permanentDeleteTarget?.id === order.id} onOpenChange={(open) => !open && setPermanentDeleteTarget(null)}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => setPermanentDeleteTarget(order)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      حذف نهائي
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>حذف نهائي من النظام</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        سيتم حذف طلب {order.customer_name} بشكل نهائي من النظام. هذا الإجراء لا رجعة فيه.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setPermanentDeleteTarget(null)}>إلغاء</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handlePermanentDelete(order.id)}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        حذف نهائي
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             )}
           </div>
         </div>
