@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
+import { useUserContext } from "@/hooks/useUserContext";
 
 const currencies = [
   { code: "AED", name: "درهم إماراتي", symbol: "د.إ" },
@@ -38,16 +39,24 @@ const CurrencySettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
+  const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
 
   useEffect(() => {
+    if (ctxLoading) return;
     (async () => {
       try {
-        const { data, error } = await supabase.from("store_settings").select("*").limit(1).maybeSingle();
+        const { data: { user } } = await supabase.auth.getUser();
+        const ownerId = effectiveOwnerId || user?.id;
+        if (!ownerId) { setLoading(false); return; }
+        const { data, error } = await supabase
+          .from("store_settings").select("*")
+          .eq("owner_id", ownerId)
+          .limit(1).maybeSingle();
         if (error) throw error;
         if (data) { setSelectedCurrency(data.currency_code); setSettingsId(data.id); }
       } catch (e) { console.error(e); } finally { setLoading(false); }
     })();
-  }, []);
+  }, [ctxLoading, effectiveOwnerId]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -62,8 +71,9 @@ const CurrencySettings = () => {
         if (error) throw error;
       } else {
         const { data: { user } } = await supabase.auth.getUser();
+        const ownerId = effectiveOwnerId || user!.id;
         const { error } = await supabase.from("store_settings").insert({
-          owner_id: user!.id,
+          owner_id: ownerId,
           currency_code: selectedCurrency,
           currency_symbol: c?.symbol || selectedCurrency,
           currency_name: c?.name || selectedCurrency,
