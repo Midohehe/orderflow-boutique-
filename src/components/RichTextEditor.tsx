@@ -42,18 +42,18 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize editor content only once
+  // Sync external value into the editor when it differs (e.g., async load on edit,
+  // or form reset). Avoid clobbering during user typing by comparing with current DOM.
   useEffect(() => {
-    if (editorRef.current && !isInitialized.current) {
-      editorRef.current.innerHTML = value;
+    if (!editorRef.current) return;
+    const current = editorRef.current.innerHTML;
+    if (!isInitialized.current) {
+      editorRef.current.innerHTML = value || "";
       isInitialized.current = true;
+      return;
     }
-  }, []);
-
-  // Reset when value is cleared externally (e.g., form reset)
-  useEffect(() => {
-    if (editorRef.current && value === "" && isInitialized.current) {
-      editorRef.current.innerHTML = "";
+    if ((value || "") !== current && document.activeElement !== editorRef.current) {
+      editorRef.current.innerHTML = value || "";
     }
   }, [value]);
 
