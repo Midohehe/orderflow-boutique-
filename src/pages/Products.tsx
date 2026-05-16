@@ -484,6 +484,49 @@ const Products = () => {
         throw error;
       }
 
+      // Propagate updated warehouse codes to PENDING (not yet shipped) orders so they pick up new mapping.
+      try {
+        const newWhMap: Record<string, string> = Object.fromEntries(
+          variantKeys.map((k) => [k, (editProduct.variantWarehouseCodes?.[k] || "").trim()])
+        );
+        const { data: pendingOrders } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("product_id", editingProductId)
+          .eq("status", "pending")
+          .eq("shipped_to_company", false);
+        const pendingOrderIds = (pendingOrders || []).map((o: any) => o.id);
+        if (pendingOrderIds.length > 0) {
+          for (const [vk, code] of Object.entries(newWhMap)) {
+            let color: string | null = null;
+            let size: string | null = null;
+            let pcode: string | null = null;
+            if (colorsArray.length && sizesArray.length && vk.includes(" - ")) {
+              const [c, s] = vk.split(" - ");
+              color = c?.trim() || null;
+              size = s?.trim() || null;
+            } else if (colorsArray.includes(vk)) {
+              color = vk;
+            } else if (sizesArray.includes(vk)) {
+              size = vk;
+            } else {
+              pcode = vk;
+            }
+            let q: any = (supabase as any)
+              .from("order_items")
+              .update({ warehouse_code: code ? code : null })
+              .in("order_id", pendingOrderIds)
+              .eq("product_id", editingProductId);
+            if (color !== null) q = q.eq("selected_color", color);
+            if (size !== null) q = q.eq("selected_size", size);
+            if (pcode !== null) q = q.eq("selected_product_code", pcode);
+            await q;
+          }
+        }
+      } catch (propErr) {
+        console.warn("Propagate warehouse codes to pending orders failed", propErr);
+      }
+
       // Update list directly without refetching
       setProducts(prev => prev.map(p => 
         p.id === editingProductId ? {
