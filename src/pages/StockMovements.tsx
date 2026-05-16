@@ -46,6 +46,7 @@ const StockMovements = () => {
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [groupByProduct, setGroupByProduct] = useState(false);
+  const [productFilter, setProductFilter] = useState<string>("all");
 
   const load = async () => {
     setLoading(true);
@@ -64,6 +65,10 @@ const StockMovements = () => {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (reasonFilter !== "all" && r.reason !== reasonFilter) return false;
+      if (productFilter !== "all") {
+        const key = r.product_id || r.product_name || "—";
+        if (key !== productFilter) return false;
+      }
       if (fromDate) {
         const f = new Date(fromDate); f.setHours(0, 0, 0, 0);
         if (new Date(r.created_at) < f) return false;
@@ -79,7 +84,18 @@ const StockMovements = () => {
       }
       return true;
     });
-  }, [rows, reasonFilter, search, fromDate, toDate]);
+  }, [rows, reasonFilter, search, fromDate, toDate, productFilter]);
+
+  const productOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      const key = r.product_id || r.product_name || "—";
+      if (!map.has(key)) map.set(key, r.product_name || "—");
+    }
+    return Array.from(map.entries())
+      .map(([key, name]) => ({ key, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  }, [rows]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, { product_name: string; inQty: number; outQty: number; net: number; count: number }>();
@@ -179,6 +195,15 @@ const StockMovements = () => {
                 <SelectItem value="return_received">استلام مرتجع</SelectItem>
                 <SelectItem value="manual_add">إضافة كميات</SelectItem>
                 <SelectItem value="manual_remove">سحب كميات</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={productFilter} onValueChange={setProductFilter}>
+              <SelectTrigger className="w-56"><SelectValue placeholder="كل المنتجات" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المنتجات</SelectItem>
+                {productOptions.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>{p.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
