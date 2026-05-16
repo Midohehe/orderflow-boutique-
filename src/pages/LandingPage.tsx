@@ -647,7 +647,13 @@ const LandingPage = () => {
       // Format variants for storage
       const colorsArray = itemVariants.map(v => v.color).filter(Boolean);
       const sizesArray = itemVariants.map(v => v.size).filter(Boolean);
-      const codesArray = itemVariants.map(v => v.productCode).filter(Boolean);
+      // Auto-use the single SKU when no selector is shown (one product code only)
+      const singleCode = product?.product_codes && product.product_codes.length === 1
+        ? product.product_codes[0]
+        : null;
+      const codesArray = itemVariants
+        .map(v => v.productCode || singleCode || "")
+        .filter(Boolean);
 
       // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
       const findField = (...keywords: string[]) => {
@@ -928,7 +934,7 @@ const LandingPage = () => {
                 {itemVariants.map((item, index) => {
                   const hasVariants = (product.colors && product.colors.length > 0) || 
                                      (product.sizes && product.sizes.length > 0) || 
-                                     (product.product_codes && product.product_codes.length > 0);
+                                     (product.product_codes && product.product_codes.length > 1);
                   
                   if (!hasVariants) return null;
                   
@@ -990,7 +996,7 @@ const LandingPage = () => {
                         </div>
                       )}
 
-                      {product.product_codes && product.product_codes.length > 0 && (
+                      {product.product_codes && product.product_codes.length > 1 && (
                         <div className="space-y-1.5 sm:space-y-2">
                           <Label className="text-sm sm:text-base">اختر الكود</Label>
                           <div className="flex flex-wrap gap-2">
