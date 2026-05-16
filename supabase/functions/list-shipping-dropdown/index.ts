@@ -39,7 +39,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: settings } = await admin.from("shipping_settings").select("*").maybeSingle();
+    // Resolve effective owner (sub-user → parent owner)
+    let ownerId = userData.user.id;
+    const { data: member } = await admin
+      .from("store_members").select("owner_id").eq("member_user_id", ownerId).maybeSingle();
+    if (member?.owner_id) ownerId = member.owner_id;
+
+    const { data: settingsList } = await admin
+      .from("shipping_settings").select("*").eq("owner_id", ownerId).limit(1);
+    const settings = settingsList?.[0];
     if (!settings?.enabled || !settings.email || !settings.password) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
