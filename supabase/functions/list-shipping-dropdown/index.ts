@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({} as any));
     const zoneId: number | undefined = body?.zoneId;
+    const zoneName: string | undefined = body?.zoneName;
 
     if (zoneId) {
       // Try child zones first, then areas dropdown
@@ -96,6 +97,30 @@ Deno.serve(async (req) => {
           { cityId: zoneId },
         );
         areas = ar?.data?.listAreasDropdown || [];
+      }
+      // Fallback: if carrier returned nothing, use the local defaultCityAreas map.
+      // We resolve area IDs against carrier's flat listZonesDropdown so they remain usable downstream.
+      if (areas.length === 0) {
+        let cityName = zoneName;
+        if (!cityName) {
+          const allRes = await gql(`{ listZonesDropdown { id name } }`);
+          const all: Array<{ id: number; name: string }> = allRes?.data?.listZonesDropdown || [];
+          cityName = all.find((z) => z.id === zoneId)?.name;
+        }
+        if (cityName) {
+          const key = Object.keys(defaultCityAreas).find((k) => normalizeAr(k) === normalizeAr(cityName!));
+          const localAreas = key ? defaultCityAreas[key] : [];
+          if (localAreas.length > 0) {
+            // Try to resolve real IDs from the carrier's flat list
+            const allRes2 = await gql(`{ listZonesDropdown { id name } }`);
+            const flat: Array<{ id: number; name: string }> = allRes2?.data?.listZonesDropdown || [];
+            const flatByName = new Map(flat.map((it) => [normalizeAr(it.name), it]));
+            areas = localAreas.map((n, idx) => {
+              const found = flatByName.get(normalizeAr(n));
+              return found ? { id: found.id, name: found.name } : { id: -(idx + 1), name: n };
+            });
+          }
+        }
       }
       return new Response(JSON.stringify({ areas }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
