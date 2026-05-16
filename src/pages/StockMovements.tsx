@@ -50,6 +50,12 @@ const StockMovements = () => {
 
   const load = async () => {
     setLoading(true);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     const { data, error } = await (supabase as any)
       .from("stock_movements")
       .select("*")
