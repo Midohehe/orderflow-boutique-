@@ -1095,7 +1095,7 @@ const LandingPage = () => {
                   className="w-full bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white text-base sm:text-lg py-5 sm:py-6 rounded-xl font-bold"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "جاري إرسال الطلب..." : "اطلب الآن - الدفع عند الاستلام"}
+                  {isSubmitting ? "جاري إرسال الطلب..." : (storeSettings.button_text || "اطلب الآن - الدفع عند الاستلام")}
                 </Button>
 
                 <p className="text-center text-muted-foreground text-xs sm:text-sm">
