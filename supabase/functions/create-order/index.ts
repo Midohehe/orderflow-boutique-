@@ -84,31 +84,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Auto-correct city/area against cached shipping zones (fuzzy + AI)
-    let matched_zone_id: number | null = null;
-    let matched_area_id: number | null = null;
-    let matched_zone_name: string | null = null;
-    let matched_area_name: string | null = null;
-    try {
-      const matchRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/match-city`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({ city, address, owner_id: (product as any).owner_id }),
-      });
-      if (matchRes.ok) {
-        const m = await matchRes.json();
-        matched_zone_id = m.zone_id ?? null;
-        matched_area_id = m.area_id ?? null;
-        matched_zone_name = m.zone_name ?? null;
-        matched_area_name = m.area_name ?? null;
-      }
-    } catch (e) {
-      console.error("match-city failed", e);
-    }
-
+    // Insert the order immediately with no city match. City matching (AI) and
+    // stock/WhatsApp side-effects run in the background so the client can
+    // navigate to the thank-you page without waiting on slow AI calls.
     const { data: insertedOrder, error: iErr } = await supabase.from("orders").insert({
       owner_id: (product as any).owner_id,
       customer_name: customer_name || "بدون اسم",
@@ -124,10 +102,6 @@ Deno.serve(async (req) => {
       selected_size: s(body.selected_size ?? "", 200) || null,
       selected_product_code: s(body.selected_product_code ?? "", 200) || null,
       shipping_included: body.shipping_included === true,
-      matched_zone_id,
-      matched_area_id,
-      matched_zone_name,
-      matched_area_name,
     }).select("id").single();
 
     if (iErr) {
@@ -138,30 +112,63 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Record stock movement (decrement)
+    // Background tasks — do not block the HTTP response.
     if (insertedOrder?.id) {
-      try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ order_id: insertedOrder.id, reason: "order_created" }),
-        });
-      } catch (e) { console.error("apply-order-stock failed", e); }
+      const orderId = insertedOrder.id;
+      const baseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      };
 
-      // Fire-and-forget WhatsApp confirmation
-      try {
-        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send-confirmation`, {
+      const background = (async () => {
+        // 1) Match city via AI and update the order row.
+        try {
+          const matchRes = await fetch(`${baseUrl}/functions/v1/match-city`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({ city, address, owner_id: (product as any).owner_id }),
+          });
+          if (matchRes.ok) {
+            const m = await matchRes.json();
+            await supabase.from("orders").update({
+              matched_zone_id: m.zone_id ?? null,
+              matched_area_id: m.area_id ?? null,
+              matched_zone_name: m.zone_name ?? null,
+              matched_area_name: m.area_name ?? null,
+            }).eq("id", orderId);
+          }
+        } catch (e) { console.error("match-city failed", e); }
+
+        // 2) Apply stock decrement.
+        try {
+          await fetch(`${baseUrl}/functions/v1/apply-order-stock`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({ order_id: orderId, reason: "order_created" }),
+          });
+        } catch (e) { console.error("apply-order-stock failed", e); }
+
+        // 3) WhatsApp confirmation.
+        try {
+          await fetch(`${baseUrl}/functions/v1/whatsapp-send-confirmation`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ order_id: insertedOrder.id }),
-        }).catch((e) => console.error("wa-confirm failed", e));
-      } catch (e) { console.error("wa-confirm failed", e); }
+            headers: authHeaders,
+            body: JSON.stringify({ order_id: orderId }),
+          });
+        } catch (e) { console.error("wa-confirm failed", e); }
+      })();
+
+      // Keep the runtime alive until background work completes, but don't
+      // make the client wait for it.
+      try {
+        // @ts-ignore - EdgeRuntime is available in Supabase Edge runtime
+        EdgeRuntime.waitUntil(background);
+      } catch {
+        // Fallback: at least don't crash if waitUntil isn't available.
+        background.catch((e) => console.error("bg tasks failed", e));
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, price: totalPrice }), {
