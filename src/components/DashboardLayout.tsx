@@ -320,7 +320,7 @@ const DashboardLayout = () => {
           sidebarOpen ? "md:mr-64" : "md:mr-20"
         )}
       >
-        <div className="p-3 sm:p-4 md:p-6 max-w-full overflow-x-auto">
+        <div className="p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Outlet />
         </div>
       </main>
