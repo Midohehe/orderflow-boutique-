@@ -252,7 +252,7 @@ const DashboardLayout = () => {
                       onClick={() => handleNavigation(item.path, item.external)}
                       className={cn(
                         "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                        isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
+                        isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary bg-purple-800 font-bold text-base font-sans",
                         !sidebarOpen && "md:justify-center md:px-2",
                         hasLabel && sidebarOpen && "mr-2"
                       )}
@@ -273,7 +273,7 @@ const DashboardLayout = () => {
             onClick={() => handleNavigation("/dashboard/account", false)}
             className={cn(
               "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              location.pathname === "/dashboard/account" && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
+              location.pathname === "/dashboard/account" && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary bg-purple-800 font-bold text-base font-sans",
               !sidebarOpen && "md:justify-center md:px-2"
             )}
           >
@@ -300,7 +300,7 @@ const DashboardLayout = () => {
               onClick={() => handleNavigation(adminSettingsItem.path, adminSettingsItem.external)}
               className={cn(
                 "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                location.pathname === adminSettingsItem.path && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary",
+                location.pathname === adminSettingsItem.path && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary bg-purple-800 font-bold text-base font-sans",
                 !sidebarOpen && "md:justify-center md:px-2"
               )}
             >
