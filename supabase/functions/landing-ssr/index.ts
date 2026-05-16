@@ -166,23 +166,58 @@ Deno.serve(async (req) => {
       ownerId = prof.user_id;
     }
 
-    const productQuery = supabase
-      .from("products")
-      .select("id, name, slug, price, original_price, description, images, owner_id")
+    // First, try a landing_page with this slug (custom landing pages).
+    const landingQuery = supabase
+      .from("landing_pages")
+      .select("product_id, title, description, images, price, original_price, owner_id, is_visible")
       .eq("slug", slug)
-      .eq("is_visible", true)
-      .limit(1);
-    if (ownerId) productQuery.eq("owner_id", ownerId);
+      .eq("is_visible", true);
+    if (ownerId) landingQuery.eq("owner_id", ownerId);
+    const { data: landingRows } = await landingQuery.limit(5);
+    const landing = landingRows?.[0];
 
-    const [{ data: products }, settingsRes] = await Promise.all([
-      productQuery,
-      supabase
-        .from("store_settings")
-        .select("currency_symbol, owner_id")
-        .limit(50),
-    ]);
+    let product: any = null;
+    let settingsRes: any;
 
-    const product = products?.[0];
+    if (landing) {
+      const [{ data: prod }, sRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, slug, price, original_price, description, images, owner_id")
+          .eq("id", landing.product_id)
+          .is("deleted_at", null)
+          .maybeSingle(),
+        supabase.from("store_settings").select("currency_symbol, owner_id").limit(50),
+      ]);
+      settingsRes = sRes;
+      if (prod) {
+        const lpImages = Array.isArray(landing.images) ? landing.images : [];
+        product = {
+          ...prod,
+          name: landing.title || prod.name,
+          description: landing.description || prod.description,
+          price: landing.price ?? prod.price,
+          original_price: landing.original_price ?? prod.original_price,
+          images: lpImages.length ? lpImages : prod.images,
+          owner_id: landing.owner_id || prod.owner_id,
+        };
+      }
+    } else {
+      const productQuery = supabase
+        .from("products")
+        .select("id, name, slug, price, original_price, description, images, owner_id")
+        .eq("slug", slug)
+        .eq("is_visible", true)
+        .limit(1);
+      if (ownerId) productQuery.eq("owner_id", ownerId);
+      const [{ data: products }, sRes] = await Promise.all([
+        productQuery,
+        supabase.from("store_settings").select("currency_symbol, owner_id").limit(50),
+      ]);
+      settingsRes = sRes;
+      product = products?.[0];
+    }
+
     if (!product) {
       return new Response(notFoundHtml(), {
         status: 404,
