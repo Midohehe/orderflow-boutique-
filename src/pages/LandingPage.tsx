@@ -431,7 +431,7 @@ const LandingPage = () => {
       // Track InitiateCheckout across all enabled pixels
       if (product) {
         const value = parseFloat(product.price);
-        const currency = storeSettings.currency_code;
+        const currency = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
         if (window.fbq) {
           window.fbq('track', 'InitiateCheckout', {
             content_name: product.name,
