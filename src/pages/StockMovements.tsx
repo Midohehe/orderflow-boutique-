@@ -56,9 +56,13 @@ const StockMovements = () => {
       setLoading(false);
       return;
     }
+    const { data: ownerRow } = await (supabase as any)
+      .rpc("get_effective_owner_id", { _uid: userData.user.id });
+    const effectiveOwnerId = (ownerRow as string) || userData.user.id;
     const { data, error } = await (supabase as any)
       .from("stock_movements")
       .select("*")
+      .eq("owner_id", effectiveOwnerId)
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
