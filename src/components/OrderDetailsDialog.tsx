@@ -32,10 +32,7 @@ interface ProductLite {
 const TEXT_FIELDS: { key: string; label: string; type?: string; textarea?: boolean }[] = [
   { key: "customer_name", label: "اسم العميل" },
   { key: "phone", label: "رقم الهاتف" },
-  { key: "city", label: "المدينة" },
   { key: "address", label: "العنوان", textarea: true },
-  { key: "matched_zone_name", label: "المدينة المصححة" },
-  { key: "matched_area_name", label: "المنطقة المصححة" },
   { key: "quantity", label: "الكمية", type: "number" },
   { key: "price", label: "السعر", type: "number" },
   { key: "shipping_reference", label: "كود الشحن" },
@@ -63,6 +60,51 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [data, setData] = useState<any>(null);
   const [products, setProducts] = useState<ProductLite[]>([]);
   const [items, setItems] = useState<any[]>([]);
+  const [zones, setZones] = useState<Array<{ id: number; name: string }>>([]);
+  const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string }>>>({});
+  const [loadingZones, setLoadingZones] = useState(false);
+  const [loadingAreas, setLoadingAreas] = useState(false);
+
+  useEffect(() => {
+    if (!open || zones.length > 0) return;
+    setLoadingZones(true);
+    supabase.functions.invoke("list-shipping-dropdown", { body: {} })
+      .then(({ data, error }) => {
+        if (!error) {
+          const list = ((data as any)?.zones || []) as Array<{ id: number; name: string }>;
+          setZones(list.sort((a, b) => a.name.localeCompare(b.name, "ar")));
+        }
+      })
+      .finally(() => setLoadingZones(false));
+  }, [open]);
+
+  const selectedZone = zones.find((z) => z.name === (data?.matched_zone_name || data?.city));
+  const currentAreas = selectedZone ? (areasMap[selectedZone.id] || []) : [];
+
+  useEffect(() => {
+    if (!selectedZone || areasMap[selectedZone.id]) return;
+    setLoadingAreas(true);
+    supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id } })
+      .then(({ data, error }) => {
+        if (!error) {
+          setAreasMap((prev) => ({ ...prev, [selectedZone.id]: (data as any)?.areas || [] }));
+        }
+      })
+      .finally(() => setLoadingAreas(false));
+  }, [selectedZone?.id]);
+
+  const onZoneChange = (name: string) => {
+    setData((d: any) => ({
+      ...d,
+      city: name,
+      matched_zone_name: name,
+      matched_area_name: null,
+    }));
+  };
+
+  const onAreaChange = (name: string) => {
+    setData((d: any) => ({ ...d, matched_area_name: name }));
+  };
 
   useEffect(() => {
     if (!open || !orderId) return;
@@ -362,6 +404,32 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                   )}
                 </div>
               ))}
+              <div className="space-y-1">
+                <Label>المدينة (شركة الشحن)</Label>
+                <Select value={(data?.matched_zone_name || data?.city) ?? ""} onValueChange={onZoneChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingZones ? "جاري التحميل..." : "اختر المدينة"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zones.map((z) => (
+                      <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>المنطقة (شركة الشحن)</Label>
+                <Select value={data?.matched_area_name ?? ""} onValueChange={onAreaChange} disabled={!selectedZone}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (currentAreas.length === 0 ? "لا مناطق" : "اختر المنطقة"))} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currentAreas.map((a) => (
+                      <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1">
                 <Label>الحالة</Label>
                 <Select value={data.status} onValueChange={(v) => update("status", v)}>
