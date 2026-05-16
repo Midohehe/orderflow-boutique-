@@ -142,6 +142,7 @@ const Orders = () => {
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
   const [confirmActionLoading, setConfirmActionLoading] = useState<string | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Order | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -737,7 +738,36 @@ const Orders = () => {
       toast({ title: "خطأ", description: e?.message || "تعذر الاسترجاع", variant: "destructive" });
     }
   };
+  const handlePermanentDelete = async (orderId: string) => {
+    try {
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .delete()
+        .eq("order_id", orderId);
+      if (itemsError) throw itemsError;
 
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", orderId);
+      if (error) throw error;
+
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
+      setPermanentDeleteTarget(null);
+      toast({
+        title: "تم الحذف نهائياً",
+        description: "تم حذف الطلب من النظام بشكل نهائي ولا يمكن استرجاعه.",
+      });
+    } catch (e: any) {
+      console.error("Error permanently deleting order:", e);
+      toast({
+        title: "خطأ",
+        description: e?.message || "حدث خطأ أثناء الحذف النهائي",
+        variant: "destructive",
+      });
+    }
+  };
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ar-AE", {
       year: "numeric",
@@ -1278,16 +1308,48 @@ const Orders = () => {
               </AlertDialog>
             )}
             {order.is_deleted && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() => handleRestoreOrder(order.id)}
-                title="استرجاع لقيد الانتظار"
-              >
-                <RotateCcw className="w-4 h-4" />
-                استرجاع
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => handleRestoreOrder(order.id)}
+                  title="استرجاع لقيد الانتظار"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  استرجاع
+                </Button>
+                <AlertDialog open={permanentDeleteTarget?.id === order.id} onOpenChange={(open) => !open && setPermanentDeleteTarget(null)}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => setPermanentDeleteTarget(order)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      حذف نهائي
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>حذف نهائي من النظام</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        سيتم حذف طلب {order.customer_name} بشكل نهائي من النظام. هذا الإجراء لا رجعة فيه.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setPermanentDeleteTarget(null)}>إلغاء</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handlePermanentDelete(order.id)}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        حذف نهائي
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             )}
           </div>
         </div>
