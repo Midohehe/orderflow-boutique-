@@ -647,7 +647,13 @@ const LandingPage = () => {
       // Format variants for storage
       const colorsArray = itemVariants.map(v => v.color).filter(Boolean);
       const sizesArray = itemVariants.map(v => v.size).filter(Boolean);
-      const codesArray = itemVariants.map(v => v.productCode).filter(Boolean);
+      // Auto-use the single SKU when no selector is shown (one product code only)
+      const singleCode = product?.product_codes && product.product_codes.length === 1
+        ? product.product_codes[0]
+        : null;
+      const codesArray = itemVariants
+        .map(v => v.productCode || singleCode || "")
+        .filter(Boolean);
 
       // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
       const findField = (...keywords: string[]) => {
