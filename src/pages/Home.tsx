@@ -38,7 +38,7 @@ export default function Home() {
             منصة عربية لإدارة التجارة
           </span>
           <h1 className="font-display text-5xl sm:text-6xl md:text-7xl leading-[1.05] tracking-tight max-w-4xl mx-auto">
-            مساحة هادئة <span className="italic text-accent">لإدارة</span> متجرك بالكامل.
+            مساحة هادئة <span className="italic text-accent text-slate-400">لإدارة</span> متجرك بالكامل.
           </h1>
           <p className="mt-7 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             صفحات هبوط، طلبات، شحنات، ومحاسبة دقيقة — كل ذلك من لوحة تحكم واحدة بأسلوب يحترم وقتك.
@@ -89,7 +89,7 @@ export default function Home() {
       <section className="border-t border-border/60">
         <div className="max-w-[1180px] mx-auto px-6 py-24 text-center">
           <h2 className="font-display text-4xl md:text-5xl leading-tight max-w-2xl mx-auto">
-            متجرك يستحق نظامًا <span className="italic text-accent">هادئًا</span> وجادًا.
+            متجرك يستحق نظامًا <span className="italic text-accent text-slate-400">هادئًا</span> وجادًا.
           </h2>
           <div className="mt-8">
             <Link to="/login">
