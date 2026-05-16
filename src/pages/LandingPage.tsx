@@ -610,8 +610,21 @@ const LandingPage = () => {
   };
 
   const trackPurchaseEvent = () => {
-    const currencyCode = storeSettings.currency_code;
+    const currencyCode = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
     const productValue = parseFloat(product?.price || "0") * quantity;
+    const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // Persist for thank-you page fallback dedup
+    try {
+      sessionStorage.setItem('last_purchase_event', JSON.stringify({
+        eventID,
+        value: productValue,
+        currency: currencyCode,
+        content_name: product?.name,
+        content_ids: [product?.id || 'unknown'],
+        num_items: quantity,
+        ts: Date.now(),
+      }));
+    } catch {}
     
     // Facebook Purchase Event with full parameters
     if (window.fbq) {
@@ -622,12 +635,13 @@ const LandingPage = () => {
         content_ids: [product?.id || 'unknown'],
         content_type: 'product',
         num_items: quantity,
-      });
+      }, { eventID });
       console.log('Facebook Purchase event tracked:', {
         value: productValue,
         currency: currencyCode,
         content_name: product?.name,
         content_ids: [product?.id],
+        eventID,
       });
     }
 
