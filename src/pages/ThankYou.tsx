@@ -9,6 +9,16 @@ const ThankYou = () => {
   const orderData = location.state?.orderData;
   const firedRef = useRef(false);
 
+  // Force light mode — thank-you page should always look the same regardless of dashboard theme
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    if (wasDark) root.classList.remove("dark");
+    return () => {
+      if (wasDark) root.classList.add("dark");
+    };
+  }, []);
+
   useEffect(() => {
     // If no order data, redirect to home
     if (!orderData) {

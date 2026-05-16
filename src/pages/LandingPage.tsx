@@ -150,6 +150,15 @@ const LandingPage = () => {
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
   
+  // Force light mode — landing pages should always look the same regardless of dashboard theme
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    if (wasDark) root.classList.remove("dark");
+    return () => {
+      if (wasDark) root.classList.add("dark");
+    };
+  }, []);
   
   // For multiple items with different variants
   interface ItemVariant {
