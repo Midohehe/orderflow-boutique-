@@ -663,6 +663,22 @@ const Products = () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
+      // منع الحذف إذا كان المنتج عنده مخزون
+      const mainStock = Number(deleteTarget.stock) || 0;
+      const variantStockValues = Object.values(deleteTarget.variant_stock || {}).map((v) => Number(v) || 0);
+      const totalVariantStock = variantStockValues.reduce((a, b) => a + b, 0);
+      const hasStock = mainStock > 0 || variantStockValues.some((v) => v > 0);
+      if (hasStock) {
+        toast({
+          title: "لا يمكن حذف المنتج",
+          description: `يوجد مخزون متبقٍ (${Math.max(mainStock, totalVariantStock)}). قم بتصفير الكمية أولاً ثم حاول مرة أخرى.`,
+          variant: "destructive",
+        });
+        setIsDeleting(false);
+        setDeleteTarget(null);
+        return;
+      }
+
       const { error } = await supabase
         .from("products")
         .update({ deleted_at: new Date().toISOString() })
