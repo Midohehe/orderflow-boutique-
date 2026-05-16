@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CheckCircle, Package, Phone, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,12 +7,67 @@ const ThankYou = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const orderData = location.state?.orderData;
+  const firedRef = useRef(false);
 
   useEffect(() => {
     // If no order data, redirect to home
     if (!orderData) {
       navigate("/");
+      return;
     }
+
+    // Fallback Purchase event with eventID dedup (covers cases where the
+    // event was lost on the landing page due to immediate SPA navigation,
+    // pixel not yet loaded, or aborted beacon).
+    if (firedRef.current) return;
+    firedRef.current = true;
+
+    let stored: any = null;
+    try {
+      const raw = sessionStorage.getItem('last_purchase_event');
+      if (raw) stored = JSON.parse(raw);
+    } catch {}
+
+    const eventID =
+      stored?.eventID ||
+      `purchase_${orderData.productId || 'p'}_${Date.now()}`;
+    const value =
+      stored?.value ??
+      (parseFloat(orderData.price || '0') * (orderData.quantity || 1));
+    const currency =
+      stored?.currency || orderData.currencyCode || 'LYD';
+    const content_name = stored?.content_name || orderData.productName;
+    const content_ids = stored?.content_ids || [orderData.productId || 'unknown'];
+    const num_items = stored?.num_items || orderData.quantity || 1;
+
+    const w = window as any;
+    if (w.fbq) {
+      w.fbq('track', 'Purchase', {
+        value, currency, content_name, content_ids,
+        content_type: 'product', num_items,
+      }, { eventID });
+    }
+    if (w.ttq && typeof w.ttq.track === 'function') {
+      w.ttq.track('PlaceAnOrder', {
+        value, currency,
+        contents: [{ content_name, quantity: num_items }],
+      }, { event_id: eventID });
+    }
+    if (w.gtag) {
+      w.gtag('event', 'purchase', {
+        transaction_id: eventID,
+        value, currency,
+        items: [{ item_name: content_name, quantity: num_items }],
+      });
+    }
+    if (w.snaptr) {
+      w.snaptr('track', 'PURCHASE', {
+        price: value, currency, item_ids: content_ids,
+        transaction_id: eventID,
+      });
+    }
+
+    try { sessionStorage.removeItem('last_purchase_event'); } catch {}
   }, [orderData, navigate]);
 
   if (!orderData) {

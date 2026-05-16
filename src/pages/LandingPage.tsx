@@ -73,6 +73,36 @@ declare global {
   }
 }
 
+// Map Arabic currency symbols / non-ISO codes to ISO 4217 codes required by Facebook/TikTok/GA
+const CURRENCY_ISO_MAP: Record<string, string> = {
+  "د.ل": "LYD", "ل.د": "LYD", "دينار": "LYD", "LYD": "LYD",
+  "د.إ": "AED", "AED": "AED", "درهم": "AED",
+  "ر.س": "SAR", "SAR": "SAR", "ريال": "SAR",
+  "د.ك": "KWD", "KWD": "KWD",
+  "ج.م": "EGP", "EGP": "EGP", "جنيه": "EGP",
+  "د.أ": "JOD", "JOD": "JOD",
+  "د.ت": "TND", "TND": "TND",
+  "د.ج": "DZD", "DZD": "DZD",
+  "د.ب": "BHD", "BHD": "BHD",
+  "ر.ع": "OMR", "OMR": "OMR",
+  "ر.ق": "QAR", "QAR": "QAR",
+  "د.ع": "IQD", "IQD": "IQD",
+  "ل.س": "SYP", "SYP": "SYP",
+  "ل.ل": "LBP", "LBP": "LBP",
+  "د.م": "MAD", "MAD": "MAD",
+  "$": "USD", "USD": "USD",
+  "€": "EUR", "EUR": "EUR",
+  "£": "GBP", "GBP": "GBP",
+};
+function toISOCurrency(code?: string, symbol?: string): string {
+  const c = (code || "").trim();
+  if (/^[A-Z]{3}$/.test(c)) return c;
+  if (c && CURRENCY_ISO_MAP[c]) return CURRENCY_ISO_MAP[c];
+  const s = (symbol || "").trim();
+  if (s && CURRENCY_ISO_MAP[s]) return CURRENCY_ISO_MAP[s];
+  return "LYD"; // sensible default for this Libya-focused platform
+}
+
 // Cache keys
 const CACHE_KEYS = {
   STORE_SETTINGS: 'libya_store_settings',
@@ -401,7 +431,7 @@ const LandingPage = () => {
       // Track InitiateCheckout across all enabled pixels
       if (product) {
         const value = parseFloat(product.price);
-        const currency = storeSettings.currency_code;
+        const currency = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
         if (window.fbq) {
           window.fbq('track', 'InitiateCheckout', {
             content_name: product.name,
@@ -610,8 +640,21 @@ const LandingPage = () => {
   };
 
   const trackPurchaseEvent = () => {
-    const currencyCode = storeSettings.currency_code;
+    const currencyCode = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
     const productValue = parseFloat(product?.price || "0") * quantity;
+    const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // Persist for thank-you page fallback dedup
+    try {
+      sessionStorage.setItem('last_purchase_event', JSON.stringify({
+        eventID,
+        value: productValue,
+        currency: currencyCode,
+        content_name: product?.name,
+        content_ids: [product?.id || 'unknown'],
+        num_items: quantity,
+        ts: Date.now(),
+      }));
+    } catch {}
     
     // Facebook Purchase Event with full parameters
     if (window.fbq) {
@@ -622,12 +665,13 @@ const LandingPage = () => {
         content_ids: [product?.id || 'unknown'],
         content_type: 'product',
         num_items: quantity,
-      });
+      }, { eventID });
       console.log('Facebook Purchase event tracked:', {
         value: productValue,
         currency: currencyCode,
         content_name: product?.name,
         content_ids: [product?.id],
+        eventID,
       });
     }
 
@@ -736,6 +780,9 @@ const LandingPage = () => {
             productName: product?.name,
             price: product?.price,
             currencySymbol: storeSettings.currency_symbol,
+            currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
+            productId: product?.id,
+            quantity,
             customerName: customer_name,
             phone,
             city,
