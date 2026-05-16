@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -86,6 +87,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { signOut } = useAuth();
   const { isAdmin, isSubUser, profile } = useUserContext();
+  const { theme, toggleTheme } = useTheme();
   const [storeName, setStoreName] = useState("لوحة التحكم");
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(() => {
     try {
@@ -277,6 +279,20 @@ const DashboardLayout = () => {
           >
             <UserCircle className="w-5 h-5 flex-shrink-0" />
             <span className={cn(!sidebarOpen && "md:hidden")}>حسابي</span>
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={toggleTheme}
+            className={cn(
+              "w-full min-h-11 justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              !sidebarOpen && "md:justify-center md:px-2"
+            )}
+            aria-label="تبديل الوضع الداكن"
+          >
+            {theme === "dark" ? <Sun className="w-5 h-5 flex-shrink-0" /> : <Moon className="w-5 h-5 flex-shrink-0" />}
+            <span className={cn(!sidebarOpen && "md:hidden")}>
+              {theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+            </span>
           </Button>
           {isAdmin && (
             <Button
