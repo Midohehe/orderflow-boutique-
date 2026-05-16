@@ -98,8 +98,22 @@ Deno.serve(async (req) => {
         );
         areas = ar?.data?.listAreasDropdown || [];
       }
-      // Fallback: if carrier returned nothing, use the local defaultCityAreas map.
-      // We resolve area IDs against carrier's flat listZonesDropdown so they remain usable downstream.
+      // Fallback A: search the carrier's flat list for entries whose name
+      // contains the city name (e.g. "ورشفانة - الماية"). Many carriers store
+      // areas as flat items without an explicit parentId relationship.
+      if (areas.length === 0) {
+        let cityName = zoneName;
+        const allRes = await gql(`{ listZonesDropdown { id name } }`);
+        const all: Array<{ id: number; name: string }> = allRes?.data?.listZonesDropdown || [];
+        if (!cityName) cityName = all.find((z) => z.id === zoneId)?.name;
+        if (cityName) {
+          const cn = normalizeAr(cityName);
+          areas = all
+            .filter((it) => it.id !== zoneId && normalizeAr(it.name).includes(cn))
+            .map((it) => ({ id: it.id, name: it.name }));
+        }
+      }
+      // Fallback B: local defaultCityAreas map as last resort.
       if (areas.length === 0) {
         let cityName = zoneName;
         if (!cityName) {
