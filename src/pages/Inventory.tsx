@@ -16,6 +16,7 @@ import { Boxes, Plus, Minus, Loader2, DollarSign, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useUserContext } from "@/hooks/useUserContext";
 
 interface ProductRow {
   id: string;
@@ -46,6 +47,7 @@ const buildVariantKeys = (p: ProductRow): string[] => {
 };
 
 const Inventory = () => {
+  const { effectiveOwnerId } = useUserContext();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,19 +59,19 @@ const Inventory = () => {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
+    if (!effectiveOwnerId) return;
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
     const q = supabase
       .from("products")
       .select("id, name, price, purchase_price, stock, variant_stock, colors, sizes, product_codes")
       .order("name", { ascending: true });
-    const { data, error } = user ? await q.eq("owner_id", user.id) : await q;
+    const { data, error } = await q.eq("owner_id", effectiveOwnerId);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     else setProducts((data as ProductRow[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [effectiveOwnerId]);
 
   const totalValue = useMemo(
     () => products.reduce((s, p) => s + Number(p.purchase_price || 0) * Number(p.stock || 0), 0),
@@ -149,11 +151,10 @@ const Inventory = () => {
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!effectiveOwnerId) throw new Error("Not authenticated");
 
       const movementsPayload = entries.map((e) => ({
-        owner_id: user.id,
+        owner_id: effectiveOwnerId,
         product_id: prod.id,
         product_name: prod.name,
         variant_key: e.variantKey,
