@@ -928,7 +928,7 @@ const LandingPage = () => {
                 {itemVariants.map((item, index) => {
                   const hasVariants = (product.colors && product.colors.length > 0) || 
                                      (product.sizes && product.sizes.length > 0) || 
-                                     (product.product_codes && product.product_codes.length > 0);
+                                     (product.product_codes && product.product_codes.length > 1);
                   
                   if (!hasVariants) return null;
                   
@@ -990,7 +990,7 @@ const LandingPage = () => {
                         </div>
                       )}
 
-                      {product.product_codes && product.product_codes.length > 0 && (
+                      {product.product_codes && product.product_codes.length > 1 && (
                         <div className="space-y-1.5 sm:space-y-2">
                           <Label className="text-sm sm:text-base">اختر الكود</Label>
                           <div className="flex flex-wrap gap-2">
