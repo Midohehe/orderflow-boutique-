@@ -241,7 +241,6 @@ const Login = () => {
                       </button>
                     </div>
                     <div className="relative">
-                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="password-in"
                         type={showPassword ? "text" : "password"}
@@ -255,7 +254,7 @@ const Login = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         tabIndex={-1}
                       >
                         {showPassword ? <EyeOff className="lucide lucide-eye-off w-4 h-4 text-right" /> : <Eye className="lucide lucide-eye w-4 h-4 text-right" />}
@@ -295,7 +294,6 @@ const Login = () => {
                   <div className="space-y-2">
                     <Label htmlFor="password-up">كلمة المرور</Label>
                     <div className="relative">
-                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="password-up"
                         type={showPassword ? "text" : "password"}
@@ -309,7 +307,7 @@ const Login = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         tabIndex={-1}
                       >
                         {showPassword ? <EyeOff className="lucide lucide-eye-off w-4 h-4 text-right" /> : <Eye className="lucide lucide-eye w-4 h-4 text-right" />}
