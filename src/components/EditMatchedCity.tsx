@@ -16,7 +16,8 @@ interface Props {
 }
 
 export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAddress, onSaved }: Props) => {
-  const { isAdmin } = useUserContext();
+  const { isAdmin, isSubUser, hasPermission } = useUserContext();
+  const canEdit = isAdmin || !isSubUser || hasPermission("orders.edit");
   const [editing, setEditing] = useState(false);
   const [c, setC] = useState(city || "");
   const [a, setA] = useState(area || "");
@@ -98,7 +99,7 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
       <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 inline-flex items-center gap-2">
         <span><span className="font-semibold">المدينة المصححة:</span> {city || "—"}</span>
         {area && <span>• <span className="font-semibold">المنطقة:</span> {area}</span>}
-        {isAdmin && (
+        {canEdit && (
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
             <Pencil className="w-3 h-3" />
           </Button>
