@@ -58,6 +58,7 @@ interface FormField {
 interface StoreSettings {
   currency_symbol: string;
   currency_code: string;
+  button_text?: string;
 }
 
 // Declare fbq for TypeScript
@@ -112,7 +113,7 @@ const LandingPage = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
-  const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ", currency_code: "AED" });
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ", currency_code: "AED", button_text: "اطلب الآن - الدفع عند الاستلام" });
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
@@ -299,8 +300,8 @@ const LandingPage = () => {
           ? supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).eq("owner_id", ownerForSettings).order("sort_order", { ascending: true })
           : supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).order("sort_order", { ascending: true });
         const storePromise = ownerForSettings
-          ? supabase.from("store_settings").select("currency_symbol, currency_code").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
-          : supabase.from("store_settings").select("currency_symbol, currency_code").limit(1).maybeSingle();
+          ? supabase.from("store_settings").select("currency_symbol, currency_code, button_text").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
+          : supabase.from("store_settings").select("currency_symbol, currency_code, button_text").limit(1).maybeSingle();
 
         const catalogPromise = supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true);
 
@@ -322,6 +323,7 @@ const LandingPage = () => {
             setStoreSettings({
               currency_symbol: storeSettingsResult.data.currency_symbol,
               currency_code: storeSettingsResult.data.currency_code,
+              button_text: (storeSettingsResult.data as any).button_text || "اطلب الآن - الدفع عند الاستلام",
             });
             setToCache(storeKey, storeSettingsResult.data);
           }
