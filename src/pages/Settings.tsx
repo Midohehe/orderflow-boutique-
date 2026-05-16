@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -217,7 +218,7 @@ const Settings = () => {
         <CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> إضافة مستخدم جديد</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2"><Label>البريد الإلكتروني</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="space-y-2"><Label>كلمة المرور</Label><Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+          <div className="space-y-2"><Label>كلمة المرور</Label><PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
           <div className="space-y-2"><Label>اسم المستخدم (للمتجر)</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") })} placeholder="ahmed" /></div>
           <div className="space-y-2"><Label>الاسم الكامل (اختياري)</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
           <div className="md:col-span-2">
@@ -253,7 +254,7 @@ const Settings = () => {
                       </DialogTrigger>
                       <DialogContent dir="rtl">
                         <DialogHeader><DialogTitle>تغيير كلمة المرور</DialogTitle></DialogHeader>
-                        <Input value={resetPwd?.password || ""} onChange={(e) => setResetPwd((p) => p ? { ...p, password: e.target.value } : null)} placeholder="كلمة مرور جديدة" />
+                        <PasswordInput value={resetPwd?.password || ""} onChange={(e) => setResetPwd((p) => p ? { ...p, password: e.target.value } : null)} placeholder="كلمة مرور جديدة" />
                         <Button onClick={handleReset}>حفظ</Button>
                       </DialogContent>
                     </Dialog>
