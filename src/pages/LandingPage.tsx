@@ -73,6 +73,36 @@ declare global {
   }
 }
 
+// Map Arabic currency symbols / non-ISO codes to ISO 4217 codes required by Facebook/TikTok/GA
+const CURRENCY_ISO_MAP: Record<string, string> = {
+  "د.ل": "LYD", "ل.د": "LYD", "دينار": "LYD", "LYD": "LYD",
+  "د.إ": "AED", "AED": "AED", "درهم": "AED",
+  "ر.س": "SAR", "SAR": "SAR", "ريال": "SAR",
+  "د.ك": "KWD", "KWD": "KWD",
+  "ج.م": "EGP", "EGP": "EGP", "جنيه": "EGP",
+  "د.أ": "JOD", "JOD": "JOD",
+  "د.ت": "TND", "TND": "TND",
+  "د.ج": "DZD", "DZD": "DZD",
+  "د.ب": "BHD", "BHD": "BHD",
+  "ر.ع": "OMR", "OMR": "OMR",
+  "ر.ق": "QAR", "QAR": "QAR",
+  "د.ع": "IQD", "IQD": "IQD",
+  "ل.س": "SYP", "SYP": "SYP",
+  "ل.ل": "LBP", "LBP": "LBP",
+  "د.م": "MAD", "MAD": "MAD",
+  "$": "USD", "USD": "USD",
+  "€": "EUR", "EUR": "EUR",
+  "£": "GBP", "GBP": "GBP",
+};
+function toISOCurrency(code?: string, symbol?: string): string {
+  const c = (code || "").trim();
+  if (/^[A-Z]{3}$/.test(c)) return c;
+  if (c && CURRENCY_ISO_MAP[c]) return CURRENCY_ISO_MAP[c];
+  const s = (symbol || "").trim();
+  if (s && CURRENCY_ISO_MAP[s]) return CURRENCY_ISO_MAP[s];
+  return "LYD"; // sensible default for this Libya-focused platform
+}
+
 // Cache keys
 const CACHE_KEYS = {
   STORE_SETTINGS: 'libya_store_settings',
