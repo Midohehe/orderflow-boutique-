@@ -215,6 +215,16 @@
     content-visibility: auto;
     contain-intrinsic-size: 1px 800px;
   }
+  /* Horizontal scroll container for tables on mobile */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  /* Ensure interactive controls hit 44px target on touch */
+  @media (hover: none) and (pointer: coarse) {
+    .tap-target { min-height: 44px; min-width: 44px; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
