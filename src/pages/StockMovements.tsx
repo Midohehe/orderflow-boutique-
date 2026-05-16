@@ -43,6 +43,9 @@ const StockMovements = () => {
   const [loading, setLoading] = useState(true);
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [groupByProduct, setGroupByProduct] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -61,6 +64,14 @@ const StockMovements = () => {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (reasonFilter !== "all" && r.reason !== reasonFilter) return false;
+      if (fromDate) {
+        const f = new Date(fromDate); f.setHours(0, 0, 0, 0);
+        if (new Date(r.created_at) < f) return false;
+      }
+      if (toDate) {
+        const t = new Date(toDate); t.setHours(23, 59, 59, 999);
+        if (new Date(r.created_at) > t) return false;
+      }
       if (search.trim()) {
         const s = search.trim().toLowerCase();
         const hay = `${r.product_name || ""} ${r.variant_key || ""} ${r.warehouse_code || ""}`.toLowerCase();
@@ -68,7 +79,20 @@ const StockMovements = () => {
       }
       return true;
     });
-  }, [rows, reasonFilter, search]);
+  }, [rows, reasonFilter, search, fromDate, toDate]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { product_name: string; inQty: number; outQty: number; net: number; count: number }>();
+    for (const r of filtered) {
+      const key = r.product_id || r.product_name || "—";
+      const cur = map.get(key) || { product_name: r.product_name || "—", inQty: 0, outQty: 0, net: 0, count: 0 };
+      if (r.qty > 0) cur.inQty += r.qty; else cur.outQty += -r.qty;
+      cur.net = cur.inQty - cur.outQty;
+      cur.count++;
+      map.set(key, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+  }, [filtered]);
 
   const totals = useMemo(() => {
     let inQty = 0, outQty = 0;
@@ -127,6 +151,25 @@ const StockMovements = () => {
               onChange={(e) => setSearch(e.target.value)}
               className="w-56"
             />
+            <Input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-40"
+              title="من تاريخ"
+            />
+            <Input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-40"
+              title="إلى تاريخ"
+            />
+            {(fromDate || toDate) && (
+              <Button variant="ghost" size="sm" onClick={() => { setFromDate(""); setToDate(""); }}>
+                مسح التاريخ
+              </Button>
+            )}
             <Select value={reasonFilter} onValueChange={setReasonFilter}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -138,6 +181,12 @@ const StockMovements = () => {
                 <SelectItem value="manual_remove">سحب كميات</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={groupByProduct ? "default" : "outline"}
+              onClick={() => setGroupByProduct((v) => !v)}
+            >
+              {groupByProduct ? "عرض السجل التفصيلي" : "تجميع حسب المنتج"}
+            </Button>
             <Button variant="outline" onClick={load} disabled={loading}>تحديث</Button>
           </div>
         </CardHeader>
@@ -146,6 +195,41 @@ const StockMovements = () => {
             <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : filtered.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground">لا توجد حركات بعد.</div>
+          ) : groupByProduct ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">المنتج</TableHead>
+                    <TableHead className="text-right">عدد الحركات</TableHead>
+                    <TableHead className="text-right">إجمالي الداخل</TableHead>
+                    <TableHead className="text-right">إجمالي الخارج</TableHead>
+                    <TableHead className="text-right">الصافي</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {grouped.map((g, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-medium">{isolateLatin(g.product_name)}</TableCell>
+                      <TableCell className="text-muted-foreground">{g.count}</TableCell>
+                      <TableCell>
+                        <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/10">+{g.inQty}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-red-500/10 text-red-600 hover:bg-red-500/10">-{g.outQty}</Badge>
+                      </TableCell>
+                      <TableCell className="font-bold">
+                        <Badge className={g.net < 0
+                          ? "bg-red-500/10 text-red-600 hover:bg-red-500/10"
+                          : "bg-green-500/10 text-green-600 hover:bg-green-500/10"}>
+                          {g.net > 0 ? `+${g.net}` : g.net}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
