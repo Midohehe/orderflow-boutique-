@@ -48,10 +48,18 @@ const OrderFormSettings = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || !effectiveOwnerId) return;
 
-        const [{ data: cat }, { data: existing }] = await Promise.all([
+        const [{ data: cat }, { data: existing }, { data: storeRow }] = await Promise.all([
           supabase.from("form_field_catalog").select("*").order("sort_order"),
           supabase.from("order_form_fields").select("*").eq("owner_id", effectiveOwnerId).order("sort_order"),
+          supabase.from("store_settings").select("button_text, success_message").eq("owner_id", effectiveOwnerId).maybeSingle(),
         ]);
+
+        if (storeRow) {
+          setSettings({
+            buttonText: storeRow.button_text || "اطلب الآن",
+            successMessage: storeRow.success_message || "شكراً لك! تم استلام طلبك بنجاح",
+          });
+        }
 
         const catalogRows = (cat || []) as CatalogItem[];
         setCatalog(catalogRows);
@@ -114,6 +122,11 @@ const OrderFormSettings = () => {
         await supabase.from("order_form_fields")
           .update({ enabled: f.enabled, sort_order: f.sort_order, label: f.label, placeholder: f.placeholder })
           .eq("id", f.id);
+      }
+      if (effectiveOwnerId) {
+        await supabase.from("store_settings")
+          .update({ button_text: settings.buttonText, success_message: settings.successMessage })
+          .eq("owner_id", effectiveOwnerId);
       }
       toast({ title: "تم الحفظ", description: "تم حفظ إعدادات نموذج الطلب" });
     } catch (e) {

@@ -1757,30 +1757,36 @@ export type Database = {
       }
       store_settings: {
         Row: {
+          button_text: string
           created_at: string
           currency_code: string
           currency_name: string
           currency_symbol: string
           id: string
           owner_id: string
+          success_message: string
           updated_at: string
         }
         Insert: {
+          button_text?: string
           created_at?: string
           currency_code?: string
           currency_name?: string
           currency_symbol?: string
           id?: string
           owner_id: string
+          success_message?: string
           updated_at?: string
         }
         Update: {
+          button_text?: string
           created_at?: string
           currency_code?: string
           currency_name?: string
           currency_symbol?: string
           id?: string
           owner_id?: string
+          success_message?: string
           updated_at?: string
         }
         Relationships: []
