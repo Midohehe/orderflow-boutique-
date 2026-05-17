@@ -30,7 +30,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: settings } = await admin.from("shipping_settings").select("*").maybeSingle();
+    // Resolve effective owner (sub-user → parent owner)
+    let ownerId = userData.user.id;
+    const { data: member } = await admin
+      .from("store_members").select("owner_id").eq("member_user_id", ownerId).maybeSingle();
+    if (member?.owner_id) ownerId = member.owner_id;
+
+    const { data: settingsList } = await admin
+      .from("shipping_settings").select("*").eq("owner_id", ownerId).limit(1);
+    const settings = settingsList?.[0];
     if (!settings?.enabled || !settings.email || !settings.password) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -69,9 +77,9 @@ Deno.serve(async (req) => {
     const zonesRes = await gql(`{ listZonesDropdown { id name } }`);
     const zones: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
 
-    const rows: Array<{ external_id: number; parent_external_id: number | null; name: string; kind: string }> = [];
+    const rows: Array<{ external_id: number; parent_external_id: number | null; name: string; kind: string; owner_id: string }> = [];
     for (const z of zones) {
-      rows.push({ external_id: z.id, parent_external_id: null, name: z.name, kind: "zone" });
+      rows.push({ external_id: z.id, parent_external_id: null, name: z.name, kind: "zone", owner_id: ownerId });
     }
 
     // Fetch areas/sub-zones for each city in parallel batches
@@ -86,7 +94,7 @@ Deno.serve(async (req) => {
         const ar = await gql(`query Areas($cityId: Int) { listAreasDropdown(cityId: $cityId) { id name } }`, { cityId: z.id });
         children = ar?.data?.listAreasDropdown || [];
       }
-      return children.map((c) => ({ external_id: c.id, parent_external_id: z.id, name: c.name, kind: "area" }));
+      return children.map((c) => ({ external_id: c.id, parent_external_id: z.id, name: c.name, kind: "area", owner_id: ownerId }));
     };
 
     const concurrency = 8;
@@ -99,8 +107,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Upsert in chunks
-    await admin.from("shipping_zones").delete().neq("external_id", -1);
+    // Replace this owner's cached zones
+    await admin.from("shipping_zones").delete().eq("owner_id", ownerId);
     const chunkSize = 500;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
