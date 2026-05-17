@@ -20,6 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import { isolateLatin } from "@/lib/bidi";
 import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
 
@@ -93,6 +94,7 @@ const Products = () => {
   const [newProduct, setNewProduct] = useState<ProductFormData>(emptyFormData);
   const [editProduct, setEditProduct] = useState<ProductFormData>(emptyFormData);
   const { isAdmin, loading: userLoading } = useUserContext();
+  const { activeStoreId, loading: storeLoading } = useStoreContext();
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ" });
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -127,7 +129,8 @@ const Products = () => {
 
   // Two-phase load: fast metadata first, images in background
   useEffect(() => {
-    if (userLoading) return;
+    if (userLoading || storeLoading) return;
+    if (!activeStoreId) { setProducts([]); setIsLoading(false); return; }
     let cancelled = false;
 
     const loadProducts = async () => {
@@ -144,7 +147,7 @@ const Products = () => {
           .select("id, name, slug, price, original_price, purchase_price, is_visible")
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
-        metaQuery = metaQuery.eq("owner_id", user.id);
+        metaQuery = metaQuery.eq("store_id", activeStoreId);
         const { data: metaData, error: metaError } = await runWithTimeout(metaQuery, 15000);
 
         if (metaError) throw metaError;
@@ -169,7 +172,7 @@ const Products = () => {
 
         // Phase 2: load images in background (heavy column)
         let imgQuery = supabase.from("products").select("id, images").is("deleted_at", null);
-        imgQuery = imgQuery.eq("owner_id", user.id);
+        imgQuery = imgQuery.eq("store_id", activeStoreId);
         const { data: imgData } = await imgQuery;
         if (cancelled || !imgData) return;
         const imgMap = new Map<string, string[]>(
@@ -212,18 +215,19 @@ const Products = () => {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, userLoading]);
+  }, [isAdmin, userLoading, storeLoading, activeStoreId]);
 
   const fetchProducts = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      if (!activeStoreId) return;
       let query = supabase
         .from("products")
         .select("id, name, slug, price, original_price, purchase_price, images, is_visible")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
-      query = query.eq("owner_id", user.id);
+      query = query.eq("store_id", activeStoreId);
       const { data, error } = await runWithTimeout(query, 30000);
 
       if (error) throw error;
@@ -311,6 +315,7 @@ const Products = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase.from("products").insert({
         owner_id: user!.id,
+        store_id: activeStoreId,
         name: newProduct.name,
         slug: finalSlug,
         price: parseFloat(newProduct.price),
@@ -741,7 +746,8 @@ const Products = () => {
 
   // ===== Landing Pages: load =====
   useEffect(() => {
-    if (userLoading) return;
+    if (userLoading || storeLoading) return;
+    if (!activeStoreId) { setLandingPages([]); return; }
     let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -749,13 +755,13 @@ const Products = () => {
       const { data, error } = await supabase
         .from("landing_pages")
         .select("id, product_id, slug, title, subtitle, is_visible")
-        .eq("owner_id", user.id)
+        .eq("store_id", activeStoreId)
         .order("created_at", { ascending: false });
       if (cancelled || error) return;
       setLandingPages((data || []) as any);
     })();
     return () => { cancelled = true; };
-  }, [userLoading]);
+  }, [userLoading, storeLoading, activeStoreId]);
 
   // أضف اسم/صورة المنتج لكل صفحة هبوط من قائمة المنتجات المحلية
   const enrichedLandingPages: LandingPage[] = landingPages.map((lp) => {
@@ -782,6 +788,7 @@ const Products = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase.from("landing_pages").insert({
         owner_id: user!.id,
+        store_id: activeStoreId,
         product_id: newLp.productId,
         slug: newLp.slug.trim(),
         title: newLp.title.trim(),

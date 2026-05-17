@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserContext } from "@/hooks/useUserContext";
+import StoreSwitcher from "@/components/StoreSwitcher";
 import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -18,6 +19,7 @@ const baseMenuGroups = [
     items: [
       { icon: LayoutDashboard, label: "لوحة التحكم", path: "/dashboard", external: false, adminOnly: false, dynamicStore: false },
       { icon: Store, label: "مشاهدة المتجر", path: "/store", external: true, adminOnly: false, dynamicStore: true },
+      { icon: Store, label: "متاجري", path: "/dashboard/my-stores", external: false, adminOnly: false, dynamicStore: false, ownerOnly: true },
       { icon: Wallet, label: "محفظتي", path: "/dashboard/wallet", external: false, adminOnly: false, dynamicStore: false },
     ],
   },
@@ -225,6 +227,9 @@ const DashboardLayout = () => {
 
         {/* Navigation */}
         <nav className="flex-1 p-2 sm:p-3 space-y-1 overflow-y-auto min-h-0 overscroll-contain [-webkit-overflow-scrolling:touch]">
+          <div className="mb-2">
+            <StoreSwitcher collapsed={!sidebarOpen} />
+          </div>
           {menuGroups.map((group, gi) => {
             const hasLabel = !!group.label;
             const isExpanded = expandedGroups[gi] ?? !hasLabel;
