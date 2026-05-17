@@ -438,6 +438,19 @@ const LandingPage = () => {
       html = html
         .replace(/<img\b(?![^>]*\bloading=)/gi, '<img loading="lazy" decoding="async"')
         .replace(/<iframe\b(?![^>]*\bloading=)/gi, '<iframe loading="lazy"');
+      // Neutralize pasted HTML from other sites that uses fixed widths,
+      // floats, absolute positioning, or huge margins that overflow mobile.
+      html = html
+        // Drop hard-coded width/height attributes on media + tables
+        .replace(/\s(width|height)="[^"]*"/gi, "")
+        // Strip problematic CSS declarations from inline styles
+        .replace(/style="([^"]*)"/gi, (_m, s) => {
+          const cleaned = s
+            .replace(/(?:^|;)\s*(width|min-width|max-width|height|min-height|max-height|position|top|left|right|bottom|float|margin[^:]*|padding[^:]*|transform)\s*:[^;]*/gi, "")
+            .replace(/^;+|;+$/g, "")
+            .trim();
+          return cleaned ? `style="${cleaned}"` : "";
+        });
       setSanitizedDescription(html);
     };
     if (typeof (window as any).requestIdleCallback === "function") {
