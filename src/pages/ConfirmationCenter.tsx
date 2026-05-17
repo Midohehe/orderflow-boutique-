@@ -415,7 +415,7 @@ export default function ConfirmationCenter() {
         title="مركز تأكيد الطلبات"
         description="إدارة احترافية لمكالمات التأكيد، الرد، التأجيل، والإلغاء"
         iconGradient="from-emerald-500 to-teal-600"
-        actions={
+        action={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={loadAll} disabled={loading}>
               <RefreshCcw className={`w-4 h-4 ml-1 ${loading ? "animate-spin" : ""}`} /> تحديث
