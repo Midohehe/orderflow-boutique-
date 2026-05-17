@@ -21,6 +21,7 @@ export type Database = {
           id: string
           owner_id: string | null
           product_slug: string | null
+          store_id: string | null
           utm_source: string | null
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           owner_id?: string | null
           product_slug?: string | null
+          store_id?: string | null
           utm_source?: string | null
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           owner_id?: string | null
           product_slug?: string | null
+          store_id?: string | null
           utm_source?: string | null
         }
         Relationships: []
@@ -81,6 +84,7 @@ export type Database = {
           label: string
           owner_id: string
           sort_order: number
+          store_id: string | null
         }
         Insert: {
           created_at?: string
@@ -88,6 +92,7 @@ export type Database = {
           label: string
           owner_id: string
           sort_order?: number
+          store_id?: string | null
         }
         Update: {
           created_at?: string
@@ -95,6 +100,7 @@ export type Database = {
           label?: string
           owner_id?: string
           sort_order?: number
+          store_id?: string | null
         }
         Relationships: []
       }
@@ -108,6 +114,7 @@ export type Database = {
           owner_id: string
           sort_order: number
           status_code: string
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -119,6 +126,7 @@ export type Database = {
           owner_id: string
           sort_order?: number
           status_code: string
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -130,6 +138,7 @@ export type Database = {
           owner_id?: string
           sort_order?: number
           status_code?: string
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -142,6 +151,7 @@ export type Database = {
           id: string
           input_text: string | null
           owner_id: string
+          store_id: string | null
         }
         Insert: {
           area: string
@@ -150,6 +160,7 @@ export type Database = {
           id?: string
           input_text?: string | null
           owner_id: string
+          store_id?: string | null
         }
         Update: {
           area?: string
@@ -158,6 +169,7 @@ export type Database = {
           id?: string
           input_text?: string | null
           owner_id?: string
+          store_id?: string | null
         }
         Relationships: []
       }
@@ -167,6 +179,7 @@ export type Database = {
           auto_cancel_after_hours: number
           max_no_answer_attempts: number
           owner_id: string
+          store_id: string | null
           updated_at: string
           work_hours_end: string
           work_hours_start: string
@@ -176,6 +189,7 @@ export type Database = {
           auto_cancel_after_hours?: number
           max_no_answer_attempts?: number
           owner_id: string
+          store_id?: string | null
           updated_at?: string
           work_hours_end?: string
           work_hours_start?: string
@@ -185,6 +199,7 @@ export type Database = {
           auto_cancel_after_hours?: number
           max_no_answer_attempts?: number
           owner_id?: string
+          store_id?: string | null
           updated_at?: string
           work_hours_end?: string
           work_hours_start?: string
@@ -200,6 +215,7 @@ export type Database = {
           is_default: boolean
           name: string
           owner_id: string
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -210,6 +226,7 @@ export type Database = {
           is_default?: boolean
           name: string
           owner_id: string
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -220,6 +237,7 @@ export type Database = {
           is_default?: boolean
           name?: string
           owner_id?: string
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -233,6 +251,7 @@ export type Database = {
           owner_id: string
           raw: Json | null
           sku: string | null
+          store_id: string | null
           synced_at: string
           variants: Json
         }
@@ -244,6 +263,7 @@ export type Database = {
           owner_id: string
           raw?: Json | null
           sku?: string | null
+          store_id?: string | null
           synced_at?: string
           variants?: Json
         }
@@ -255,6 +275,7 @@ export type Database = {
           owner_id?: string
           raw?: Json | null
           sku?: string | null
+          store_id?: string | null
           synced_at?: string
           variants?: Json
         }
@@ -353,18 +374,21 @@ export type Database = {
           id: string
           name: string
           owner_id: string
+          store_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
           owner_id: string
+          store_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
           owner_id?: string
+          store_id?: string | null
         }
         Relationships: []
       }
@@ -378,6 +402,7 @@ export type Database = {
           owner_id: string
           product_id: string | null
           safe_id: string
+          store_id: string | null
         }
         Insert: {
           amount: number
@@ -388,6 +413,7 @@ export type Database = {
           owner_id: string
           product_id?: string | null
           safe_id: string
+          store_id?: string | null
         }
         Update: {
           amount?: number
@@ -398,6 +424,7 @@ export type Database = {
           owner_id?: string
           product_id?: string | null
           safe_id?: string
+          store_id?: string | null
         }
         Relationships: [
           {
@@ -464,6 +491,7 @@ export type Database = {
           owner_id: string
           phone: string | null
           show_search: boolean
+          store_id: string | null
           tagline: string | null
           tiktok_url: string | null
           updated_at: string
@@ -480,6 +508,7 @@ export type Database = {
           owner_id: string
           phone?: string | null
           show_search?: boolean
+          store_id?: string | null
           tagline?: string | null
           tiktok_url?: string | null
           updated_at?: string
@@ -496,6 +525,7 @@ export type Database = {
           owner_id?: string
           phone?: string | null
           show_search?: boolean
+          store_id?: string | null
           tagline?: string | null
           tiktok_url?: string | null
           updated_at?: string
@@ -509,18 +539,21 @@ export type Database = {
           id: string
           owner_id: string
           status_code: string
+          store_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           owner_id: string
           status_code: string
+          store_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           owner_id?: string
           status_code?: string
+          store_id?: string | null
         }
         Relationships: []
       }
@@ -531,6 +564,7 @@ export type Database = {
           created_at: string
           id: string
           owner_id: string
+          store_id: string | null
         }
         Insert: {
           area: string
@@ -538,6 +572,7 @@ export type Database = {
           created_at?: string
           id?: string
           owner_id: string
+          store_id?: string | null
         }
         Update: {
           area?: string
@@ -545,6 +580,7 @@ export type Database = {
           created_at?: string
           id?: string
           owner_id?: string
+          store_id?: string | null
         }
         Relationships: []
       }
@@ -560,6 +596,7 @@ export type Database = {
           price: number | null
           product_id: string
           slug: string
+          store_id: string | null
           subtitle: string | null
           title: string
           updated_at: string
@@ -577,6 +614,7 @@ export type Database = {
           price?: number | null
           product_id: string
           slug: string
+          store_id?: string | null
           subtitle?: string | null
           title?: string
           updated_at?: string
@@ -594,6 +632,7 @@ export type Database = {
           price?: number | null
           product_id?: string
           slug?: string
+          store_id?: string | null
           subtitle?: string | null
           title?: string
           updated_at?: string
@@ -619,6 +658,7 @@ export type Database = {
           order_id: string
           owner_id: string
           result: string
+          store_id: string | null
         }
         Insert: {
           created_at?: string
@@ -628,6 +668,7 @@ export type Database = {
           order_id: string
           owner_id: string
           result: string
+          store_id?: string | null
         }
         Update: {
           created_at?: string
@@ -637,6 +678,7 @@ export type Database = {
           order_id?: string
           owner_id?: string
           result?: string
+          store_id?: string | null
         }
         Relationships: []
       }
@@ -652,6 +694,7 @@ export type Database = {
           placeholder: string
           required: boolean
           sort_order: number
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -665,6 +708,7 @@ export type Database = {
           placeholder?: string
           required?: boolean
           sort_order?: number
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -678,6 +722,7 @@ export type Database = {
           placeholder?: string
           required?: boolean
           sort_order?: number
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -697,6 +742,7 @@ export type Database = {
           selected_color: string | null
           selected_product_code: string | null
           selected_size: string | null
+          store_id: string | null
           warehouse_code: string | null
         }
         Insert: {
@@ -713,6 +759,7 @@ export type Database = {
           selected_color?: string | null
           selected_product_code?: string | null
           selected_size?: string | null
+          store_id?: string | null
           warehouse_code?: string | null
         }
         Update: {
@@ -729,6 +776,7 @@ export type Database = {
           selected_color?: string | null
           selected_product_code?: string | null
           selected_size?: string | null
+          store_id?: string | null
           warehouse_code?: string | null
         }
         Relationships: [
@@ -787,6 +835,7 @@ export type Database = {
           shipping_included: boolean
           shipping_reference: string | null
           status: string
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -834,6 +883,7 @@ export type Database = {
           shipping_included?: boolean
           shipping_reference?: string | null
           status?: string
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -881,6 +931,7 @@ export type Database = {
           shipping_included?: boolean
           shipping_reference?: string | null
           status?: string
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -976,6 +1027,7 @@ export type Database = {
           owner_id: string
           snapchat_enabled: boolean | null
           snapchat_pixel_id: string | null
+          store_id: string | null
           tiktok_enabled: boolean | null
           tiktok_pixel_id: string | null
           updated_at: string
@@ -990,6 +1042,7 @@ export type Database = {
           owner_id: string
           snapchat_enabled?: boolean | null
           snapchat_pixel_id?: string | null
+          store_id?: string | null
           tiktok_enabled?: boolean | null
           tiktok_pixel_id?: string | null
           updated_at?: string
@@ -1004,6 +1057,7 @@ export type Database = {
           owner_id?: string
           snapchat_enabled?: boolean | null
           snapchat_pixel_id?: string | null
+          store_id?: string | null
           tiktok_enabled?: boolean | null
           tiktok_pixel_id?: string | null
           updated_at?: string
@@ -1029,6 +1083,7 @@ export type Database = {
           sizes: string[] | null
           slug: string
           stock: number
+          store_id: string | null
           updated_at: string
           upsell_enabled: boolean
           upsell_offers: Json
@@ -1056,6 +1111,7 @@ export type Database = {
           sizes?: string[] | null
           slug: string
           stock?: number
+          store_id?: string | null
           updated_at?: string
           upsell_enabled?: boolean
           upsell_offers?: Json
@@ -1083,6 +1139,7 @@ export type Database = {
           sizes?: string[] | null
           slug?: string
           stock?: number
+          store_id?: string | null
           updated_at?: string
           upsell_enabled?: boolean
           upsell_offers?: Json
@@ -1148,6 +1205,7 @@ export type Database = {
           owner_id: string
           product_id: string | null
           safe_id: string
+          store_id: string | null
         }
         Insert: {
           amount: number
@@ -1157,6 +1215,7 @@ export type Database = {
           owner_id: string
           product_id?: string | null
           safe_id: string
+          store_id?: string | null
         }
         Update: {
           amount?: number
@@ -1166,6 +1225,7 @@ export type Database = {
           owner_id?: string
           product_id?: string | null
           safe_id?: string
+          store_id?: string | null
         }
         Relationships: [
           {
@@ -1235,6 +1295,7 @@ export type Database = {
           shipment_date: string | null
           status_code: string | null
           status_name: string | null
+          store_id: string | null
           weight: number
           zone_name: string | null
         }
@@ -1259,6 +1320,7 @@ export type Database = {
           shipment_date?: string | null
           status_code?: string | null
           status_name?: string | null
+          store_id?: string | null
           weight?: number
           zone_name?: string | null
         }
@@ -1283,6 +1345,7 @@ export type Database = {
           shipment_date?: string | null
           status_code?: string | null
           status_name?: string | null
+          store_id?: string | null
           weight?: number
           zone_name?: string | null
         }
@@ -1309,6 +1372,7 @@ export type Database = {
           safe_name: string | null
           shipment_count: number
           shipments_synced_at: string | null
+          store_id: string | null
           transaction_type: string | null
           updated_at: string
         }
@@ -1332,6 +1396,7 @@ export type Database = {
           safe_name?: string | null
           shipment_count?: number
           shipments_synced_at?: string | null
+          store_id?: string | null
           transaction_type?: string | null
           updated_at?: string
         }
@@ -1355,6 +1420,7 @@ export type Database = {
           safe_name?: string | null
           shipment_count?: number
           shipments_synced_at?: string | null
+          store_id?: string | null
           transaction_type?: string | null
           updated_at?: string
         }
@@ -1370,6 +1436,7 @@ export type Database = {
           owner_id: string
           reference_id: string | null
           safe_id: string
+          store_id: string | null
         }
         Insert: {
           amount: number
@@ -1380,6 +1447,7 @@ export type Database = {
           owner_id: string
           reference_id?: string | null
           safe_id: string
+          store_id?: string | null
         }
         Update: {
           amount?: number
@@ -1390,6 +1458,7 @@ export type Database = {
           owner_id?: string
           reference_id?: string | null
           safe_id?: string
+          store_id?: string | null
         }
         Relationships: [
           {
@@ -1409,6 +1478,7 @@ export type Database = {
           name: string
           notes: string | null
           owner_id: string
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1418,6 +1488,7 @@ export type Database = {
           name: string
           notes?: string | null
           owner_id: string
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1427,6 +1498,7 @@ export type Database = {
           name?: string
           notes?: string | null
           owner_id?: string
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1453,6 +1525,7 @@ export type Database = {
           shipment_date: string | null
           status_code: string | null
           status_name: string | null
+          store_id: string | null
           weight: number
           zone_name: string | null
         }
@@ -1477,6 +1550,7 @@ export type Database = {
           shipment_date?: string | null
           status_code?: string | null
           status_name?: string | null
+          store_id?: string | null
           weight?: number
           zone_name?: string | null
         }
@@ -1501,6 +1575,7 @@ export type Database = {
           shipment_date?: string | null
           status_code?: string | null
           status_name?: string | null
+          store_id?: string | null
           weight?: number
           zone_name?: string | null
         }
@@ -1536,6 +1611,7 @@ export type Database = {
           settlement_date: string | null
           shipment_count: number
           shipments_synced_at: string | null
+          store_id: string | null
           transaction_type: string | null
           updated_at: string
         }
@@ -1560,6 +1636,7 @@ export type Database = {
           settlement_date?: string | null
           shipment_count?: number
           shipments_synced_at?: string | null
+          store_id?: string | null
           transaction_type?: string | null
           updated_at?: string
         }
@@ -1584,6 +1661,7 @@ export type Database = {
           settlement_date?: string | null
           shipment_count?: number
           shipments_synced_at?: string | null
+          store_id?: string | null
           transaction_type?: string | null
           updated_at?: string
         }
@@ -1636,6 +1714,7 @@ export type Database = {
           id: string
           owner_id: string
           password: string
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1646,6 +1725,7 @@ export type Database = {
           id?: string
           owner_id: string
           password?: string
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1656,6 +1736,7 @@ export type Database = {
           id?: string
           owner_id?: string
           password?: string
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1669,6 +1750,7 @@ export type Database = {
           name: string | null
           owner_id: string
           stock: number
+          store_id: string | null
           synced_at: string
         }
         Insert: {
@@ -1679,6 +1761,7 @@ export type Database = {
           name?: string | null
           owner_id: string
           stock?: number
+          store_id?: string | null
           synced_at?: string
         }
         Update: {
@@ -1689,6 +1772,7 @@ export type Database = {
           name?: string | null
           owner_id?: string
           stock?: number
+          store_id?: string | null
           synced_at?: string
         }
         Relationships: []
@@ -1703,6 +1787,7 @@ export type Database = {
           name: string
           owner_id: string
           parent_external_id: number | null
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1714,6 +1799,7 @@ export type Database = {
           name: string
           owner_id: string
           parent_external_id?: number | null
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1725,6 +1811,7 @@ export type Database = {
           name?: string
           owner_id?: string
           parent_external_id?: number | null
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1849,6 +1936,35 @@ export type Database = {
           },
         ]
       }
+      store_member_stores: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string
+          store_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id: string
+          store_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_member_stores_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_members: {
         Row: {
           created_at: string
@@ -1916,6 +2032,36 @@ export type Database = {
           id?: string
           owner_id?: string
           success_message?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stores: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          owner_id: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          owner_id: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          owner_id?: string
+          slug?: string
           updated_at?: string
         }
         Relationships: []
@@ -2244,6 +2390,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_store_access: { Args: { _store_id: string }; Returns: boolean }
       is_member_of: { Args: { _owner_id: string }; Returns: boolean }
       is_subscription_active: { Args: { _user_id: string }; Returns: boolean }
       move_to_dlq: {
