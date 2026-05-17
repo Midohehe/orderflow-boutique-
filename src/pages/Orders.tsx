@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1205,76 +1205,9 @@ const Orders = () => {
                 originalAddress={order.address}
                 onSaved={(nc, na) => setOrders((prev) => prev.map((p) => p.id === order.id ? { ...p, matched_zone_name: nc, matched_area_name: na } : p))}
               />
-              {showCheckbox && order.status === "pending" && (
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
-                  <span className="text-xs text-muted-foreground ml-1">تأكيد:</span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1 border-success text-success hover:bg-success hover:text-success-foreground"
-                    disabled={confirmActionLoading === order.id}
-                    onClick={() => handleConfirmationAction(order, "confirmed")}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" /> مؤكد
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1 border-warning text-warning hover:bg-warning hover:text-warning-foreground"
-                    disabled={confirmActionLoading === order.id}
-                    onClick={() => { setConfirmNoteAction("no_answer"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
-                  >
-                    <PhoneOff className="w-3.5 h-3.5" /> لم يرد
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1"
-                    disabled={confirmActionLoading === order.id}
-                    onClick={() => { setConfirmNoteAction("postponed"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
-                  >
-                    <CalendarClock className="w-3.5 h-3.5" /> تأجيل
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    disabled={confirmActionLoading === order.id}
-                    onClick={() => { setConfirmNoteAction("cancelled"); setConfirmNoteValue(order.confirmation_notes || ""); setConfirmNoteOpen(order.id); }}
-                  >
-                    <ShieldAlert className="w-3.5 h-3.5" /> إلغاء
-                  </Button>
-                  {order.phone && (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 gap-1 text-primary"
-                        onClick={() => { window.location.href = `tel:${order.phone}`; }}
-                      >
-                        <PhoneCall className="w-3.5 h-3.5" /> اتصال
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 gap-1 text-success"
-                        onClick={() => openWhatsApp(order.phone, order.customer_name, order.product_name)}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" /> واتساب
-                      </Button>
-                    </>
-                  )}
-                  {order.confirmation_notes && (
-                    <span className="text-xs text-muted-foreground italic w-full">
-                      📝 {order.confirmation_notes}
-                    </span>
-                  )}
+              {order.confirmation_notes && (
+                <div className="text-xs text-muted-foreground italic pt-1">
+                  📝 {order.confirmation_notes}
                 </div>
               )}
             </div>
@@ -1616,6 +1549,17 @@ const Orders = () => {
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
+          <Card className="card-shadow border-primary/30 bg-primary/5">
+            <CardContent className="p-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm">
+                <ShieldCheck className="w-5 h-5 text-primary" />
+                <span>لإدارة مكالمات التأكيد بشكل احترافي (قوالب واتساب، تأجيل، سجل المحاولات…)</span>
+              </div>
+              <Button asChild size="sm">
+                <Link to="/dashboard/confirmation">اذهب إلى مركز تأكيد الطلبات ←</Link>
+              </Button>
+            </CardContent>
+          </Card>
           {(
             <Card className="card-shadow">
               <CardContent className="p-4">

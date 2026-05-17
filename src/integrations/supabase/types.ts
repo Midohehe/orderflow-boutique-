@@ -74,6 +74,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cancellation_reasons: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          owner_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          owner_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          owner_id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       carrier_status_mappings: {
         Row: {
           category: string | null
@@ -134,6 +158,69 @@ export type Database = {
           id?: string
           input_text?: string | null
           owner_id?: string
+        }
+        Relationships: []
+      }
+      confirmation_settings: {
+        Row: {
+          auto_assign_enabled: boolean
+          auto_cancel_after_hours: number
+          max_no_answer_attempts: number
+          owner_id: string
+          updated_at: string
+          work_hours_end: string
+          work_hours_start: string
+        }
+        Insert: {
+          auto_assign_enabled?: boolean
+          auto_cancel_after_hours?: number
+          max_no_answer_attempts?: number
+          owner_id: string
+          updated_at?: string
+          work_hours_end?: string
+          work_hours_start?: string
+        }
+        Update: {
+          auto_assign_enabled?: boolean
+          auto_cancel_after_hours?: number
+          max_no_answer_attempts?: number
+          owner_id?: string
+          updated_at?: string
+          work_hours_end?: string
+          work_hours_start?: string
+        }
+        Relationships: []
+      }
+      confirmation_templates: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          channel?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          owner_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -657,6 +744,8 @@ export type Database = {
       orders: {
         Row: {
           address: string
+          assigned_to: string | null
+          cancellation_reason: string | null
           carrier_cancellation_reason_id: string | null
           carrier_notes: string | null
           carrier_status: string | null
@@ -673,6 +762,7 @@ export type Database = {
           id: string
           insufficient_stock: boolean
           is_deleted: boolean
+          last_attempt_at: string | null
           link_error: string | null
           locked_insufficient_balance: boolean
           matched_area_id: number | null
@@ -701,6 +791,8 @@ export type Database = {
         }
         Insert: {
           address: string
+          assigned_to?: string | null
+          cancellation_reason?: string | null
           carrier_cancellation_reason_id?: string | null
           carrier_notes?: string | null
           carrier_status?: string | null
@@ -717,6 +809,7 @@ export type Database = {
           id?: string
           insufficient_stock?: boolean
           is_deleted?: boolean
+          last_attempt_at?: string | null
           link_error?: string | null
           locked_insufficient_balance?: boolean
           matched_area_id?: number | null
@@ -745,6 +838,8 @@ export type Database = {
         }
         Update: {
           address?: string
+          assigned_to?: string | null
+          cancellation_reason?: string | null
           carrier_cancellation_reason_id?: string | null
           carrier_notes?: string | null
           carrier_status?: string | null
@@ -761,6 +856,7 @@ export type Database = {
           id?: string
           insufficient_stock?: boolean
           is_deleted?: boolean
+          last_attempt_at?: string | null
           link_error?: string | null
           locked_insufficient_balance?: boolean
           matched_area_id?: number | null

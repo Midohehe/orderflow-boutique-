@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun, ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ const baseMenuGroups = [
     label: "الطلبيات",
     items: [
       { icon: ShoppingCart, label: "الطلبيات", path: "/dashboard/orders", external: false, adminOnly: false, dynamicStore: false },
+      { icon: ShieldCheck, label: "تأكيد الطلبات", path: "/dashboard/confirmation", external: false, adminOnly: false, dynamicStore: false },
       { icon: Undo2, label: "استلام المرتجعات", path: "/dashboard/returns", external: false, adminOnly: false, dynamicStore: false },
     ],
   },
