@@ -1815,6 +1815,45 @@ export type Database = {
         }
         Relationships: []
       }
+      thank_you_settings: {
+        Row: {
+          contact_message: string
+          created_at: string
+          id: string
+          owner_id: string
+          shipping_message: string
+          show_contact_info: boolean
+          show_order_details: boolean
+          subtitle: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          contact_message?: string
+          created_at?: string
+          id?: string
+          owner_id: string
+          shipping_message?: string
+          show_contact_info?: boolean
+          show_order_details?: boolean
+          subtitle?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_message?: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          shipping_message?: string
+          show_contact_info?: boolean
+          show_order_details?: boolean
+          subtitle?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
