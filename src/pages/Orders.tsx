@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
+import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 
 interface Order {
   id: string;
