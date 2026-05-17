@@ -144,19 +144,22 @@ Deno.serve(async (req) => {
     const zonesRes = await gql(`{ listZonesDropdown { id name } }`);
     const allItems: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
 
-    // The carrier's listZonesDropdown returns a flat union of cities AND areas
-    // (with overlapping id sequences). Filter to entries whose name matches a
-    // known Libyan city, then dedupe by normalized name.
-    const cityNameSet = new Set(Object.keys(defaultCityAreas).map(normalizeAr));
-    const seen = new Set<string>();
+    // Return all carrier zones. Dedupe by id (carrier sometimes repeats ids)
+    // and by normalized name to avoid double entries. Do NOT filter against
+    // the local defaultCityAreas list — that would hide any new city the
+    // carrier adds (e.g. id 72) before we update the hardcoded list.
+    const seenIds = new Set<number>();
+    const seenNames = new Set<string>();
     const zones: Array<{ id: number; name: string }> = [];
     for (const it of allItems) {
-      const key = normalizeAr(it.name);
-      if (!cityNameSet.has(key)) continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      zones.push(it);
+      if (!it?.name) continue;
+      const nameKey = normalizeAr(it.name);
+      if (seenIds.has(it.id) || seenNames.has(nameKey)) continue;
+      seenIds.add(it.id);
+      seenNames.add(nameKey);
+      zones.push({ id: it.id, name: it.name.trim() });
     }
+    zones.sort((a, b) => a.name.localeCompare(b.name, "ar"));
     return new Response(JSON.stringify({ zones }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
