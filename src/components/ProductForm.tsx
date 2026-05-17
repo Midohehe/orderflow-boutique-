@@ -548,6 +548,14 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
 
         {product.upsellEnabled && (
           <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">عنوان قسم العروض (يظهر للمشتري)</Label>
+              <Input
+                value={product.upsellTitle ?? ""}
+                onChange={(e) => updateField("upsellTitle" as any, e.target.value as any)}
+                placeholder="🎁 عروض خاصة"
+              />
+            </div>
             {(product.upsellOffers || []).map((offer, idx) => (
               <div key={idx} className="grid grid-cols-1 md:grid-cols-[6rem_8rem_1fr_auto] gap-2 p-3 border rounded-lg bg-muted/20 items-end">
                 <div className="space-y-1">
