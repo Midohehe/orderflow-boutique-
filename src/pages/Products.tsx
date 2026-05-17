@@ -78,6 +78,7 @@ const emptyFormData: ProductFormData = {
   sizes: "",
   warehouseLinked: true,
   upsellEnabled: false,
+  upsellTitle: "",
   upsellOffers: [],
 };
 
