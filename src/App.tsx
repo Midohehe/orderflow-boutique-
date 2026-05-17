@@ -46,6 +46,8 @@ const AdminStores = lazy(() => import("./pages/AdminStores"));
 const AdminStoreDetail = lazy(() => import("./pages/AdminStoreDetail"));
 const PermissionGroups = lazy(() => import("./pages/PermissionGroups"));
 const StoreMembers = lazy(() => import("./pages/StoreMembers"));
+const ConfirmationCenter = lazy(() => import("./pages/ConfirmationCenter"));
+const ConfirmationSettings = lazy(() => import("./pages/ConfirmationSettings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -93,6 +95,8 @@ const App = () => {
                 <Route path="products/trash" element={<TrashedProducts />} />
                 <Route path="easyorders-products" element={<EasyOrdersProducts />} />
                 <Route path="orders" element={<Orders />} />
+                <Route path="confirmation" element={<ConfirmationCenter />} />
+                <Route path="confirmation/settings" element={<ConfirmationSettings />} />
                 <Route path="financial" element={<FinancialAccounts />} />
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="safes" element={<Safes />} />
