@@ -328,6 +328,11 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       }
     }
     payload.link_error = newLinkErrors.length > 0 ? newLinkErrors.join(" | ") : null;
+    payload.matched_zone_name = data.matched_zone_name ?? null;
+    payload.matched_area_name = data.matched_area_name ?? null;
+    payload.matched_zone_id = data.matched_zone_id ?? null;
+    payload.matched_area_id = data.matched_area_id ?? null;
+    payload.city = data.city ?? null;
     const { error } = await supabase.from("orders").update(payload).eq("id", orderId);
     if (error) {
       setSaving(false);
