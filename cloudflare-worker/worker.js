@@ -11,7 +11,7 @@
  * Make sure was-la.com (and www) are added to Cloudflare with proxy ON.
  */
 
-const LOVABLE_ORIGIN  = "https://orderflow-boutique.lovable.app";
+const LOVABLE_ORIGIN  = "https://was-la.lovable.app";
 const SSR_ENDPOINT    = "https://iyqooryhmshlajuhabmc.supabase.co/functions/v1/landing-ssr";
 
 // Supabase publishable (anon) key — safe to expose, required by the gateway.
