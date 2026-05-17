@@ -13,13 +13,13 @@ let cachePromise: Promise<ShippingErrorAlias[]> | null = null;
 const fetchAliases = async (): Promise<ShippingErrorAlias[]> => {
   if (cache) return cache;
   if (cachePromise) return cachePromise;
-  cachePromise = supabase
-    .from("shipping_error_aliases")
-    .select("pattern, match_type, short_label")
-    .then(({ data }) => {
-      cache = (data as ShippingErrorAlias[]) || [];
-      return cache;
-    });
+  cachePromise = (async () => {
+    const { data } = await supabase
+      .from("shipping_error_aliases")
+      .select("pattern, match_type, short_label");
+    cache = (data as ShippingErrorAlias[]) || [];
+    return cache;
+  })();
   return cachePromise;
 };
 
