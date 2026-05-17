@@ -460,6 +460,20 @@ Deno.serve(async (req) => {
         if (area) { areaId = area.id; areaName = area.name; }
       }
 
+      // Always resolve canonical names from the live carrier zones list using IDs,
+      // so we send the original carrier name (not the user-edited display_name).
+      if (zoneId) {
+        const z = zones.find((x: { id: number; name: string }) => Number(x.id) === Number(zoneId));
+        if (z?.name) zoneName = z.name;
+        if (areaId) {
+          try {
+            const areas = await loadAreas(zoneId);
+            const a = areas.find((x: { id: number; name: string }) => Number(x.id) === Number(areaId));
+            if (a?.name) areaName = a.name;
+          } catch (_) { /* keep existing areaName */ }
+        }
+      }
+
       if (!zoneId || !areaId) {
         const err = `تعذر مطابقة المدينة/المنطقة: "${o.city}" - "${o.address}"`;
         results.push({ id: o.id, ok: false, error: err });
