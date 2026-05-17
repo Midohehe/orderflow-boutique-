@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,8 +116,8 @@ export default function ShippingZones() {
                 const areas = areasByParent[c.external_id] || [];
                 const isOpen = !!open[c.external_id] || !!ql;
                 return (
-                  <>
-                    <TableRow key={c.external_id} className="cursor-pointer hover:bg-muted/50"
+                  <Fragment key={c.external_id}>
+                    <TableRow className="cursor-pointer hover:bg-muted/50"
                       onClick={() => setOpen((p) => ({ ...p, [c.external_id]: !p[c.external_id] }))}>
                       <TableCell>
                         {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -134,7 +134,7 @@ export default function ShippingZones() {
                         <TableCell></TableCell>
                       </TableRow>
                     ))}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>
