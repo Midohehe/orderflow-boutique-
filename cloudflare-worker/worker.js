@@ -47,7 +47,9 @@ export default {
         status: ssrRes.status,
         headers: {
           "content-type": "text/html; charset=utf-8",
-          "cache-control": "public, max-age=30, s-maxage=300, stale-while-revalidate=600",
+          // Short cache: new Lovable deploys rotate /assets/*.js hashes,
+          // so stale SSR HTML pointing to old hashes breaks hydration.
+          "cache-control": "public, max-age=0, s-maxage=15, stale-while-revalidate=30",
         },
       });
       if (ssrRes.ok) {
