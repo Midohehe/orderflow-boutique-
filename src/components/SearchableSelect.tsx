@@ -19,6 +19,7 @@ interface Props {
   searchPlaceholder?: string;
   emptyText?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export function SearchableSelect({
@@ -29,17 +30,19 @@ export function SearchableSelect({
   searchPlaceholder = "ابحث...",
   emptyText = "لا توجد نتائج",
   className,
+  disabled,
 }: Props) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => !disabled && setOpen(v)}>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className={cn("w-full justify-between font-normal", className)}
         >
           <span className="truncate text-right flex-1">
