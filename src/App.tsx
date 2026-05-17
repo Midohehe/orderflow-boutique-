@@ -49,6 +49,7 @@ const StoreMembers = lazy(() => import("./pages/StoreMembers"));
 const ConfirmationCenter = lazy(() => import("./pages/ConfirmationCenter"));
 const ConfirmationSettings = lazy(() => import("./pages/ConfirmationSettings"));
 const ShippingErrorAliases = lazy(() => import("./pages/ShippingErrorAliases"));
+const ShippingZones = lazy(() => import("./pages/ShippingZones"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -115,6 +116,7 @@ const App = () => {
                 <Route path="header" element={<HeaderSettings />} />
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
+                <Route path="shipping-zones" element={<ShippingZones />} />
                 <Route path="whatsapp" element={<WhatsAppPage />} />
                 <Route path="sticker-designer" element={<StickerDesigner />} />
                 <Route path="settings" element={<Settings />} />
