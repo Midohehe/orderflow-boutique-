@@ -597,6 +597,7 @@ const Products = () => {
       sizes: product.sizes?.join(", ") || "",
       warehouseLinked: true,
       upsellEnabled: false,
+      upsellTitle: "",
       upsellOffers: [],
     });
     setIsEditOpen(true);
@@ -606,7 +607,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_offers")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers")
           .eq("id", product.id)
           .single()
       );
@@ -643,6 +644,7 @@ const Products = () => {
           : {},
         warehouseLinked: (data as any).warehouse_linked !== false,
         upsellEnabled: !!(data as any).upsell_enabled,
+        upsellTitle: (data as any).upsell_title || "",
         upsellOffers: Array.isArray((data as any).upsell_offers)
           ? ((data as any).upsell_offers as any[]).map((o) => ({
               quantity: String(o?.quantity ?? ""),
