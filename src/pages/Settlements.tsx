@@ -10,6 +10,7 @@ import { RefreshCw, ChevronLeft, CheckCircle2, Wallet, Loader2 } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Settlement {
   id: string;
@@ -30,15 +31,18 @@ interface Settlement {
 
 const Settlements = () => {
   const navigate = useNavigate();
+  const { activeStoreId } = useStoreContext();
   const [rows, setRows] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
   const load = async () => {
+    if (!activeStoreId) { setRows([]); setLoading(false); return; }
     setLoading(true);
     const { data, error } = await supabase
       .from("settlements")
       .select("*")
+      .eq("store_id", activeStoreId)
       .order("settlement_date", { ascending: false });
     if (error) {
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
@@ -50,7 +54,7 @@ const Settlements = () => {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [activeStoreId]);
 
   const refreshFromCarrier = async () => {
     setSyncing(true);

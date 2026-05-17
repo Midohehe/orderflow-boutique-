@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface RtrnOrderRow {
   id: string;
@@ -25,6 +26,7 @@ interface RtrnOrderRow {
 }
 
 const Returns = () => {
+  const { activeStoreId } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [rtrnRows, setRtrnRows] = useState<RtrnOrderRow[]>([]);
@@ -34,9 +36,11 @@ const Returns = () => {
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const load = async () => {
+    if (!activeStoreId) { setRtrnRows([]); setLoading(false); return; }
     setLoading(true);
     const { data: ord, error: oErr } = await (supabase as any).from("orders")
       .select("id, customer_name, phone, product_name, quantity, price, shipping_reference, carrier_status, carrier_status_updated_at, status")
+      .eq("store_id", activeStoreId)
       .or('carrier_status.eq.تم الارجاع للراسل,carrier_status.ilike.%RTRN%')
       .neq("status", "returned_received")
       .order("carrier_status_updated_at", { ascending: false });
@@ -48,7 +52,7 @@ const Returns = () => {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [activeStoreId]);
 
   const toggleOne = (id: string) => {
     setSelectedIds((prev) => {
