@@ -1696,6 +1696,7 @@ export type Database = {
       shipping_zones: {
         Row: {
           created_at: string
+          display_name: string | null
           external_id: number
           id: string
           kind: string
@@ -1706,6 +1707,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_name?: string | null
           external_id: number
           id?: string
           kind?: string
@@ -1716,6 +1718,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_name?: string | null
           external_id?: number
           id?: string
           kind?: string
