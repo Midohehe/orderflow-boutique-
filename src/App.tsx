@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AuthProvider } from "@/hooks/useAuth";
+import { StoreProvider } from "@/hooks/useStoreContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import Login from "./pages/Login";
@@ -50,6 +51,7 @@ const ConfirmationCenter = lazy(() => import("./pages/ConfirmationCenter"));
 const ConfirmationSettings = lazy(() => import("./pages/ConfirmationSettings"));
 const ShippingErrorAliases = lazy(() => import("./pages/ShippingErrorAliases"));
 const ShippingZones = lazy(() => import("./pages/ShippingZones"));
+const MyStores = lazy(() => import("./pages/MyStores"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -70,7 +72,8 @@ const App = () => {
   return (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
+      <StoreProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -117,6 +120,7 @@ const App = () => {
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
                 <Route path="shipping-zones" element={<ShippingZones />} />
+                <Route path="my-stores" element={<MyStores />} />
                 <Route path="whatsapp" element={<WhatsAppPage />} />
                 <Route path="sticker-designer" element={<StickerDesigner />} />
                 <Route path="settings" element={<Settings />} />
@@ -132,7 +136,8 @@ const App = () => {
             </Routes>
           </Suspense>
         </BrowserRouter>
-      </TooltipProvider>
+        </TooltipProvider>
+      </StoreProvider>
     </AuthProvider>
   </QueryClientProvider>
   );
