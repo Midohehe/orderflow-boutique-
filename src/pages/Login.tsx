@@ -277,7 +277,7 @@ const Login = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="username">اسم المستخدم (رابط المتجر)</Label>
+                    <Label htmlFor="username">اسم المتجر (رابط المتجر)</Label>
                     <div className="relative">
                       <AtSign className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input id="username" type="text" placeholder="my_store" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} className="pr-10 text-left" dir="ltr" required />
