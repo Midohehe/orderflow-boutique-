@@ -366,32 +366,27 @@ const Orders = () => {
 
   useEffect(() => {
     let cancelled = false;
+    if (!activeStoreId) { setOrders([]); setLoading(false); return; }
+    setLoading(true);
     (async () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
         const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
-          (uid
-            ? supabase
-                .from("orders")
-                .select(ORDER_SELECT_COLS)
-                .eq("owner_id", uid)
-                .order("created_at", { ascending: false })
-            : supabase
-                .from("orders")
-                .select(ORDER_SELECT_COLS)
-                .order("created_at", { ascending: false })),
+          supabase
+            .from("orders")
+            .select(ORDER_SELECT_COLS)
+            .eq("store_id", activeStoreId)
+            .order("created_at", { ascending: false }),
           (uid
             ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
             : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
-          supabase.from("products").select("id, name"),
+          supabase.from("products").select("id, name").eq("store_id", activeStoreId),
           uid
             ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
-          uid
-            ? supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle()
-            : Promise.resolve({ data: null } as any),
+          supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId).maybeSingle(),
           uid
             ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
@@ -453,7 +448,7 @@ const Orders = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeStoreId]);
 
   useEffect(() => {
     const openId = searchParams.get("open");
