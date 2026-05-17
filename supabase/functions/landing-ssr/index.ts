@@ -11,7 +11,7 @@ const corsHeaders: Record<string, string> = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_ORIGIN = "https://was-la.lovable.app";
+const LOVABLE_ORIGIN = "https://orderflow-boutique.lovable.app";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
