@@ -38,7 +38,7 @@ const StoreSwitcher = ({ collapsed = false }: Props) => {
           </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56" dir="rtl">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>متاجري</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {stores.map((s) => (
