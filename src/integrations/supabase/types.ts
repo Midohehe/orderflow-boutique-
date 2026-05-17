@@ -602,6 +602,7 @@ export type Database = {
           updated_at: string
           upsell_enabled: boolean
           upsell_offers: Json
+          upsell_title: string | null
         }
         Insert: {
           created_at?: string
@@ -620,6 +621,7 @@ export type Database = {
           updated_at?: string
           upsell_enabled?: boolean
           upsell_offers?: Json
+          upsell_title?: string | null
         }
         Update: {
           created_at?: string
@@ -638,6 +640,7 @@ export type Database = {
           updated_at?: string
           upsell_enabled?: boolean
           upsell_offers?: Json
+          upsell_title?: string | null
         }
         Relationships: [
           {
@@ -1087,6 +1090,7 @@ export type Database = {
           updated_at: string
           upsell_enabled: boolean
           upsell_offers: Json
+          upsell_title: string
           variant_easyorders_ids: Json
           variant_skus: Json
           variant_stock: Json
@@ -1115,6 +1119,7 @@ export type Database = {
           updated_at?: string
           upsell_enabled?: boolean
           upsell_offers?: Json
+          upsell_title?: string
           variant_easyorders_ids?: Json
           variant_skus?: Json
           variant_stock?: Json
@@ -1143,6 +1148,7 @@ export type Database = {
           updated_at?: string
           upsell_enabled?: boolean
           upsell_offers?: Json
+          upsell_title?: string
           variant_easyorders_ids?: Json
           variant_skus?: Json
           variant_stock?: Json
