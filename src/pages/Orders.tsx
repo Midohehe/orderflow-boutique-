@@ -1655,7 +1655,7 @@ const Orders = () => {
                     <Button
                       onClick={handleShipToCompany}
                       disabled={selectedOrders.length === 0 || shipping}
-                      className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90"
+                      className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 bg-lime-700 py-[8px]"
                     >
                       {shipping ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Send className="w-4 h-4 ml-2" />}
                       {shipping && shipProgress
