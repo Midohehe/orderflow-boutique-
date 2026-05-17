@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUserContext } from "@/hooks/useUserContext";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 interface Props {
   orderId: string;
@@ -110,26 +110,24 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
 
   return (
     <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded px-2 py-1">
-      <Select value={c} onValueChange={(v) => { setC(v); setA(""); }} disabled={loadingZones}>
-        <SelectTrigger className="h-8 w-40 text-xs">
-          <SelectValue placeholder={loadingZones ? "جاري التحميل..." : "المدينة"} />
-        </SelectTrigger>
-        <SelectContent>
-          {zones.map((z) => (
-            <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={a} onValueChange={setA} disabled={!selectedZone || loadingAreas || filteredAreas.length === 0}>
-        <SelectTrigger className="h-8 w-40 text-xs">
-          <SelectValue placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة"))} />
-        </SelectTrigger>
-        <SelectContent>
-          {filteredAreas.map((ar) => (
-            <SelectItem key={ar.id} value={ar.name}>{ar.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="w-40">
+        <SearchableSelect
+          options={zones.map((z) => ({ value: z.name, label: z.name }))}
+          value={c}
+          onChange={(v) => { setC(v); setA(""); }}
+          placeholder={loadingZones ? "جاري التحميل..." : "المدينة"}
+          searchPlaceholder="ابحث عن مدينة..."
+        />
+      </div>
+      <div className="w-40">
+        <SearchableSelect
+          options={filteredAreas.map((ar) => ({ value: ar.name, label: ar.name }))}
+          value={a}
+          onChange={setA}
+          placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة"))}
+          searchPlaceholder="ابحث عن منطقة..."
+        />
+      </div>
       <Button size="icon" className="h-7 w-7" onClick={save} disabled={saving}>
         <Check className="w-3 h-3" />
       </Button>

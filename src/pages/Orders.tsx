@@ -769,11 +769,18 @@ const Orders = () => {
     }
   };
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ar-AE", {
+    const d = new Date(dateString);
+    const date = d.toLocaleDateString("ar-AE", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
+    const time = d.toLocaleTimeString("ar-AE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return `${date} • ${time}`;
   };
 
   const exportPendingOrders = () => {
