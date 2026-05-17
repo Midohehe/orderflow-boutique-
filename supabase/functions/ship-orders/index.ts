@@ -409,6 +409,32 @@ Deno.serve(async (req) => {
       let zoneName: string | undefined = o.matched_zone_name ?? undefined;
       let areaName: string | undefined = o.matched_area_name ?? undefined;
 
+      // If IDs are missing but we have user-edited names (display_name from the cache),
+      // resolve IDs from shipping_zones via display_name OR name.
+      if ((!zoneId || !areaId) && (o.matched_zone_name || o.matched_area_name)) {
+        if (!zoneId && o.matched_zone_name) {
+          const { data: zRow } = await admin
+            .from("shipping_zones")
+            .select("external_id,name")
+            .eq("owner_id", ownerId)
+            .eq("kind", "zone")
+            .or(`display_name.eq.${o.matched_zone_name},name.eq.${o.matched_zone_name}`)
+            .maybeSingle();
+          if (zRow?.external_id) { zoneId = Number(zRow.external_id); zoneName = zRow.name; }
+        }
+        if (zoneId && !areaId && o.matched_area_name) {
+          const { data: aRow } = await admin
+            .from("shipping_zones")
+            .select("external_id,name")
+            .eq("owner_id", ownerId)
+            .eq("kind", "area")
+            .eq("parent_external_id", zoneId)
+            .or(`display_name.eq.${o.matched_area_name},name.eq.${o.matched_area_name}`)
+            .maybeSingle();
+          if (aRow?.external_id) { areaId = Number(aRow.external_id); areaName = aRow.name; }
+        }
+      }
+
       // Pre-correct city/region against canonical Libyan list before matching live zones
       const resolved = resolveLocation(o.city || "", o.address || "");
       // The user's corrections list (matched_zone_name/matched_area_name) takes priority

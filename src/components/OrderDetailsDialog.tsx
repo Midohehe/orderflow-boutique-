@@ -95,16 +95,20 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   }, [selectedZone?.id]);
 
   const onZoneChange = (name: string) => {
+    const z = zones.find((x) => x.name === name);
     setData((d: any) => ({
       ...d,
       city: name,
       matched_zone_name: name,
+      matched_zone_id: z?.id ?? null,
       matched_area_name: null,
+      matched_area_id: null,
     }));
   };
 
   const onAreaChange = (name: string) => {
-    setData((d: any) => ({ ...d, matched_area_name: name }));
+    const a = currentAreas.find((x) => x.name === name);
+    setData((d: any) => ({ ...d, matched_area_name: name, matched_area_id: a?.id ?? null }));
   };
 
   useEffect(() => {
@@ -324,6 +328,11 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       }
     }
     payload.link_error = newLinkErrors.length > 0 ? newLinkErrors.join(" | ") : null;
+    payload.matched_zone_name = data.matched_zone_name ?? null;
+    payload.matched_area_name = data.matched_area_name ?? null;
+    payload.matched_zone_id = data.matched_zone_id ?? null;
+    payload.matched_area_id = data.matched_area_id ?? null;
+    payload.city = data.city ?? null;
     const { error } = await supabase.from("orders").update(payload).eq("id", orderId);
     if (error) {
       setSaving(false);
