@@ -17,9 +17,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
 
-// Cache the upstream index.html briefly to avoid hitting it on every request.
+// Cache the upstream index.html very briefly to avoid hitting it on every
+// request, but short enough that new deploys (which rotate /assets/*.js
+// hashes) are picked up quickly — otherwise the SSR HTML references a
+// stale JS file that 404s and React never hydrates.
 let shellCache: { html: string; ts: number } | null = null;
-const SHELL_TTL = 60_000; // 60s
+const SHELL_TTL = 10_000; // 10s
 
 async function getShell(): Promise<string> {
   if (shellCache && Date.now() - shellCache.ts < SHELL_TTL) return shellCache.html;
@@ -249,7 +252,9 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         "content-type": "text/html; charset=utf-8",
-        "cache-control": "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
+        // Keep CDN cache short so new deploys (rotated asset hashes) are
+        // picked up quickly. Browsers should always revalidate.
+        "cache-control": "public, max-age=0, s-maxage=15, stale-while-revalidate=30",
       },
     });
   } catch (err) {
