@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1549,6 +1549,17 @@ const Orders = () => {
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
+          <Card className="card-shadow border-primary/30 bg-primary/5">
+            <CardContent className="p-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm">
+                <ShieldCheck className="w-5 h-5 text-primary" />
+                <span>لإدارة مكالمات التأكيد بشكل احترافي (قوالب واتساب، تأجيل، سجل المحاولات…)</span>
+              </div>
+              <Button asChild size="sm">
+                <Link to="/dashboard/confirmation">اذهب إلى مركز تأكيد الطلبات ←</Link>
+              </Button>
+            </CardContent>
+          </Card>
           {(
             <Card className="card-shadow">
               <CardContent className="p-4">
