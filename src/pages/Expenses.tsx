@@ -12,6 +12,7 @@ import { Receipt, Plus, Loader2, Trash2, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Safe { id: string; name: string; balance: number; }
 interface ExpenseType { id: string; name: string; }
@@ -21,6 +22,7 @@ interface Expense {
 }
 
 const Expenses = () => {
+  const { activeStoreId } = useStoreContext();
   const [safes, setSafes] = useState<Safe[]>([]);
   const [types, setTypes] = useState<ExpenseType[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -36,18 +38,19 @@ const Expenses = () => {
   const [typeName, setTypeName] = useState("");
 
   const load = async () => {
+    if (!activeStoreId) { setSafes([]); setTypes([]); setExpenses([]); setLoading(false); return; }
     setLoading(true);
     const [sa, ty, ex] = await Promise.all([
-      supabase.from("safes").select("id, name, balance").order("created_at"),
-      supabase.from("expense_types").select("id, name").order("created_at"),
-      supabase.from("expenses").select("id, amount, notes, created_at, safe_id, expense_type_id").order("created_at", { ascending: false }),
+      supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId).order("created_at"),
+      supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId).order("created_at"),
+      supabase.from("expenses").select("id, amount, notes, created_at, safe_id, expense_type_id").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
     ]);
     setSafes((sa.data as Safe[]) || []);
     setTypes((ty.data as ExpenseType[]) || []);
     setExpenses((ex.data as Expense[]) || []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeStoreId]);
 
   const submit = async () => {
     const amt = Number(amount);
@@ -58,13 +61,13 @@ const Expenses = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("expenses").insert({
       amount: amt, safe_id: safeId, expense_type_id: typeId || null,
-      notes: notes || null, owner_id: user!.id,
+      notes: notes || null, owner_id: user!.id, store_id: activeStoreId,
     });
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
     await supabase.from("safes").update({ balance: Number(safe.balance) - amt }).eq("id", safeId);
     await supabase.from("safe_movements").insert({
       safe_id: safeId, amount: -amt, movement_type: "expense",
-      notes: notes || (typeId ? types.find(t => t.id === typeId)?.name : null), owner_id: user!.id,
+      notes: notes || (typeId ? types.find(t => t.id === typeId)?.name : null), owner_id: user!.id, store_id: activeStoreId,
     });
     toast({ title: "تمت إضافة المصروف" });
     setAmount(""); setTypeId(""); setSafeId(""); setNotes(""); setAddOpen(false); setSaving(false);
@@ -74,7 +77,7 @@ const Expenses = () => {
   const addType = async () => {
     if (!typeName.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("expense_types").insert({ name: typeName.trim(), owner_id: user!.id });
+    const { error } = await supabase.from("expense_types").insert({ name: typeName.trim(), owner_id: user!.id, store_id: activeStoreId });
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
     setTypeName(""); load();
   };

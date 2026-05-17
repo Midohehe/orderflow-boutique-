@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
@@ -43,6 +44,7 @@ const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFract
 
 const FinancialAccounts = () => {
   const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
+  const { activeStoreId } = useStoreContext();
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
@@ -57,18 +59,18 @@ const FinancialAccounts = () => {
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
 
   useEffect(() => {
-    if (ctxLoading || !effectiveOwnerId) return;
+    if (ctxLoading || !effectiveOwnerId || !activeStoreId) return;
     (async () => {
       setLoading(true);
       try {
         const [o, p, oi, e, et, pu, sa] = await Promise.all([
-          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("owner_id", effectiveOwnerId).order("created_at", { ascending: false }),
-          supabase.from("products").select("id, name, purchase_price").eq("owner_id", effectiveOwnerId).is("deleted_at", null),
-          supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("owner_id", effectiveOwnerId),
-          supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("owner_id", effectiveOwnerId),
-          supabase.from("expense_types").select("id, name").eq("owner_id", effectiveOwnerId),
-          supabase.from("purchases").select("id, amount, created_at").eq("owner_id", effectiveOwnerId),
-          supabase.from("safes").select("id, name, balance").eq("owner_id", effectiveOwnerId),
+          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
+          supabase.from("products").select("id, name, purchase_price").eq("store_id", activeStoreId).is("deleted_at", null),
+          supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
+          supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("store_id", activeStoreId),
+          supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId),
+          supabase.from("purchases").select("id, amount, created_at").eq("store_id", activeStoreId),
+          supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId),
         ]);
         setOrders((o.data as Order[]) || []);
         setProducts((p.data as ProductRow[]) || []);
@@ -82,7 +84,7 @@ const FinancialAccounts = () => {
         toast({ title: "خطأ", description: "تعذر تحميل البيانات", variant: "destructive" });
       } finally { setLoading(false); }
     })();
-  }, [effectiveOwnerId, ctxLoading]);
+  }, [effectiveOwnerId, ctxLoading, activeStoreId]);
 
   const inDateRange = (iso: string) => {
     const t = new Date(iso).getTime();

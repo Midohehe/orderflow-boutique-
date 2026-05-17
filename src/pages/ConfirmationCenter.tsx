@@ -122,18 +122,22 @@ export default function ConfirmationCenter() {
     const { data: ownerRow } = await (supabase as any).rpc("get_effective_owner_id", { _uid: u.user.id });
     const oid = (ownerRow as string) || u.user.id;
     setOwnerId(oid);
+    const sid = (typeof window !== "undefined" && u.user.id)
+      ? localStorage.getItem(`active_store_id:${u.user.id}`)
+      : null;
+    if (!sid) { setLoading(false); setOrders([]); setTemplates([]); setReasons([]); setAllAttempts([]); return; }
 
     const [oRes, tRes, rRes, aRes] = await Promise.all([
       supabase.from("orders")
         .select("id,customer_name,phone,address,city,product_name,price,quantity,selected_color,selected_size,status,created_at,confirmation_status,confirmation_notes,confirmation_attempts,postponed_until,last_attempt_at,cancellation_reason,matched_zone_name,matched_area_name")
-        .eq("owner_id", oid)
+        .eq("store_id", sid)
         .eq("is_deleted", false)
         .in("status", ["pending"])
         .order("created_at", { ascending: true })
         .limit(1000),
-      (supabase as any).from("confirmation_templates").select("*").eq("owner_id", oid).order("is_default", { ascending: false }),
-      (supabase as any).from("cancellation_reasons").select("id,label").eq("owner_id", oid).order("sort_order"),
-      (supabase as any).from("order_confirmation_attempts").select("id,order_id,result,notes,created_at").eq("owner_id", oid).order("created_at", { ascending: false }).limit(300),
+      (supabase as any).from("confirmation_templates").select("*").eq("store_id", sid).order("is_default", { ascending: false }),
+      (supabase as any).from("cancellation_reasons").select("id,label").eq("store_id", sid).order("sort_order"),
+      (supabase as any).from("order_confirmation_attempts").select("id,order_id,result,notes,created_at").eq("store_id", sid).order("created_at", { ascending: false }).limit(300),
     ]);
     setOrders((oRes.data as Order[]) || []);
     setTemplates((tRes.data as Template[]) || []);

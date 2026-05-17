@@ -7,6 +7,7 @@ import { Crosshair, Facebook, BarChart3, Save, Loader2, Activity } from "lucide-
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface PixelSettings {
   id?: string;
@@ -21,6 +22,7 @@ interface PixelSettings {
 }
 
 const PixelSettingsPage = () => {
+  const { activeStoreId } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
@@ -37,16 +39,16 @@ const PixelSettingsPage = () => {
 
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [activeStoreId]);
 
   const loadSettings = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      if (!user || !activeStoreId) { setLoading(false); setSettingsId(null); setPixels({ facebook_pixel_id: "", facebook_enabled: false, tiktok_pixel_id: "", tiktok_enabled: false, google_analytics_id: "", google_enabled: false, snapchat_pixel_id: "", snapchat_enabled: false }); return; }
       const { data, error } = await supabase
         .from("pixel_settings")
         .select("*")
-        .eq("owner_id", user.id)
+        .eq("store_id", activeStoreId)
         .limit(1)
         .maybeSingle();
 
@@ -64,6 +66,8 @@ const PixelSettingsPage = () => {
           snapchat_pixel_id: data.snapchat_pixel_id || "",
           snapchat_enabled: data.snapchat_enabled || false,
         });
+      } else {
+        setSettingsId(null);
       }
     } catch (error) {
       console.error("Error loading pixel settings:", error);
@@ -99,6 +103,7 @@ const PixelSettingsPage = () => {
           .from("pixel_settings")
           .insert({
             owner_id: user!.id,
+            store_id: activeStoreId,
             facebook_pixel_id: pixels.facebook_pixel_id,
             facebook_enabled: pixels.facebook_enabled,
             tiktok_pixel_id: pixels.tiktok_pixel_id,

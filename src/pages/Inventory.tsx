@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface ProductRow {
   id: string;
@@ -48,6 +49,7 @@ const buildVariantKeys = (p: ProductRow): string[] => {
 
 const Inventory = () => {
   const { effectiveOwnerId } = useUserContext();
+  const { activeStoreId } = useStoreContext();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,19 +61,19 @@ const Inventory = () => {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    if (!effectiveOwnerId) return;
+    if (!effectiveOwnerId || !activeStoreId) { setProducts([]); setLoading(false); return; }
     setLoading(true);
     const q = supabase
       .from("products")
       .select("id, name, price, purchase_price, stock, variant_stock, colors, sizes, product_codes")
       .order("name", { ascending: true });
-    const { data, error } = await q.eq("owner_id", effectiveOwnerId);
+    const { data, error } = await q.eq("store_id", activeStoreId);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     else setProducts((data as ProductRow[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [effectiveOwnerId]);
+  useEffect(() => { load(); }, [effectiveOwnerId, activeStoreId]);
 
   const totalValue = useMemo(
     () => products.reduce((s, p) => s + Number(p.purchase_price || 0) * Number(p.stock || 0), 0),

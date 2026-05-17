@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, CheckCircle2, AlertCircle } from "lucide-react";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface ShippingSettings {
   id?: string;
@@ -26,6 +27,7 @@ const DEFAULT: ShippingSettings = {
 
 const ShippingSettingsPage = () => {
   const { isAdmin } = useUserContext();
+  const { activeStoreId } = useStoreContext();
   const [settings, setSettings] = useState<ShippingSettings>(DEFAULT);
   const [globalEndpoint, setGlobalEndpoint] = useState<string>("https://turboex.ly:8001/graphql");
   const [savingEndpoint, setSavingEndpoint] = useState(false);
@@ -420,15 +422,19 @@ const ShippingSettingsPage = () => {
   };
 
   useEffect(() => {
+    if (!activeStoreId) { setSettings(DEFAULT); setLoading(false); return; }
+    setLoading(true);
     (async () => {
       const { data } = await supabase
         .from("shipping_settings")
         .select("*")
+        .eq("store_id", activeStoreId)
         .maybeSingle();
       if (data) setSettings(data as ShippingSettings);
+      else setSettings(DEFAULT);
       setLoading(false);
     })();
-  }, []);
+  }, [activeStoreId]);
 
   useEffect(() => {
     (async () => {
@@ -463,7 +469,7 @@ const ShippingSettingsPage = () => {
     };
     const { error } = settings.id
       ? await supabase.from("shipping_settings").update(payload).eq("id", settings.id)
-      : await supabase.from("shipping_settings").insert({ ...payload, owner_id: user!.id }).select().single().then(r => {
+      : await supabase.from("shipping_settings").insert({ ...payload, owner_id: user!.id, store_id: activeStoreId }).select().single().then(r => {
           if (r.data) setSettings(r.data as ShippingSettings);
           return { error: r.error };
         });

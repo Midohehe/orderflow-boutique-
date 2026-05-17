@@ -28,6 +28,7 @@ import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Order {
   id: string;
@@ -108,6 +109,7 @@ const statusColors: Record<Order["status"], string> = {
 };
 
 const Orders = () => {
+  const { activeStoreId } = useStoreContext();
   const [orders, setOrders] = useState<Order[]>([]);
   const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
@@ -237,6 +239,7 @@ const Orders = () => {
         .from("orders")
         .insert({
           owner_id: uid,
+          store_id: activeStoreId,
           customer_name: "بدون اسم",
           phone: "",
           address: "",
@@ -363,32 +366,27 @@ const Orders = () => {
 
   useEffect(() => {
     let cancelled = false;
+    if (!activeStoreId) { setOrders([]); setLoading(false); return; }
+    setLoading(true);
     (async () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
         const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
-          (uid
-            ? supabase
-                .from("orders")
-                .select(ORDER_SELECT_COLS)
-                .eq("owner_id", uid)
-                .order("created_at", { ascending: false })
-            : supabase
-                .from("orders")
-                .select(ORDER_SELECT_COLS)
-                .order("created_at", { ascending: false })),
+          supabase
+            .from("orders")
+            .select(ORDER_SELECT_COLS)
+            .eq("store_id", activeStoreId)
+            .order("created_at", { ascending: false }),
           (uid
             ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
             : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
-          supabase.from("products").select("id, name"),
+          supabase.from("products").select("id, name").eq("store_id", activeStoreId),
           uid
             ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
-          uid
-            ? supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle()
-            : Promise.resolve({ data: null } as any),
+          supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId).maybeSingle(),
           uid
             ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
@@ -450,7 +448,7 @@ const Orders = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeStoreId]);
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -480,23 +478,15 @@ const Orders = () => {
     try {
       const { data: userRes } = await supabase.auth.getUser();
       const uid = userRes.user?.id;
-      if (!uid) {
+      if (!uid || !activeStoreId) {
         setOrders([]);
         setLoading(false);
         return;
       }
-      // Determine effective owner: sub-users see their owner's orders; owners/admins see their own store only.
-      const { data: member } = await supabase
-        .from("store_members")
-        .select("owner_id")
-        .eq("member_user_id", uid)
-        .maybeSingle();
-      const effectiveOwnerId = member?.owner_id || uid;
-
       const { data, error } = await supabase
         .from("orders")
         .select(ORDER_SELECT_COLS)
-        .eq("owner_id", effectiveOwnerId)
+        .eq("store_id", activeStoreId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;

@@ -16,6 +16,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import { isolateLatin } from "@/lib/bidi";
 
 interface TrashedProduct {
@@ -30,6 +31,7 @@ interface TrashedProduct {
 const TrashedProducts = () => {
   const navigate = useNavigate();
   const { isAdmin, loading: userLoading } = useUserContext();
+  const { activeStoreId } = useStoreContext();
   const [products, setProducts] = useState<TrashedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -39,13 +41,13 @@ const TrashedProducts = () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      if (!user || !activeStoreId) { setProducts([]); setLoading(false); return; }
       let q = supabase
         .from("products")
         .select("id, name, slug, price, images, deleted_at")
         .not("deleted_at", "is", null)
         .order("deleted_at", { ascending: false });
-      q = q.eq("owner_id", user.id);
+      q = q.eq("store_id", activeStoreId);
       const { data, error } = await q;
       if (error) throw error;
       setProducts((data || []).map((p: any) => ({
@@ -64,7 +66,7 @@ const TrashedProducts = () => {
     }
   };
 
-  useEffect(() => { if (!userLoading) load(); }, [userLoading, isAdmin]);
+  useEffect(() => { if (!userLoading) load(); }, [userLoading, isAdmin, activeStoreId]);
 
   const restore = async (p: TrashedProduct) => {
     setBusyId(p.id);

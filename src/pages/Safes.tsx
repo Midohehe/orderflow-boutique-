@@ -11,6 +11,7 @@ import { Wallet, Plus, Loader2, History, ArrowDownCircle, Filter } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Safe {
   id: string;
@@ -35,6 +36,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const Safes = () => {
+  const { activeStoreId } = useStoreContext();
   const [safes, setSafes] = useState<Safe[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -57,15 +59,16 @@ const Safes = () => {
   const [filteredMovements, setFilteredMovements] = useState<Movement[]>([]);
 
   const load = async () => {
+    if (!activeStoreId) { setSafes([]); setLoading(false); return; }
     setLoading(true);
     const { data, error } = await supabase
-      .from("safes").select("id, name, balance, notes").order("created_at");
+      .from("safes").select("id, name, balance, notes").eq("store_id", activeStoreId).order("created_at");
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     setSafes((data as Safe[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeStoreId]);
 
   const createSafe = async () => {
     if (!name.trim()) return;
@@ -73,13 +76,13 @@ const Safes = () => {
     const balance = Number(initBalance) || 0;
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from("safes")
-      .insert({ name: name.trim(), balance, owner_id: user!.id })
+      .insert({ name: name.trim(), balance, owner_id: user!.id, store_id: activeStoreId })
       .select().single();
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
     if (balance !== 0) {
       await supabase.from("safe_movements").insert({
         safe_id: data.id, amount: balance, movement_type: "deposit",
-        notes: "رصيد افتتاحي", owner_id: user!.id,
+        notes: "رصيد افتتاحي", owner_id: user!.id, store_id: activeStoreId,
       });
     }
     toast({ title: "تم إنشاء الخزينة" });
@@ -98,7 +101,7 @@ const Safes = () => {
     if (e1) { toast({ title: "خطأ", description: e1.message, variant: "destructive" }); setSaving(false); return; }
     await supabase.from("safe_movements").insert({
       safe_id: depositSafe.id, amount: amt, movement_type: "deposit",
-      notes: depositNotes || null, owner_id: user!.id,
+      notes: depositNotes || null, owner_id: user!.id, store_id: activeStoreId,
     });
     toast({ title: "تمت إضافة القيمة" });
     setDepositOpen(false); setDepositAmount(""); setDepositNotes(""); setSaving(false);

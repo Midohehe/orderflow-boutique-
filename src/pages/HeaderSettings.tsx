@@ -9,6 +9,7 @@ import { Loader2, Save, LayoutTemplate, Store, Phone, Share2 } from "lucide-reac
 import AccountInfoCard from "@/components/AccountInfoCard";
 import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface HeaderSettingsRow {
   id: string;
@@ -24,6 +25,7 @@ interface HeaderSettingsRow {
 }
 
 const HeaderSettings = () => {
+  const { activeStoreId } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [row, setRow] = useState<HeaderSettingsRow | null>(null);
@@ -31,17 +33,18 @@ const HeaderSettings = () => {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      const { data, error } = await supabase.from("header_settings").select("*").eq("owner_id", user.id).limit(1).maybeSingle();
+      if (!user || !activeStoreId) { setLoading(false); return; }
+      setLoading(true);
+      const { data, error } = await supabase.from("header_settings").select("*").eq("store_id", activeStoreId).limit(1).maybeSingle();
       if (error) { console.error(error); toast({ title: "خطأ", description: "تعذر تحميل إعدادات الهيدر", variant: "destructive" }); }
       if (data) setRow(data as HeaderSettingsRow);
       else {
-        const { data: created } = await supabase.from("header_settings").insert({ owner_id: user.id, logo_text: "متجري" }).select("*").single();
+        const { data: created } = await supabase.from("header_settings").insert({ owner_id: user.id, store_id: activeStoreId, logo_text: "متجري" }).select("*").single();
         if (created) setRow(created as HeaderSettingsRow);
       }
       setLoading(false);
     })();
-  }, []);
+  }, [activeStoreId]);
 
   const update = (k: keyof HeaderSettingsRow, v: string) => { if (row) setRow({ ...row, [k]: v }); };
 
