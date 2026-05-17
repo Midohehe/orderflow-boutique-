@@ -28,6 +28,7 @@ import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Order {
   id: string;
@@ -108,6 +109,7 @@ const statusColors: Record<Order["status"], string> = {
 };
 
 const Orders = () => {
+  const { activeStoreId } = useStoreContext();
   const [orders, setOrders] = useState<Order[]>([]);
   const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
@@ -481,23 +483,15 @@ const Orders = () => {
     try {
       const { data: userRes } = await supabase.auth.getUser();
       const uid = userRes.user?.id;
-      if (!uid) {
+      if (!uid || !activeStoreId) {
         setOrders([]);
         setLoading(false);
         return;
       }
-      // Determine effective owner: sub-users see their owner's orders; owners/admins see their own store only.
-      const { data: member } = await supabase
-        .from("store_members")
-        .select("owner_id")
-        .eq("member_user_id", uid)
-        .maybeSingle();
-      const effectiveOwnerId = member?.owner_id || uid;
-
       const { data, error } = await supabase
         .from("orders")
         .select(ORDER_SELECT_COLS)
-        .eq("owner_id", effectiveOwnerId)
+        .eq("store_id", activeStoreId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
