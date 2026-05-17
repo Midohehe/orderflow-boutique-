@@ -1013,7 +1013,7 @@ const LandingPage = () => {
                 {/* Upsell Offers */}
                 {product.upsell_enabled && product.upsell_offers && product.upsell_offers.length > 0 && (
                   <div className="space-y-2 p-3 sm:p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
-                    <Label className="text-sm sm:text-base font-bold text-primary">🎁 عروض خاصة</Label>
+                    <Label className="text-sm sm:text-base font-bold text-primary">{product.upsell_title || "🎁 عروض خاصة"}</Label>
                     <div className="space-y-2">
                       {product.upsell_offers.map((offer, idx) => {
                         const selected = selectedUpsellIndex === idx;
@@ -1040,6 +1040,9 @@ const LandingPage = () => {
                                 : "border-border bg-background hover:border-primary/50"
                             }`}
                           >
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 ${selected ? "bg-primary-foreground border-primary-foreground text-primary" : "border-border bg-background text-transparent"}`}>
+                              <Check className="w-4 h-4" />
+                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-sm sm:text-base">
                                 {offer.label || `اشترِ ${offer.quantity} قطع`}
