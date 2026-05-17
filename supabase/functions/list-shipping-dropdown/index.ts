@@ -85,15 +85,13 @@ Deno.serve(async (req) => {
     const zoneName: string | undefined = body?.zoneName;
 
     if (zoneId) {
-      // Areas of a city = zones whose parent.id === zoneId.
-      // Fetch the full zone list with parent info and filter locally — the
-      // carrier's `listZonesDropdown(input:{parentId})` filter is unreliable.
-      const allRes = await gql(`{ listZonesDropdown { id name parent { id } } }`);
-      const all: Array<{ id: number; name: string; parent?: { id: number } | null }> =
-        allRes?.data?.listZonesDropdown || [];
-      let areas: Array<{ id: number; name: string }> = all
-        .filter((it) => it?.parent?.id === zoneId)
-        .map((it) => ({ id: it.id, name: it.name }));
+      let areas: Array<{ id: number; name: string }> = [];
+
+      const childRes = await gql(
+        `query ChildZones($input: ListZonesFilterInput) { listZonesDropdown(input: $input) { id name } }`,
+        { input: { parentId: zoneId } },
+      );
+      areas = childRes?.data?.listZonesDropdown || [];
 
       // Fallback: legacy listAreasDropdown endpoint, then local map.
       if (areas.length === 0) {
@@ -104,15 +102,11 @@ Deno.serve(async (req) => {
         areas = ar?.data?.listAreasDropdown || [];
       }
       if (areas.length === 0) {
-        const cityName = zoneName || all.find((z) => z.id === zoneId)?.name;
+        const cityName = zoneName;
         if (cityName) {
           const key = Object.keys(defaultCityAreas).find((k) => normalizeAr(k) === normalizeAr(cityName));
           const localAreas = key ? defaultCityAreas[key] : [];
-          const flatByName = new Map(all.map((it) => [normalizeAr(it.name), it]));
-          areas = localAreas.map((n, idx) => {
-            const found = flatByName.get(normalizeAr(n));
-            return found ? { id: found.id, name: found.name } : { id: -(idx + 1), name: n };
-          });
+          areas = localAreas.map((n, idx) => ({ id: -(idx + 1), name: n }));
         }
       }
       return new Response(JSON.stringify({ areas }), {
@@ -120,11 +114,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Cities = zones with no parent.
-    const zonesRes = await gql(`{ listZonesDropdown { id name parent { id } } }`);
-    const allItems: Array<{ id: number; name: string; parent?: { id: number } | null }> =
-      zonesRes?.data?.listZonesDropdown || [];
-    const cityItems = allItems.filter((it) => !it?.parent?.id);
+    const zonesRes = await gql(
+      `query RootZones($input: ListZonesFilterInput) { listZonesDropdown(input: $input) { id name } }`,
+      { input: { parentId: null } },
+    );
+    const cityItems: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
 
     const seenIds = new Set<number>();
     const seenNames = new Set<string>();
