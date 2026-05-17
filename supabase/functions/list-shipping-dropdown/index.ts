@@ -85,12 +85,17 @@ Deno.serve(async (req) => {
     const zoneName: string | undefined = body?.zoneName;
 
     if (zoneId) {
-      // Try child zones first, then areas dropdown
-      const childRes = await gql(
-        `query ChildZones($input: ListZonesFilterInput) { listZonesDropdown(input: $input) { id name } }`,
-        { input: { parentId: zoneId } },
-      );
-      let areas: Array<{ id: number; name: string }> = childRes?.data?.listZonesDropdown || [];
+      // Areas of a city = zones whose parent.id === zoneId.
+      // Fetch the full zone list with parent info and filter locally — the
+      // carrier's `listZonesDropdown(input:{parentId})` filter is unreliable.
+      const allRes = await gql(`{ listZonesDropdown { id name parent { id } } }`);
+      const all: Array<{ id: number; name: string; parent?: { id: number } | null }> =
+        allRes?.data?.listZonesDropdown || [];
+      let areas: Array<{ id: number; name: string }> = all
+        .filter((it) => it?.parent?.id === zoneId)
+        .map((it) => ({ id: it.id, name: it.name }));
+
+      // Fallback: legacy listAreasDropdown endpoint, then local map.
       if (areas.length === 0) {
         const ar = await gql(
           `query Areas($cityId: Int) { listAreasDropdown(cityId: $cityId) { id name } }`,
@@ -98,42 +103,16 @@ Deno.serve(async (req) => {
         );
         areas = ar?.data?.listAreasDropdown || [];
       }
-      // Fallback A: search the carrier's flat list for entries whose name
-      // contains the city name (e.g. "ورشفانة - الماية"). Many carriers store
-      // areas as flat items without an explicit parentId relationship.
       if (areas.length === 0) {
-        let cityName = zoneName;
-        const allRes = await gql(`{ listZonesDropdown { id name } }`);
-        const all: Array<{ id: number; name: string }> = allRes?.data?.listZonesDropdown || [];
-        if (!cityName) cityName = all.find((z) => z.id === zoneId)?.name;
+        const cityName = zoneName || all.find((z) => z.id === zoneId)?.name;
         if (cityName) {
-          const cn = normalizeAr(cityName);
-          areas = all
-            .filter((it) => it.id !== zoneId && normalizeAr(it.name).includes(cn))
-            .map((it) => ({ id: it.id, name: it.name }));
-        }
-      }
-      // Fallback B: local defaultCityAreas map as last resort.
-      if (areas.length === 0) {
-        let cityName = zoneName;
-        if (!cityName) {
-          const allRes = await gql(`{ listZonesDropdown { id name } }`);
-          const all: Array<{ id: number; name: string }> = allRes?.data?.listZonesDropdown || [];
-          cityName = all.find((z) => z.id === zoneId)?.name;
-        }
-        if (cityName) {
-          const key = Object.keys(defaultCityAreas).find((k) => normalizeAr(k) === normalizeAr(cityName!));
+          const key = Object.keys(defaultCityAreas).find((k) => normalizeAr(k) === normalizeAr(cityName));
           const localAreas = key ? defaultCityAreas[key] : [];
-          if (localAreas.length > 0) {
-            // Try to resolve real IDs from the carrier's flat list
-            const allRes2 = await gql(`{ listZonesDropdown { id name } }`);
-            const flat: Array<{ id: number; name: string }> = allRes2?.data?.listZonesDropdown || [];
-            const flatByName = new Map(flat.map((it) => [normalizeAr(it.name), it]));
-            areas = localAreas.map((n, idx) => {
-              const found = flatByName.get(normalizeAr(n));
-              return found ? { id: found.id, name: found.name } : { id: -(idx + 1), name: n };
-            });
-          }
+          const flatByName = new Map(all.map((it) => [normalizeAr(it.name), it]));
+          areas = localAreas.map((n, idx) => {
+            const found = flatByName.get(normalizeAr(n));
+            return found ? { id: found.id, name: found.name } : { id: -(idx + 1), name: n };
+          });
         }
       }
       return new Response(JSON.stringify({ areas }), {
@@ -141,17 +120,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const zonesRes = await gql(`{ listZonesDropdown { id name } }`);
-    const allItems: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
+    // Cities = zones with no parent.
+    const zonesRes = await gql(`{ listZonesDropdown { id name parent { id } } }`);
+    const allItems: Array<{ id: number; name: string; parent?: { id: number } | null }> =
+      zonesRes?.data?.listZonesDropdown || [];
+    const cityItems = allItems.filter((it) => !it?.parent?.id);
 
-    // Return all carrier zones. Dedupe by id (carrier sometimes repeats ids)
-    // and by normalized name to avoid double entries. Do NOT filter against
-    // the local defaultCityAreas list — that would hide any new city the
-    // carrier adds (e.g. id 72) before we update the hardcoded list.
     const seenIds = new Set<number>();
     const seenNames = new Set<string>();
     const zones: Array<{ id: number; name: string }> = [];
-    for (const it of allItems) {
+    for (const it of cityItems) {
       if (!it?.name) continue;
       const nameKey = normalizeAr(it.name);
       if (seenIds.has(it.id) || seenNames.has(nameKey)) continue;
