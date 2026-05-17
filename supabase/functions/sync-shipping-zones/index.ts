@@ -127,11 +127,25 @@ Deno.serve(async (req) => {
       new Map(rows.map((row) => [`${row.kind}:${row.external_id}`, row])).values(),
     );
 
+    // Preserve user-defined display_name overrides across re-syncs
+    const { data: existing } = await admin
+      .from("shipping_zones")
+      .select("kind,external_id,display_name")
+      .eq("owner_id", ownerId);
+    const overrides = new Map<string, string>();
+    for (const r of (existing || []) as any[]) {
+      if (r.display_name) overrides.set(`${r.kind}:${r.external_id}`, r.display_name);
+    }
+    const rowsWithOverrides = uniqueRows.map((r) => {
+      const dn = overrides.get(`${r.kind}:${r.external_id}`);
+      return dn ? { ...r, display_name: dn } : r;
+    });
+
     // Replace this owner's cached zones
     await admin.from("shipping_zones").delete().eq("owner_id", ownerId);
     const chunkSize = 500;
-    for (let i = 0; i < uniqueRows.length; i += chunkSize) {
-      const chunk = uniqueRows.slice(i, i + chunkSize);
+    for (let i = 0; i < rowsWithOverrides.length; i += chunkSize) {
+      const chunk = rowsWithOverrides.slice(i, i + chunkSize);
       const { error } = await admin.from("shipping_zones").insert(chunk);
       if (error) console.error("insert chunk error", error);
     }
