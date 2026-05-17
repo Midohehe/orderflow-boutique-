@@ -315,6 +315,7 @@ const Products = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase.from("products").insert({
         owner_id: user!.id,
+        store_id: activeStoreId,
         name: newProduct.name,
         slug: finalSlug,
         price: parseFloat(newProduct.price),
@@ -745,7 +746,8 @@ const Products = () => {
 
   // ===== Landing Pages: load =====
   useEffect(() => {
-    if (userLoading) return;
+    if (userLoading || storeLoading) return;
+    if (!activeStoreId) { setLandingPages([]); return; }
     let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -753,13 +755,13 @@ const Products = () => {
       const { data, error } = await supabase
         .from("landing_pages")
         .select("id, product_id, slug, title, subtitle, is_visible")
-        .eq("owner_id", user.id)
+        .eq("store_id", activeStoreId)
         .order("created_at", { ascending: false });
       if (cancelled || error) return;
       setLandingPages((data || []) as any);
     })();
     return () => { cancelled = true; };
-  }, [userLoading]);
+  }, [userLoading, storeLoading, activeStoreId]);
 
   // أضف اسم/صورة المنتج لكل صفحة هبوط من قائمة المنتجات المحلية
   const enrichedLandingPages: LandingPage[] = landingPages.map((lp) => {
@@ -786,6 +788,7 @@ const Products = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase.from("landing_pages").insert({
         owner_id: user!.id,
+        store_id: activeStoreId,
         product_id: newLp.productId,
         slug: newLp.slug.trim(),
         title: newLp.title.trim(),
