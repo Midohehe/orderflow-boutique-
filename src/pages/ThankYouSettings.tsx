@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Save, CheckCircle, Eye, PartyPopper } from "lucide-react";
+import { Save, CheckCircle, Eye, PartyPopper, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
+import { supabase } from "@/integrations/supabase/client";
 
 const ThankYouSettings = () => {
   const [settings, setSettings] = useState({
@@ -17,16 +18,61 @@ const ThankYouSettings = () => {
     showOrderDetails: true,
     showContactInfo: true,
   });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [rowId, setRowId] = useState<string | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
 
-  const handleSave = () => {
-    localStorage.setItem("thankYouSettings", JSON.stringify(settings));
+  const handleSave = async () => {
+    if (!ownerId) return;
+    setSaving(true);
+    const payload = {
+      owner_id: ownerId,
+      title: settings.title,
+      subtitle: settings.subtitle,
+      contact_message: settings.contactMessage,
+      shipping_message: settings.shippingMessage,
+      show_order_details: settings.showOrderDetails,
+      show_contact_info: settings.showContactInfo,
+    };
+    const { error } = rowId
+      ? await supabase.from("thank_you_settings").update(payload).eq("id", rowId)
+      : await supabase.from("thank_you_settings").insert(payload).select("id").single().then((r) => {
+          if (r.data) setRowId((r.data as any).id);
+          return { error: r.error };
+        });
+    setSaving(false);
+    if (error) {
+      toast({ title: "خطأ", description: "تعذر حفظ الإعدادات", variant: "destructive" });
+      return;
+    }
     toast({ title: "تم الحفظ", description: "تم حفظ إعدادات صفحة الشكر بنجاح" });
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem("thankYouSettings");
-    if (saved) setSettings(JSON.parse(saved));
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data: member } = await supabase.from("store_members").select("owner_id").eq("member_user_id", user.id).maybeSingle();
+      const effectiveOwner = (member as any)?.owner_id || user.id;
+      setOwnerId(effectiveOwner);
+      const { data } = await supabase.from("thank_you_settings").select("*").eq("owner_id", effectiveOwner).maybeSingle();
+      if (data) {
+        setRowId((data as any).id);
+        setSettings({
+          title: (data as any).title,
+          subtitle: (data as any).subtitle,
+          contactMessage: (data as any).contact_message,
+          shippingMessage: (data as any).shipping_message,
+          showOrderDetails: (data as any).show_order_details,
+          showContactInfo: (data as any).show_contact_info,
+        });
+      }
+      setLoading(false);
+    })();
   }, []);
+
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
@@ -91,8 +137,8 @@ const ThankYouSettings = () => {
         </SectionCard>
       </div>
 
-      <Button onClick={handleSave} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
-        <Save className="w-5 h-5" />
+      <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
+        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
         حفظ التغييرات
       </Button>
     </div>

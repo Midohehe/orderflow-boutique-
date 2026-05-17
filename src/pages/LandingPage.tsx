@@ -796,6 +796,7 @@ const LandingPage = () => {
             phone,
             city,
             address,
+            ownerId: product?.owner_id || ownerId || null,
           },
         },
       });
