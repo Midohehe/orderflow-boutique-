@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     // Authoritative price lookup
     const { data: product, error: pErr } = await supabase
       .from("products")
-      .select("id, name, price, is_visible, owner_id, upsell_enabled, upsell_offers")
+      .select("id, name, price, is_visible, owner_id, store_id, upsell_enabled, upsell_offers")
       .eq("id", product_id)
       .maybeSingle();
 
@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
     // navigate to the thank-you page without waiting on slow AI calls.
     const { data: insertedOrder, error: iErr } = await supabase.from("orders").insert({
       owner_id: (product as any).owner_id,
+      store_id: (product as any).store_id ?? null,
       customer_name: customer_name || "بدون اسم",
       phone,
       address: address || "—",

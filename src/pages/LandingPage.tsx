@@ -139,6 +139,7 @@ const LandingPage = () => {
   const [searchParams] = useSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -213,17 +214,23 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, upsell_enabled, upsell_offers, is_visible";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_offers, is_visible";
 
-        // أولاً: ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
+        // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
+        const storeBySlugPromise = username
+          ? supabase.from("stores").select("id, owner_id").eq("slug", username).maybeSingle()
+          : Promise.resolve({ data: null } as any);
+
+        // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_offers, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_offers, is_visible")
           .eq("slug", slug)
           .maybeSingle();
 
-        const [profileRes, landingRes] = await Promise.all([profilePromise, landingPromise]);
+        const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
+        const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
         // إن وُجدت صفحة هبوط: نأخذ المنتج بمعرّفه. وإلا نرجع للسلوك القديم (slug في products).
         const productPromise = landingPage
@@ -239,13 +246,17 @@ const LandingPage = () => {
 
         if (ac.signal.aborted) return;
         let resolvedOwnerId: string | null = null;
-        if (username) {
+        let resolvedStoreId: string | null = storeBySlug?.id || landingPage?.store_id || null;
+        if (storeBySlug) {
+          resolvedOwnerId = storeBySlug.owner_id;
+          setOwnerId(storeBySlug.owner_id);
+        } else if (username) {
           const prof = (profileRes as any).data;
-          if (!prof) { setLoading(false); return; }
-          if (!prof.is_active) { setLoading(false); return; }
+          if (!prof || !prof.is_active) { setLoading(false); return; }
           resolvedOwnerId = prof.user_id;
           setOwnerId(prof.user_id);
         }
+        if (resolvedStoreId) setStoreId(resolvedStoreId);
 
         if (productRes.error) throw productRes.error;
         const rows = (productRes.data as any[]) || [];
@@ -263,6 +274,10 @@ const LandingPage = () => {
           if (!resolvedOwnerId && matched.owner_id) {
             resolvedOwnerId = matched.owner_id;
             setOwnerId(matched.owner_id);
+          }
+          if (!resolvedStoreId && (matched as any).store_id) {
+            resolvedStoreId = (matched as any).store_id;
+            setStoreId((matched as any).store_id);
           }
           const lpImages: string[] = Array.isArray(lp?.images) ? lp.images : [];
           const lpHasUpsell = lp ? lp.upsell_enabled : null;
@@ -304,11 +319,12 @@ const LandingPage = () => {
 
         // SECONDARY: fetch the rest in the background, prefer cache.
         const ownerForSettings = resolvedOwnerId || matched?.owner_id;
+        const storeForSettings = resolvedStoreId || (matched as any)?.store_id || null;
         const productResult = { data: matched } as any;
 
         // Owner-scoped cache keys so different stores don't pollute each other's
         // form fields, store currency, or pixel settings.
-        const ownerSuffix = ownerForSettings || "_";
+        const ownerSuffix = (ownerForSettings || "_") + "_" + (storeForSettings || "_");
         const storeKey = CACHE_KEYS.STORE_SETTINGS + "_" + ownerSuffix;
         const pixelKey = CACHE_KEYS.PIXEL_SETTINGS + "_" + ownerSuffix;
         const formKey = CACHE_KEYS.FORM_FIELDS + "_" + ownerSuffix;
@@ -332,15 +348,19 @@ const LandingPage = () => {
         }
 
         // Stale-while-revalidate: ALWAYS fetch fresh so admin edits show up.
-        const pixelPromise = ownerForSettings
-          ? supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
-          : supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled").limit(1).maybeSingle();
-        const formFieldsPromise = ownerForSettings
-          ? supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).eq("owner_id", ownerForSettings).order("sort_order", { ascending: true })
-          : supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true).order("sort_order", { ascending: true });
-        const storePromise = ownerForSettings
-          ? supabase.from("store_settings").select("currency_symbol, currency_code, button_text").eq("owner_id", ownerForSettings).limit(1).maybeSingle()
-          : supabase.from("store_settings").select("currency_symbol, currency_code, button_text").limit(1).maybeSingle();
+        const pixelQ = supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled");
+        if (ownerForSettings) pixelQ.eq("owner_id", ownerForSettings);
+        if (storeForSettings) pixelQ.eq("store_id", storeForSettings);
+        const pixelPromise = pixelQ.limit(1).maybeSingle();
+
+        const formQ = supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true);
+        if (ownerForSettings) formQ.eq("owner_id", ownerForSettings);
+        if (storeForSettings) formQ.eq("store_id", storeForSettings);
+        const formFieldsPromise = formQ.order("sort_order", { ascending: true });
+
+        const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text");
+        if (ownerForSettings) storeQ.eq("owner_id", ownerForSettings);
+        const storePromise = storeQ.limit(1).maybeSingle();
 
         const catalogPromise = supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true);
 
@@ -379,6 +399,7 @@ const LandingPage = () => {
               product_slug: slug,
               utm_source: utmSource,
               owner_id: ownerForSettings || null,
+              store_id: storeForSettings || null,
             }).then(() => {});
           }
 
@@ -481,6 +502,7 @@ const LandingPage = () => {
         product_slug: slug,
         utm_source: utmSource,
           owner_id: ownerId || null,
+          store_id: storeId || null,
       }).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });

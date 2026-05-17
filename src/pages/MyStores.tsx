@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, Loader2, Store as StoreIcon, Check } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, Store as StoreIcon, Check, Copy } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const sanitizeSlug = (s: string) =>
@@ -172,7 +172,16 @@ const MyStores = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-xs text-muted-foreground" dir="ltr">/{s.slug}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground truncate" dir="ltr">/store/{s.slug}</div>
+                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => {
+                  const url = `${window.location.origin}/store/${s.slug}`;
+                  navigator.clipboard.writeText(url);
+                  toast({ title: "تم النسخ", description: url });
+                }}>
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {s.id === activeStoreId ? (
                   <Badge className="gap-1"><Check className="w-3 h-3" /> نشط</Badge>
