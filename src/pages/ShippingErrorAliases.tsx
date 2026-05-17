@@ -28,15 +28,63 @@ const ShippingErrorAliases = () => {
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState("contains");
 
+  const matches = (error: string, list: Alias[]) => {
+    for (const a of list) {
+      try {
+        if (a.match_type === "exact" && error.trim() === a.pattern.trim()) return true;
+        if (a.match_type === "regex" && new RegExp(a.pattern, "i").test(error)) return true;
+        if (a.match_type === "contains" && error.toLowerCase().includes(a.pattern.toLowerCase())) return true;
+      } catch { /* ignore */ }
+    }
+    return false;
+  };
+
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("shipping_error_aliases")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    setItems((data as Alias[]) || []);
+    const [aliasesRes, ordersRes] = await Promise.all([
+      supabase
+        .from("shipping_error_aliases")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("orders")
+        .select("shipping_error")
+        .not("shipping_error", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(2000),
+    ]);
+    if (aliasesRes.error) toast({ title: "خطأ", description: aliasesRes.error.message, variant: "destructive" });
+    let list = (aliasesRes.data as Alias[]) || [];
+
+    // Auto-discover new errors and insert them as untagged entries
+    const uniqueErrors = Array.from(new Set(
+      ((ordersRes.data as any[]) || [])
+        .map((o) => (o.shipping_error || "").trim())
+        .filter((e) => e && e.length > 0)
+    ));
+    const newOnes = uniqueErrors.filter((e) => !matches(e, list));
+    if (newOnes.length > 0) {
+      const rows = newOnes.map((e, i) => ({
+        pattern: e,
+        short_label: "",
+        match_type: "exact",
+        sort_order: list.length + i,
+      }));
+      const { data: inserted } = await supabase
+        .from("shipping_error_aliases")
+        .insert(rows)
+        .select("*");
+      if (inserted) list = [...list, ...(inserted as Alias[])];
+    }
+    // Sort: untagged (empty label) first
+    list.sort((a, b) => {
+      const ea = a.short_label.trim() === "" ? 0 : 1;
+      const eb = b.short_label.trim() === "" ? 0 : 1;
+      if (ea !== eb) return ea - eb;
+      return a.sort_order - b.sort_order;
+    });
+    setItems(list);
     setLoading(false);
   };
 
