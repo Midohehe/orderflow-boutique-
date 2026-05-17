@@ -123,16 +123,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    const uniqueRows = Array.from(
+      new Map(rows.map((row) => [`${row.kind}:${row.external_id}`, row])).values(),
+    );
+
     // Replace this owner's cached zones
     await admin.from("shipping_zones").delete().eq("owner_id", ownerId);
     const chunkSize = 500;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
+    for (let i = 0; i < uniqueRows.length; i += chunkSize) {
+      const chunk = uniqueRows.slice(i, i + chunkSize);
       const { error } = await admin.from("shipping_zones").insert(chunk);
       if (error) console.error("insert chunk error", error);
     }
 
-    return new Response(JSON.stringify({ ok: true, zones: zones.length, areas: areaCount, total: rows.length }), {
+    return new Response(JSON.stringify({ ok: true, zones: zones.length, areas: areaCount, total: uniqueRows.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
