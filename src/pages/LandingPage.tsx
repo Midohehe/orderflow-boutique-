@@ -438,6 +438,19 @@ const LandingPage = () => {
       html = html
         .replace(/<img\b(?![^>]*\bloading=)/gi, '<img loading="lazy" decoding="async"')
         .replace(/<iframe\b(?![^>]*\bloading=)/gi, '<iframe loading="lazy"');
+      // Neutralize pasted HTML from other sites that uses fixed widths,
+      // floats, absolute positioning, or huge margins that overflow mobile.
+      html = html
+        // Drop hard-coded width/height attributes on media + tables
+        .replace(/\s(width|height)="[^"]*"/gi, "")
+        // Strip problematic CSS declarations from inline styles
+        .replace(/style="([^"]*)"/gi, (_m, s) => {
+          const cleaned = s
+            .replace(/(?:^|;)\s*(width|min-width|max-width|height|min-height|max-height|position|top|left|right|bottom|float|margin[^:]*|padding[^:]*|transform)\s*:[^;]*/gi, "")
+            .replace(/^;+|;+$/g, "")
+            .trim();
+          return cleaned ? `style="${cleaned}"` : "";
+        });
       setSanitizedDescription(html);
     };
     if (typeof (window as any).requestIdleCallback === "function") {
@@ -1187,10 +1200,10 @@ const LandingPage = () => {
 
         {/* Description */}
         {product.description && sanitizedDescription && (
-          <section className="mt-8 sm:mt-12 cv-auto">
+          <section className="mt-8 sm:mt-12 cv-auto overflow-hidden">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-foreground">وصف المنتج</h2>
             <div
-              className="prose prose-sm sm:prose-lg max-w-none text-foreground [&_img]:w-full [&_img]:h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain"
+              className="prose prose-sm sm:prose-lg max-w-none text-foreground break-words [&_*]:max-w-full [&_img]:!w-full [&_img]:!h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain [&_iframe]:!w-full [&_iframe]:aspect-video [&_video]:!w-full [&_video]:!h-auto [&_table]:!w-full [&_table]:block [&_table]:overflow-x-auto [&_*]:!float-none [&_*]:!static"
               dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             />
           </section>
