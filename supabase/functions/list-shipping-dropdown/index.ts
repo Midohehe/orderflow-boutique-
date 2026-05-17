@@ -53,27 +53,27 @@ Deno.serve(async (req) => {
     if (zoneId) {
       const { data: cachedAreas } = await admin
         .from("shipping_zones")
-        .select("external_id,name")
+        .select("external_id,name,display_name")
         .eq("owner_id", ownerId)
         .eq("kind", "area")
         .eq("parent_external_id", zoneId)
         .order("name");
       if (cachedAreas && cachedAreas.length > 0) {
         return new Response(JSON.stringify({
-          areas: cachedAreas.map((r) => ({ id: r.external_id, name: r.name })),
+          areas: cachedAreas.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     } else {
       const { data: cachedZones } = await admin
         .from("shipping_zones")
-        .select("external_id,name")
+        .select("external_id,name,display_name")
         .eq("owner_id", ownerId)
         .eq("kind", "zone")
         .order("name");
       if (cachedZones && cachedZones.length > 0) {
         return new Response(JSON.stringify({
-          zones: cachedZones.map((r) => ({ id: r.external_id, name: r.name })),
+          zones: cachedZones.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }

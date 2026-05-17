@@ -6,10 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Search, ChevronDown, ChevronLeft, MapPin } from "lucide-react";
+import { Pencil, Check, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 
-type Row = { external_id: number; name: string; kind: string; parent_external_id: number | null };
+type Row = { id: string; external_id: number; name: string; display_name: string | null; kind: string; parent_external_id: number | null };
 
 export default function ShippingZones() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -17,12 +18,14 @@ export default function ShippingZones() {
   const [syncing, setSyncing] = useState(false);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Record<number, boolean>>({});
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
 
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("shipping_zones")
-      .select("external_id,name,kind,parent_external_id")
+      .select("id,external_id,name,display_name,kind,parent_external_id")
       .order("name");
     if (error) toast({ title: "تعذر الجلب", description: error.message, variant: "destructive" });
     setRows((data || []) as Row[]);
@@ -57,13 +60,63 @@ export default function ShippingZones() {
   const ql = q.trim().toLowerCase();
   const visibleCities = ql
     ? cities.filter((c) =>
+        (c.display_name || c.name).toLowerCase().includes(ql) ||
         c.name.toLowerCase().includes(ql) ||
         String(c.external_id).includes(ql) ||
         (areasByParent[c.external_id] || []).some((a) =>
-          a.name.toLowerCase().includes(ql) || String(a.external_id).includes(ql)
+          (a.display_name || a.name).toLowerCase().includes(ql) ||
+          a.name.toLowerCase().includes(ql) ||
+          String(a.external_id).includes(ql)
         )
       )
     : cities;
+
+  const startEdit = (r: Row) => {
+    setEditing(r.id);
+    setEditVal(r.display_name || r.name);
+  };
+  const cancelEdit = () => { setEditing(null); setEditVal(""); };
+  const saveEdit = async (r: Row) => {
+    const newVal = editVal.trim();
+    const payload = newVal && newVal !== r.name ? newVal : null;
+    const { error } = await supabase
+      .from("shipping_zones")
+      .update({ display_name: payload })
+      .eq("id", r.id);
+    if (error) {
+      toast({ title: "تعذر الحفظ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setRows((prev) => prev.map((x) => x.id === r.id ? { ...x, display_name: payload } : x));
+    setEditing(null);
+    toast({ title: "تم الحفظ" });
+  };
+
+  const renderName = (r: Row, prefix?: string) => {
+    if (editing === r.id) {
+      return (
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Input value={editVal} onChange={(e) => setEditVal(e.target.value)} className="h-7 text-sm" autoFocus
+            onKeyDown={(e) => { if (e.key === "Enter") saveEdit(r); if (e.key === "Escape") cancelEdit(); }} />
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEdit(r)}><Check className="w-4 h-4" /></Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={cancelEdit}><X className="w-4 h-4" /></Button>
+        </div>
+      );
+    }
+    const shown = r.display_name || r.name;
+    return (
+      <div className="flex items-center gap-2 group" onClick={(e) => e.stopPropagation()}>
+        <span>{prefix}{shown}</span>
+        {r.display_name && r.display_name !== r.name && (
+          <span className="text-[10px] text-muted-foreground">({r.name})</span>
+        )}
+        <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100"
+          onClick={() => startEdit(r)}>
+          <Pencil className="w-3 h-3" />
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -123,14 +176,14 @@ export default function ShippingZones() {
                         {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                       </TableCell>
                       <TableCell><Badge variant="outline">{c.external_id}</Badge></TableCell>
-                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="font-medium">{renderName(c)}</TableCell>
                       <TableCell>{areas.length}</TableCell>
                     </TableRow>
                     {isOpen && areas.map((a) => (
-                      <TableRow key={`a-${a.external_id}`} className="bg-muted/30">
+                      <TableRow key={`a-${a.id}`} className="bg-muted/30">
                         <TableCell></TableCell>
                         <TableCell><Badge variant="secondary">{a.external_id}</Badge></TableCell>
-                        <TableCell className="pr-8 text-sm text-muted-foreground">↳ {a.name}</TableCell>
+                        <TableCell className="pr-8 text-sm text-muted-foreground">{renderName(a, "↳ ")}</TableCell>
                         <TableCell></TableCell>
                       </TableRow>
                     ))}
