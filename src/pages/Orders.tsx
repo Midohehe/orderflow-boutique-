@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
+import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 
 interface Order {
   id: string;
@@ -108,6 +109,7 @@ const statusColors: Record<Order["status"], string> = {
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -1194,6 +1196,11 @@ const Orders = () => {
               {order.shipping_error && (
                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
                   <span className="font-bold ml-1 text-destructive">✕ فشل الإرسال لشركة الشحن:</span>
+                  {matchShippingError(order.shipping_error, errorAliases) && (
+                    <span className="inline-block bg-destructive text-destructive-foreground rounded px-2 py-0.5 mx-1 font-bold">
+                      {matchShippingError(order.shipping_error, errorAliases)}
+                    </span>
+                  )}
                   <span className="text-foreground/80">{order.shipping_error}</span>
                 </div>
               )}

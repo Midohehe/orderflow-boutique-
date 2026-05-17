@@ -1597,6 +1597,36 @@ export type Database = {
           },
         ]
       }
+      shipping_error_aliases: {
+        Row: {
+          created_at: string
+          id: string
+          match_type: string
+          pattern: string
+          short_label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_type?: string
+          pattern: string
+          short_label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_type?: string
+          pattern?: string
+          short_label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shipping_settings: {
         Row: {
           created_at: string
