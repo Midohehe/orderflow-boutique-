@@ -109,6 +109,7 @@ const statusColors: Record<Order["status"], string> = {
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
