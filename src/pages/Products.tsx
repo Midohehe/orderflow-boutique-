@@ -339,6 +339,7 @@ const Products = () => {
         ),
       warehouse_linked: newProduct.warehouseLinked !== false,
       upsell_enabled: !!newProduct.upsellEnabled,
+      upsell_title: (newProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (newProduct.upsellOffers || [])
         .map((o) => ({
           quantity: Math.max(1, parseInt(o.quantity) || 0),
@@ -463,6 +464,7 @@ const Products = () => {
         ),
       warehouse_linked: editProduct.warehouseLinked !== false,
       upsell_enabled: !!editProduct.upsellEnabled,
+      upsell_title: (editProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (editProduct.upsellOffers || [])
         .map((o) => ({
           quantity: Math.max(1, parseInt(o.quantity) || 0),
