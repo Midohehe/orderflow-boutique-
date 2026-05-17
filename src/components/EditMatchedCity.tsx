@@ -65,10 +65,17 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
     }
     setSaving(true);
     try {
-      // 1) Update this order
+      // 1) Update this order (include IDs so carrier can resolve canonical names)
+      const zId = zones.find((z) => z.name === newCity)?.id ?? null;
+      const aId = filteredAreas.find((x) => x.name === newArea)?.id ?? null;
       const { error: oErr } = await supabase
         .from("orders")
-        .update({ matched_zone_name: newCity, matched_area_name: newArea })
+        .update({
+          matched_zone_name: newCity,
+          matched_area_name: newArea,
+          matched_zone_id: zId,
+          matched_area_id: aId,
+        })
         .eq("id", orderId);
       if (oErr) throw oErr;
 
