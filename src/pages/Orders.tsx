@@ -376,7 +376,9 @@ const Orders = () => {
                 .from("orders")
                 .select(ORDER_SELECT_COLS)
                 .order("created_at", { ascending: false })),
-          supabase.from("store_settings").select("currency_symbol").maybeSingle(),
+          (uid
+            ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
+            : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
           supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
           supabase.from("products").select("id, name"),
           uid
@@ -461,10 +463,10 @@ const Orders = () => {
 
   const fetchCurrencySettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from("store_settings")
-        .select("currency_symbol")
-        .maybeSingle();
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      const q = supabase.from("store_settings").select("currency_symbol");
+      const { data, error } = await (uid ? q.eq("owner_id", uid).maybeSingle() : q.limit(1).maybeSingle());
       if (error) throw error;
       if (data) setCurrencySymbol(data.currency_symbol);
     } catch (error) {
