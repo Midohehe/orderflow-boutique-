@@ -28,15 +28,63 @@ const ShippingErrorAliases = () => {
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState("contains");
 
+  const matches = (error: string, list: Alias[]) => {
+    for (const a of list) {
+      try {
+        if (a.match_type === "exact" && error.trim() === a.pattern.trim()) return true;
+        if (a.match_type === "regex" && new RegExp(a.pattern, "i").test(error)) return true;
+        if (a.match_type === "contains" && error.toLowerCase().includes(a.pattern.toLowerCase())) return true;
+      } catch { /* ignore */ }
+    }
+    return false;
+  };
+
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("shipping_error_aliases")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    setItems((data as Alias[]) || []);
+    const [aliasesRes, ordersRes] = await Promise.all([
+      supabase
+        .from("shipping_error_aliases")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("orders")
+        .select("shipping_error")
+        .not("shipping_error", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(2000),
+    ]);
+    if (aliasesRes.error) toast({ title: "خطأ", description: aliasesRes.error.message, variant: "destructive" });
+    let list = (aliasesRes.data as Alias[]) || [];
+
+    // Auto-discover new errors and insert them as untagged entries
+    const uniqueErrors = Array.from(new Set(
+      ((ordersRes.data as any[]) || [])
+        .map((o) => (o.shipping_error || "").trim())
+        .filter((e) => e && e.length > 0)
+    ));
+    const newOnes = uniqueErrors.filter((e) => !matches(e, list));
+    if (newOnes.length > 0) {
+      const rows = newOnes.map((e, i) => ({
+        pattern: e,
+        short_label: "",
+        match_type: "exact",
+        sort_order: list.length + i,
+      }));
+      const { data: inserted } = await supabase
+        .from("shipping_error_aliases")
+        .insert(rows)
+        .select("*");
+      if (inserted) list = [...list, ...(inserted as Alias[])];
+    }
+    // Sort: untagged (empty label) first
+    list.sort((a, b) => {
+      const ea = a.short_label.trim() === "" ? 0 : 1;
+      const eb = b.short_label.trim() === "" ? 0 : 1;
+      if (ea !== eb) return ea - eb;
+      return a.sort_order - b.sort_order;
+    });
+    setItems(list);
     setLoading(false);
   };
 
@@ -129,22 +177,31 @@ const ShippingErrorAliases = () => {
       </Card>
 
       <Card className="p-4">
-        <h2 className="font-bold mb-3">التعريفات المضافة ({items.length})</h2>
+        <h2 className="font-bold mb-3">
+          التعريفات المضافة ({items.length})
+          {items.filter((i) => !i.short_label.trim()).length > 0 && (
+            <span className="mr-2 inline-block bg-warning/20 text-warning-foreground border border-warning/40 rounded px-2 py-0.5 text-xs font-bold">
+              يحتاج تعريف: {items.filter((i) => !i.short_label.trim()).length}
+            </span>
+          )}
+        </h2>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">لا يوجد تعريفات بعد</p>
         ) : (
           <div className="space-y-2">
-            {items.map((item) => (
-              <div key={item.id} className="grid md:grid-cols-12 gap-2 items-end border-b pb-3">
+            {items.map((item) => {
+              const untagged = !item.short_label.trim();
+              return (
+              <div key={item.id} className={`grid md:grid-cols-12 gap-2 items-end border-b pb-3 ${untagged ? "bg-warning/5 border-warning/30 rounded p-2" : ""}`}>
                 <div className="md:col-span-5">
-                  <Label className="text-xs">النص المطابق</Label>
+                  <Label className="text-xs">النص المطابق {untagged && <span className="text-warning-foreground">(جديد)</span>}</Label>
                   <Input value={item.pattern} onChange={(e) => handleUpdate(item.id, { pattern: e.target.value })} />
                 </div>
                 <div className="md:col-span-4">
                   <Label className="text-xs">الاسم المختصر</Label>
-                  <Input value={item.short_label} onChange={(e) => handleUpdate(item.id, { short_label: e.target.value })} />
+                  <Input value={item.short_label} onChange={(e) => handleUpdate(item.id, { short_label: e.target.value })} placeholder={untagged ? "أدخل اسماً مختصراً..." : ""} />
                 </div>
                 <div className="md:col-span-2">
                   <Label className="text-xs">المطابقة</Label>
@@ -166,7 +223,8 @@ const ShippingErrorAliases = () => {
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
