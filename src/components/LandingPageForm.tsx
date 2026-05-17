@@ -44,6 +44,7 @@ export interface LandingPageFormData {
   price: string;
   originalPrice: string;
   upsellEnabled: boolean;
+  upsellTitle?: string;
   upsellOffers: Array<{ quantity: string; price: string; label: string }>;
   isVisible: boolean;
 }
@@ -58,6 +59,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   price: "",
   originalPrice: "",
   upsellEnabled: false,
+  upsellTitle: "",
   upsellOffers: [],
   isVisible: true,
 };
@@ -225,6 +227,14 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
 
         {data.upsellEnabled && (
           <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">عنوان قسم العروض (يظهر للمشتري)</Label>
+              <Input
+                value={data.upsellTitle ?? ""}
+                onChange={(e) => update("upsellTitle", e.target.value)}
+                placeholder="🎁 عروض خاصة"
+              />
+            </div>
             {(data.upsellOffers || []).map((offer, idx) => (
               <div key={idx} className="grid grid-cols-1 md:grid-cols-[6rem_8rem_1fr_auto] gap-2 p-3 border rounded-lg bg-muted/20 items-end">
                 <div className="space-y-1">

@@ -29,6 +29,7 @@ interface Product {
   colors?: string[];
   sizes?: string[];
   upsell_enabled?: boolean;
+  upsell_title?: string;
   upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
   owner_id?: string;
 }
@@ -214,7 +215,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_offers, is_visible";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, is_visible";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -224,7 +225,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_offers, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, is_visible")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -293,6 +294,7 @@ const LandingPage = () => {
             colors: matched.colors || [],
             sizes: matched.sizes || [],
             upsell_enabled: lpHasUpsell != null ? !!lpHasUpsell : !!matched.upsell_enabled,
+            upsell_title: (lp?.upsell_title || (matched as any).upsell_title || "🎁 عروض خاصة"),
             upsell_offers: Array.isArray(lp?.upsell_offers) && lp.upsell_offers.length
               ? lp.upsell_offers
               : (Array.isArray(matched.upsell_offers) ? matched.upsell_offers : []),
@@ -1011,7 +1013,7 @@ const LandingPage = () => {
                 {/* Upsell Offers */}
                 {product.upsell_enabled && product.upsell_offers && product.upsell_offers.length > 0 && (
                   <div className="space-y-2 p-3 sm:p-4 rounded-xl border-2 border-primary/30 bg-primary/5">
-                    <Label className="text-sm sm:text-base font-bold text-primary">🎁 عروض خاصة</Label>
+                    <Label className="text-sm sm:text-base font-bold text-primary">{product.upsell_title || "🎁 عروض خاصة"}</Label>
                     <div className="space-y-2">
                       {product.upsell_offers.map((offer, idx) => {
                         const selected = selectedUpsellIndex === idx;
@@ -1038,6 +1040,9 @@ const LandingPage = () => {
                                 : "border-border bg-background hover:border-primary/50"
                             }`}
                           >
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 ${selected ? "bg-primary-foreground border-primary-foreground text-primary" : "border-border bg-background text-transparent"}`}>
+                              <Check className="w-4 h-4" />
+                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-sm sm:text-base">
                                 {offer.label || `اشترِ ${offer.quantity} قطع`}

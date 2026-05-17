@@ -78,6 +78,7 @@ const emptyFormData: ProductFormData = {
   sizes: "",
   warehouseLinked: true,
   upsellEnabled: false,
+  upsellTitle: "",
   upsellOffers: [],
 };
 
@@ -338,6 +339,7 @@ const Products = () => {
         ),
       warehouse_linked: newProduct.warehouseLinked !== false,
       upsell_enabled: !!newProduct.upsellEnabled,
+      upsell_title: (newProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (newProduct.upsellOffers || [])
         .map((o) => ({
           quantity: Math.max(1, parseInt(o.quantity) || 0),
@@ -462,6 +464,7 @@ const Products = () => {
         ),
       warehouse_linked: editProduct.warehouseLinked !== false,
       upsell_enabled: !!editProduct.upsellEnabled,
+      upsell_title: (editProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (editProduct.upsellOffers || [])
         .map((o) => ({
           quantity: Math.max(1, parseInt(o.quantity) || 0),
@@ -594,6 +597,7 @@ const Products = () => {
       sizes: product.sizes?.join(", ") || "",
       warehouseLinked: true,
       upsellEnabled: false,
+      upsellTitle: "",
       upsellOffers: [],
     });
     setIsEditOpen(true);
@@ -603,7 +607,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_offers")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers")
           .eq("id", product.id)
           .single()
       );
@@ -640,6 +644,7 @@ const Products = () => {
           : {},
         warehouseLinked: (data as any).warehouse_linked !== false,
         upsellEnabled: !!(data as any).upsell_enabled,
+        upsellTitle: (data as any).upsell_title || "",
         upsellOffers: Array.isArray((data as any).upsell_offers)
           ? ((data as any).upsell_offers as any[]).map((o) => ({
               quantity: String(o?.quantity ?? ""),
@@ -798,6 +803,7 @@ const Products = () => {
         price: newLp.price ? parseFloat(newLp.price) : null,
         original_price: newLp.originalPrice ? parseFloat(newLp.originalPrice) : null,
         upsell_enabled: !!newLp.upsellEnabled,
+        upsell_title: newLp.upsellTitle?.trim() || null,
         upsell_offers: (newLp.upsellOffers || [])
           .map((o) => ({
             quantity: Math.max(1, parseInt(o.quantity) || 0),
@@ -849,6 +855,7 @@ const Products = () => {
       price: d.price != null ? String(d.price) : "",
       originalPrice: d.original_price != null ? String(d.original_price) : "",
       upsellEnabled: !!d.upsell_enabled,
+      upsellTitle: d.upsell_title || "",
       upsellOffers: Array.isArray(d.upsell_offers)
         ? (d.upsell_offers as any[]).map((o) => ({
             quantity: String(o?.quantity ?? ""),
@@ -875,6 +882,7 @@ const Products = () => {
         price: editLp.price ? parseFloat(editLp.price) : null,
         original_price: editLp.originalPrice ? parseFloat(editLp.originalPrice) : null,
         upsell_enabled: !!editLp.upsellEnabled,
+        upsell_title: editLp.upsellTitle?.trim() || null,
         upsell_offers: (editLp.upsellOffers || [])
           .map((o) => ({
             quantity: Math.max(1, parseInt(o.quantity) || 0),
