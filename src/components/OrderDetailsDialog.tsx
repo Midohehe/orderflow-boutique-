@@ -95,16 +95,20 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   }, [selectedZone?.id]);
 
   const onZoneChange = (name: string) => {
+    const z = zones.find((x) => x.name === name);
     setData((d: any) => ({
       ...d,
       city: name,
       matched_zone_name: name,
+      matched_zone_id: z?.id ?? null,
       matched_area_name: null,
+      matched_area_id: null,
     }));
   };
 
   const onAreaChange = (name: string) => {
-    setData((d: any) => ({ ...d, matched_area_name: name }));
+    const a = currentAreas.find((x) => x.name === name);
+    setData((d: any) => ({ ...d, matched_area_name: name, matched_area_id: a?.id ?? null }));
   };
 
   useEffect(() => {
