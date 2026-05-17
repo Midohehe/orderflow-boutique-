@@ -139,6 +139,7 @@ const LandingPage = () => {
   const [searchParams] = useSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -255,6 +256,7 @@ const LandingPage = () => {
           resolvedOwnerId = prof.user_id;
           setOwnerId(prof.user_id);
         }
+        if (resolvedStoreId) setStoreId(resolvedStoreId);
 
         if (productRes.error) throw productRes.error;
         const rows = (productRes.data as any[]) || [];
@@ -275,6 +277,7 @@ const LandingPage = () => {
           }
           if (!resolvedStoreId && (matched as any).store_id) {
             resolvedStoreId = (matched as any).store_id;
+            setStoreId((matched as any).store_id);
           }
           const lpImages: string[] = Array.isArray(lp?.images) ? lp.images : [];
           const lpHasUpsell = lp ? lp.upsell_enabled : null;
@@ -499,6 +502,7 @@ const LandingPage = () => {
         product_slug: slug,
         utm_source: utmSource,
           owner_id: ownerId || null,
+          store_id: storeId || null,
       }).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
