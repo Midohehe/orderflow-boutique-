@@ -1,13 +1,46 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { CheckCircle, Package, Phone, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+
+interface ThankYouSettings {
+  title: string;
+  subtitle: string;
+  contact_message: string;
+  shipping_message: string;
+  show_order_details: boolean;
+  show_contact_info: boolean;
+}
+
+const DEFAULT_SETTINGS: ThankYouSettings = {
+  title: "تم استلام طلبك بنجاح!",
+  subtitle: "شكراً لك على ثقتك بنا",
+  contact_message: "سنتواصل معك قريباً لتأكيد الطلب",
+  shipping_message: "🚚 شحن سريع خلال 2-5 أيام عمل",
+  show_order_details: true,
+  show_contact_info: true,
+};
 
 const ThankYou = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const orderData = location.state?.orderData;
   const firedRef = useRef(false);
+  const [settings, setSettings] = useState<ThankYouSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    const ownerId = orderData?.ownerId;
+    if (!ownerId) return;
+    supabase
+      .from("thank_you_settings")
+      .select("title, subtitle, contact_message, shipping_message, show_order_details, show_contact_info")
+      .eq("owner_id", ownerId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setSettings(data as ThankYouSettings);
+      });
+  }, [orderData?.ownerId]);
 
   // Force light mode — thank-you page should always look the same regardless of dashboard theme
   useEffect(() => {
@@ -93,14 +126,15 @@ const ThankYou = () => {
             <CheckCircle className="w-14 h-14 text-green-600 dark:text-green-400" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-3">
-            تم استلام طلبك بنجاح!
+            {settings.title}
           </h1>
           <p className="text-muted-foreground text-lg">
-            شكراً لك على ثقتك بنا
+            {settings.subtitle}
           </p>
         </div>
 
         {/* Order Details Card */}
+        {settings.show_order_details && (
         <div className="bg-card rounded-2xl p-6 shadow-lg border mb-8 text-right">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2 justify-end">
             <span>تفاصيل الطلب</span>
@@ -130,18 +164,21 @@ const ThankYou = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Info Box */}
+        {settings.show_contact_info && (
         <div className="bg-primary/10 rounded-xl p-4 mb-8 flex items-center gap-3 justify-center">
           <Phone className="w-5 h-5 text-primary" />
           <p className="text-foreground text-sm">
-            سنتواصل معك قريباً لتأكيد الطلب
+            {settings.contact_message}
           </p>
         </div>
+        )}
 
         {/* Shipping Info */}
         <p className="text-muted-foreground text-sm mb-6">
-          🚚 شحن سريع خلال 2-5 أيام عمل
+          {settings.shipping_message}
         </p>
       </div>
     </div>
