@@ -1200,10 +1200,10 @@ const LandingPage = () => {
 
         {/* Description */}
         {product.description && sanitizedDescription && (
-          <section className="mt-8 sm:mt-12 cv-auto">
+          <section className="mt-8 sm:mt-12 cv-auto overflow-hidden">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-foreground">وصف المنتج</h2>
             <div
-              className="prose prose-sm sm:prose-lg max-w-none text-foreground [&_img]:w-full [&_img]:h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain"
+              className="prose prose-sm sm:prose-lg max-w-none text-foreground break-words [&_*]:max-w-full [&_img]:!w-full [&_img]:!h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain [&_iframe]:!w-full [&_iframe]:aspect-video [&_video]:!w-full [&_video]:!h-auto [&_table]:!w-full [&_table]:block [&_table]:overflow-x-auto [&_*]:!float-none [&_*]:!static"
               dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             />
           </section>
