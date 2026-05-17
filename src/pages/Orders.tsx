@@ -237,6 +237,7 @@ const Orders = () => {
         .from("orders")
         .insert({
           owner_id: uid,
+          store_id: activeStoreId,
           customer_name: "بدون اسم",
           phone: "",
           address: "",

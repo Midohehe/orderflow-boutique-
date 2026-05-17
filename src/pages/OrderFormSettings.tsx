@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface CatalogItem {
   field_key: string;
@@ -33,6 +34,7 @@ interface FormField {
 
 const OrderFormSettings = () => {
   const { isAdmin, effectiveOwnerId } = useUserContext();
+  const { activeStoreId } = useStoreContext();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,11 +48,12 @@ const OrderFormSettings = () => {
     const load = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user || !effectiveOwnerId) return;
+        if (!user || !effectiveOwnerId || !activeStoreId) return;
+        setLoading(true);
 
         const [{ data: cat }, { data: existing }, { data: storeRow }] = await Promise.all([
           supabase.from("form_field_catalog").select("*").order("sort_order"),
-          supabase.from("order_form_fields").select("*").eq("owner_id", effectiveOwnerId).order("sort_order"),
+          supabase.from("order_form_fields").select("*").eq("store_id", activeStoreId).order("sort_order"),
           supabase.from("store_settings").select("button_text, success_message").eq("owner_id", effectiveOwnerId).maybeSingle(),
         ]);
 
@@ -72,6 +75,7 @@ const OrderFormSettings = () => {
           const { data: inserted } = await supabase.from("order_form_fields")
             .insert(missing.map(c => ({
               owner_id: effectiveOwnerId,
+              store_id: activeStoreId,
               field_key: c.field_key,
               label: c.label,
               placeholder: c.default_placeholder,
@@ -91,8 +95,8 @@ const OrderFormSettings = () => {
         console.error(e);
       } finally { setLoading(false); }
     };
-    if (effectiveOwnerId) load();
-  }, [effectiveOwnerId]);
+    load();
+  }, [effectiveOwnerId, activeStoreId]);
 
   // Visible to store owner = catalog admin_enabled fields only (admin sees all)
   const allowedKeys = new Set(catalog.filter(c => isAdmin || c.admin_enabled).map(c => c.field_key));

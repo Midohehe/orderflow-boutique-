@@ -14,6 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import IntegrationsPanel from "@/components/IntegrationsPanel";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface EoVariant {
   id?: string;
@@ -37,6 +38,7 @@ interface EoProduct {
 }
 
 const EasyOrdersProducts = () => {
+  const { activeStoreId } = useStoreContext();
   const [products, setProducts] = useState<EoProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,13 +56,15 @@ const EasyOrdersProducts = () => {
   }>>([]);
 
   const loadComparison = async () => {
+    if (!activeStoreId) return;
     setCompareLoading(true);
     try {
       const [{ data: eo }, { data: local }] = await Promise.all([
-        supabase.from("easyorders_products").select("external_id, sku, variants"),
+        supabase.from("easyorders_products").select("external_id, sku, variants").eq("store_id", activeStoreId),
         supabase
           .from("products")
           .select("name, stock, variant_stock, easyorders_product_id, variant_easyorders_ids")
+          .eq("store_id", activeStoreId)
           .not("easyorders_product_id", "is", null),
       ]);
       const eoMap = new Map<string, any>();
@@ -127,6 +131,7 @@ const EasyOrdersProducts = () => {
       const { data: fresh } = await supabase
         .from("easyorders_products")
         .select("id, external_id, name, sku, variants, raw, synced_at")
+        .eq("store_id", activeStoreId)
         .order("name", { ascending: true });
       if (fresh) setProducts(fresh as any);
       if (showCompare) await loadComparison();
@@ -138,15 +143,18 @@ const EasyOrdersProducts = () => {
   };
 
   useEffect(() => {
+    if (!activeStoreId) { setProducts([]); setLoading(false); return; }
+    setLoading(true);
     (async () => {
       const { data, error } = await supabase
         .from("easyorders_products")
         .select("id, external_id, name, sku, variants, raw, synced_at")
+        .eq("store_id", activeStoreId)
         .order("name", { ascending: true });
       if (!error && data) setProducts(data as any);
       setLoading(false);
     })();
-  }, []);
+  }, [activeStoreId]);
 
   const q = search.trim().toLowerCase();
   const filtered = q
