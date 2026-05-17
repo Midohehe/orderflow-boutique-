@@ -414,8 +414,25 @@ Deno.serve(async (req) => {
       }
     } catch (e) { console.error("match-city failed", e); }
 
+    // Resolve store_id: prefer matched product's store, else owner's default store.
+    let order_store_id: string | null = null;
+    try {
+      if (matched_product_id) {
+        const { data: mp } = await supabase
+          .from("products").select("store_id").eq("id", matched_product_id).maybeSingle();
+        order_store_id = (mp as any)?.store_id ?? null;
+      }
+      if (!order_store_id) {
+        const { data: ds } = await supabase
+          .from("stores").select("id")
+          .eq("owner_id", profile.user_id).eq("is_default", true).maybeSingle();
+        order_store_id = (ds as any)?.id ?? null;
+      }
+    } catch (e) { console.error("store resolve failed", e); }
+
     const { data: order, error: iErr } = await supabase.from("orders").insert({
       owner_id: profile.user_id,
+      store_id: order_store_id,
       customer_name,
       phone,
       address,
@@ -447,6 +464,7 @@ Deno.serve(async (req) => {
       const rows = lineItems.map((li) => ({
         order_id: order.id,
         owner_id: profile.user_id,
+        store_id: order_store_id,
         product_id: li.product_id,
         product_name: li.product_name || product_name || "—",
         selected_color: li.selected_color,
