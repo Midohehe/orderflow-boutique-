@@ -45,6 +45,41 @@ Deno.serve(async (req) => {
       .from("store_members").select("owner_id").eq("member_user_id", ownerId).maybeSingle();
     if (member?.owner_id) ownerId = member.owner_id;
 
+    const body = await req.json().catch(() => ({} as any));
+    const zoneId: number | undefined = body?.zoneId;
+    const zoneName: string | undefined = body?.zoneName;
+
+    // 1) Try the cached shipping_zones first (fast path).
+    if (zoneId) {
+      const { data: cachedAreas } = await admin
+        .from("shipping_zones")
+        .select("external_id,name")
+        .eq("owner_id", ownerId)
+        .eq("kind", "area")
+        .eq("parent_external_id", zoneId)
+        .order("name");
+      if (cachedAreas && cachedAreas.length > 0) {
+        return new Response(JSON.stringify({
+          areas: cachedAreas.map((r) => ({ id: r.external_id, name: r.name })),
+          source: "cache",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    } else {
+      const { data: cachedZones } = await admin
+        .from("shipping_zones")
+        .select("external_id,name")
+        .eq("owner_id", ownerId)
+        .eq("kind", "zone")
+        .order("name");
+      if (cachedZones && cachedZones.length > 0) {
+        return new Response(JSON.stringify({
+          zones: cachedZones.map((r) => ({ id: r.external_id, name: r.name })),
+          source: "cache",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
+    // 2) Fallback: live API call.
     const { data: settingsList } = await admin
       .from("shipping_settings").select("*").eq("owner_id", ownerId).limit(1);
     const settings = settingsList?.[0];
@@ -79,10 +114,6 @@ Deno.serve(async (req) => {
       });
       return await r.json().catch(() => ({}));
     };
-
-    const body = await req.json().catch(() => ({} as any));
-    const zoneId: number | undefined = body?.zoneId;
-    const zoneName: string | undefined = body?.zoneName;
 
     if (zoneId) {
       let areas: Array<{ id: number; name: string }> = [];
