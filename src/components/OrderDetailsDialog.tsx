@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { Loader2, Plus, Trash2, Link2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -406,29 +407,24 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               ))}
               <div className="space-y-1">
                 <Label>المدينة (شركة الشحن)</Label>
-                <Select value={(data?.matched_zone_name || data?.city) ?? ""} onValueChange={onZoneChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={loadingZones ? "جاري التحميل..." : "اختر المدينة"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {zones.map((z) => (
-                      <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={zones.map((z) => ({ value: z.name, label: z.name }))}
+                  value={(data?.matched_zone_name || data?.city) ?? ""}
+                  onChange={onZoneChange}
+                  placeholder={loadingZones ? "جاري التحميل..." : "اختر المدينة"}
+                  searchPlaceholder="ابحث عن مدينة..."
+                />
               </div>
               <div className="space-y-1">
                 <Label>المنطقة (شركة الشحن)</Label>
-                <Select value={data?.matched_area_name ?? ""} onValueChange={onAreaChange} disabled={!selectedZone}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (currentAreas.length === 0 ? "لا مناطق" : "اختر المنطقة"))} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentAreas.map((a) => (
-                      <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={currentAreas.map((a) => ({ value: a.name, label: a.name }))}
+                  value={data?.matched_area_name ?? ""}
+                  onChange={onAreaChange}
+                  disabled={!selectedZone}
+                  placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (currentAreas.length === 0 ? "لا مناطق" : "اختر المنطقة"))}
+                  searchPlaceholder="ابحث عن منطقة..."
+                />
               </div>
               <div className="space-y-1">
                 <Label>الحالة</Label>
