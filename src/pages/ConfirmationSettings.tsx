@@ -112,13 +112,10 @@ export default function ConfirmationSettings() {
   const saveSettings = async () => {
     if (!settings || !ownerId) return;
     setSaving(true);
-    // upsert per store: select existing, then update or insert
-    const { data: existing } = await (supabase as any).from("confirmation_settings")
-      .select("owner_id").eq("owner_id", ownerId).eq("store_id", activeStoreId).maybeSingle();
-    const payload = { ...settings, owner_id: ownerId, store_id: activeStoreId };
-    const { error } = existing
-      ? await (supabase as any).from("confirmation_settings").update(payload).eq("owner_id", ownerId).eq("store_id", activeStoreId)
-      : await (supabase as any).from("confirmation_settings").insert(payload);
+    // confirmation_settings PK is owner_id (one row per owner); keep store_id for future
+    const { error } = await (supabase as any).from("confirmation_settings").upsert({
+      ...settings, owner_id: ownerId, store_id: activeStoreId,
+    }, { onConflict: "owner_id" });
     setSaving(false);
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
     toast({ title: "تم الحفظ" });
