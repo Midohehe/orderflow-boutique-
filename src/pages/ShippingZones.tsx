@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Search, ChevronDown, ChevronLeft } from "lucide-react";
+import { Loader2, RefreshCw, Search, ChevronDown, ChevronLeft, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -68,6 +68,7 @@ export default function ShippingZones() {
   return (
     <div className="space-y-4">
       <PageHeader
+        icon={MapPin}
         title="مدن ومناطق الشحن"
         description="قائمة المدن والمناطق المخزّنة محلياً من شركة الشحن."
       />
