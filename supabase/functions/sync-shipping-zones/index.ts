@@ -30,14 +30,19 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Resolve effective owner (sub-user → parent owner)
-    let ownerId = userData.user.id;
-    const { data: member } = await admin
-      .from("store_members").select("owner_id").eq("member_user_id", ownerId).maybeSingle();
-    if (member?.owner_id) ownerId = member.owner_id;
+    // Only super-admin may run the global sync
+    const { data: isAdminData } = await admin.rpc("has_role", {
+      _user_id: userData.user.id, _role: "admin",
+    });
+    if (!isAdminData) {
+      return new Response(JSON.stringify({ error: "صلاحية المشرف العام مطلوبة" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
+    // Use the admin's own shipping_settings as credentials source
     const { data: settingsList } = await admin
-      .from("shipping_settings").select("*").eq("owner_id", ownerId).limit(1);
+      .from("shipping_settings").select("*").eq("owner_id", userData.user.id).limit(1);
     const settings = settingsList?.[0];
     if (!settings?.enabled || !settings.email || !settings.password) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
@@ -86,9 +91,9 @@ Deno.serve(async (req) => {
       return true;
     });
 
-    const rows: Array<{ external_id: number; parent_external_id: number | null; name: string; kind: string; owner_id: string }> = [];
+    const rows: Array<{ external_id: number; parent_external_id: number | null; name: string; kind: string }> = [];
     for (const z of zones) {
-      rows.push({ external_id: z.id, parent_external_id: null, name: z.name, kind: "zone", owner_id: ownerId });
+      rows.push({ external_id: z.id, parent_external_id: null, name: z.name, kind: "zone" });
     }
 
     // Fetch areas/sub-zones for each city in parallel batches
@@ -110,7 +115,7 @@ Deno.serve(async (req) => {
           childSeen.add(child.id);
           return true;
         })
-        .map((c) => ({ external_id: c.id, parent_external_id: z.id, name: c.name, kind: "area", owner_id: ownerId }));
+        .map((c) => ({ external_id: c.id, parent_external_id: z.id, name: c.name, kind: "area" }));
     };
 
     const concurrency = 8;
@@ -127,11 +132,10 @@ Deno.serve(async (req) => {
       new Map(rows.map((row) => [`${row.kind}:${row.external_id}`, row])).values(),
     );
 
-    // Preserve user-defined display_name overrides across re-syncs
+    // Preserve display_name overrides across re-syncs (global)
     const { data: existing } = await admin
       .from("shipping_zones")
-      .select("kind,external_id,display_name")
-      .eq("owner_id", ownerId);
+      .select("kind,external_id,display_name");
     const overrides = new Map<string, string>();
     for (const r of (existing || []) as any[]) {
       if (r.display_name) overrides.set(`${r.kind}:${r.external_id}`, r.display_name);
@@ -141,8 +145,8 @@ Deno.serve(async (req) => {
       return dn ? { ...r, display_name: dn } : r;
     });
 
-    // Replace this owner's cached zones
-    await admin.from("shipping_zones").delete().eq("owner_id", ownerId);
+    // Replace all cached zones (global)
+    await admin.from("shipping_zones").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     const chunkSize = 500;
     for (let i = 0; i < rowsWithOverrides.length; i += chunkSize) {
       const chunk = rowsWithOverrides.slice(i, i + chunkSize);

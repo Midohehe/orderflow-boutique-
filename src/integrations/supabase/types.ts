@@ -1785,7 +1785,7 @@ export type Database = {
           id: string
           kind: string
           name: string
-          owner_id: string
+          owner_id: string | null
           parent_external_id: number | null
           store_id: string | null
           updated_at: string
@@ -1797,7 +1797,7 @@ export type Database = {
           id?: string
           kind?: string
           name: string
-          owner_id: string
+          owner_id?: string | null
           parent_external_id?: number | null
           store_id?: string | null
           updated_at?: string
@@ -1809,7 +1809,7 @@ export type Database = {
           id?: string
           kind?: string
           name?: string
-          owner_id?: string
+          owner_id?: string | null
           parent_external_id?: number | null
           store_id?: string | null
           updated_at?: string
