@@ -23,6 +23,7 @@ interface StoreSettings {
 const StoreFront = () => {
   const { username } = useParams<{ username?: string }>();
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: 'د.ل' });
@@ -32,16 +33,28 @@ const StoreFront = () => {
     let cancelled = false;
     const fetchData = async () => {
       let resolvedOwnerId: string | null = null;
+      let resolvedStoreId: string | null = null;
 
       if (username) {
-        const { data: prof } = await supabase
+        // Try store slug first (multi-store routing)
+        const { data: store } = await supabase
+          .from("stores").select("id, owner_id")
+          .eq("slug", username).maybeSingle();
+        if (cancelled) return;
+        if (store) {
+          resolvedOwnerId = store.owner_id;
+          resolvedStoreId = store.id;
+          setOwnerId(store.owner_id);
+          setStoreId(store.id);
+        } else {
+          const { data: prof } = await supabase
           .from("profiles").select("user_id, is_active")
           .eq("username", username).maybeSingle();
-        if (cancelled) return;
-        if (!prof) { setNotFound(true); setLoading(false); return; }
-        if (!prof.is_active) { setNotFound(true); setLoading(false); return; }
-        resolvedOwnerId = prof.user_id;
-        setOwnerId(prof.user_id);
+          if (cancelled) return;
+          if (!prof || !prof.is_active) { setNotFound(true); setLoading(false); return; }
+          resolvedOwnerId = prof.user_id;
+          setOwnerId(prof.user_id);
+        }
       } else {
         const { data: { user } } = await supabase.auth.getUser();
         if (cancelled) return;
@@ -56,6 +69,7 @@ const StoreFront = () => {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (resolvedOwnerId) productsQuery.eq('owner_id', resolvedOwnerId);
+      if (resolvedStoreId) productsQuery.eq('store_id', resolvedStoreId);
 
       const settingsQuery = supabase
         .from('store_settings').select('currency_symbol').limit(1);
