@@ -80,7 +80,7 @@ const AccountInfoCard = () => {
       <CardHeader><CardTitle>بيانات الحساب</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>اسم المستخدم (يظهر في رابط المتجر)</Label>
+          <Label>اسم المتجر (يظهر في رابط المتجر)</Label>
           <Input
             value={username}
             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
