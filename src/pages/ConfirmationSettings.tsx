@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { DEFAULT_TEMPLATE_BODY, TEMPLATE_VARIABLES } from "@/lib/confirmationTemplates";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Template { id: string; name: string; body: string; is_default: boolean; channel: string; owner_id: string }
 interface Reason { id: string; label: string; sort_order: number; owner_id: string }
@@ -25,6 +26,7 @@ interface Settings {
 }
 
 export default function ConfirmationSettings() {
+  const { activeStoreId } = useStoreContext();
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [reasons, setReasons] = useState<Reason[]>([]);
@@ -43,10 +45,12 @@ export default function ConfirmationSettings() {
       const { data: ownerRow } = await (supabase as any).rpc("get_effective_owner_id", { _uid: u.user.id });
       const oid = (ownerRow as string) || u.user.id;
       setOwnerId(oid);
+      if (!activeStoreId) { setLoading(false); return; }
+      setLoading(true);
       const [t, r, s] = await Promise.all([
-        (supabase as any).from("confirmation_templates").select("*").eq("owner_id", oid).order("is_default", { ascending: false }),
-        (supabase as any).from("cancellation_reasons").select("*").eq("owner_id", oid).order("sort_order"),
-        (supabase as any).from("confirmation_settings").select("*").eq("owner_id", oid).maybeSingle(),
+        (supabase as any).from("confirmation_templates").select("*").eq("store_id", activeStoreId).order("is_default", { ascending: false }),
+        (supabase as any).from("cancellation_reasons").select("*").eq("store_id", activeStoreId).order("sort_order"),
+        (supabase as any).from("confirmation_settings").select("*").eq("store_id", activeStoreId).maybeSingle(),
       ]);
       setTemplates((t.data as Template[]) || []);
       setReasons((r.data as Reason[]) || []);
@@ -56,12 +60,12 @@ export default function ConfirmationSettings() {
       });
       setLoading(false);
     })();
-  }, []);
+  }, [activeStoreId]);
 
   const addTemplate = async () => {
     if (!ownerId || !newTplName.trim() || !newTplBody.trim()) return;
     const { data, error } = await (supabase as any).from("confirmation_templates").insert({
-      owner_id: ownerId, name: newTplName, body: newTplBody, channel: "whatsapp",
+      owner_id: ownerId, store_id: activeStoreId, name: newTplName, body: newTplBody, channel: "whatsapp",
       is_default: templates.length === 0,
     }).select().single();
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
@@ -93,7 +97,7 @@ export default function ConfirmationSettings() {
   const addReason = async () => {
     if (!ownerId || !newReason.trim()) return;
     const { data, error } = await (supabase as any).from("cancellation_reasons").insert({
-      owner_id: ownerId, label: newReason.trim(), sort_order: reasons.length,
+      owner_id: ownerId, store_id: activeStoreId, label: newReason.trim(), sort_order: reasons.length,
     }).select().single();
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
     setReasons(prev => [...prev, data]);
@@ -109,8 +113,8 @@ export default function ConfirmationSettings() {
     if (!settings || !ownerId) return;
     setSaving(true);
     const { error } = await (supabase as any).from("confirmation_settings").upsert({
-      ...settings, owner_id: ownerId,
-    }, { onConflict: "owner_id" });
+      ...settings, owner_id: ownerId, store_id: activeStoreId,
+    }, { onConflict: "owner_id,store_id" });
     setSaving(false);
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
     toast({ title: "تم الحفظ" });
