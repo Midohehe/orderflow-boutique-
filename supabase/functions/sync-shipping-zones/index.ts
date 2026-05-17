@@ -73,9 +73,18 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // Fetch top-level zones (cities)
-    const zonesRes = await gql(`{ listZonesDropdown { id name } }`);
-    const zones: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
+    // Fetch only top-level zones (cities)
+    const zonesRes = await gql(
+      `query RootZones($input: ListZonesFilterInput) { listZonesDropdown(input: $input) { id name } }`,
+      { input: { parentId: null } },
+    );
+    const zonesRaw: Array<{ id: number; name: string }> = zonesRes?.data?.listZonesDropdown || [];
+    const zoneSeen = new Set<number>();
+    const zones = zonesRaw.filter((zone) => {
+      if (!zone?.id || !zone?.name || zoneSeen.has(zone.id)) return false;
+      zoneSeen.add(zone.id);
+      return true;
+    });
 
     const rows: Array<{ external_id: number; parent_external_id: number | null; name: string; kind: string; owner_id: string }> = [];
     for (const z of zones) {
@@ -94,7 +103,14 @@ Deno.serve(async (req) => {
         const ar = await gql(`query Areas($cityId: Int) { listAreasDropdown(cityId: $cityId) { id name } }`, { cityId: z.id });
         children = ar?.data?.listAreasDropdown || [];
       }
-      return children.map((c) => ({ external_id: c.id, parent_external_id: z.id, name: c.name, kind: "area", owner_id: ownerId }));
+      const childSeen = new Set<number>();
+      return children
+        .filter((child) => {
+          if (!child?.id || !child?.name || childSeen.has(child.id)) return false;
+          childSeen.add(child.id);
+          return true;
+        })
+        .map((c) => ({ external_id: c.id, parent_external_id: z.id, name: c.name, kind: "area", owner_id: ownerId }));
     };
 
     const concurrency = 8;
