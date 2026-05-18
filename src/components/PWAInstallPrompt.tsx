@@ -20,8 +20,8 @@ export function PWAInstallButton({ className }: { className?: string }) {
   };
   return (
     <Button onClick={handleClick} size="sm" className={className} variant="default">
-      <Download className="w-4 h-4 ml-2" />
-      {installed ? "مُثبّت" : "تحميل التطبيق"}
+      <Download className="w-4 h-4 sm:ml-2" />
+      <span className="hidden sm:inline">{installed ? "مُثبّت" : "تحميل التطبيق"}</span>
     </Button>
   );
 }
