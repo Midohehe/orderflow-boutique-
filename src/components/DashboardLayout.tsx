@@ -41,6 +41,7 @@ const baseMenuGroups = [
       { icon: Boxes, label: "منتجات ايزي اوردرز", path: "/dashboard/easyorders-products", external: false, adminOnly: false, dynamicStore: false },
       { icon: Boxes, label: "المخزون", path: "/dashboard/inventory", external: false, adminOnly: false, dynamicStore: false },
       { icon: ArrowLeftRight, label: "حركة المنتجات", path: "/dashboard/stock-movements", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Printer, label: "طباعة باركود", path: "/dashboard/print-barcodes", external: false, adminOnly: false, dynamicStore: false },
     ],
   },
   {
