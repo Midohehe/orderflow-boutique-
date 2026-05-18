@@ -406,6 +406,19 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <span>الطلب مقفل بسبب نفاد الرصيد — لا يمكن إرساله لشركة التوصيل حتى شحن المحفظة.</span>
             </div>
           )}
+          {originalInput && (originalInput.city || originalInput.address) && (
+            <div className="p-3 rounded-md bg-muted/50 border border-border text-sm mb-2 space-y-1">
+              <div className="font-medium text-foreground">ما كتبه الزبون في النموذج:</div>
+              <div className="text-muted-foreground">
+                <span className="font-medium text-foreground">المدينة/المنطقة: </span>
+                {originalInput.city || "—"}
+              </div>
+              <div className="text-muted-foreground">
+                <span className="font-medium text-foreground">العنوان: </span>
+                {originalInput.address || "—"}
+              </div>
+            </div>
+          )}
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {TEXT_FIELDS.map((f) => (
