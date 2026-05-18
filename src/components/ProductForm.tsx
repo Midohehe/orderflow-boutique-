@@ -457,6 +457,27 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-xs text-muted-foreground">يمكنك إنشاء الأقسام من تبويب «الأقسام»</p>
           </div>
         </div>
+        {hasVariants && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
+            <Button
+              type="button"
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+              onClick={() => autoGenerateSkus(false)}
+            >
+              إنشاء الأكواد تلقائياً
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => autoGenerateSkus(true)}
+            >
+              إعادة إنشاء (استبدال الكل)
+            </Button>
+            <p className="text-[11px] text-muted-foreground">يقوم النظام بتوليد SKU فريد لكل متغير تلقائياً.</p>
+          </div>
+        )}
       </SectionCard>
 
       {/* Pricing */}
