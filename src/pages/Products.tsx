@@ -393,6 +393,7 @@ const Products = () => {
         is_visible: true,
         stock: stockNum,
         variant_stock: variantStockNum,
+        category_id: newProduct.categoryId || null,
       };
       setProducts(prev => [newProductData, ...prev]);
       setNewProduct(emptyFormData);
@@ -569,6 +570,7 @@ const Products = () => {
           is_visible: p.is_visible,
           stock: stockNum,
           variant_stock: variantStockNum,
+          category_id: editProduct.categoryId || null,
         } : p
       ));
       setEditingProductId(null);
