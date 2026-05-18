@@ -353,6 +353,7 @@ const Products = () => {
           variantKeys.map((k) => [k, (newProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: newProduct.warehouseLinked !== false,
+    category_id: newProduct.categoryId || null,
       upsell_enabled: !!newProduct.upsellEnabled,
       upsell_title: (newProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (newProduct.upsellOffers || [])
@@ -478,6 +479,7 @@ const Products = () => {
           variantKeys.map((k) => [k, (editProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: editProduct.warehouseLinked !== false,
+    category_id: editProduct.categoryId || null,
       upsell_enabled: !!editProduct.upsellEnabled,
       upsell_title: (editProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (editProduct.upsellOffers || [])
