@@ -1612,6 +1612,17 @@ const Orders = () => {
                         <SelectItem value="cancelled">ألغى ({confirmationCounts.cancelled})</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Select value={prepFilter} onValueChange={(v) => { setPrepFilter(v as any); setSelectedOrders([]); }}>
+                      <SelectTrigger className="w-full sm:w-52">
+                        <SelectValue placeholder="فلتر حسب التجهيز" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">كل حالات التجهيز</SelectItem>
+                        <SelectItem value="pending">قيد الانتظار</SelectItem>
+                        <SelectItem value="preparing">جاري التجهيز</SelectItem>
+                        <SelectItem value="prepared">تم التجهيز</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <div className="flex items-center gap-1">
                         <span className="text-sm text-muted-foreground whitespace-nowrap">من:</span>
