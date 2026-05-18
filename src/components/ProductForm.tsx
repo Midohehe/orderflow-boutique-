@@ -70,6 +70,7 @@ export interface ProductFormData {
   upsellEnabled: boolean;
   upsellTitle?: string;
   upsellOffers: Array<{ quantity: string; price: string; label: string }>;
+  categoryId?: string | null;
 }
 
 interface ProductFormProps {
@@ -83,6 +84,7 @@ interface ProductFormProps {
    * "landing" = نموذج كامل (للاستخدام القديم/صفحة الهبوط)
    */
   mode?: "product" | "landing";
+  categories?: Array<{ id: string; name: string }>;
 }
 
 // Build variant keys from colors/sizes/codes (same logic used in inventory page)
@@ -183,7 +185,7 @@ const TagsField = ({
   );
 };
 
-const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing" }: ProductFormProps) => {
+const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [] }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
@@ -396,7 +398,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
 
       {/* Basic Info */}
       <SectionCard icon={Tag} title="المعلومات الأساسية" description={isLandingMode ? "اسم المنتج والرابط الفريد" : "اسم المنتج"} iconColor="bg-blue-500">
-        <div className={`grid grid-cols-1 ${isLandingMode ? "md:grid-cols-2" : ""} gap-4`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4`}>
           <div className="space-y-2">
             <Label className="font-semibold">اسم المنتج <span className="text-red-500">*</span></Label>
             <Input
@@ -418,6 +420,22 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-xs text-muted-foreground">أحرف إنجليزية فقط — مثال: /p/hair-oil</p>
           </div>
           )}
+          <div className="space-y-2">
+            <Label className="font-semibold">القسم</Label>
+            <Select
+              value={product.categoryId || "__none__"}
+              onValueChange={(v) => updateField("categoryId", v === "__none__" ? null : v)}
+            >
+              <SelectTrigger><SelectValue placeholder="بدون قسم" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">بدون قسم</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">يمكنك إنشاء الأقسام من تبويب «الأقسام»</p>
+          </div>
         </div>
       </SectionCard>
 

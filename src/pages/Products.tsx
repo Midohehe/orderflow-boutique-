@@ -14,7 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
@@ -41,6 +43,7 @@ interface Product {
   is_visible: boolean;
   stock?: number;
   variant_stock?: Record<string, number>;
+  category_id?: string | null;
 }
 
 interface LandingPage {
@@ -80,7 +83,10 @@ const emptyFormData: ProductFormData = {
   upsellEnabled: false,
   upsellTitle: "",
   upsellOffers: [],
+  categoryId: null,
 };
+
+interface Category { id: string; name: string; sort_order?: number }
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -102,7 +108,15 @@ const Products = () => {
   const navigate = useNavigate();
 
   // ===== صفحات الهبوط =====
-  const [activeTab, setActiveTab] = useState<"products" | "landing">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "landing" | "categories">("products");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<Category | null>(null);
+  const [productFilterCategory, setProductFilterCategory] = useState<string>("__all__");
+  const [lpFilterCategory, setLpFilterCategory] = useState<string>("__all__");
+  const [lpFilterProduct, setLpFilterProduct] = useState<string>("__all__");
   const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
   const [isLpAddOpen, setIsLpAddOpen] = useState(false);
   const [isLpEditOpen, setIsLpEditOpen] = useState(false);
@@ -145,7 +159,7 @@ const Products = () => {
         // Phase 1: lightweight metadata only (no images) — fast
         let metaQuery = supabase
           .from("products")
-          .select("id, name, slug, price, original_price, purchase_price, is_visible")
+          .select("id, name, slug, price, original_price, purchase_price, is_visible, category_id")
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
         metaQuery = metaQuery.eq("store_id", activeStoreId);
@@ -167,6 +181,7 @@ const Products = () => {
           colors: [],
           sizes: [],
           is_visible: p.is_visible ?? true,
+          category_id: p.category_id ?? null,
         }));
         setProducts(baseList);
         setIsLoading(false);
@@ -338,6 +353,7 @@ const Products = () => {
           variantKeys.map((k) => [k, (newProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: newProduct.warehouseLinked !== false,
+    category_id: newProduct.categoryId || null,
       upsell_enabled: !!newProduct.upsellEnabled,
       upsell_title: (newProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (newProduct.upsellOffers || [])
@@ -377,6 +393,7 @@ const Products = () => {
         is_visible: true,
         stock: stockNum,
         variant_stock: variantStockNum,
+        category_id: newProduct.categoryId || null,
       };
       setProducts(prev => [newProductData, ...prev]);
       setNewProduct(emptyFormData);
@@ -463,6 +480,7 @@ const Products = () => {
           variantKeys.map((k) => [k, (editProduct.variantEasyOrdersIds?.[k] || "").trim()]).filter(([, v]) => v)
         ),
       warehouse_linked: editProduct.warehouseLinked !== false,
+    category_id: editProduct.categoryId || null,
       upsell_enabled: !!editProduct.upsellEnabled,
       upsell_title: (editProduct.upsellTitle?.trim() || "🎁 عروض خاصة"),
       upsell_offers: (editProduct.upsellOffers || [])
@@ -552,6 +570,7 @@ const Products = () => {
           is_visible: p.is_visible,
           stock: stockNum,
           variant_stock: variantStockNum,
+          category_id: editProduct.categoryId || null,
         } : p
       ));
       setEditingProductId(null);
@@ -599,6 +618,7 @@ const Products = () => {
       upsellEnabled: false,
       upsellTitle: "",
       upsellOffers: [],
+      categoryId: product.category_id || null,
     });
     setIsEditOpen(true);
 
@@ -607,7 +627,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id")
           .eq("id", product.id)
           .single()
       );
@@ -652,6 +672,7 @@ const Products = () => {
               label: String(o?.label ?? ""),
             }))
           : [],
+        categoryId: (data as any).category_id || null,
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
@@ -767,6 +788,82 @@ const Products = () => {
     })();
     return () => { cancelled = true; };
   }, [userLoading, storeLoading, activeStoreId]);
+
+  // ===== Categories: load =====
+  useEffect(() => {
+    if (userLoading || storeLoading) return;
+    if (!activeStoreId) { setCategories([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await (supabase as any)
+        .from("product_categories")
+        .select("id, name, sort_order")
+        .eq("store_id", activeStoreId)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (cancelled || error) return;
+      setCategories((data || []) as Category[]);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading, storeLoading, activeStoreId]);
+
+  const handleAddCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !activeStoreId) return;
+    const { data, error } = await (supabase as any)
+      .from("product_categories")
+      .insert({ owner_id: user.id, store_id: activeStoreId, name, sort_order: categories.length })
+      .select("id, name, sort_order")
+      .single();
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCategories((prev) => [...prev, data as Category]);
+    setNewCategoryName("");
+    toast({ title: "تم", description: "تمت إضافة القسم" });
+  };
+
+  const handleRenameCategory = async (id: string) => {
+    const name = editingCategoryName.trim();
+    if (!name) return;
+    const { error } = await (supabase as any)
+      .from("product_categories")
+      .update({ name })
+      .eq("id", id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCategories((prev) => prev.map((c) => c.id === id ? { ...c, name } : c));
+    setEditingCategoryId(null);
+    setEditingCategoryName("");
+    toast({ title: "تم", description: "تم تعديل القسم" });
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!deleteCategoryTarget) return;
+    const { error } = await (supabase as any)
+      .from("product_categories")
+      .delete()
+      .eq("id", deleteCategoryTarget.id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCategories((prev) => prev.filter((c) => c.id !== deleteCategoryTarget.id));
+    setProducts((prev) => prev.map((p) => p.category_id === deleteCategoryTarget.id ? { ...p, category_id: null } : p));
+    setDeleteCategoryTarget(null);
+    toast({ title: "تم الحذف", description: "تم حذف القسم" });
+  };
+
+  const productCountByCategory = products.reduce<Record<string, number>>((acc, p) => {
+    const k = p.category_id || "__none__";
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
 
   // أضف اسم/صورة المنتج لكل صفحة هبوط من قائمة المنتجات المحلية
   const enrichedLandingPages: LandingPage[] = landingPages.map((lp) => {
@@ -1020,6 +1117,7 @@ const Products = () => {
                     onSubmit={handleAddProduct}
                     submitText="إضافة المنتج"
                     isLoading={isSaving}
+                    categories={categories}
                   />
                 </Suspense>
               </DialogContent>
@@ -1070,6 +1168,7 @@ const Products = () => {
                 onSubmit={handleEditProduct}
                 submitText="حفظ التعديلات"
                 isLoading={isSaving || isEditLoading}
+                categories={categories}
               />
             </Suspense>
           </div>
@@ -1102,7 +1201,7 @@ const Products = () => {
       </Dialog>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 max-w-md">
+        <TabsList className="grid grid-cols-3 max-w-xl">
           <TabsTrigger value="products" className="gap-2">
             <Package className="w-4 h-4" />
             المنتجات ({products.length})
@@ -1111,20 +1210,46 @@ const Products = () => {
             <Layout className="w-4 h-4" />
             صفحات الهبوط ({landingPages.length})
           </TabsTrigger>
+          <TabsTrigger value="categories" className="gap-2">
+            <FolderTree className="w-4 h-4" />
+            الأقسام ({categories.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="mt-6">
+      {/* Category filter */}
+      {categories.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <FolderTree className="w-4 h-4 text-muted-foreground" />
+          <Select value={productFilterCategory} onValueChange={setProductFilterCategory}>
+            <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">كل الأقسام ({products.length})</SelectItem>
+              <SelectItem value="__none__">بدون قسم ({productCountByCategory["__none__"] || 0})</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name} ({productCountByCategory[c.id] || 0})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {/* Products Grid */}
-      {products.length === 0 ? (
+      {(() => {
+        const filteredProducts = productFilterCategory === "__all__"
+          ? products
+          : productFilterCategory === "__none__"
+            ? products.filter((p) => !p.category_id)
+            : products.filter((p) => p.category_id === productFilterCategory);
+        return filteredProducts.length === 0 ? (
         <Card className="card-shadow">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="w-16 h-16 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">لا توجد منتجات حالياً</p>
+            <p className="text-muted-foreground">{products.length === 0 ? "لا توجد منتجات حالياً" : "لا توجد منتجات في هذا القسم"}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
+          {filteredProducts.map((product) => (
             <Card key={product.id} className={`card-shadow overflow-hidden animate-slide-up ${!product.is_visible ? 'opacity-60' : ''}`}>
               <div className="aspect-video relative overflow-hidden bg-muted">
                 {product.images[0] ? (
@@ -1219,21 +1344,56 @@ const Products = () => {
             </Card>
           ))}
         </div>
-      )}
+      );
+      })()}
         </TabsContent>
 
         <TabsContent value="landing" className="mt-6">
-          {enrichedLandingPages.length === 0 ? (
+          {(landingPages.length > 0) && (
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <Select value={lpFilterCategory} onValueChange={setLpFilterCategory}>
+                <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="فلتر القسم" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">كل الأقسام</SelectItem>
+                  <SelectItem value="__none__">بدون قسم</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={lpFilterProduct} onValueChange={setLpFilterProduct}>
+                <SelectTrigger className="w-full sm:w-72"><SelectValue placeholder="فلتر المنتج" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">كل المنتجات</SelectItem>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {(() => {
+            const filteredLps = enrichedLandingPages.filter((lp) => {
+              if (lpFilterProduct !== "__all__" && lp.product_id !== lpFilterProduct) return false;
+              if (lpFilterCategory !== "__all__") {
+                const prod = products.find((p) => p.id === lp.product_id);
+                const cat = prod?.category_id || null;
+                if (lpFilterCategory === "__none__") { if (cat) return false; }
+                else if (cat !== lpFilterCategory) return false;
+              }
+              return true;
+            });
+            return filteredLps.length === 0 ? (
             <Card className="card-shadow">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Layout className="w-16 h-16 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-2">لا توجد صفحات هبوط بعد</p>
+              <p className="text-muted-foreground mb-2">{enrichedLandingPages.length === 0 ? "لا توجد صفحات هبوط بعد" : "لا توجد نتائج بهذا الفلتر"}</p>
                 <p className="text-xs text-muted-foreground">اضغط «إنشاء صفحة هبوط» لإنشاء صفحة جديدة مرتبطة بأحد منتجاتك</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {enrichedLandingPages.map((lp) => (
+              {filteredLps.map((lp) => (
                 <Card key={lp.id} className={`card-shadow overflow-hidden ${!lp.is_visible ? 'opacity-60' : ''}`}>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start gap-3">
@@ -1296,7 +1456,62 @@ const Products = () => {
                 </Card>
               ))}
             </div>
-          )}
+          );
+          })()}
+        </TabsContent>
+
+        <TabsContent value="categories" className="mt-6">
+          <Card className="card-shadow">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCategory(); } }}
+                  placeholder="اسم القسم الجديد (مثال: ملابس رجالية)"
+                />
+                <Button onClick={handleAddCategory} className="gradient-primary text-primary-foreground gap-2">
+                  <Plus className="w-4 h-4" />
+                  إضافة قسم
+                </Button>
+              </div>
+              {categories.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">لا توجد أقسام بعد</div>
+              ) : (
+                <div className="divide-y border rounded-lg">
+                  {categories.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 p-3">
+                      <FolderTree className="w-4 h-4 text-muted-foreground shrink-0" />
+                      {editingCategoryId === c.id ? (
+                        <Input
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameCategory(c.id); } }}
+                          className="flex-1"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="flex-1 font-medium">{c.name}</span>
+                      )}
+                      <Badge variant="secondary" className="text-xs">{productCountByCategory[c.id] || 0} منتج</Badge>
+                      {editingCategoryId === c.id ? (
+                        <Button size="sm" onClick={() => handleRenameCategory(c.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                          <Save className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => { setEditingCategoryId(c.id); setEditingCategoryName(c.name); }}>
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white" onClick={() => setDeleteCategoryTarget(c)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -1335,6 +1550,27 @@ const Products = () => {
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); handleDeleteLp(); }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteCategoryTarget} onOpenChange={(open) => !open && setDeleteCategoryTarget(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف القسم</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف القسم «{deleteCategoryTarget?.name}»؟
+              سيتم إزالته من المنتجات المرتبطة دون حذفها.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmDeleteCategory(); }}
               className="bg-red-500 hover:bg-red-600 text-white"
             >
               حذف
