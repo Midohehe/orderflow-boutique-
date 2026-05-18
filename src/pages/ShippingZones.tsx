@@ -9,10 +9,12 @@ import { Loader2, RefreshCw, Search, ChevronDown, ChevronLeft, MapPin } from "lu
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
+import { useUserContext } from "@/hooks/useUserContext";
 
 type Row = { id: string; external_id: number; name: string; display_name: string | null; kind: string; parent_external_id: number | null };
 
 export default function ShippingZones() {
+  const { isAdmin } = useUserContext();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -136,10 +138,12 @@ export default function ShippingZones() {
               className="pr-9"
             />
           </div>
-          <Button onClick={sync} disabled={syncing}>
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span className="mr-2">مزامنة من شركة الشحن</span>
-          </Button>
+          {isAdmin && (
+            <Button onClick={sync} disabled={syncing}>
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span className="mr-2">مزامنة من شركة الشحن</span>
+            </Button>
+          )}
         </div>
 
         <div className="text-xs text-muted-foreground">
