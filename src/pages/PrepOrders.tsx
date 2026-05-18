@@ -54,7 +54,7 @@ export default function PrepOrders() {
       .from("orders")
       .select("id, customer_name, phone, shipping_reference, status")
       .eq("store_id", activeStoreId)
-      .eq("status", "preparing")
+      .eq("prep_status", "preparing")
       .eq("shipping_reference", code)
       .eq("is_deleted", false)
       .limit(1);
@@ -138,7 +138,7 @@ export default function PrepOrders() {
   const markPrepared = async () => {
     if (!order || !allChecked) return;
     setFinalizing(true);
-    const { error } = await supabase.from("orders").update({ status: "prepared" } as any).eq("id", order.id);
+    const { error } = await supabase.from("orders").update({ prep_status: "prepared" } as any).eq("id", order.id);
     setFinalizing(false);
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
     toast({ title: "تم", description: "تم تجهيز الطلب بنجاح" });
