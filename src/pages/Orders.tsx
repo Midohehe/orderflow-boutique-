@@ -57,6 +57,7 @@ interface Order {
   carrier_cancellation_reason_id?: string | null;
   carrier_notes?: string | null;
   confirmation_status?: "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled" | null;
+  prep_status?: "pending" | "preparing" | "prepared" | null;
   confirmation_notes?: string | null;
   confirmation_attempts?: number | null;
   postponed_until?: string | null;
@@ -84,7 +85,18 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status";
+
+const PREP_LABELS: Record<string, string> = {
+  pending: "قيد الانتظار",
+  preparing: "جاري التجهيز",
+  prepared: "تم التجهيز",
+};
+const PREP_BADGE_CLASS: Record<string, string> = {
+  pending: "bg-muted text-muted-foreground",
+  preparing: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30",
+  prepared: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30",
+};
 
 const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
