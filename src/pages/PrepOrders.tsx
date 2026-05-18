@@ -50,18 +50,29 @@ export default function PrepOrders() {
     setSearching(true);
     setOrder(null);
     const code = shipCode.trim();
-    let query = supabase
+    const base = supabase
       .from("orders")
       .select("id, customer_name, phone, shipping_reference, status")
       .eq("store_id", activeStoreId)
       .eq("prep_status", "preparing")
       .eq("is_deleted", false);
-    // Match by shipping_reference OR by order id prefix (first 8 chars shown in prep list)
-    const isHexPrefix = /^[0-9a-fA-F]{8}$/.test(code);
-    query = isHexPrefix
-      ? query.or(`shipping_reference.eq.${code},id.ilike.${code.toLowerCase()}%`)
-      : query.eq("shipping_reference", code);
-    const { data: orders, error } = await query.limit(1);
+    // First try shipping_reference exact match
+    let { data: orders, error } = await base.eq("shipping_reference", code).limit(1);
+    // Fallback: if user scanned the 8-char id prefix shown in prep list
+    if (!error && (!orders || orders.length === 0) && /^[0-9a-fA-F]{8}$/.test(code)) {
+      const all = await supabase
+        .from("orders")
+        .select("id, customer_name, phone, shipping_reference, status")
+        .eq("store_id", activeStoreId)
+        .eq("prep_status", "preparing")
+        .eq("is_deleted", false);
+      if (all.error) { error = all.error; }
+      else {
+        orders = (all.data || []).filter((o: any) =>
+          String(o.id).toLowerCase().startsWith(code.toLowerCase())
+        ).slice(0, 1);
+      }
+    }
     if (error) {
       setSearching(false);
       return toast({ title: "خطأ", description: error.message, variant: "destructive" });
