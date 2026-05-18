@@ -177,7 +177,7 @@ export default function PrepOrders() {
               <div>
                 <h3 className="font-bold">{order.customer_name}</h3>
                 <p className="text-sm text-muted-foreground">{order.phone}</p>
-                <Badge variant="outline" className="mt-1 font-mono">{order.shipping_reference}</Badge>
+                <Badge variant="outline" className="mt-1 font-mono">{order.order_code || order.shipping_reference}</Badge>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setOrder(null)}><X className="w-4 h-4" /></Button>
             </div>
