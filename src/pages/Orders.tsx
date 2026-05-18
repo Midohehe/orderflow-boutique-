@@ -1144,6 +1144,14 @@ const Orders = () => {
                     </Badge>
                   );
                 })()}
+                {(() => {
+                  const ps = (order.prep_status as any) || "pending";
+                  return (
+                    <Badge className={PREP_BADGE_CLASS[ps]}>
+                      التجهيز: {PREP_LABELS[ps]}
+                    </Badge>
+                  );
+                })()}
                 {duplicateCount > 1 && (
                   <Badge variant="destructive">
                     رقم مكرر ×{duplicateCount}
