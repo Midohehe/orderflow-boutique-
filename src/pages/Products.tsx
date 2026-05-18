@@ -1117,6 +1117,7 @@ const Products = () => {
                     onSubmit={handleAddProduct}
                     submitText="إضافة المنتج"
                     isLoading={isSaving}
+                    categories={categories}
                   />
                 </Suspense>
               </DialogContent>
