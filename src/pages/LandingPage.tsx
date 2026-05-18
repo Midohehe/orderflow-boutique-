@@ -916,7 +916,7 @@ const LandingPage = () => {
       <main className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Product Gallery */}
-          <div>
+          <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
             <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
                 <img
@@ -953,7 +953,7 @@ const LandingPage = () => {
           </div>
 
           {/* Order Form */}
-          <div className="lg:sticky lg:top-8 h-fit">
+          <div className={`lg:sticky lg:top-8 h-fit ${product.order_form_on_top ? "order-1 lg:order-2" : ""}`}>
             <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-border">
               <div className="text-center mb-4 sm:mb-6">
                 <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
