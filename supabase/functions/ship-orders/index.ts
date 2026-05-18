@@ -403,7 +403,18 @@ Deno.serve(async (req) => {
       saveShipment(input: $input) { id code refNumber }
     }`;
 
-    for (const o of orders) {
+    // Pre-warm areas cache in parallel for any orders that already have matched_zone_id,
+    // so the per-order loop doesn't serialize area lookups.
+    const prewarmZoneIds = Array.from(new Set(
+      (orders || [])
+        .map((o: any) => Number(o.matched_zone_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ));
+    await Promise.all(prewarmZoneIds.map((zid) => loadAreas(zid).catch(() => [])));
+
+    // Process orders concurrently with a bounded pool to avoid hammering the carrier API.
+    const CONCURRENCY = 6;
+    const processOrder = async (o: any) => {
       const ownerId = o.owner_id ?? userData.user.id;
       let zoneId: number | undefined = o.matched_zone_id ?? undefined;
       let areaId: number | undefined = o.matched_area_id ?? undefined;
@@ -505,7 +516,7 @@ Deno.serve(async (req) => {
         const err = `تعذر مطابقة المدينة/المنطقة: "${o.city}" - "${o.address}"`;
         results.push({ id: o.id, ok: false, error: err });
         await admin.from("orders").update({ shipping_error: err }).eq("id", o.id);
-        continue;
+        return;
       }
 
       const phone = normalizePhone(String(o.phone || ""));
@@ -669,7 +680,26 @@ Deno.serve(async (req) => {
         results.push({ id: o.id, ok: false, error: errMsg });
         await admin.from("orders").update({ shipping_error: errMsg }).eq("id", o.id);
       }
+    };
+
+    // Concurrency pool
+    const queue = [...orders];
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < Math.min(CONCURRENCY, queue.length); i++) {
+      workers.push((async () => {
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (!next) break;
+          try { await processOrder(next); }
+          catch (e) {
+            const errMsg = (e as Error).message;
+            results.push({ id: next.id, ok: false, error: errMsg });
+            await admin.from("orders").update({ shipping_error: errMsg }).eq("id", next.id);
+          }
+        }
+      })());
     }
+    await Promise.all(workers);
 
     const okCount = results.filter((r) => r.ok).length;
     return new Response(
