@@ -1100,6 +1100,13 @@ export type Database = {
             referencedRelation: "prep_lists"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "prep_list_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
         ]
       }
       prep_lists: {
