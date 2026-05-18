@@ -36,6 +36,7 @@ const REASON_LABEL: Record<string, string> = {
   manual: "حركة يدوية",
   manual_add: "إضافة كميات",
   manual_remove: "سحب كميات",
+  opening_stock: "كمية افتتاحية",
 };
 
 const StockMovements = () => {
