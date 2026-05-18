@@ -618,6 +618,7 @@ const Products = () => {
       upsellEnabled: false,
       upsellTitle: "",
       upsellOffers: [],
+      categoryId: product.category_id || null,
     });
     setIsEditOpen(true);
 
@@ -626,7 +627,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id")
           .eq("id", product.id)
           .single()
       );
@@ -671,6 +672,7 @@ const Products = () => {
               label: String(o?.label ?? ""),
             }))
           : [],
+        categoryId: (data as any).category_id || null,
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
