@@ -19,6 +19,8 @@ const Products = lazy(() => import("./pages/Products"));
 const TrashedProducts = lazy(() => import("./pages/TrashedProducts"));
 const EasyOrdersProducts = lazy(() => import("./pages/EasyOrdersProducts"));
 const Orders = lazy(() => import("./pages/Orders"));
+const PrepLists = lazy(() => import("./pages/PrepLists"));
+const PrepOrders = lazy(() => import("./pages/PrepOrders"));
 const PixelSettings = lazy(() => import("./pages/PixelSettings"));
 const OrderFormSettings = lazy(() => import("./pages/OrderFormSettings"));
 const ThankYouSettings = lazy(() => import("./pages/ThankYouSettings"));
@@ -102,6 +104,8 @@ const App = () => {
                 <Route path="products/trash" element={<TrashedProducts />} />
                 <Route path="easyorders-products" element={<EasyOrdersProducts />} />
                 <Route path="orders" element={<Orders />} />
+                <Route path="prep-lists" element={<PrepLists />} />
+                <Route path="prep-orders" element={<PrepOrders />} />
                 <Route path="confirmation" element={<ConfirmationCenter />} />
                 <Route path="confirmation/settings" element={<ConfirmationSettings />} />
                 <Route path="financial" element={<FinancialAccounts />} />

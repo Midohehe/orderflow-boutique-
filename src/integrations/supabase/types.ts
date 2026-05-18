@@ -1070,6 +1070,74 @@ export type Database = {
         }
         Relationships: []
       }
+      prep_list_orders: {
+        Row: {
+          created_at: string
+          id: string
+          list_id: string
+          order_id: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          list_id: string
+          order_id: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          list_id?: string
+          order_id?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prep_list_orders_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "prep_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prep_lists: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          owner_id: string
+          status: string
+          store_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          status?: string
+          store_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          status?: string
+          store_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_categories: {
         Row: {
           created_at: string
