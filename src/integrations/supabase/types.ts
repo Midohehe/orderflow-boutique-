@@ -826,6 +826,7 @@ export type Database = {
           owner_id: string
           phone: string
           postponed_until: string | null
+          prep_status: string
           price: number
           product_id: string | null
           product_name: string
@@ -874,6 +875,7 @@ export type Database = {
           owner_id: string
           phone: string
           postponed_until?: string | null
+          prep_status?: string
           price: number
           product_id?: string | null
           product_name: string
@@ -922,6 +924,7 @@ export type Database = {
           owner_id?: string
           phone?: string
           postponed_until?: string | null
+          prep_status?: string
           price?: number
           product_id?: string | null
           product_name?: string
