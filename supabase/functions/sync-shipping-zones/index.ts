@@ -31,9 +31,14 @@ Deno.serve(async (req) => {
     );
 
     // Only super-admin may run the global sync
-    const { data: isAdminData } = await admin.rpc("has_role", {
+    const { data: isAdminData, error: isAdminError } = await userClient.rpc("has_role", {
       _user_id: userData.user.id, _role: "admin",
     });
+    if (isAdminError) {
+      return new Response(JSON.stringify({ error: isAdminError.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (!isAdminData) {
       return new Response(JSON.stringify({ error: "صلاحية المشرف العام مطلوبة" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
