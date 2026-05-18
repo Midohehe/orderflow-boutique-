@@ -46,6 +46,7 @@ export interface LandingPageFormData {
   upsellEnabled: boolean;
   upsellTitle?: string;
   upsellOffers: Array<{ quantity: string; price: string; label: string }>;
+  orderFormOnTop?: boolean;
   isVisible: boolean;
 }
 
@@ -61,6 +62,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   upsellEnabled: false,
   upsellTitle: "",
   upsellOffers: [],
+  orderFormOnTop: false,
   isVisible: true,
 };
 
@@ -315,6 +317,13 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
             <p className="text-xs text-muted-foreground mt-1">عند الإيقاف لن يستطيع أحد فتح الرابط</p>
           </div>
           <Switch checked={!!data.isVisible} onCheckedChange={(v) => update("isVisible", v)} />
+        </div>
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
+          <div className="flex-1 min-w-0">
+            <Label className="block font-semibold">نموذج الطلب في الأعلى</Label>
+            <p className="text-xs text-muted-foreground mt-1">عند التفعيل يظهر نموذج الطلب قبل صور المنتج في بداية الصفحة</p>
+          </div>
+          <Switch checked={!!data.orderFormOnTop} onCheckedChange={(v) => update("orderFormOnTop", v)} />
         </div>
       </SectionCard>
 

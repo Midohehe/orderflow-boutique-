@@ -31,6 +31,7 @@ interface Product {
   upsell_enabled?: boolean;
   upsell_title?: string;
   upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
+  order_form_on_top?: boolean;
   owner_id?: string;
 }
 
@@ -215,7 +216,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, is_visible";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -225,7 +226,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -298,6 +299,7 @@ const LandingPage = () => {
             upsell_offers: Array.isArray(lp?.upsell_offers) && lp.upsell_offers.length
               ? lp.upsell_offers
               : (Array.isArray(matched.upsell_offers) ? matched.upsell_offers : []),
+            order_form_on_top: lp?.order_form_on_top != null ? !!lp.order_form_on_top : !!(matched as any).order_form_on_top,
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
           };
@@ -914,7 +916,7 @@ const LandingPage = () => {
       <main className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Product Gallery */}
-          <div>
+          <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
             <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
                 <img
@@ -951,7 +953,7 @@ const LandingPage = () => {
           </div>
 
           {/* Order Form */}
-          <div className="lg:sticky lg:top-8 h-fit">
+          <div className={`lg:sticky lg:top-8 h-fit ${product.order_form_on_top ? "order-1 lg:order-2" : ""}`}>
             <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-border">
               <div className="text-center mb-4 sm:mb-6">
                 <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
