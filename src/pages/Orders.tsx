@@ -154,6 +154,7 @@ const Orders = () => {
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
   const [statusCategoryMap, setStatusCategoryMap] = useState<Record<string, string>>({});
   const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
+  const [prepFilter, setPrepFilter] = useState<"all" | "pending" | "preparing" | "prepared">("all");
   const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
