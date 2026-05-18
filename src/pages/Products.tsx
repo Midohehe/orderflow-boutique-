@@ -789,6 +789,82 @@ const Products = () => {
     return () => { cancelled = true; };
   }, [userLoading, storeLoading, activeStoreId]);
 
+  // ===== Categories: load =====
+  useEffect(() => {
+    if (userLoading || storeLoading) return;
+    if (!activeStoreId) { setCategories([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await (supabase as any)
+        .from("product_categories")
+        .select("id, name, sort_order")
+        .eq("store_id", activeStoreId)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (cancelled || error) return;
+      setCategories((data || []) as Category[]);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading, storeLoading, activeStoreId]);
+
+  const handleAddCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !activeStoreId) return;
+    const { data, error } = await (supabase as any)
+      .from("product_categories")
+      .insert({ owner_id: user.id, store_id: activeStoreId, name, sort_order: categories.length })
+      .select("id, name, sort_order")
+      .single();
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCategories((prev) => [...prev, data as Category]);
+    setNewCategoryName("");
+    toast({ title: "تم", description: "تمت إضافة القسم" });
+  };
+
+  const handleRenameCategory = async (id: string) => {
+    const name = editingCategoryName.trim();
+    if (!name) return;
+    const { error } = await (supabase as any)
+      .from("product_categories")
+      .update({ name })
+      .eq("id", id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCategories((prev) => prev.map((c) => c.id === id ? { ...c, name } : c));
+    setEditingCategoryId(null);
+    setEditingCategoryName("");
+    toast({ title: "تم", description: "تم تعديل القسم" });
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!deleteCategoryTarget) return;
+    const { error } = await (supabase as any)
+      .from("product_categories")
+      .delete()
+      .eq("id", deleteCategoryTarget.id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCategories((prev) => prev.filter((c) => c.id !== deleteCategoryTarget.id));
+    setProducts((prev) => prev.map((p) => p.category_id === deleteCategoryTarget.id ? { ...p, category_id: null } : p));
+    setDeleteCategoryTarget(null);
+    toast({ title: "تم الحذف", description: "تم حذف القسم" });
+  };
+
+  const productCountByCategory = products.reduce<Record<string, number>>((acc, p) => {
+    const k = p.category_id || "__none__";
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
+
   // أضف اسم/صورة المنتج لكل صفحة هبوط من قائمة المنتجات المحلية
   const enrichedLandingPages: LandingPage[] = landingPages.map((lp) => {
     const p = products.find((x) => x.id === lp.product_id);
