@@ -404,6 +404,7 @@ Deno.serve(async (req) => {
     }`;
 
     for (const o of orders) {
+      const ownerId = o.owner_id ?? userData.user.id;
       let zoneId: number | undefined = o.matched_zone_id ?? undefined;
       let areaId: number | undefined = o.matched_area_id ?? undefined;
       let zoneName: string | undefined = o.matched_zone_name ?? undefined;
