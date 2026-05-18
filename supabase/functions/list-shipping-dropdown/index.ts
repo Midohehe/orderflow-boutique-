@@ -48,32 +48,44 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const zoneId: number | undefined = body?.zoneId;
     const zoneName: string | undefined = body?.zoneName;
+    const preferBestRows = <T extends { external_id: number; owner_id?: string | null; display_name?: string | null }>(rows: T[]) => {
+      const best = new Map<number, T>();
+      for (const row of rows) {
+        const current = best.get(row.external_id);
+        const score = (row.owner_id ? 2 : 0) + (row.display_name?.trim() ? 1 : 0);
+        const currentScore = current ? ((current.owner_id ? 2 : 0) + (current.display_name?.trim() ? 1 : 0)) : -1;
+        if (!current || score >= currentScore) best.set(row.external_id, row);
+      }
+      return Array.from(best.values());
+    };
 
     // 1) Try the cached shipping_zones first (fast path).
     if (zoneId) {
       const { data: cachedAreas } = await admin
         .from("shipping_zones")
-        .select("external_id,name,display_name")
-        .eq("owner_id", ownerId)
+        .select("owner_id,external_id,name,display_name")
+        .or(`owner_id.is.null,owner_id.eq.${ownerId}`)
         .eq("kind", "area")
         .eq("parent_external_id", zoneId)
         .order("name");
-      if (cachedAreas && cachedAreas.length > 0) {
+      const mergedAreas = preferBestRows(cachedAreas || []);
+      if (mergedAreas.length > 0) {
         return new Response(JSON.stringify({
-          areas: cachedAreas.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
+          areas: mergedAreas.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     } else {
       const { data: cachedZones } = await admin
         .from("shipping_zones")
-        .select("external_id,name,display_name")
-        .eq("owner_id", ownerId)
+        .select("owner_id,external_id,name,display_name")
+        .or(`owner_id.is.null,owner_id.eq.${ownerId}`)
         .eq("kind", "zone")
         .order("name");
-      if (cachedZones && cachedZones.length > 0) {
+      const mergedZones = preferBestRows(cachedZones || []);
+      if (mergedZones.length > 0) {
         return new Response(JSON.stringify({
-          zones: cachedZones.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
+          zones: mergedZones.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
