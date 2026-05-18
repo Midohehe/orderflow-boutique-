@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
         .order("name");
       if (cachedAreas && cachedAreas.length > 0) {
         return new Response(JSON.stringify({
-          areas: cachedAreas.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name })),
+          areas: cachedAreas.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         .order("name");
       if (cachedZones && cachedZones.length > 0) {
         return new Response(JSON.stringify({
-          zones: cachedZones.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name })),
+          zones: cachedZones.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
