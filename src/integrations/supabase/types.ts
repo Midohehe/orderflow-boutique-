@@ -591,6 +591,7 @@ export type Database = {
           id: string
           images: string[]
           is_visible: boolean
+          order_form_on_top: boolean
           original_price: number | null
           owner_id: string
           price: number | null
@@ -610,6 +611,7 @@ export type Database = {
           id?: string
           images?: string[]
           is_visible?: boolean
+          order_form_on_top?: boolean
           original_price?: number | null
           owner_id: string
           price?: number | null
@@ -629,6 +631,7 @@ export type Database = {
           id?: string
           images?: string[]
           is_visible?: boolean
+          order_form_on_top?: boolean
           original_price?: number | null
           owner_id?: string
           price?: number | null
@@ -1078,6 +1081,7 @@ export type Database = {
           images: string[] | null
           is_visible: boolean
           name: string
+          order_form_on_top: boolean
           original_price: number | null
           owner_id: string
           price: number
@@ -1107,6 +1111,7 @@ export type Database = {
           images?: string[] | null
           is_visible?: boolean
           name: string
+          order_form_on_top?: boolean
           original_price?: number | null
           owner_id: string
           price: number
@@ -1136,6 +1141,7 @@ export type Database = {
           images?: string[] | null
           is_visible?: boolean
           name?: string
+          order_form_on_top?: boolean
           original_price?: number | null
           owner_id?: string
           price?: number

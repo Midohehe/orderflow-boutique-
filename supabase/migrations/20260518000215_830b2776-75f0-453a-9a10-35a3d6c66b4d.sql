@@ -1,0 +1,2 @@
+ALTER TABLE public.landing_pages ADD COLUMN IF NOT EXISTS order_form_on_top boolean NOT NULL DEFAULT false;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS order_form_on_top boolean NOT NULL DEFAULT false;
