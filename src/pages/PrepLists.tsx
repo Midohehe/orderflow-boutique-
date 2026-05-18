@@ -144,6 +144,7 @@ export default function PrepLists() {
         ? supabase
             .from("orders")
             .select("id, customer_name, phone, city, address, product_name, price, quantity, status, shipping_reference, matched_zone_name, matched_area_name, selected_color, selected_size, selected_product_code, carrier_status, created_at")
+            .eq("store_id", activeStoreId)
             .eq("status", "pending")
             .eq("is_deleted", false)
             .order("created_at", { ascending: false })
