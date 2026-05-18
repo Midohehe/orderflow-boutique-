@@ -61,6 +61,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [data, setData] = useState<any>(null);
   const [products, setProducts] = useState<ProductLite[]>([]);
   const [items, setItems] = useState<any[]>([]);
+  const [originalInput, setOriginalInput] = useState<{ city: string; address: string } | null>(null);
   const [zones, setZones] = useState<Array<{ id: number; name: string }>>([]);
   const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
@@ -126,6 +127,9 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       ]);
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
       setData(o.data || null);
+      if (o.data) {
+        setOriginalInput({ city: o.data.city || "", address: o.data.address || "" });
+      }
       setProducts((p.data || []) as ProductLite[]);
       const list = (it.data || []) as any[];
       // If no order_items yet, seed with the order's main product so the user can edit it
@@ -400,6 +404,19 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
             <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm mb-2">
               <Lock className="w-4 h-4 shrink-0" />
               <span>الطلب مقفل بسبب نفاد الرصيد — لا يمكن إرساله لشركة التوصيل حتى شحن المحفظة.</span>
+            </div>
+          )}
+          {originalInput && (originalInput.city || originalInput.address) && (
+            <div className="p-3 rounded-md bg-muted/50 border border-border text-sm mb-2 space-y-1">
+              <div className="font-medium text-foreground">ما كتبه الزبون في النموذج:</div>
+              <div className="text-muted-foreground">
+                <span className="font-medium text-foreground">المدينة/المنطقة: </span>
+                {originalInput.city || "—"}
+              </div>
+              <div className="text-muted-foreground">
+                <span className="font-medium text-foreground">العنوان: </span>
+                {originalInput.address || "—"}
+              </div>
             </div>
           )}
           <div className="space-y-4">
