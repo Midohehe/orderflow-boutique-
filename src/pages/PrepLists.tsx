@@ -202,7 +202,7 @@ export default function PrepLists() {
     if (!openList || listOrders.length === 0) return;
     if (!confirm(`تأكيد القائمة وتحويل ${listOrders.length} طلب إلى "جاري التجهيز"؟`)) return;
     const ids = listOrders.map((o) => o.id);
-    const { error: ue } = await supabase.from("orders").update({ status: "preparing" } as any).in("id", ids);
+    const { error: ue } = await supabase.from("orders").update({ prep_status: "preparing" } as any).in("id", ids);
     if (ue) return toast({ title: "خطأ", description: ue.message, variant: "destructive" });
     const { error: le } = await supabase
       .from("prep_lists")

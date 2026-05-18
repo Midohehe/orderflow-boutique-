@@ -57,6 +57,7 @@ interface Order {
   carrier_cancellation_reason_id?: string | null;
   carrier_notes?: string | null;
   confirmation_status?: "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled" | null;
+  prep_status?: "pending" | "preparing" | "prepared" | null;
   confirmation_notes?: string | null;
   confirmation_attempts?: number | null;
   postponed_until?: string | null;
@@ -84,7 +85,18 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status";
+
+const PREP_LABELS: Record<string, string> = {
+  pending: "قيد الانتظار",
+  preparing: "جاري التجهيز",
+  prepared: "تم التجهيز",
+};
+const PREP_BADGE_CLASS: Record<string, string> = {
+  pending: "bg-muted text-muted-foreground",
+  preparing: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30",
+  prepared: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30",
+};
 
 const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
@@ -142,6 +154,7 @@ const Orders = () => {
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
   const [statusCategoryMap, setStatusCategoryMap] = useState<Record<string, string>>({});
   const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
+  const [prepFilter, setPrepFilter] = useState<"all" | "pending" | "preparing" | "prepared">("all");
   const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
@@ -882,6 +895,10 @@ const Orders = () => {
       const cs = (o.confirmation_status as ConfirmationStatus | null) || "unconfirmed";
       if (cs !== confirmationFilter) return false;
     }
+    if (prepFilter !== "all") {
+      const ps = (o.prep_status as any) || "pending";
+      if (ps !== prepFilter) return false;
+    }
     if (pendingDateFrom) {
       const from = new Date(pendingDateFrom);
       from.setHours(0, 0, 0, 0);
@@ -1124,6 +1141,14 @@ const Orders = () => {
                       {CONFIRMATION_LABELS[cs]}
                       {cs === "postponed" && order.postponed_until ? ` (${formatDate(order.postponed_until)})` : ""}
                       {(order.confirmation_attempts || 0) > 0 ? ` · ${order.confirmation_attempts} محاولة` : ""}
+                    </Badge>
+                  );
+                })()}
+                {(() => {
+                  const ps = (order.prep_status as any) || "pending";
+                  return (
+                    <Badge className={PREP_BADGE_CLASS[ps]}>
+                      التجهيز: {PREP_LABELS[ps]}
                     </Badge>
                   );
                 })()}
@@ -1593,6 +1618,17 @@ const Orders = () => {
                         <SelectItem value="no_answer">لم يرد ({confirmationCounts.no_answer})</SelectItem>
                         <SelectItem value="postponed">مؤجل ({confirmationCounts.postponed})</SelectItem>
                         <SelectItem value="cancelled">ألغى ({confirmationCounts.cancelled})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={prepFilter} onValueChange={(v) => { setPrepFilter(v as any); setSelectedOrders([]); }}>
+                      <SelectTrigger className="w-full sm:w-52">
+                        <SelectValue placeholder="فلتر حسب التجهيز" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">كل حالات التجهيز</SelectItem>
+                        <SelectItem value="pending">قيد الانتظار</SelectItem>
+                        <SelectItem value="preparing">جاري التجهيز</SelectItem>
+                        <SelectItem value="prepared">تم التجهيز</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
