@@ -7,8 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Printer, CheckCircle2, ClipboardList } from "lucide-react";
+import { Loader2, Plus, Trash2, Printer, CheckCircle2, ClipboardList, Search } from "lucide-react";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 
 type PrepList = {
@@ -50,6 +51,8 @@ export default function PrepLists() {
   const [pendingOrders, setPendingOrders] = useState<OrderLite[]>([]);
   const [selectedToAdd, setSelectedToAdd] = useState<string[]>([]);
   const [dialogLoading, setDialogLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [adding, setAdding] = useState(false);
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [currencySymbol, setCurrencySymbol] = useState("د.ل");
   const [storeName, setStoreName] = useState("");
@@ -129,6 +132,7 @@ export default function PrepLists() {
   const openListDialog = async (l: PrepList) => {
     setOpenList(l);
     setSelectedToAdd([]);
+    setSearch("");
     setDialogLoading(true);
     // load orders in list + available pending
     const [{ data: linked }, { data: pending }] = await Promise.all([
@@ -168,12 +172,15 @@ export default function PrepLists() {
 
   const addOrdersToList = async () => {
     if (!openList || selectedToAdd.length === 0) return;
+    setAdding(true);
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id;
     const rows = selectedToAdd.map((order_id) => ({ list_id: openList.id, order_id, owner_id: uid }));
     const { error } = await supabase.from("prep_list_orders").insert(rows as any);
+    setAdding(false);
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
     toast({ title: "تم", description: `تمت إضافة ${selectedToAdd.length} طلب` });
+    setSelectedToAdd([]);
     openListDialog(openList);
     loadLists();
   };
@@ -263,7 +270,7 @@ export default function PrepLists() {
       )}
 
       <Dialog open={!!openList} onOpenChange={(o) => !o && setOpenList(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>{openList?.name} — {openList?.status === "confirmed" ? "مؤكدة" : "قيد التجهيز"}</DialogTitle>
           </DialogHeader>
@@ -280,52 +287,127 @@ export default function PrepLists() {
                   </Button>
                 </div>
                 {listOrders.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">لا توجد طلبات</p>
+                  <p className="text-sm text-muted-foreground py-2">لا توجد طلبات في القائمة</p>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {listOrders.map((o) => (
-                      <div key={o.id} className="flex items-center justify-between p-2 border rounded text-sm gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{o.customer_name} — {o.phone}</p>
-                          <p className="text-xs text-muted-foreground truncate">{o.product_name} | {o.matched_zone_name || o.city}</p>
-                        </div>
-                        {openList?.status === "open" && (
-                          <Button size="sm" variant="ghost" onClick={() => removeFromList(o.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                  <div className="border rounded max-h-72 overflow-y-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                          <TableHead className="text-right">كود الطلب</TableHead>
+                          <TableHead className="text-right">اسم الزبون</TableHead>
+                          <TableHead className="text-right">رقم الهاتف</TableHead>
+                          <TableHead className="text-right">المدينة</TableHead>
+                          {openList?.status === "open" && <TableHead className="w-12"></TableHead>}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {listOrders.map((o) => (
+                          <TableRow key={o.id}>
+                            <TableCell className="font-mono text-xs">{o.shipping_reference || o.id.slice(0, 8)}</TableCell>
+                            <TableCell>{o.customer_name}</TableCell>
+                            <TableCell dir="ltr" className="text-right">{o.phone}</TableCell>
+                            <TableCell>{o.matched_zone_name || o.city}</TableCell>
+                            {openList?.status === "open" && (
+                              <TableCell>
+                                <Button size="sm" variant="ghost" onClick={() => removeFromList(o.id)}>
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </div>
 
               {openList?.status === "open" && (
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold">طلبات قيد الانتظار المتاحة ({pendingOrders.length})</h4>
-                    <Button size="sm" onClick={addOrdersToList} disabled={selectedToAdd.length === 0}>
-                      <Plus className="w-4 h-4 ml-1" /> إضافة المحدد ({selectedToAdd.length})
-                    </Button>
-                  </div>
-                  {pendingOrders.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">لا توجد طلبات قيد الانتظار متاحة</p>
-                  ) : (
-                    <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {pendingOrders.map((o) => (
-                        <label key={o.id} className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-accent text-sm">
-                          <Checkbox
-                            checked={selectedToAdd.includes(o.id)}
-                            onCheckedChange={(c) => setSelectedToAdd((p) => c ? [...p, o.id] : p.filter((x) => x !== o.id))}
+                  {(() => {
+                    const q = search.trim().toLowerCase();
+                    const filtered = q
+                      ? pendingOrders.filter((o) =>
+                          (o.customer_name || "").toLowerCase().includes(q) ||
+                          (o.phone || "").toLowerCase().includes(q) ||
+                          (o.city || "").toLowerCase().includes(q) ||
+                          (o.matched_zone_name || "").toLowerCase().includes(q) ||
+                          (o.shipping_reference || "").toLowerCase().includes(q) ||
+                          o.id.toLowerCase().includes(q)
+                        )
+                      : pendingOrders;
+                    const allSelected = filtered.length > 0 && filtered.every((o) => selectedToAdd.includes(o.id));
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                          <h4 className="font-semibold">طلبات قيد الانتظار ({filtered.length})</h4>
+                          <Button size="sm" onClick={addOrdersToList} disabled={selectedToAdd.length === 0 || adding}>
+                            {adding ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Plus className="w-4 h-4 ml-1" />}
+                            إضافة المحدد ({selectedToAdd.length})
+                          </Button>
+                        </div>
+                        <div className="relative mb-2">
+                          <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="بحث: الاسم، الهاتف، المدينة، كود الطلب..."
+                            className="pr-8"
                           />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{o.customer_name} — {o.phone}</p>
-                            <p className="text-xs text-muted-foreground truncate">{o.product_name} | {o.matched_zone_name || o.city}</p>
+                        </div>
+                        {filtered.length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-3 text-center">لا توجد طلبات مطابقة</p>
+                        ) : (
+                          <div className="border rounded max-h-96 overflow-y-auto">
+                            <Table>
+                              <TableHeader className="sticky top-0 bg-background z-10">
+                                <TableRow>
+                                  <TableHead className="w-10">
+                                    <Checkbox
+                                      checked={allSelected}
+                                      onCheckedChange={(c) => {
+                                        const ids = filtered.map((o) => o.id);
+                                        setSelectedToAdd((p) =>
+                                          c ? Array.from(new Set([...p, ...ids])) : p.filter((x) => !ids.includes(x))
+                                        );
+                                      }}
+                                    />
+                                  </TableHead>
+                                  <TableHead className="text-right">كود الطلب</TableHead>
+                                  <TableHead className="text-right">اسم الزبون</TableHead>
+                                  <TableHead className="text-right">رقم الهاتف</TableHead>
+                                  <TableHead className="text-right">المدينة</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filtered.map((o) => {
+                                  const checked = selectedToAdd.includes(o.id);
+                                  const toggle = () =>
+                                    setSelectedToAdd((p) => checked ? p.filter((x) => x !== o.id) : [...p, o.id]);
+                                  return (
+                                    <TableRow
+                                      key={o.id}
+                                      data-state={checked ? "selected" : undefined}
+                                      className="cursor-pointer"
+                                      onClick={toggle}
+                                    >
+                                      <TableCell onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox checked={checked} onCheckedChange={toggle} />
+                                      </TableCell>
+                                      <TableCell className="font-mono text-xs">{o.shipping_reference || o.id.slice(0, 8)}</TableCell>
+                                      <TableCell>{o.customer_name}</TableCell>
+                                      <TableCell dir="ltr" className="text-right">{o.phone}</TableCell>
+                                      <TableCell>{o.matched_zone_name || o.city}</TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
                           </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
