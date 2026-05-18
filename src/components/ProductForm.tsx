@@ -778,6 +778,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       onChange={(e) => updateVariantQty(key, e.target.value)}
                       placeholder="الكمية"
                       className="w-full"
+                      disabled={readOnlyStock}
+                      title={readOnlyStock ? "تعديل الكميات من صفحة المخزون فقط" : undefined}
                     />
                   </div>
                   {product.warehouseLinked !== false && (
@@ -855,9 +857,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               value={product.stock}
               onChange={(e) => updateField("stock", e.target.value)}
               placeholder="0"
+              disabled={readOnlyStock}
+              title={readOnlyStock ? "تعديل الكميات من صفحة المخزون فقط" : undefined}
             />
             <p className="text-xs text-muted-foreground">
-              عدد القطع المتوفرة من هذا المنتج (عند عدم وجود متغيرات)
+              {readOnlyStock ? "تعديل الكميات يتم من صفحة المخزون فقط." : "عدد القطع المتوفرة من هذا المنتج (عند عدم وجود متغيرات)"}
             </p>
           </div>
         )}
