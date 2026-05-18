@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import DashboardLayout from "./components/DashboardLayout";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Products = lazy(() => import("./pages/Products"));
@@ -76,6 +77,7 @@ const App = () => {
         <TooltipProvider>
         <Toaster />
         <Sonner />
+        <PWAInstallPrompt />
         <BrowserRouter>
           <Suspense fallback={<PageFallback />}>
             <Routes>

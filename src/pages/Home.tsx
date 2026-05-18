@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, BarChart3, Truck, CreditCard, Layers, ShieldCheck, ArrowLeft, Sparkles } from "lucide-react";
+import { PWAInstallButton } from "@/components/PWAInstallPrompt";
 
 const features = [
   { title: "صفحات هبوط احترافية", desc: "أنشئ صفحات منتجات جذابة تحوّل الزوار إلى عملاء.", icon: ShoppingCart },
@@ -21,12 +22,15 @@ export default function Home() {
             <div className="w-7 h-7 rounded-md bg-foreground text-background grid place-items-center font-display text-sm">و</div>
             <span className="font-display text-lg">وصلة</span>
           </div>
-          <Link to="/login">
+          <div className="flex items-center gap-2">
+            <PWAInstallButton className="h-9 rounded-md hidden sm:inline-flex" />
+            <Link to="/login">
             <Button variant="default" className="h-9 gap-2 rounded-md font-medium bg-foreground hover:bg-foreground/90 text-background">
               تسجيل الدخول
               <ArrowLeft className="w-4 h-4" />
             </Button>
-          </Link>
+            </Link>
+          </div>
         </div>
       </header>
 
