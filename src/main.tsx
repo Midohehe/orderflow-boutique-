@@ -14,7 +14,18 @@ createRoot(document.getElementById("root")!).render(<App />);
   const host = window.location.hostname;
   const isPreview = host.includes("lovableproject.com") || host.includes("lovable.app") && host.includes("id-preview");
   if (inIframe || isPreview) {
-    navigator.serviceWorker?.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+    (async () => {
+      try {
+        const rs = await navigator.serviceWorker?.getRegistrations();
+        const had = rs && rs.length > 0;
+        await Promise.all((rs || []).map((r) => r.unregister()));
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+        if (had) location.reload();
+      } catch {}
+    })();
     return;
   }
   if ("serviceWorker" in navigator) {
