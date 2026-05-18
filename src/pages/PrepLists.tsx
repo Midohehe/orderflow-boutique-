@@ -225,14 +225,11 @@ export default function PrepLists() {
       </div>
 
       <Card>
-        <CardContent className="p-4 flex gap-2 items-end">
-          <div className="flex-1">
-            <label className="text-sm mb-1 block">اسم القائمة الجديدة</label>
-            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="مثال: قائمة 2026/05/18" />
-          </div>
-          <Button onClick={createList} disabled={creating || !newName.trim()}>
+        <CardContent className="p-4 flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">سيتم إنشاء قائمة جديدة باسم تلقائي</p>
+          <Button onClick={createList} disabled={creating}>
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 ml-1" />}
-            إنشاء قائمة
+            إنشاء قائمة جديدة
           </Button>
         </CardContent>
       </Card>
