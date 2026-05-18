@@ -85,6 +85,8 @@ interface ProductFormProps {
    */
   mode?: "product" | "landing";
   categories?: Array<{ id: string; name: string }>;
+  /** عند true يتم تعطيل تعديل كميات المخزون (تعديل من صفحة المخزون فقط) */
+  readOnlyStock?: boolean;
 }
 
 // Build variant keys from colors/sizes/codes (same logic used in inventory page)
@@ -185,10 +187,28 @@ const TagsField = ({
   );
 };
 
-const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [] }: ProductFormProps) => {
+const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
+  };
+
+  // توليد SKU تلقائي لجميع المتغيرات
+  const autoGenerateSkus = (overwrite: boolean) => {
+    const keys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
+    if (keys.length === 0) return;
+    const base = (product.name || "SKU")
+      .replace(/[\u064B-\u0652\u0670]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "")
+      .toUpperCase()
+      .slice(0, 4) || "SKU";
+    const next: Record<string, string> = { ...(product.variantSkus || {}) };
+    keys.forEach((k, idx) => {
+      if (!overwrite && next[k]) return;
+      const rand = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+      next[k] = `${base}-${String(idx + 1).padStart(2, "0")}-${rand}`;
+    });
+    onProductChange({ ...product, variantSkus: next });
   };
 
   const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null }>>([]);
