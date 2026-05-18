@@ -334,6 +334,7 @@ export default function PrepLists() {
                           (o.phone || "").toLowerCase().includes(q) ||
                           (o.city || "").toLowerCase().includes(q) ||
                           (o.matched_zone_name || "").toLowerCase().includes(q) ||
+                          (o.order_code || "").toLowerCase().includes(q) ||
                           (o.shipping_reference || "").toLowerCase().includes(q) ||
                           o.id.toLowerCase().includes(q)
                         )
@@ -396,7 +397,7 @@ export default function PrepLists() {
                                       <TableCell onClick={(e) => e.stopPropagation()}>
                                         <Checkbox checked={checked} onCheckedChange={toggle} />
                                       </TableCell>
-                                      <TableCell className="font-mono text-xs">{o.shipping_reference || o.id.slice(0, 8)}</TableCell>
+                                      <TableCell className="font-mono text-xs">{o.order_code || o.shipping_reference || o.id.slice(0, 8)}</TableCell>
                                       <TableCell>{o.customer_name}</TableCell>
                                       <TableCell dir="ltr" className="text-right">{o.phone}</TableCell>
                                       <TableCell>{o.matched_zone_name || o.city}</TableCell>
