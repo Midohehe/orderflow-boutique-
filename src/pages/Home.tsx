@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, BarChart3, Truck, CreditCard, Layers, ShieldCheck, ArrowLeft, Sparkles } from "lucide-react";
+import { PWAInstallButton } from "@/components/PWAInstallPrompt";
 
 const features = [
   { title: "صفحات هبوط احترافية", desc: "أنشئ صفحات منتجات جذابة تحوّل الزوار إلى عملاء.", icon: ShoppingCart },
