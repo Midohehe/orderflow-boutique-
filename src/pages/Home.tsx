@@ -23,7 +23,7 @@ export default function Home() {
             <span className="font-display text-lg">وصلة</span>
           </div>
           <div className="flex items-center gap-2">
-            <PWAInstallButton className="h-9 rounded-md hidden sm:inline-flex" />
+            <PWAInstallButton className="h-9 rounded-md" />
             <Link to="/login">
             <Button variant="default" className="h-9 gap-2 rounded-md font-medium bg-foreground hover:bg-foreground/90 text-background">
               تسجيل الدخول
