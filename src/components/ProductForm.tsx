@@ -85,6 +85,8 @@ interface ProductFormProps {
    */
   mode?: "product" | "landing";
   categories?: Array<{ id: string; name: string }>;
+  /** عند true يتم تعطيل تعديل كميات المخزون (تعديل من صفحة المخزون فقط) */
+  readOnlyStock?: boolean;
 }
 
 // Build variant keys from colors/sizes/codes (same logic used in inventory page)
@@ -185,10 +187,28 @@ const TagsField = ({
   );
 };
 
-const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [] }: ProductFormProps) => {
+const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
+  };
+
+  // توليد SKU تلقائي لجميع المتغيرات
+  const autoGenerateSkus = (overwrite: boolean) => {
+    const keys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
+    if (keys.length === 0) return;
+    const base = (product.name || "SKU")
+      .replace(/[\u064B-\u0652\u0670]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "")
+      .toUpperCase()
+      .slice(0, 4) || "SKU";
+    const next: Record<string, string> = { ...(product.variantSkus || {}) };
+    keys.forEach((k, idx) => {
+      if (!overwrite && next[k]) return;
+      const rand = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+      next[k] = `${base}-${String(idx + 1).padStart(2, "0")}-${rand}`;
+    });
+    onProductChange({ ...product, variantSkus: next });
   };
 
   const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null }>>([]);
@@ -437,6 +457,27 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-xs text-muted-foreground">يمكنك إنشاء الأقسام من تبويب «الأقسام»</p>
           </div>
         </div>
+        {hasVariants && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
+            <Button
+              type="button"
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+              onClick={() => autoGenerateSkus(false)}
+            >
+              إنشاء الأكواد تلقائياً
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => autoGenerateSkus(true)}
+            >
+              إعادة إنشاء (استبدال الكل)
+            </Button>
+            <p className="text-[11px] text-muted-foreground">يقوم النظام بتوليد SKU فريد لكل متغير تلقائياً.</p>
+          </div>
+        )}
       </SectionCard>
 
       {/* Pricing */}
@@ -737,6 +778,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                       onChange={(e) => updateVariantQty(key, e.target.value)}
                       placeholder="الكمية"
                       className="w-full"
+                      disabled={readOnlyStock}
+                      title={readOnlyStock ? "تعديل الكميات من صفحة المخزون فقط" : undefined}
                     />
                   </div>
                   {product.warehouseLinked !== false && (
@@ -814,9 +857,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               value={product.stock}
               onChange={(e) => updateField("stock", e.target.value)}
               placeholder="0"
+              disabled={readOnlyStock}
+              title={readOnlyStock ? "تعديل الكميات من صفحة المخزون فقط" : undefined}
             />
             <p className="text-xs text-muted-foreground">
-              عدد القطع المتوفرة من هذا المنتج (عند عدم وجود متغيرات)
+              {readOnlyStock ? "تعديل الكميات يتم من صفحة المخزون فقط." : "عدد القطع المتوفرة من هذا المنتج (عند عدم وجود متغيرات)"}
             </p>
           </div>
         )}
