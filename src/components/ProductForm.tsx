@@ -246,6 +246,30 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   const hasVariants = variantKeys.length > 0;
   const hasColorOrSize = !!(product.colors?.trim() || product.sizes?.trim());
 
+  // Toggle: does this product have variants (colors/sizes) or is it a single-SKU product?
+  const [variantsEnabled, setVariantsEnabled] = useState<boolean>(
+    !!(product.colors?.trim() || product.sizes?.trim())
+  );
+  useEffect(() => {
+    if (product.colors?.trim() || product.sizes?.trim()) setVariantsEnabled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.colors, product.sizes]);
+
+  const toggleVariants = (enabled: boolean) => {
+    setVariantsEnabled(enabled);
+    if (enabled) {
+      // switching to variants → clear single product code
+      if (product.productCodes?.trim()) {
+        onProductChange({ ...product, productCodes: "" });
+      }
+    } else {
+      // switching to single SKU → clear colors/sizes
+      if (product.colors?.trim() || product.sizes?.trim()) {
+        onProductChange({ ...product, colors: "", sizes: "" });
+      }
+    }
+  };
+
   // Normalize Arabic for matching
   const norm = (s: string) => (s || "").toString().trim()
     .replace(/[\u064B-\u0652\u0670]/g, "")
@@ -457,27 +481,6 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-xs text-muted-foreground">يمكنك إنشاء الأقسام من تبويب «الأقسام»</p>
           </div>
         </div>
-        {hasVariants && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
-            <Button
-              type="button"
-              size="sm"
-              className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
-              onClick={() => autoGenerateSkus(false)}
-            >
-              إنشاء الأكواد تلقائياً
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => autoGenerateSkus(true)}
-            >
-              إعادة إنشاء (استبدال الكل)
-            </Button>
-            <p className="text-[11px] text-muted-foreground">يقوم النظام بتوليد SKU فريد لكل متغير تلقائياً.</p>
-          </div>
-        )}
       </SectionCard>
 
       {/* Pricing */}
@@ -553,40 +556,74 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {!hasColorOrSize && (
-            <div className="space-y-2">
-              <Label className="font-semibold">أكواد المنتج</Label>
-              <Input
-                value={product.productCodes}
-                onChange={(e) => updateField("productCodes", e.target.value)}
-                placeholder="SKU-001, SKU-002"
-                dir="ltr"
-                className="text-left font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground">يُستخدم فقط عند عدم وجود ألوان ومقاسات</p>
-            </div>
-          )}
-          <div className="space-y-2">
-            <TagsField
-              label="الألوان المتاحة"
-              value={product.colors}
-              onChange={(v) => updateField("colors", v)}
-              placeholder="أحمر"
-            />
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border-2 border-dashed bg-muted/40">
+          <div className="flex-1 min-w-0">
+            <Label className="block font-semibold">المنتج يحتوي على متغيرات</Label>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              فعّل هذا الخيار إذا كان المنتج يأتي بألوان أو مقاسات متعددة. عند الإيقاف يُستخدم كود (SKU) واحد للمنتج كاملاً.
+            </p>
           </div>
-          <div className="space-y-2">
-            <TagsField
-              label="المقاسات المتاحة"
-              value={product.sizes}
-              onChange={(v) => updateField("sizes", v)}
-              placeholder="XL"
-            />
-          </div>
+          <Switch checked={variantsEnabled} onCheckedChange={toggleVariants} />
         </div>
-        <p className="text-xs text-muted-foreground">
-          اكتب المتغير واضغط Enter لإضافته. يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
-        </p>
+
+        {variantsEnabled ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <TagsField
+                  label="الألوان المتاحة"
+                  value={product.colors}
+                  onChange={(v) => updateField("colors", v)}
+                  placeholder="أحمر"
+                />
+              </div>
+              <div className="space-y-2">
+                <TagsField
+                  label="المقاسات المتاحة"
+                  value={product.sizes}
+                  onChange={(v) => updateField("sizes", v)}
+                  placeholder="XL"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              اكتب المتغير واضغط Enter لإضافته. يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
+            </p>
+            {hasVariants && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+                  onClick={() => autoGenerateSkus(false)}
+                >
+                  إنشاء الأكواد تلقائياً
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => autoGenerateSkus(true)}
+                >
+                  إعادة إنشاء (استبدال الكل)
+                </Button>
+                <p className="text-[11px] text-muted-foreground">يقوم النظام بتوليد SKU فريد لكل متغير تلقائياً.</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-2">
+            <Label className="font-semibold">كود المنتج (SKU)</Label>
+            <Input
+              value={product.productCodes}
+              onChange={(e) => updateField("productCodes", e.target.value.replace(/,.*$/, ""))}
+              placeholder="SKU-001"
+              dir="ltr"
+              className="text-left font-mono"
+            />
+            <p className="text-[11px] text-muted-foreground">كود واحد للمنتج كاملاً (بدون متغيرات).</p>
+          </div>
+        )}
       </SectionCard>
 
       {/* Upsell Offers */}
