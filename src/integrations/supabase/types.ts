@@ -823,6 +823,7 @@ export type Database = {
           matched_area_name: string | null
           matched_zone_id: number | null
           matched_zone_name: string | null
+          order_code: string | null
           owner_id: string
           phone: string
           postponed_until: string | null
@@ -872,6 +873,7 @@ export type Database = {
           matched_area_name?: string | null
           matched_zone_id?: number | null
           matched_zone_name?: string | null
+          order_code?: string | null
           owner_id: string
           phone: string
           postponed_until?: string | null
@@ -921,6 +923,7 @@ export type Database = {
           matched_area_name?: string | null
           matched_zone_id?: number | null
           matched_zone_name?: string | null
+          order_code?: string | null
           owner_id?: string
           phone?: string
           postponed_until?: string | null
@@ -2508,6 +2511,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      generate_order_code: { Args: never; Returns: string }
       generate_recharge_cards: {
         Args: { _count: number; _label?: string; _value: number }
         Returns: Json

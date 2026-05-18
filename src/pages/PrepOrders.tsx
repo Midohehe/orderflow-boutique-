@@ -25,6 +25,7 @@ type LoadedOrder = {
   customer_name: string;
   phone: string;
   shipping_reference: string | null;
+  order_code: string | null;
   status: string;
   items: OrderItemRow[];
 };
@@ -50,29 +51,16 @@ export default function PrepOrders() {
     setSearching(true);
     setOrder(null);
     const code = shipCode.trim();
-    const base = supabase
+    // Match by unified order_code (case-insensitive), fallback to shipping_reference
+    const upper = code.toUpperCase();
+    let { data: orders, error } = await supabase
       .from("orders")
-      .select("id, customer_name, phone, shipping_reference, status")
+      .select("id, customer_name, phone, shipping_reference, order_code, status")
       .eq("store_id", activeStoreId)
       .eq("prep_status", "preparing")
-      .eq("is_deleted", false);
-    // First try shipping_reference exact match
-    let { data: orders, error } = await base.eq("shipping_reference", code).limit(1);
-    // Fallback: if user scanned the 8-char id prefix shown in prep list
-    if (!error && (!orders || orders.length === 0) && /^[0-9a-fA-F]{8}$/.test(code)) {
-      const all = await supabase
-        .from("orders")
-        .select("id, customer_name, phone, shipping_reference, status")
-        .eq("store_id", activeStoreId)
-        .eq("prep_status", "preparing")
-        .eq("is_deleted", false);
-      if (all.error) { error = all.error; }
-      else {
-        orders = (all.data || []).filter((o: any) =>
-          String(o.id).toLowerCase().startsWith(code.toLowerCase())
-        ).slice(0, 1);
-      }
-    }
+      .eq("is_deleted", false)
+      .or(`order_code.eq.${upper},shipping_reference.eq.${code}`)
+      .limit(1);
     if (error) {
       setSearching(false);
       return toast({ title: "خطأ", description: error.message, variant: "destructive" });
@@ -189,7 +177,7 @@ export default function PrepOrders() {
               <div>
                 <h3 className="font-bold">{order.customer_name}</h3>
                 <p className="text-sm text-muted-foreground">{order.phone}</p>
-                <Badge variant="outline" className="mt-1 font-mono">{order.shipping_reference}</Badge>
+                <Badge variant="outline" className="mt-1 font-mono">{order.order_code || order.shipping_reference}</Badge>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setOrder(null)}><X className="w-4 h-4" /></Button>
             </div>

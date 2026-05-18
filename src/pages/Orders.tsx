@@ -47,6 +47,7 @@ interface Order {
   quantity?: number;
   shipping_included?: boolean;
   shipping_reference?: string | null;
+  order_code?: string | null;
   matched_zone_name?: string | null;
   matched_area_name?: string | null;
   shipping_error?: string | null;
@@ -85,7 +86,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -1175,9 +1176,9 @@ const Orders = () => {
               <div className="flex items-center gap-4 flex-wrap">
                 <span className="text-foreground">{isolateLatin(order.product_name)}</span>
                 <span className="text-primary font-bold">{order.price} {currencySymbol}</span>
-                {order.shipping_reference && (
+                {order.order_code && (
                   <Badge variant="outline" className="font-mono">
-                    كود الشحن: {order.shipping_reference}
+                    كود الشحنة: {order.order_code}
                   </Badge>
                 )}
                 {order.shipping_reference && (

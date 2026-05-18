@@ -32,6 +32,7 @@ type OrderLite = {
   quantity: number;
   status: string;
   shipping_reference: string | null;
+  order_code: string | null;
   matched_zone_name: string | null;
   matched_area_name: string | null;
   selected_color: string | null;
@@ -138,12 +139,12 @@ export default function PrepLists() {
     const [{ data: linked }, { data: pending }] = await Promise.all([
       supabase
         .from("prep_list_orders")
-        .select("order_id, orders:order_id(id, customer_name, phone, city, address, product_name, price, quantity, status, shipping_reference, matched_zone_name, matched_area_name, selected_color, selected_size, selected_product_code, carrier_status, created_at)")
+        .select("order_id, orders:order_id(id, customer_name, phone, city, address, product_name, price, quantity, status, shipping_reference, order_code, matched_zone_name, matched_area_name, selected_color, selected_size, selected_product_code, carrier_status, created_at)")
         .eq("list_id", l.id),
       l.status === "open"
         ? supabase
             .from("orders")
-            .select("id, customer_name, phone, city, address, product_name, price, quantity, status, shipping_reference, matched_zone_name, matched_area_name, selected_color, selected_size, selected_product_code, carrier_status, created_at")
+            .select("id, customer_name, phone, city, address, product_name, price, quantity, status, shipping_reference, order_code, matched_zone_name, matched_area_name, selected_color, selected_size, selected_product_code, carrier_status, created_at")
             .eq("store_id", activeStoreId)
             .eq("status", "pending")
             .eq("is_deleted", false)
@@ -304,7 +305,7 @@ export default function PrepLists() {
                       <TableBody>
                         {listOrders.map((o) => (
                           <TableRow key={o.id}>
-                            <TableCell className="font-mono text-xs">{o.shipping_reference || o.id.slice(0, 8)}</TableCell>
+                            <TableCell className="font-mono text-xs">{o.order_code || o.shipping_reference || o.id.slice(0, 8)}</TableCell>
                             <TableCell>{o.customer_name}</TableCell>
                             <TableCell dir="ltr" className="text-right">{o.phone}</TableCell>
                             <TableCell>{o.matched_zone_name || o.city}</TableCell>
@@ -333,6 +334,7 @@ export default function PrepLists() {
                           (o.phone || "").toLowerCase().includes(q) ||
                           (o.city || "").toLowerCase().includes(q) ||
                           (o.matched_zone_name || "").toLowerCase().includes(q) ||
+                          (o.order_code || "").toLowerCase().includes(q) ||
                           (o.shipping_reference || "").toLowerCase().includes(q) ||
                           o.id.toLowerCase().includes(q)
                         )
@@ -395,7 +397,7 @@ export default function PrepLists() {
                                       <TableCell onClick={(e) => e.stopPropagation()}>
                                         <Checkbox checked={checked} onCheckedChange={toggle} />
                                       </TableCell>
-                                      <TableCell className="font-mono text-xs">{o.shipping_reference || o.id.slice(0, 8)}</TableCell>
+                                      <TableCell className="font-mono text-xs">{o.order_code || o.shipping_reference || o.id.slice(0, 8)}</TableCell>
                                       <TableCell>{o.customer_name}</TableCell>
                                       <TableCell dir="ltr" className="text-right">{o.phone}</TableCell>
                                       <TableCell>{o.matched_zone_name || o.city}</TableCell>
