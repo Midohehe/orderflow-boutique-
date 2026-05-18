@@ -318,6 +318,13 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
           </div>
           <Switch checked={!!data.isVisible} onCheckedChange={(v) => update("isVisible", v)} />
         </div>
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
+          <div className="flex-1 min-w-0">
+            <Label className="block font-semibold">نموذج الطلب في الأعلى</Label>
+            <p className="text-xs text-muted-foreground mt-1">عند التفعيل يظهر نموذج الطلب قبل صور المنتج في بداية الصفحة</p>
+          </div>
+          <Switch checked={!!data.orderFormOnTop} onCheckedChange={(v) => update("orderFormOnTop", v)} />
+        </div>
       </SectionCard>
 
       <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/95 backdrop-blur border-t shadow-lg">
