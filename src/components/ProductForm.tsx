@@ -246,6 +246,30 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   const hasVariants = variantKeys.length > 0;
   const hasColorOrSize = !!(product.colors?.trim() || product.sizes?.trim());
 
+  // Toggle: does this product have variants (colors/sizes) or is it a single-SKU product?
+  const [variantsEnabled, setVariantsEnabled] = useState<boolean>(
+    !!(product.colors?.trim() || product.sizes?.trim())
+  );
+  useEffect(() => {
+    if (product.colors?.trim() || product.sizes?.trim()) setVariantsEnabled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.colors, product.sizes]);
+
+  const toggleVariants = (enabled: boolean) => {
+    setVariantsEnabled(enabled);
+    if (enabled) {
+      // switching to variants → clear single product code
+      if (product.productCodes?.trim()) {
+        onProductChange({ ...product, productCodes: "" });
+      }
+    } else {
+      // switching to single SKU → clear colors/sizes
+      if (product.colors?.trim() || product.sizes?.trim()) {
+        onProductChange({ ...product, colors: "", sizes: "" });
+      }
+    }
+  };
+
   // Normalize Arabic for matching
   const norm = (s: string) => (s || "").toString().trim()
     .replace(/[\u064B-\u0652\u0670]/g, "")
@@ -457,27 +481,6 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-xs text-muted-foreground">يمكنك إنشاء الأقسام من تبويب «الأقسام»</p>
           </div>
         </div>
-        {hasVariants && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-2">
-            <Button
-              type="button"
-              size="sm"
-              className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
-              onClick={() => autoGenerateSkus(false)}
-            >
-              إنشاء الأكواد تلقائياً
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => autoGenerateSkus(true)}
-            >
-              إعادة إنشاء (استبدال الكل)
-            </Button>
-            <p className="text-[11px] text-muted-foreground">يقوم النظام بتوليد SKU فريد لكل متغير تلقائياً.</p>
-          </div>
-        )}
       </SectionCard>
 
       {/* Pricing */}
