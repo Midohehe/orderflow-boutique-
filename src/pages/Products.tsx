@@ -377,6 +377,44 @@ const Products = () => {
         throw error;
       }
 
+      // إنشاء حركات مخزون افتتاحية (opening_stock) لكل كمية مُدخلة عند الإنشاء
+      try {
+        const openingRows: any[] = [];
+        if (variantKeys.length > 0) {
+          variantKeys.forEach((k) => {
+            const q = Number(variantStockNum[k] || 0);
+            if (q > 0) {
+              openingRows.push({
+                owner_id: user!.id,
+                product_id: data.id,
+                product_name: newProduct.name,
+                variant_key: k,
+                warehouse_code: null,
+                qty: q,
+                reason: "opening_stock",
+                notes: "كمية افتتاحية عند إنشاء المنتج",
+              });
+            }
+          });
+        } else if (stockNum > 0) {
+          openingRows.push({
+            owner_id: user!.id,
+            product_id: data.id,
+            product_name: newProduct.name,
+            variant_key: null,
+            warehouse_code: null,
+            qty: stockNum,
+            reason: "opening_stock",
+            notes: "كمية افتتاحية عند إنشاء المنتج",
+          });
+        }
+        if (openingRows.length > 0) {
+          await (supabase as any).from("stock_movements").insert(openingRows);
+        }
+      } catch (openErr) {
+        console.warn("Opening stock movement insert failed", openErr);
+      }
+
       // Add to list directly without refetching
       const newProductData: Product = {
         id: data.id,
