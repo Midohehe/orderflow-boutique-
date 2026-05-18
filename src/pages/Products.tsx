@@ -1201,7 +1201,7 @@ const Products = () => {
       </Dialog>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 max-w-md">
+        <TabsList className="grid grid-cols-3 max-w-xl">
           <TabsTrigger value="products" className="gap-2">
             <Package className="w-4 h-4" />
             المنتجات ({products.length})
@@ -1210,20 +1210,46 @@ const Products = () => {
             <Layout className="w-4 h-4" />
             صفحات الهبوط ({landingPages.length})
           </TabsTrigger>
+          <TabsTrigger value="categories" className="gap-2">
+            <FolderTree className="w-4 h-4" />
+            الأقسام ({categories.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="mt-6">
+      {/* Category filter */}
+      {categories.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <FolderTree className="w-4 h-4 text-muted-foreground" />
+          <Select value={productFilterCategory} onValueChange={setProductFilterCategory}>
+            <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">كل الأقسام ({products.length})</SelectItem>
+              <SelectItem value="__none__">بدون قسم ({productCountByCategory["__none__"] || 0})</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name} ({productCountByCategory[c.id] || 0})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {/* Products Grid */}
-      {products.length === 0 ? (
+      {(() => {
+        const filteredProducts = productFilterCategory === "__all__"
+          ? products
+          : productFilterCategory === "__none__"
+            ? products.filter((p) => !p.category_id)
+            : products.filter((p) => p.category_id === productFilterCategory);
+        return filteredProducts.length === 0 ? (
         <Card className="card-shadow">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="w-16 h-16 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">لا توجد منتجات حالياً</p>
+            <p className="text-muted-foreground">{products.length === 0 ? "لا توجد منتجات حالياً" : "لا توجد منتجات في هذا القسم"}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
+          {filteredProducts.map((product) => (
             <Card key={product.id} className={`card-shadow overflow-hidden animate-slide-up ${!product.is_visible ? 'opacity-60' : ''}`}>
               <div className="aspect-video relative overflow-hidden bg-muted">
                 {product.images[0] ? (
