@@ -895,6 +895,10 @@ const Orders = () => {
       const cs = (o.confirmation_status as ConfirmationStatus | null) || "unconfirmed";
       if (cs !== confirmationFilter) return false;
     }
+    if (prepFilter !== "all") {
+      const ps = (o.prep_status as any) || "pending";
+      if (ps !== prepFilter) return false;
+    }
     if (pendingDateFrom) {
       const from = new Date(pendingDateFrom);
       from.setHours(0, 0, 0, 0);
