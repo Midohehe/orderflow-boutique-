@@ -1344,21 +1344,56 @@ const Products = () => {
             </Card>
           ))}
         </div>
-      )}
+      );
+      })()}
         </TabsContent>
 
         <TabsContent value="landing" className="mt-6">
-          {enrichedLandingPages.length === 0 ? (
+          {(landingPages.length > 0) && (
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <Select value={lpFilterCategory} onValueChange={setLpFilterCategory}>
+                <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="فلتر القسم" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">كل الأقسام</SelectItem>
+                  <SelectItem value="__none__">بدون قسم</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={lpFilterProduct} onValueChange={setLpFilterProduct}>
+                <SelectTrigger className="w-full sm:w-72"><SelectValue placeholder="فلتر المنتج" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">كل المنتجات</SelectItem>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {(() => {
+            const filteredLps = enrichedLandingPages.filter((lp) => {
+              if (lpFilterProduct !== "__all__" && lp.product_id !== lpFilterProduct) return false;
+              if (lpFilterCategory !== "__all__") {
+                const prod = products.find((p) => p.id === lp.product_id);
+                const cat = prod?.category_id || null;
+                if (lpFilterCategory === "__none__") { if (cat) return false; }
+                else if (cat !== lpFilterCategory) return false;
+              }
+              return true;
+            });
+            return filteredLps.length === 0 ? (
             <Card className="card-shadow">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Layout className="w-16 h-16 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-2">لا توجد صفحات هبوط بعد</p>
+              <p className="text-muted-foreground mb-2">{enrichedLandingPages.length === 0 ? "لا توجد صفحات هبوط بعد" : "لا توجد نتائج بهذا الفلتر"}</p>
                 <p className="text-xs text-muted-foreground">اضغط «إنشاء صفحة هبوط» لإنشاء صفحة جديدة مرتبطة بأحد منتجاتك</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {enrichedLandingPages.map((lp) => (
+              {filteredLps.map((lp) => (
                 <Card key={lp.id} className={`card-shadow overflow-hidden ${!lp.is_visible ? 'opacity-60' : ''}`}>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start gap-3">
@@ -1421,7 +1456,62 @@ const Products = () => {
                 </Card>
               ))}
             </div>
-          )}
+          );
+          })()}
+        </TabsContent>
+
+        <TabsContent value="categories" className="mt-6">
+          <Card className="card-shadow">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCategory(); } }}
+                  placeholder="اسم القسم الجديد (مثال: ملابس رجالية)"
+                />
+                <Button onClick={handleAddCategory} className="gradient-primary text-primary-foreground gap-2">
+                  <Plus className="w-4 h-4" />
+                  إضافة قسم
+                </Button>
+              </div>
+              {categories.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">لا توجد أقسام بعد</div>
+              ) : (
+                <div className="divide-y border rounded-lg">
+                  {categories.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 p-3">
+                      <FolderTree className="w-4 h-4 text-muted-foreground shrink-0" />
+                      {editingCategoryId === c.id ? (
+                        <Input
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameCategory(c.id); } }}
+                          className="flex-1"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="flex-1 font-medium">{c.name}</span>
+                      )}
+                      <Badge variant="secondary" className="text-xs">{productCountByCategory[c.id] || 0} منتج</Badge>
+                      {editingCategoryId === c.id ? (
+                        <Button size="sm" onClick={() => handleRenameCategory(c.id)} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                          <Save className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => { setEditingCategoryId(c.id); setEditingCategoryName(c.name); }}>
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white" onClick={() => setDeleteCategoryTarget(c)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
