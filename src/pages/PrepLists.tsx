@@ -44,7 +44,6 @@ export default function PrepLists() {
   const { activeStoreId } = useStoreContext();
   const [lists, setLists] = useState<PrepList[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [openList, setOpenList] = useState<PrepList | null>(null);
   const [listOrders, setListOrders] = useState<OrderLite[]>([]);
@@ -103,17 +102,19 @@ export default function PrepLists() {
   }, [activeStoreId]);
 
   const createList = async () => {
-    if (!newName.trim() || !activeStoreId) return;
+    if (!activeStoreId) return;
     setCreating(true);
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id;
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const autoName = `قائمة ${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
     const { error } = await supabase.from("prep_lists").insert({
-      name: newName.trim(), store_id: activeStoreId, owner_id: uid, created_by: uid,
+      name: autoName, store_id: activeStoreId, owner_id: uid, created_by: uid,
     } as any);
     setCreating(false);
     if (error) return toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    setNewName("");
-    toast({ title: "تم", description: "تم إنشاء القائمة" });
+    toast({ title: "تم", description: `تم إنشاء ${autoName}` });
     loadLists();
   };
 
@@ -139,11 +140,10 @@ export default function PrepLists() {
         ? supabase
             .from("orders")
             .select("id, customer_name, phone, city, address, product_name, price, quantity, status, shipping_reference, matched_zone_name, matched_area_name, selected_color, selected_size, selected_product_code, carrier_status, created_at")
-            .eq("store_id", activeStoreId)
             .eq("status", "pending")
             .eq("is_deleted", false)
             .order("created_at", { ascending: false })
-            .limit(500)
+            .limit(1000)
         : Promise.resolve({ data: [] } as any),
     ]);
     const lo = (linked || []).map((x: any) => x.orders).filter(Boolean) as OrderLite[];
