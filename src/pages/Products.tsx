@@ -811,6 +811,7 @@ const Products = () => {
             label: (o.label || "").trim(),
           }))
           .filter((o) => o.quantity > 0 && o.price > 0),
+        order_form_on_top: !!newLp.orderFormOnTop,
         is_visible: newLp.isVisible !== false,
       }).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
@@ -863,6 +864,7 @@ const Products = () => {
             label: String(o?.label ?? ""),
           }))
         : [],
+      orderFormOnTop: !!d.order_form_on_top,
       isVisible: d.is_visible !== false,
     });
   };
@@ -890,6 +892,7 @@ const Products = () => {
             label: (o.label || "").trim(),
           }))
           .filter((o) => o.quantity > 0 && o.price > 0),
+        order_form_on_top: !!editLp.orderFormOnTop,
         is_visible: editLp.isVisible !== false,
       }).eq("id", editingLpId);
       if (error) {
