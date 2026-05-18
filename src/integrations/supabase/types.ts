@@ -1070,8 +1070,39 @@ export type Database = {
         }
         Relationships: []
       }
+      product_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          sort_order: number
+          store_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          sort_order?: number
+          store_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          sort_order?: number
+          store_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
+          category_id: string | null
           colors: string[] | null
           created_at: string
           deleted_at: string | null
@@ -1102,6 +1133,7 @@ export type Database = {
           warehouse_linked: boolean
         }
         Insert: {
+          category_id?: string | null
           colors?: string[] | null
           created_at?: string
           deleted_at?: string | null
@@ -1132,6 +1164,7 @@ export type Database = {
           warehouse_linked?: boolean
         }
         Update: {
+          category_id?: string | null
           colors?: string[] | null
           created_at?: string
           deleted_at?: string | null
@@ -1161,7 +1194,15 @@ export type Database = {
           variant_warehouse_codes?: Json
           warehouse_linked?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
