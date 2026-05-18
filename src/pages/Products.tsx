@@ -159,7 +159,7 @@ const Products = () => {
         // Phase 1: lightweight metadata only (no images) — fast
         let metaQuery = supabase
           .from("products")
-          .select("id, name, slug, price, original_price, purchase_price, is_visible")
+          .select("id, name, slug, price, original_price, purchase_price, is_visible, category_id")
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
         metaQuery = metaQuery.eq("store_id", activeStoreId);
@@ -181,6 +181,7 @@ const Products = () => {
           colors: [],
           sizes: [],
           is_visible: p.is_visible ?? true,
+          category_id: p.category_id ?? null,
         }));
         setProducts(baseList);
         setIsLoading(false);
