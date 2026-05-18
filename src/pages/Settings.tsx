@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const AdminCards = lazy(() => import("./AdminCards"));
+const AdminStores = lazy(() => import("./AdminStores"));
+const PermissionGroups = lazy(() => import("./PermissionGroups"));
 
 interface ManagedUser {
   user_id: string;
@@ -154,12 +159,21 @@ const Settings = () => {
     <div className="space-y-6" dir="rtl">
       <PageHeader
         icon={SettingsIcon}
-        title="الإعدادات - إدارة المستخدمين"
-        description="إنشاء حسابات جديدة، تمديد الاشتراكات وتغيير كلمات المرور"
+        title="الإعدادات"
+        description="إدارة المستخدمين، كروت الشحن، المتاجر والصلاحيات"
         iconGradient="from-slate-600 to-slate-800"
       />
 
-      <Card>
+      <Tabs defaultValue="users" dir="rtl" className="w-full">
+        <TabsList className="flex flex-wrap h-auto">
+          <TabsTrigger value="users">المستخدمون</TabsTrigger>
+          <TabsTrigger value="cards">كروت الشحن</TabsTrigger>
+          <TabsTrigger value="stores">المتاجر</TabsTrigger>
+          <TabsTrigger value="permissions">الصلاحيات</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-6 mt-4">
+          <Card>
         <CardHeader><CardTitle>اسم النظام</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Label>اسم النظام (يظهر في صفحة تسجيل الدخول)</Label>
@@ -285,6 +299,24 @@ const Settings = () => {
           })}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="cards" className="mt-4">
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+            <AdminCards />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="stores" className="mt-4">
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+            <AdminStores />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="permissions" className="mt-4">
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+            <PermissionGroups />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
