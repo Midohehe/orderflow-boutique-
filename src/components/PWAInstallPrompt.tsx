@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
-import { Download, X } from "lucide-react";
+import { Download, X, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { toast } from "sonner";
 
 export function PWAInstallButton({ className }: { className?: string }) {
-  const { canInstall, promptInstall } = usePWAInstall();
-  if (!canInstall) return null;
+  const { canInstall, promptInstall, installed } = usePWAInstall();
+  const handleClick = async () => {
+    if (installed) {
+      toast.info("التطبيق مُثبّت بالفعل");
+      return;
+    }
+    if (!canInstall) {
+      const inIframe = window.self !== window.top;
+      toast.info(inIframe ? "التثبيت متاح فقط من الرابط المنشور (لا يعمل داخل المعاينة)" : "التثبيت غير متاح في هذا المتصفح. جرّب Chrome على Android.");
+      return;
+    }
+    await promptInstall();
+  };
   return (
-    <Button onClick={promptInstall} size="sm" className={className} variant="default">
+    <Button onClick={handleClick} size="sm" className={className} variant="default">
       <Download className="w-4 h-4 ml-2" />
-      تحميل التطبيق
+      {installed ? "مُثبّت" : "تحميل التطبيق"}
     </Button>
   );
 }
