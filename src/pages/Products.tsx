@@ -14,7 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { ProductFormData } from "@/components/ProductForm";
@@ -41,6 +43,7 @@ interface Product {
   is_visible: boolean;
   stock?: number;
   variant_stock?: Record<string, number>;
+  category_id?: string | null;
 }
 
 interface LandingPage {
@@ -80,7 +83,10 @@ const emptyFormData: ProductFormData = {
   upsellEnabled: false,
   upsellTitle: "",
   upsellOffers: [],
+  categoryId: null,
 };
+
+interface Category { id: string; name: string; sort_order?: number }
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -102,7 +108,15 @@ const Products = () => {
   const navigate = useNavigate();
 
   // ===== صفحات الهبوط =====
-  const [activeTab, setActiveTab] = useState<"products" | "landing">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "landing" | "categories">("products");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<Category | null>(null);
+  const [productFilterCategory, setProductFilterCategory] = useState<string>("__all__");
+  const [lpFilterCategory, setLpFilterCategory] = useState<string>("__all__");
+  const [lpFilterProduct, setLpFilterProduct] = useState<string>("__all__");
   const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
   const [isLpAddOpen, setIsLpAddOpen] = useState(false);
   const [isLpEditOpen, setIsLpEditOpen] = useState(false);
