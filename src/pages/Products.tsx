@@ -275,10 +275,10 @@ const Products = () => {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price) {
+    if (!newProduct.name || !newProduct.price || !newProduct.purchasePrice) {
       toast({
-        title: "خطأ",
-        description: "يرجى ملء اسم المنتج والسعر",
+        title: "حقول إلزامية ناقصة",
+        description: "يرجى ملء اسم المنتج والسعر وسعر الشراء",
         variant: "destructive",
       });
       return;
