@@ -22,8 +22,8 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
   const [c, setC] = useState(city || "");
   const [a, setA] = useState(area || "");
   const [saving, setSaving] = useState(false);
-  const [zones, setZones] = useState<Array<{ id: number; name: string }>>([]);
-  const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string }>>>({});
+  const [zones, setZones] = useState<Array<{ id: number; name: string; canonical?: string }>>([]);
+  const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string; canonical?: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
   const [loadingAreas, setLoadingAreas] = useState(false);
 
@@ -38,7 +38,16 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
       if (error || (data as any)?.error) {
         toast({ title: "تعذر جلب المدن", description: (data as any)?.error || error?.message, variant: "destructive" });
       } else {
-        setZones(((data as any)?.zones || []).sort((a: any, b: any) => a.name.localeCompare(b.name, "ar")));
+        const list = ((data as any)?.zones || []) as Array<{ id: number; name: string; canonical?: string }>;
+        list.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+        setZones(list);
+        // Remap stored value (canonical/old name) to current display name
+        setC((prev) => {
+          if (!prev) return prev;
+          if (list.some((z) => z.name === prev)) return prev;
+          const byCanon = list.find((z) => z.canonical === prev);
+          return byCanon ? byCanon.name : prev;
+        });
       }
       setLoadingZones(false);
     })();
@@ -50,7 +59,14 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
     (async () => {
       const { data, error } = await supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id } });
       if (!error && !(data as any)?.error) {
-        setAreasMap((prev) => ({ ...prev, [selectedZone.id]: (data as any)?.areas || [] }));
+        const list = ((data as any)?.areas || []) as Array<{ id: number; name: string; canonical?: string }>;
+        setAreasMap((prev) => ({ ...prev, [selectedZone.id]: list }));
+        setA((prev) => {
+          if (!prev) return prev;
+          if (list.some((x) => x.name === prev)) return prev;
+          const byCanon = list.find((x) => x.canonical === prev);
+          return byCanon ? byCanon.name : prev;
+        });
       }
       setLoadingAreas(false);
     })();
