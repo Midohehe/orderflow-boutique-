@@ -42,6 +42,7 @@ const HeaderSettings = lazy(() => import("./pages/HeaderSettings"));
 const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
 const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const StickerDesigner = lazy(() => import("./pages/StickerDesigner"));
+const PrintBarcodes = lazy(() => import("./pages/PrintBarcodes"));
 const Settings = lazy(() => import("./pages/Settings"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 const Wallet = lazy(() => import("./pages/Wallet"));
@@ -106,6 +107,7 @@ const App = () => {
                 <Route path="orders" element={<Orders />} />
                 <Route path="prep-lists" element={<PrepLists />} />
                 <Route path="prep-orders" element={<PrepOrders />} />
+                <Route path="print-barcodes" element={<PrintBarcodes />} />
                 <Route path="confirmation" element={<ConfirmationCenter />} />
                 <Route path="confirmation/settings" element={<ConfirmationSettings />} />
                 <Route path="financial" element={<FinancialAccounts />} />
