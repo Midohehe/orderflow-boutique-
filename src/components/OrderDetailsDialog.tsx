@@ -62,8 +62,8 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [products, setProducts] = useState<ProductLite[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [originalInput, setOriginalInput] = useState<{ city: string; address: string } | null>(null);
-  const [zones, setZones] = useState<Array<{ id: number; name: string }>>([]);
-  const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string }>>>({});
+  const [zones, setZones] = useState<Array<{ id: number; name: string; canonical?: string }>>([]);
+  const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string; canonical?: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
   const [loadingAreas, setLoadingAreas] = useState(false);
 
@@ -73,8 +73,19 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     supabase.functions.invoke("list-shipping-dropdown", { body: {} })
       .then(({ data, error }) => {
         if (!error) {
-          const list = ((data as any)?.zones || []) as Array<{ id: number; name: string }>;
-          setZones(list.sort((a, b) => a.name.localeCompare(b.name, "ar")));
+          const list = ((data as any)?.zones || []) as Array<{ id: number; name: string; canonical?: string }>;
+          list.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+          setZones(list);
+          // Remap stored matched_zone_name (may be the old canonical) to current display name
+          setData((d: any) => {
+            if (!d) return d;
+            const current = d.matched_zone_name || d.city;
+            if (!current) return d;
+            if (list.some((z) => z.name === current)) return d;
+            const byCanon = list.find((z) => z.canonical === current);
+            if (!byCanon) return d;
+            return { ...d, matched_zone_name: byCanon.name, city: byCanon.name, matched_zone_id: byCanon.id };
+          });
         }
       })
       .finally(() => setLoadingZones(false));
@@ -89,7 +100,17 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id, zoneName: selectedZone.name } })
       .then(({ data, error }) => {
         if (!error) {
-          setAreasMap((prev) => ({ ...prev, [selectedZone.id]: (data as any)?.areas || [] }));
+          const list = ((data as any)?.areas || []) as Array<{ id: number; name: string; canonical?: string }>;
+          setAreasMap((prev) => ({ ...prev, [selectedZone.id]: list }));
+          setData((d: any) => {
+            if (!d) return d;
+            const current = d.matched_area_name;
+            if (!current) return d;
+            if (list.some((x) => x.name === current)) return d;
+            const byCanon = list.find((x) => x.canonical === current);
+            if (!byCanon) return d;
+            return { ...d, matched_area_name: byCanon.name, matched_area_id: byCanon.id };
+          });
         }
       })
       .finally(() => setLoadingAreas(false));
