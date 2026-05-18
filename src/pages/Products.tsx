@@ -453,10 +453,10 @@ const Products = () => {
   };
 
   const handleEditProduct = async () => {
-    if (!editingProductId || !editProduct.name || !editProduct.price || !editProduct.slug) {
+    if (!editingProductId || !editProduct.name || !editProduct.price || !editProduct.slug || !editProduct.purchasePrice) {
       toast({
         title: "خطأ",
-        description: "يرجى ملء اسم المنتج والسعر ورابط المنتج",
+        description: "يرجى ملء اسم المنتج والسعر وسعر الشراء ورابط المنتج",
         variant: "destructive",
       });
       return;
@@ -507,8 +507,6 @@ const Products = () => {
         product_codes: productCodesArray,
         colors: colorsArray,
         sizes: sizesArray,
-        stock: stockNum,
-        variant_stock: variantStockNum,
         variant_warehouse_codes: Object.fromEntries(
           variantKeys.map((k) => [k, (editProduct.variantWarehouseCodes?.[k] || "").trim()]).filter(([, v]) => v)
         ),
