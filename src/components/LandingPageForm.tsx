@@ -46,6 +46,7 @@ export interface LandingPageFormData {
   upsellEnabled: boolean;
   upsellTitle?: string;
   upsellOffers: Array<{ quantity: string; price: string; label: string }>;
+  orderFormOnTop?: boolean;
   isVisible: boolean;
 }
 
@@ -61,6 +62,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   upsellEnabled: false,
   upsellTitle: "",
   upsellOffers: [],
+  orderFormOnTop: false,
   isVisible: true,
 };
 
