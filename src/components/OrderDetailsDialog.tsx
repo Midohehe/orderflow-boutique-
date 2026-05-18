@@ -309,6 +309,26 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
 
   const save = async () => {
     if (!data || !orderId) return;
+    // التحقق من الحقول الإلزامية: رقم الهاتف، المدينة، المنطقة، ومنتج واحد على الأقل
+    const phoneVal = String(data.phone ?? "").trim();
+    const cityVal = String((data.matched_zone_name ?? data.city) ?? "").trim();
+    const areaVal = String((data.matched_area_name ?? data.address) ?? "").trim();
+    const hasProduct = items.length > 0
+      ? items.every((it) => it.product_id || (it.product_name && it.product_name.trim()))
+      : !!(data.product_id || (data.product_name && String(data.product_name).trim()));
+    const missing: string[] = [];
+    if (!phoneVal) missing.push("رقم الهاتف");
+    if (!cityVal) missing.push("المدينة");
+    if (!areaVal) missing.push("المنطقة");
+    if (!hasProduct) missing.push("المنتج");
+    if (missing.length > 0) {
+      toast({
+        title: "حقول إلزامية ناقصة",
+        description: `يرجى تعبئة: ${missing.join("، ")}`,
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     // Compute aggregate price from items if any
     const aggPrice = items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1), 0);
