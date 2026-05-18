@@ -1168,6 +1168,7 @@ const Products = () => {
                 onSubmit={handleEditProduct}
                 submitText="حفظ التعديلات"
                 isLoading={isSaving || isEditLoading}
+                categories={categories}
               />
             </Suspense>
           </div>
