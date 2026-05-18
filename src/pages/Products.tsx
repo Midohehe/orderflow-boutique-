@@ -1169,6 +1169,7 @@ const Products = () => {
                 submitText="حفظ التعديلات"
                 isLoading={isSaving || isEditLoading}
                 categories={categories}
+                readOnlyStock
               />
             </Suspense>
           </div>
