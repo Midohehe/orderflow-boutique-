@@ -19,8 +19,8 @@ export default function Home() {
       <header className="sticky top-0 z-30 bg-background/85 backdrop-blur-md border-b border-border/60">
         <div className="max-w-[1180px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-foreground text-background grid place-items-center font-display text-sm">و</div>
-            <span className="font-display text-lg">وصلة</span>
+            <img src="/logo.jpg" alt="و" className="w-7 h-7 rounded-md object-cover" />
+            <span className="font-display text-lg">صلة</span>
           </div>
           <div className="flex items-center gap-2">
             <PWAInstallButton className="h-9 rounded-md" />
@@ -108,7 +108,7 @@ export default function Home() {
 
       <footer className="border-t border-border/60">
         <div className="max-w-[1180px] mx-auto px-6 py-6 flex items-center justify-between text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} وصلة</span>
+          <span>© {new Date().getFullYear()} صلة</span>
           <span>was-la.com</span>
         </div>
       </footer>

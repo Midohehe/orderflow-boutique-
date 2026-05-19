@@ -48,9 +48,9 @@ export function PWAInstallPrompt() {
       <div className="flex items-start gap-3">
         <img src="/icon-192.png" alt="" width={48} height={48} className="rounded-xl flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-foreground text-sm mb-1">ثبّت تطبيق وصلة</h3>
+          <h3 className="font-bold text-foreground text-sm mb-1">ثبّت تطبيق صلة</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            احصل على تجربة أسرع وأسهل مع تطبيق وصلة على جهازك.
+            احصل على تجربة أسرع وأسهل مع تطبيق صلة على جهازك.
           </p>
           <div className="flex gap-2 mt-3">
             <Button
