@@ -61,7 +61,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [data, setData] = useState<any>(null);
   const [products, setProducts] = useState<ProductLite[]>([]);
   const [items, setItems] = useState<any[]>([]);
-  const [originalInput, setOriginalInput] = useState<{ city: string; address: string } | null>(null);
+  const [originalInput, setOriginalInput] = useState<{ city: string; address: string; variant: string; quantity: number | null } | null>(null);
   const [zones, setZones] = useState<Array<{ id: number; name: string; canonical?: string }>>([]);
   const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string; canonical?: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
@@ -149,7 +149,15 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
       setData(o.data || null);
       if (o.data) {
-        setOriginalInput({ city: o.data.city || "", address: o.data.address || "" });
+        const variantStr = [o.data.selected_color, o.data.selected_size, o.data.selected_product_code]
+          .filter((v: any) => v != null && String(v).trim() !== "")
+          .join(" - ");
+        setOriginalInput({
+          city: o.data.city || "",
+          address: o.data.address || "",
+          variant: variantStr,
+          quantity: o.data.quantity ?? null,
+        });
       }
       setProducts((p.data || []) as ProductLite[]);
       const list = (it.data || []) as any[];
@@ -457,7 +465,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <span>الطلب مقفل بسبب نفاد الرصيد — لا يمكن إرساله لشركة التوصيل حتى شحن المحفظة.</span>
             </div>
           )}
-          {originalInput && (originalInput.city || originalInput.address) && (
+          {originalInput && (originalInput.city || originalInput.address || originalInput.variant) && (
             <div className="p-3 rounded-md bg-muted/50 border border-border text-sm mb-2 space-y-1">
               <div className="font-medium text-foreground">ما كتبه الزبون في النموذج:</div>
               <div className="text-muted-foreground">
@@ -468,6 +476,18 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                 <span className="font-medium text-foreground">العنوان: </span>
                 {originalInput.address || "—"}
               </div>
+              {originalInput.variant && (
+                <div className="text-muted-foreground" dir="rtl">
+                  <span className="font-medium text-foreground">المتغير المختار: </span>
+                  <span dir="ltr" className="inline-block">{isolateLatin(originalInput.variant)}</span>
+                </div>
+              )}
+              {originalInput.quantity != null && (
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">الكمية: </span>
+                  {originalInput.quantity}
+                </div>
+              )}
             </div>
           )}
           <div className="space-y-4">
