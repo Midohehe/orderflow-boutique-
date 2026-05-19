@@ -95,7 +95,8 @@ const DashboardStats = () => {
         const { count: ordersCount } = await supabase
           .from("orders")
           .select("*", { count: "exact", head: true })
-          .eq("status", "pending");
+          .eq("status", "pending")
+          .eq("is_deleted", false);
 
         // Build query for page views based on selected product
         let pageViewsQuery = supabase
