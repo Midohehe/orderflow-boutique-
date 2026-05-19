@@ -496,15 +496,6 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">السعر قبل الخصم</Label>
-            <Input
-              value={product.originalPrice}
-              onChange={(e) => updateField("originalPrice", e.target.value)}
-              placeholder="149"
-              type="number"
-            />
-          </div>
-          <div className="space-y-2">
             <Label className="font-semibold">سعر الشراء</Label>
             <Input
               value={product.purchasePrice}
