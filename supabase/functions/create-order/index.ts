@@ -20,6 +20,7 @@ interface OrderPayload {
   selected_product_code?: string | null;
   shipping_included?: boolean;
   upsell_index?: number | null;
+  landing_slug?: string | null;
   items?: Array<{
     color?: string | null;
     size?: string | null;
