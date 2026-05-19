@@ -854,6 +854,7 @@ const LandingPage = () => {
           selected_product_code: codesArray.filter(Boolean).join(", ") || null,
           items: itemsPayload,
           upsell_index: selectedUpsellIndex,
+          landing_slug: slug,
         },
       });
 
