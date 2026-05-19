@@ -795,13 +795,31 @@ const LandingPage = () => {
       const colorsArray = itemVariants.map(v => v.color || "");
       const sizesArray = itemVariants.map(v => v.size || "");
       const codesArray = itemVariants.map(v => v.productCode || singleCode || "");
-      // Build items array (one per piece) for proper order_items rows on the server
-      const itemsPayload = itemVariants.map((v) => ({
-        color: v.color || null,
-        size: v.size || null,
-        product_code: (v.productCode || singleCode) || null,
-        quantity: 1,
-      }));
+      // Build items array for proper order_items rows on the server.
+      // Group consecutive pieces that share the same variant (color/size/code)
+      // into a single line with quantity = N instead of N separate rows.
+      const itemsPayload: Array<{
+        color: string | null;
+        size: string | null;
+        product_code: string | null;
+        quantity: number;
+      }> = [];
+      for (const v of itemVariants) {
+        const color = v.color || null;
+        const size = v.size || null;
+        const product_code = (v.productCode || singleCode) || null;
+        const last = itemsPayload[itemsPayload.length - 1];
+        if (
+          last &&
+          last.color === color &&
+          last.size === size &&
+          last.product_code === product_code
+        ) {
+          last.quantity += 1;
+        } else {
+          itemsPayload.push({ color, size, product_code, quantity: 1 });
+        }
+      }
 
       // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
       const findField = (...keywords: string[]) => {
