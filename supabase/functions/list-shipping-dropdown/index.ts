@@ -71,7 +71,11 @@ Deno.serve(async (req) => {
       const mergedAreas = preferBestRows(cachedAreas || []);
       if (mergedAreas.length > 0) {
         return new Response(JSON.stringify({
-          areas: mergedAreas.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
+          areas: mergedAreas.map((r: any) => ({
+            id: r.external_id,
+            name: (r.display_name || r.name || "").trim(),
+            canonical: (r.name || "").trim(),
+          })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
@@ -85,7 +89,11 @@ Deno.serve(async (req) => {
       const mergedZones = preferBestRows(cachedZones || []);
       if (mergedZones.length > 0) {
         return new Response(JSON.stringify({
-          zones: mergedZones.map((r: any) => ({ id: r.external_id, name: r.display_name || r.name, canonical: r.name })),
+          zones: mergedZones.map((r: any) => ({
+            id: r.external_id,
+            name: (r.display_name || r.name || "").trim(),
+            canonical: (r.name || "").trim(),
+          })),
           source: "cache",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
