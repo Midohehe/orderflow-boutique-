@@ -1072,7 +1072,7 @@ const Orders = () => {
     pendingPhoneCounts[k] = (pendingPhoneCounts[k] || 0) + 1;
   });
 
-  const toStickerOrder = (o: Order): StickerOrder => ({
+  const toStickerOrder = (o: Order, items?: Array<{ color?: string|null; size?: string|null; product_code?: string|null; product_name?: string|null }>): StickerOrder => ({
     id: o.id,
     customer_name: o.customer_name,
     phone: o.phone,
@@ -1090,15 +1090,30 @@ const Orders = () => {
     carrier_status: displayCarrierStatus(o),
     created_at: o.created_at,
     local_code: localCodeMap[o.id] || null,
+    items: items && items.length ? items : null,
   });
 
-  const printOrders = (orderList: Order[]) => {
+  const printOrders = async (orderList: Order[]) => {
     if (orderList.length === 0) {
       toast({ title: "تنبيه", description: "لا توجد طلبات للطباعة", variant: "destructive" });
       return;
     }
+    // Fetch order_items for accurate per-piece color/size pairing
+    let itemsByOrder: Record<string, Array<any>> = {};
+    try {
+      const ids = orderList.map((o) => o.id);
+      const { data } = await supabase
+        .from("order_items")
+        .select("order_id, color, size, product_code, product_name")
+        .in("order_id", ids);
+      (data || []).forEach((it: any) => {
+        (itemsByOrder[it.order_id] ||= []).push(it);
+      });
+    } catch (_) {
+      // fallback: no items, sticker will fall back to flat fields
+    }
     printStickers(
-      orderList.map(toStickerOrder),
+      orderList.map((o) => toStickerOrder(o, itemsByOrder[o.id])),
       stickerSettings,
       { currencySymbol, storeName },
     );
