@@ -119,51 +119,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Persist per-piece order_items so each variant is preserved (avoids "missing" pieces)
-    try {
-      const incoming = Array.isArray(body.items) ? body.items! : [];
-      const unitPrice = quantity > 0 ? Number((totalPrice / quantity).toFixed(2)) : Number(product.price) || 0;
-      const rows: any[] = [];
-      if (incoming.length > 0) {
-        for (const it of incoming) {
-          rows.push({
-            order_id: insertedOrder!.id,
-            owner_id: (product as any).owner_id,
-            store_id: (product as any).store_id ?? null,
-            product_id: product.id,
-            product_name: product.name,
-            quantity: Math.max(1, Math.floor(Number(it.quantity) || 1)),
-            price: unitPrice,
-            selected_color: s(it.color ?? "", 200) || null,
-            selected_size: s(it.size ?? "", 200) || null,
-            selected_product_code: s(it.product_code ?? "", 200) || null,
-          });
-        }
-      } else if (quantity > 1) {
-        // Fallback: expand into N single-quantity items so the order is not "incomplete"
-        for (let i = 0; i < quantity; i++) {
-          rows.push({
-            order_id: insertedOrder!.id,
-            owner_id: (product as any).owner_id,
-            store_id: (product as any).store_id ?? null,
-            product_id: product.id,
-            product_name: product.name,
-            quantity: 1,
-            price: unitPrice,
-            selected_color: s(body.selected_color ?? "", 200) || null,
-            selected_size: s(body.selected_size ?? "", 200) || null,
-            selected_product_code: s(body.selected_product_code ?? "", 200) || null,
-          });
-        }
-      }
-      if (rows.length > 0) {
-        const { error: itErr } = await supabase.from("order_items").insert(rows);
-        if (itErr) console.error("order_items insert failed", itErr);
-      }
-    } catch (e) {
-      console.error("order_items persistence error", e);
-    }
-
     // Background tasks — do not block the HTTP response.
     if (insertedOrder?.id) {
       const orderId = insertedOrder.id;
@@ -175,6 +130,51 @@ Deno.serve(async (req) => {
       };
 
       const background = (async () => {
+        // 0) Persist per-piece order_items in the background so the client
+        // gets an immediate response. The main `orders` row is already saved.
+        try {
+          const incoming = Array.isArray(body.items) ? body.items! : [];
+          const unitPrice = quantity > 0 ? Number((totalPrice / quantity).toFixed(2)) : Number(product.price) || 0;
+          const rows: any[] = [];
+          if (incoming.length > 0) {
+            for (const it of incoming) {
+              rows.push({
+                order_id: orderId,
+                owner_id: (product as any).owner_id,
+                store_id: (product as any).store_id ?? null,
+                product_id: product.id,
+                product_name: product.name,
+                quantity: Math.max(1, Math.floor(Number(it.quantity) || 1)),
+                price: unitPrice,
+                selected_color: s(it.color ?? "", 200) || null,
+                selected_size: s(it.size ?? "", 200) || null,
+                selected_product_code: s(it.product_code ?? "", 200) || null,
+              });
+            }
+          } else if (quantity > 1) {
+            for (let i = 0; i < quantity; i++) {
+              rows.push({
+                order_id: orderId,
+                owner_id: (product as any).owner_id,
+                store_id: (product as any).store_id ?? null,
+                product_id: product.id,
+                product_name: product.name,
+                quantity: 1,
+                price: unitPrice,
+                selected_color: s(body.selected_color ?? "", 200) || null,
+                selected_size: s(body.selected_size ?? "", 200) || null,
+                selected_product_code: s(body.selected_product_code ?? "", 200) || null,
+              });
+            }
+          }
+          if (rows.length > 0) {
+            const { error: itErr } = await supabase.from("order_items").insert(rows);
+            if (itErr) console.error("order_items insert failed", itErr);
+          }
+        } catch (e) {
+          console.error("order_items persistence error", e);
+        }
+
         // 1) Match city via AI and update the order row.
         try {
           const matchRes = await fetch(`${baseUrl}/functions/v1/match-city`, {
