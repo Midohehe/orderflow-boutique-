@@ -294,11 +294,10 @@ const LandingPage = () => {
             product_codes: matched.product_codes || [],
             colors: matched.colors || [],
             sizes: matched.sizes || [],
-            upsell_enabled: lpHasUpsell != null ? !!lpHasUpsell : !!matched.upsell_enabled,
-            upsell_title: (lp?.upsell_title || (matched as any).upsell_title || "🎁 عروض خاصة"),
-            upsell_offers: Array.isArray(lp?.upsell_offers) && lp.upsell_offers.length
-              ? lp.upsell_offers
-              : (Array.isArray(matched.upsell_offers) ? matched.upsell_offers : []),
+            // Upsell is controlled exclusively by the landing page.
+            upsell_enabled: !!lp?.upsell_enabled,
+            upsell_title: (lp?.upsell_title || "🎁 عروض خاصة"),
+            upsell_offers: Array.isArray(lp?.upsell_offers) ? lp.upsell_offers : [],
             order_form_on_top: lp?.order_form_on_top != null ? !!lp.order_form_on_top : !!(matched as any).order_form_on_top,
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
