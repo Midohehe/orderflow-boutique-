@@ -787,8 +787,8 @@ const LandingPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Auto-use the single SKU when no selector is shown (one product code only)
-      const singleCode = product?.product_codes && product.product_codes.length === 1
+      // SKU is hidden from landing page; auto-use the first code if any exist
+      const singleCode = product?.product_codes && product.product_codes.length > 0
         ? product.product_codes[0]
         : null;
       // Keep per-piece alignment: do NOT filter, so colors/sizes/codes pair by index
