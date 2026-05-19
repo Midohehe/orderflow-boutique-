@@ -1072,7 +1072,36 @@ const Orders = () => {
     pendingPhoneCounts[k] = (pendingPhoneCounts[k] || 0) + 1;
   });
 
-  const toStickerOrder = (o: Order, items?: Array<{ color?: string|null; size?: string|null; product_code?: string|null; product_name?: string|null }>): StickerOrder => ({
+  type StickerVariantItem = {
+    color?: string | null;
+    size?: string | null;
+    product_code?: string | null;
+    product_name?: string | null;
+  };
+
+  const splitVariantValue = (value?: string | null): string[] =>
+    (value || "")
+      .split(/[،,]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+  const buildFallbackStickerItems = (o: Order): StickerVariantItem[] => {
+    const colors = splitVariantValue(o.selected_color);
+    const sizes = splitVariantValue(o.selected_size);
+    const codes = splitVariantValue(o.selected_product_code);
+    const maxLength = Math.max(colors.length, sizes.length, codes.length);
+
+    if (maxLength <= 1) return [];
+
+    return Array.from({ length: maxLength }, (_, index) => ({
+      color: colors[index] ?? (colors.length === 1 ? colors[0] : null) ?? null,
+      size: sizes[index] ?? (sizes.length === 1 ? sizes[0] : null) ?? null,
+      product_code: codes[index] ?? (codes.length === 1 ? codes[0] : null) ?? null,
+      product_name: o.product_name ?? null,
+    }));
+  };
+
+  const toStickerOrder = (o: Order, items?: StickerVariantItem[]): StickerOrder => ({
     id: o.id,
     customer_name: o.customer_name,
     phone: o.phone,
@@ -1090,7 +1119,7 @@ const Orders = () => {
     carrier_status: displayCarrierStatus(o),
     created_at: o.created_at,
     local_code: localCodeMap[o.id] || null,
-    items: items && items.length ? items : null,
+    items: items && items.length ? items : buildFallbackStickerItems(o),
   });
 
   const printOrders = async (orderList: Order[]) => {
@@ -1099,15 +1128,20 @@ const Orders = () => {
       return;
     }
     // Fetch order_items for accurate per-piece color/size pairing
-    let itemsByOrder: Record<string, Array<any>> = {};
+    let itemsByOrder: Record<string, StickerVariantItem[]> = {};
     try {
       const ids = orderList.map((o) => o.id);
       const { data } = await supabase
         .from("order_items")
-        .select("order_id, color, size, product_code, product_name")
+        .select("order_id, selected_color, selected_size, selected_product_code, product_name")
         .in("order_id", ids);
       (data || []).forEach((it: any) => {
-        (itemsByOrder[it.order_id] ||= []).push(it);
+        (itemsByOrder[it.order_id] ||= []).push({
+          color: it.selected_color ?? null,
+          size: it.selected_size ?? null,
+          product_code: it.selected_product_code ?? null,
+          product_name: it.product_name ?? null,
+        });
       });
     } catch (_) {
       // fallback: no items, sticker will fall back to flat fields
