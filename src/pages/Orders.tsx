@@ -776,6 +776,37 @@ const Orders = () => {
       });
     }
   };
+
+  const handleBulkPermanentDelete = async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    try {
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .delete()
+        .in("order_id", orderIds);
+      if (itemsError) throw itemsError;
+
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .in("id", orderIds);
+      if (error) throw error;
+
+      setOrders((prev) => prev.filter((o) => !orderIds.includes(o.id)));
+      setSelectedOrders((prev) => prev.filter((id) => !orderIds.includes(id)));
+      toast({
+        title: "تم الحذف نهائياً",
+        description: `تم حذف ${orderIds.length} طلب من النظام بشكل نهائي ولا يمكن استرجاعهم.`,
+      });
+    } catch (e: any) {
+      console.error("Error bulk permanently deleting orders:", e);
+      toast({
+        title: "خطأ",
+        description: e?.message || "حدث خطأ أثناء الحذف النهائي الجماعي",
+        variant: "destructive",
+      });
+    }
+  };
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
     const date = d.toLocaleDateString("ar-AE", {
@@ -2093,9 +2124,58 @@ const Orders = () => {
               "لا توجد طلبات محذوفة"
             )
           ) : (
-            <div className="space-y-4">
-              {deletedOrders.map((order) => renderOrderCard(order))}
-            </div>
+            <>
+              <Card className="card-shadow">
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={deletedOrders.every((o) => selectedOrders.includes(o.id))}
+                        onCheckedChange={() => toggleSelectAll(deletedOrders.map((o) => o.id))}
+                      />
+                      <span className="text-sm text-foreground">
+                        تحديد الكل ({selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id)).length} محدد)
+                      </span>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          disabled={selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id)).length === 0}
+                        >
+                          <Trash2 className="w-4 h-4 ml-2" />
+                          حذف نهائي للمحدد
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>تأكيد الحذف النهائي</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            سيتم حذف {selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id)).length} طلب نهائياً من النظام. هذا الإجراء لا رجعة فيه.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              handleBulkPermanentDelete(
+                                selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id))
+                              )
+                            }
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            حذف نهائي
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="space-y-4">
+                {deletedOrders.map((order) => renderOrderCard(order, true))}
+              </div>
+            </>
           )}
         </TabsContent>
       </Tabs>
