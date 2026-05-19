@@ -2124,9 +2124,58 @@ const Orders = () => {
               "لا توجد طلبات محذوفة"
             )
           ) : (
-            <div className="space-y-4">
-              {deletedOrders.map((order) => renderOrderCard(order))}
-            </div>
+            <>
+              <Card className="card-shadow">
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={deletedOrders.every((o) => selectedOrders.includes(o.id))}
+                        onCheckedChange={() => toggleSelectAll(deletedOrders.map((o) => o.id))}
+                      />
+                      <span className="text-sm text-foreground">
+                        تحديد الكل ({selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id)).length} محدد)
+                      </span>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          disabled={selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id)).length === 0}
+                        >
+                          <Trash2 className="w-4 h-4 ml-2" />
+                          حذف نهائي للمحدد
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>تأكيد الحذف النهائي</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            سيتم حذف {selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id)).length} طلب نهائياً من النظام. هذا الإجراء لا رجعة فيه.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              handleBulkPermanentDelete(
+                                selectedOrders.filter((id) => deletedOrders.some((o) => o.id === id))
+                              )
+                            }
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            حذف نهائي
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="space-y-4">
+                {deletedOrders.map((order) => renderOrderCard(order, true))}
+              </div>
+            </>
           )}
         </TabsContent>
       </Tabs>
