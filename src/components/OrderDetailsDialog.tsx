@@ -149,7 +149,15 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
       setData(o.data || null);
       if (o.data) {
-        setOriginalInput({ city: o.data.city || "", address: o.data.address || "" });
+        const variantStr = [o.data.selected_color, o.data.selected_size, o.data.selected_product_code]
+          .filter((v: any) => v != null && String(v).trim() !== "")
+          .join(" - ");
+        setOriginalInput({
+          city: o.data.city || "",
+          address: o.data.address || "",
+          variant: variantStr,
+          quantity: o.data.quantity ?? null,
+        });
       }
       setProducts((p.data || []) as ProductLite[]);
       const list = (it.data || []) as any[];
