@@ -1738,6 +1738,36 @@ const Orders = () => {
                         ? `جاري الإرسال ${shipProgress.done} من ${shipProgress.total}`
                         : "إرسال لشركة الشحن"}
                     </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          disabled={selectedOrders.filter((id) => pendingOrders.some((o) => o.id === id)).length === 0}
+                          className="w-full sm:w-auto"
+                        >
+                          <Trash2 className="w-4 h-4 ml-2" />
+                          حذف المحدد
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>تأكيد حذف الطلبات</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            سيتم نقل {selectedOrders.filter((id) => pendingOrders.some((o) => o.id === id)).length} طلب إلى قائمة المحذوفة. يمكنك استرجاعها لاحقًا.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              handleBulkDelete(selectedOrders.filter((id) => pendingOrders.some((o) => o.id === id)))
+                            }
+                          >
+                            حذف
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                     <Button variant="outline" onClick={exportPendingOrders} className="w-full sm:w-auto">
                       <Download className="w-4 h-4 ml-2" />
                       تصدير Excel
