@@ -80,10 +80,10 @@ Deno.serve(async (req) => {
 
     let totalPrice = Number(product.price) * quantity;
 
-    // If this order originated from a landing page, that page may override the
-    // product's price and upsell offers. Prefer landing page values.
-    let upsellEnabled: boolean = !!(product as any).upsell_enabled;
-    let upsellOffers: any[] = Array.isArray((product as any).upsell_offers) ? (product as any).upsell_offers : [];
+    // Upsell is controlled exclusively by the landing page. If no landing page,
+    // no upsell — period.
+    let upsellEnabled = false;
+    let upsellOffers: any[] = [];
     const landingSlug = s(body.landing_slug ?? "", 200);
     if (landingSlug) {
       const { data: lp } = await supabase
@@ -96,14 +96,12 @@ Deno.serve(async (req) => {
         if (lp.price !== null && lp.price !== undefined && Number(lp.price) > 0) {
           totalPrice = Number(lp.price) * quantity;
         }
-        if (typeof lp.upsell_enabled === "boolean") upsellEnabled = lp.upsell_enabled;
-        if (Array.isArray(lp.upsell_offers) && lp.upsell_offers.length > 0) {
-          upsellOffers = lp.upsell_offers;
-        }
+        upsellEnabled = !!lp.upsell_enabled;
+        upsellOffers = Array.isArray(lp.upsell_offers) ? lp.upsell_offers : [];
       }
     }
 
-    if (upsellIndex !== null && upsellEnabled && Array.isArray(upsellOffers)) {
+    if (upsellIndex !== null && upsellEnabled && upsellOffers.length > 0) {
       const offer = upsellOffers[upsellIndex];
       if (offer && Number(offer.quantity) > 0 && Number(offer.price) > 0) {
         quantity = Math.max(1, Math.min(999, Math.floor(Number(offer.quantity))));
