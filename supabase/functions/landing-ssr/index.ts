@@ -11,7 +11,7 @@ const corsHeaders: Record<string, string> = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_ORIGIN = "https://orderflow-boutique.lovable.app";
+const LOVABLE_ORIGIN = "https://was-la.lovable.app";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
@@ -22,7 +22,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 // hashes) are picked up quickly — otherwise the SSR HTML references a
 // stale JS file that 404s and React never hydrates.
 let shellCache: { html: string; ts: number } | null = null;
-const SHELL_TTL = 10_000; // 10s
+const SHELL_TTL = 60_000; // 60s
 
 async function getShell(): Promise<string> {
   if (shellCache && Date.now() - shellCache.ts < SHELL_TTL) return shellCache.html;
@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
         "content-type": "text/html; charset=utf-8",
         // Keep CDN cache short so new deploys (rotated asset hashes) are
         // picked up quickly. Browsers should always revalidate.
-        "cache-control": "public, max-age=0, s-maxage=15, stale-while-revalidate=30",
+        "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
       },
     });
   } catch (err) {
