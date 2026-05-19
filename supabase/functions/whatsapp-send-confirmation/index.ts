@@ -10,8 +10,8 @@ const corsHeaders = {
 function normalizePhone(p: string): string {
   const digits = (p || "").replace(/\D/g, "");
   if (!digits) return "";
-  if (digits.startsWith("00")) return digits.slice(2);
-  if (digits.startsWith("0") && digits.length === 10) return "218" + digits.slice(1);
+  if (digits.startsWith("00218")) return "0" + digits.slice(5);
+  if (digits.startsWith("218")) return "0" + digits.slice(3);
   return digits;
 }
 
