@@ -64,6 +64,33 @@ export default {
     const upstream = new URL(url.pathname + url.search, LOVABLE_ORIGIN);
     const proxied = new Request(upstream.toString(), request);
     proxied.headers.set("host", new URL(LOVABLE_ORIGIN).host);
+
+    // Hashed build assets (e.g. /assets/index-abc123.js) are immutable —
+    // cache them aggressively at the edge AND in the browser so repeat
+    // visits skip the network entirely.
+    if (
+      url.pathname.startsWith("/assets/") ||
+      /\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|webp|avif|svg|ico)$/i.test(url.pathname)
+    ) {
+      const cache = caches.default;
+      const assetKey = new Request(`https://${url.host}${url.pathname}`, { method: "GET" });
+      const hit = await cache.match(assetKey);
+      if (hit) return hit;
+
+      const upstreamRes = await fetch(proxied);
+      if (upstreamRes.ok) {
+        const headers = new Headers(upstreamRes.headers);
+        headers.set("cache-control", "public, max-age=31536000, immutable");
+        const cached = new Response(upstreamRes.body, {
+          status: upstreamRes.status,
+          headers,
+        });
+        try { await cache.put(assetKey, cached.clone()); } catch (_) {}
+        return cached;
+      }
+      return upstreamRes;
+    }
+
     return fetch(proxied);
   },
 };
