@@ -276,7 +276,7 @@ const DashboardLayout = () => {
         </nav>
 
         <div className="p-2 sm:p-3 border-t border-sidebar-border space-y-1">
-          <Button
+          {isAdmin && <Button
             variant="ghost"
             onClick={() => handleNavigation("/dashboard/account", false)}
             className={cn(
@@ -287,7 +287,7 @@ const DashboardLayout = () => {
           >
             <UserCircle className="w-5 h-5 flex-shrink-0" />
             <span className={cn(!sidebarOpen && "md:hidden")}>حسابي</span>
-          </Button>
+          </Button>}
           <Button
             variant="ghost"
             onClick={toggleTheme}
