@@ -767,19 +767,42 @@ const LandingPage = () => {
       return;
     }
 
+    // Validate per-piece variants: if product has variants, each piece must have its selections
+    const hasColors = !!(product?.colors && product.colors.length > 0);
+    const hasSizes = !!(product?.sizes && product.sizes.length > 0);
+    const hasCodeSelector = !!(product?.product_codes && product.product_codes.length > 1);
+    if (hasColors || hasSizes || hasCodeSelector) {
+      for (let i = 0; i < itemVariants.length; i++) {
+        const v = itemVariants[i];
+        if ((hasColors && !v.color) || (hasSizes && !v.size) || (hasCodeSelector && !v.productCode)) {
+          toast({
+            title: "خطأ",
+            description: `يرجى اختيار ${[hasColors && "اللون", hasSizes && "المقاس", hasCodeSelector && "الكود"].filter(Boolean).join(" و ")} للقطعة ${i + 1}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Format variants for storage
-      const colorsArray = itemVariants.map(v => v.color).filter(Boolean);
-      const sizesArray = itemVariants.map(v => v.size).filter(Boolean);
       // Auto-use the single SKU when no selector is shown (one product code only)
       const singleCode = product?.product_codes && product.product_codes.length === 1
         ? product.product_codes[0]
         : null;
-      const codesArray = itemVariants
-        .map(v => v.productCode || singleCode || "")
-        .filter(Boolean);
+      // Keep per-piece alignment: do NOT filter, so colors/sizes/codes pair by index
+      const colorsArray = itemVariants.map(v => v.color || "");
+      const sizesArray = itemVariants.map(v => v.size || "");
+      const codesArray = itemVariants.map(v => v.productCode || singleCode || "");
+      // Build items array (one per piece) for proper order_items rows on the server
+      const itemsPayload = itemVariants.map((v) => ({
+        color: v.color || null,
+        size: v.size || null,
+        product_code: (v.productCode || singleCode) || null,
+        quantity: 1,
+      }));
 
       // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
       const findField = (...keywords: string[]) => {
@@ -809,9 +832,10 @@ const LandingPage = () => {
           city,
           product_id: product?.id,
           quantity: quantity,
-          selected_color: colorsArray.join(", ") || null,
-          selected_size: sizesArray.join(", ") || null,
-          selected_product_code: codesArray.join(", ") || null,
+          selected_color: colorsArray.filter(Boolean).join(", ") || null,
+          selected_size: sizesArray.filter(Boolean).join(", ") || null,
+          selected_product_code: codesArray.filter(Boolean).join(", ") || null,
+          items: itemsPayload,
           upsell_index: selectedUpsellIndex,
         },
       });
