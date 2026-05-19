@@ -770,14 +770,13 @@ const LandingPage = () => {
     // Validate per-piece variants: if product has variants, each piece must have its selections
     const hasColors = !!(product?.colors && product.colors.length > 0);
     const hasSizes = !!(product?.sizes && product.sizes.length > 0);
-    const hasCodeSelector = !!(product?.product_codes && product.product_codes.length > 1);
-    if (hasColors || hasSizes || hasCodeSelector) {
+    if (hasColors || hasSizes) {
       for (let i = 0; i < itemVariants.length; i++) {
         const v = itemVariants[i];
-        if ((hasColors && !v.color) || (hasSizes && !v.size) || (hasCodeSelector && !v.productCode)) {
+        if ((hasColors && !v.color) || (hasSizes && !v.size)) {
           toast({
             title: "خطأ",
-            description: `يرجى اختيار ${[hasColors && "اللون", hasSizes && "المقاس", hasCodeSelector && "الكود"].filter(Boolean).join(" و ")} للقطعة ${i + 1}`,
+            description: `يرجى اختيار ${[hasColors && "اللون", hasSizes && "المقاس"].filter(Boolean).join(" و ")} للقطعة ${i + 1}`,
             variant: "destructive",
           });
           return;
@@ -788,8 +787,8 @@ const LandingPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Auto-use the single SKU when no selector is shown (one product code only)
-      const singleCode = product?.product_codes && product.product_codes.length === 1
+      // SKU is hidden from landing page; auto-use the first code if any exist
+      const singleCode = product?.product_codes && product.product_codes.length > 0
         ? product.product_codes[0]
         : null;
       // Keep per-piece alignment: do NOT filter, so colors/sizes/codes pair by index
@@ -1089,9 +1088,8 @@ const LandingPage = () => {
 
                 {/* Product Variants Selection for each item */}
                 {itemVariants.map((item, index) => {
-                  const hasVariants = (product.colors && product.colors.length > 0) || 
-                                     (product.sizes && product.sizes.length > 0) || 
-                                     (product.product_codes && product.product_codes.length > 1);
+                   const hasVariants = (product.colors && product.colors.length > 0) || 
+                                      (product.sizes && product.sizes.length > 0);
                   
                   if (!hasVariants) return null;
                   
@@ -1153,32 +1151,6 @@ const LandingPage = () => {
                         </div>
                       )}
 
-                      {product.product_codes && product.product_codes.length > 1 && (
-                        <div className="space-y-1.5 sm:space-y-2">
-                          <Label className="text-sm sm:text-base">اختر الكود</Label>
-                          <div className="flex flex-wrap gap-2">
-                            {product.product_codes.map((code) => (
-                              <button
-                                key={code}
-                                type="button"
-                                onClick={() => {
-                                  const newVariants = [...itemVariants];
-                                  newVariants[index] = { ...newVariants[index], productCode: code };
-                                  setItemVariants(newVariants);
-                                }}
-                                className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
-                                  item.productCode === code
-                                    ? "border-primary bg-primary/10 text-primary font-medium"
-                                    : "border-border hover:border-primary/50"
-                                }`}
-                                dir="ltr"
-                              >
-                                {code}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
