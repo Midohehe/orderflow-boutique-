@@ -35,7 +35,7 @@ const Login = () => {
   const [fullName, setFullName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
-  const [systemName, setSystemName] = useState("منصة وصلة");
+  const [systemName, setSystemName] = useState("منصة صلة");
   const [showPassword, setShowPassword] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
