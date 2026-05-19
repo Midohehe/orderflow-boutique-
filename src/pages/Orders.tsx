@@ -776,6 +776,37 @@ const Orders = () => {
       });
     }
   };
+
+  const handleBulkPermanentDelete = async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    try {
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .delete()
+        .in("order_id", orderIds);
+      if (itemsError) throw itemsError;
+
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .in("id", orderIds);
+      if (error) throw error;
+
+      setOrders((prev) => prev.filter((o) => !orderIds.includes(o.id)));
+      setSelectedOrders((prev) => prev.filter((id) => !orderIds.includes(id)));
+      toast({
+        title: "تم الحذف نهائياً",
+        description: `تم حذف ${orderIds.length} طلب من النظام بشكل نهائي ولا يمكن استرجاعهم.`,
+      });
+    } catch (e: any) {
+      console.error("Error bulk permanently deleting orders:", e);
+      toast({
+        title: "خطأ",
+        description: e?.message || "حدث خطأ أثناء الحذف النهائي الجماعي",
+        variant: "destructive",
+      });
+    }
+  };
   const formatDate = (dateString: string) => {
     const d = new Date(dateString);
     const date = d.toLocaleDateString("ar-AE", {
