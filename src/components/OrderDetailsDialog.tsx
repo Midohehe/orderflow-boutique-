@@ -155,17 +155,27 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       const list = (it.data || []) as any[];
       // If no order_items yet, seed with the order's main product so the user can edit it
       if (list.length === 0 && o.data) {
-        setItems([
-          {
-            product_id: o.data.product_id || null,
-            product_name: o.data.product_name || "",
-            selected_color: o.data.selected_color || null,
-            selected_size: o.data.selected_size || null,
-            selected_product_code: o.data.selected_product_code || null,
-            quantity: o.data.quantity || 1,
-            price: Number(o.data.price) || 0,
-          },
-        ]);
+        const splitVals = (v: any): string[] => {
+          if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+          if (typeof v === "string") return v.split(/[,،;\/]+/).map((s) => s.trim()).filter(Boolean);
+          return [];
+        };
+        const colors = splitVals(o.data.selected_color);
+        const sizes = splitVals(o.data.selected_size);
+        const codes = splitVals(o.data.selected_product_code);
+        const qty = Number(o.data.quantity) || 1;
+        const unitPrice = qty > 0 ? (Number(o.data.price) || 0) / qty : Number(o.data.price) || 0;
+        const count = Math.max(qty, colors.length, sizes.length, codes.length, 1);
+        const seeded: ItemRow[] = Array.from({ length: count }).map((_, i) => ({
+          product_id: o.data.product_id || null,
+          product_name: o.data.product_name || "",
+          selected_color: colors[i] ?? colors[0] ?? null,
+          selected_size: sizes[i] ?? sizes[0] ?? null,
+          selected_product_code: codes[i] ?? codes[0] ?? null,
+          quantity: 1,
+          price: unitPrice,
+        }));
+        setItems(seeded);
       } else {
         setItems(list as ItemRow[]);
       }
