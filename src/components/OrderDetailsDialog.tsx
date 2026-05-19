@@ -465,7 +465,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <span>الطلب مقفل بسبب نفاد الرصيد — لا يمكن إرساله لشركة التوصيل حتى شحن المحفظة.</span>
             </div>
           )}
-          {originalInput && (originalInput.city || originalInput.address) && (
+          {originalInput && (originalInput.city || originalInput.address || originalInput.variant) && (
             <div className="p-3 rounded-md bg-muted/50 border border-border text-sm mb-2 space-y-1">
               <div className="font-medium text-foreground">ما كتبه الزبون في النموذج:</div>
               <div className="text-muted-foreground">
@@ -476,6 +476,18 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                 <span className="font-medium text-foreground">العنوان: </span>
                 {originalInput.address || "—"}
               </div>
+              {originalInput.variant && (
+                <div className="text-muted-foreground" dir="rtl">
+                  <span className="font-medium text-foreground">المتغير المختار: </span>
+                  <span dir="ltr" className="inline-block">{isolateLatin(originalInput.variant)}</span>
+                </div>
+              )}
+              {originalInput.quantity != null && (
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">الكمية: </span>
+                  {originalInput.quantity}
+                </div>
+              )}
             </div>
           )}
           <div className="space-y-4">
