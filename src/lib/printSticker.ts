@@ -68,6 +68,12 @@ export type StickerOrder = {
   carrier_status?: string | null;
   created_at?: string | null;
   local_code?: string | null;
+  items?: Array<{
+    color?: string | null;
+    size?: string | null;
+    product_code?: string | null;
+    product_name?: string | null;
+  }> | null;
 };
 
 const escape = (v: unknown): string => {
@@ -115,12 +121,36 @@ export const buildStickerHtml = (
   const h = settings.page_height_mm;
 
   const stickers = orders.map((order) => {
+    const variantFieldKeys = new Set(["selected_color", "selected_size", "selected_product_code"]);
+    const hasItems = Array.isArray(order.items) && order.items.length > 0;
+    const showItemsBlock = hasItems && enabledFields.some((f) => variantFieldKeys.has(f.key));
+    let itemsRendered = false;
+
     const rows = enabledFields.map((f) => {
       if (f.key === "shipping_reference" && settings.show_barcode) {
         const bcId = `bc-${order.id}-${Math.random().toString(36).slice(2, 9)}`;
         return `<div class="sticker-row sticker-barcode-row" data-barcode="${escape(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName))}" id="${bcId}">
           <div class="sticker-label">${escape(f.label)}</div>
           ${renderBarcode(renderValue(f.key, order, ctx.currencySymbol, ctx.storeName), bcId)}
+        </div>`;
+      }
+      // Replace flat color/size/code rows with a paired-per-piece block
+      if (variantFieldKeys.has(f.key) && showItemsBlock) {
+        if (itemsRendered) return "";
+        itemsRendered = true;
+        const showColor = enabledFields.some((x) => x.key === "selected_color");
+        const showSize = enabledFields.some((x) => x.key === "selected_size");
+        const showCode = enabledFields.some((x) => x.key === "selected_product_code");
+        const lines = (order.items || []).map((it, idx) => {
+          const parts: string[] = [];
+          if (showColor && it.color) parts.push(`اللون: ${escape(String(it.color))}`);
+          if (showSize && it.size) parts.push(`المقاس: ${escape(String(it.size))}`);
+          if (showCode && it.product_code) parts.push(`الكود: ${escape(String(it.product_code))}`);
+          return `<div class="sticker-item-row"><span class="sticker-item-num">${idx + 1}.</span> ${parts.join(" — ") || "—"}</div>`;
+        }).join("");
+        return `<div class="sticker-row sticker-items">
+          <div class="sticker-label">تفاصيل القطع:</div>
+          ${lines}
         </div>`;
       }
       const val = renderValue(f.key, order, ctx.currencySymbol, ctx.storeName);
@@ -166,6 +196,10 @@ export const buildStickerHtml = (
   .sticker-label { font-weight: 700; margin-left: 4px; }
   .sticker-value { }
   .sticker-barcode-row { text-align: center; }
+  .sticker-items { background: #f7f7f7; border: 1px dashed #999; padding: 1.5mm 2mm; border-radius: 2mm; }
+  .sticker-item-row { line-height: 1.5; padding: 0.5mm 0; border-bottom: 1px dotted #ccc; }
+  .sticker-item-row:last-child { border-bottom: none; }
+  .sticker-item-num { font-weight: 700; margin-left: 4px; }
   .sticker-footer { border-top: 1px dashed #000; padding-top: 2mm; margin-top: 2mm; text-align: center; font-size: ${Math.max(8, settings.font_size - 2)}px; }
   @media screen { body { background: #f3f4f6; padding: 16px; } .sticker { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.1); margin: 0 auto 16px; } }
 </style>
