@@ -467,6 +467,27 @@ export type Database = {
         }
         Relationships: []
       }
+      facebook_oauth_states: {
+        Row: {
+          created_at: string
+          owner_id: string
+          store_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          owner_id: string
+          store_id: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          owner_id?: string
+          store_id?: string
+          token?: string
+        }
+        Relationships: []
+      }
       form_field_catalog: {
         Row: {
           admin_enabled: boolean
@@ -2061,6 +2082,51 @@ export type Database = {
           return_id?: string | null
           variant_key?: string | null
           warehouse_code?: string | null
+        }
+        Relationships: []
+      }
+      store_facebook_connections: {
+        Row: {
+          access_token: string
+          ad_account_id: string | null
+          ad_account_name: string | null
+          connected_at: string
+          fb_user_id: string | null
+          fb_user_name: string | null
+          id: string
+          owner_id: string
+          scopes: string | null
+          store_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          connected_at?: string
+          fb_user_id?: string | null
+          fb_user_name?: string | null
+          id?: string
+          owner_id: string
+          scopes?: string | null
+          store_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          connected_at?: string
+          fb_user_id?: string | null
+          fb_user_name?: string | null
+          id?: string
+          owner_id?: string
+          scopes?: string | null
+          store_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
