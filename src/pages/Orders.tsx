@@ -138,6 +138,7 @@ const Orders = () => {
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
+  const [shippedProductFilter, setShippedProductFilter] = useState<string>("all");
   const [syncingCarrier, setSyncingCarrier] = useState(false);
   const [carrierSyncResult, setCarrierSyncResult] = useState<null | {
     total: number; updated: number; failed: number;
