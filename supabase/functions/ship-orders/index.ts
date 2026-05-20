@@ -619,14 +619,31 @@ Deno.serve(async (req) => {
         openableCode: body.openable ? "Y" : "N",
         banknoteCode: "ANY",
         refNumber: o.id.slice(0, 12).toUpperCase(),
-        notes: [
-          isolateLatin(o.selected_color),
-          isolateLatin(o.selected_size),
-          isolateLatin(o.selected_product_code),
-          (needsConfirmation && areaName && norm(areaName).includes(norm("استلام مكتب")))
-            ? "اتصل بالزبون للتاكيد"
-            : null,
-        ].filter(Boolean).join(" / ") || undefined,
+        notes: (() => {
+          // Build a label per line: variant (color/size) when present, else product name.
+          const lines: string[] = [];
+          const pushLine = (name: string | null, color: string | null, size: string | null, code: string | null) => {
+            const c = (color || "").trim();
+            const s = (size || "").trim();
+            const k = (code || "").trim();
+            let label = "";
+            if (c || s) label = [c, s].filter(Boolean).join(" - ");
+            else if (k) label = k;
+            else label = (name || "").trim();
+            if (label) lines.push(isolateLatin(label));
+          };
+          if (items.length > 0) {
+            for (const it of items) {
+              pushLine(it.product_name, it.selected_color, it.selected_size, it.selected_product_code);
+            }
+          } else {
+            pushLine(o.product_name, o.selected_color, o.selected_size, o.selected_product_code);
+          }
+          if (needsConfirmation && areaName && norm(areaName).includes(norm("استلام مكتب"))) {
+            lines.push("اتصل بالزبون للتاكيد");
+          }
+          return lines.filter(Boolean).join(" / ") || undefined;
+        })(),
       };
       if (shipmentProducts && allLinesHaveWh) {
         // When shipmentProducts is set, the API derives weight/pieces/price from products
