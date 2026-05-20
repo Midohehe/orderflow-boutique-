@@ -75,6 +75,12 @@ const baseMenuGroups = [
       { icon: SettingsIcon, label: "تعريفات فشل الإرسال (أدمن)", path: "/dashboard/shipping-error-aliases", external: false, adminOnly: true, dynamicStore: false },
     ],
   },
+  {
+    label: "إدارة النظام",
+    items: [
+      { icon: SettingsIcon, label: "تطبيق فيسبوك (أدمن)", path: "/dashboard/facebook-app", external: false, adminOnly: true, dynamicStore: false },
+    ],
+  },
 ];
 
 const adminSettingsItem = {
