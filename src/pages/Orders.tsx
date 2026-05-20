@@ -138,6 +138,7 @@ const Orders = () => {
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
+  const [shippedProductFilter, setShippedProductFilter] = useState<string>("all");
   const [syncingCarrier, setSyncingCarrier] = useState(false);
   const [carrierSyncResult, setCarrierSyncResult] = useState<null | {
     total: number; updated: number; failed: number;
@@ -1004,6 +1005,7 @@ const Orders = () => {
         return false;
       }
     }
+    if (shippedProductFilter !== "all" && displayProductName(o) !== shippedProductFilter) return false;
     return true;
   });
   const deliveredOrders = orders.filter((o) => (o.status === "delivered" || o.status === "settled") && !o.is_deleted);
@@ -1882,6 +1884,17 @@ const Orders = () => {
                         </SelectItem>
                       );
                     })}
+                  </SelectContent>
+                </Select>
+                <Select value={shippedProductFilter} onValueChange={setShippedProductFilter}>
+                  <SelectTrigger className="sm:w-52">
+                    <SelectValue placeholder="فلترة حسب المنتج" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل المنتجات</SelectItem>
+                    {productNames.filter(Boolean).map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button
