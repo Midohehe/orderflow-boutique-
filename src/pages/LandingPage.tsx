@@ -468,7 +468,18 @@ const LandingPage = () => {
   const [checkoutTracked, setCheckoutTracked] = useState(false);
 
   const handleInputChange = (fieldKey: string, value: string) => {
-    setFormData({ ...formData, [fieldKey]: value });
+    let cleanedValue = value;
+    // Phone field: strip everything except digits and optional leading +
+    const isPhoneField = formFields.find(f => f.field_key === fieldKey)?.field_type === "phone";
+    if (isPhoneField) {
+      cleanedValue = value.replace(/[^0-9+]/g, "");
+      if (cleanedValue.startsWith("+")) {
+        cleanedValue = "+" + cleanedValue.slice(1).replace(/[^0-9]/g, "");
+      } else {
+        cleanedValue = cleanedValue.replace(/[^0-9]/g, "");
+      }
+    }
+    setFormData({ ...formData, [fieldKey]: cleanedValue });
 
     // Track checkout start on first input
     if (!checkoutTracked && value.length > 0) {
@@ -764,6 +775,21 @@ const LandingPage = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate phone number: 9-10 digits only
+    const phoneField = formFields.find(f => f.field_type === "phone");
+    if (phoneField) {
+      const phoneValue = formData[phoneField.field_key] || "";
+      const digitsOnly = phoneValue.replace(/\D/g, "");
+      if (digitsOnly.length < 9 || digitsOnly.length > 10) {
+        toast({
+          title: "خطأ",
+          description: "رقم الهاتف يجب أن يكون بين 9 و 10 أرقام",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Validate per-piece variants: if product has variants, each piece must have its selections
