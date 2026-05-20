@@ -62,7 +62,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 const queryClient = new QueryClient();
-
+const Privacy = lazy(() => import("./pages/Privacy"));
 const PageFallback = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
     <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -98,7 +98,8 @@ const App = () => {
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <DashboardLayout />
+              <Route path="/login" element={<Login />} />
+              <Route path="/privacy" element={<Privacy />} />
                   </ProtectedRoute>
                 }
               >
