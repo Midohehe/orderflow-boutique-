@@ -2134,6 +2134,21 @@ export type Database = {
           },
         ]
       }
+      store_order_counters: {
+        Row: {
+          last_value: number
+          store_id: string
+        }
+        Insert: {
+          last_value?: number
+          store_id: string
+        }
+        Update: {
+          last_value?: number
+          store_id?: string
+        }
+        Relationships: []
+      }
       store_settings: {
         Row: {
           button_text: string
@@ -2512,6 +2527,10 @@ export type Database = {
         Returns: number
       }
       generate_order_code: { Args: never; Returns: string }
+      generate_order_code_for_store: {
+        Args: { _store_id: string }
+        Returns: string
+      }
       generate_recharge_cards: {
         Args: { _count: number; _label?: string; _value: number }
         Returns: Json
