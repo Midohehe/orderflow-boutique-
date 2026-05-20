@@ -62,7 +62,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 const queryClient = new QueryClient();
-const NotFound = lazy(() => import("./pages/NotFound"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const PageFallback = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -99,7 +98,8 @@ const App = () => {
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <DashboardLayout />
+              <Route path="/login" element={<Login />} />
+              <Route path="/privacy" element={<Privacy />} />
                   </ProtectedRoute>
                 }
               >
