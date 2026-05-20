@@ -1005,6 +1005,7 @@ const Orders = () => {
         return false;
       }
     }
+    if (shippedProductFilter !== "all" && displayProductName(o) !== shippedProductFilter) return false;
     return true;
   });
   const deliveredOrders = orders.filter((o) => (o.status === "delivered" || o.status === "settled") && !o.is_deleted);
