@@ -1416,6 +1416,50 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          store_id: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          store_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          store_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recharge_cards: {
         Row: {
           batch_id: string | null
@@ -2297,6 +2341,7 @@ export type Database = {
           is_default: boolean
           name: string
           owner_id: string
+          push_enabled: boolean
           slug: string
           updated_at: string
         }
@@ -2306,6 +2351,7 @@ export type Database = {
           is_default?: boolean
           name?: string
           owner_id: string
+          push_enabled?: boolean
           slug: string
           updated_at?: string
         }
@@ -2315,6 +2361,7 @@ export type Database = {
           is_default?: boolean
           name?: string
           owner_id?: string
+          push_enabled?: boolean
           slug?: string
           updated_at?: string
         }
