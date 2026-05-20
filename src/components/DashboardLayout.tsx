@@ -232,9 +232,9 @@ const DashboardLayout = () => {
           </div>
           {menuGroups.map((group, gi) => {
             const hasLabel = !!group.label;
-            const isExpanded = expandedGroups[gi] ?? !hasLabel;
             const groupHasActive = group.items.some((item) => !item.external && location.pathname === item.path);
-            const showItems = !hasLabel || isExpanded || groupHasActive;
+            const isExpanded = expandedGroups[gi] ?? (!hasLabel || groupHasActive);
+            const showItems = !hasLabel || isExpanded;
 
             return (
               <div key={gi} className="space-y-1">
