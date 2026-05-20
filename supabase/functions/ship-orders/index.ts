@@ -622,13 +622,11 @@ Deno.serve(async (req) => {
         notes: (() => {
           // Build a label per line: variant (color/size) when present, else product name.
           const lines: string[] = [];
-          const pushLine = (name: string | null, color: string | null, size: string | null, code: string | null) => {
+          const pushLine = (name: string | null, color: string | null, size: string | null, _code: string | null) => {
             const c = (color || "").trim();
             const s = (size || "").trim();
-            const k = (code || "").trim();
             let label = "";
             if (c || s) label = [c, s].filter(Boolean).join(" - ");
-            else if (k) label = k;
             else label = (name || "").trim();
             if (label) lines.push(isolateLatin(label));
           };
