@@ -468,7 +468,18 @@ const LandingPage = () => {
   const [checkoutTracked, setCheckoutTracked] = useState(false);
 
   const handleInputChange = (fieldKey: string, value: string) => {
-    setFormData({ ...formData, [fieldKey]: value });
+    let cleanedValue = value;
+    // Phone field: strip everything except digits and optional leading +
+    const isPhoneField = formFields.find(f => f.field_key === fieldKey)?.field_type === "phone";
+    if (isPhoneField) {
+      cleanedValue = value.replace(/[^0-9+]/g, "");
+      if (cleanedValue.startsWith("+")) {
+        cleanedValue = "+" + cleanedValue.slice(1).replace(/[^0-9]/g, "");
+      } else {
+        cleanedValue = cleanedValue.replace(/[^0-9]/g, "");
+      }
+    }
+    setFormData({ ...formData, [fieldKey]: cleanedValue });
 
     // Track checkout start on first input
     if (!checkoutTracked && value.length > 0) {
