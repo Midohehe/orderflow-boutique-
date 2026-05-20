@@ -777,6 +777,21 @@ const LandingPage = () => {
       return;
     }
 
+    // Validate phone number: 9-10 digits only
+    const phoneField = formFields.find(f => f.field_type === "phone");
+    if (phoneField) {
+      const phoneValue = formData[phoneField.field_key] || "";
+      const digitsOnly = phoneValue.replace(/\D/g, "");
+      if (digitsOnly.length < 9 || digitsOnly.length > 10) {
+        toast({
+          title: "خطأ",
+          description: "رقم الهاتف يجب أن يكون بين 9 و 10 أرقام",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Validate per-piece variants: if product has variants, each piece must have its selections
     const hasColors = !!(product?.colors && product.colors.length > 0);
     const hasSizes = !!(product?.sizes && product.sizes.length > 0);
