@@ -2185,6 +2185,21 @@ export type Database = {
         }
         Relationships: []
       }
+      store_sku_counters: {
+        Row: {
+          last_value: number
+          store_id: string
+        }
+        Insert: {
+          last_value?: number
+          store_id: string
+        }
+        Update: {
+          last_value?: number
+          store_id?: string
+        }
+        Relationships: []
+      }
       stores: {
         Row: {
           created_at: string
@@ -2556,6 +2571,10 @@ export type Database = {
         }
         Returns: number
       }
+      next_skus_for_store: {
+        Args: { _count: number; _store_id: string }
+        Returns: string[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -2565,6 +2584,7 @@ export type Database = {
         }[]
       }
       redeem_card: { Args: { _code: string }; Returns: Json }
+      store_used_skus: { Args: { _store_id: string }; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "user"
