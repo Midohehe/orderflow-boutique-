@@ -138,6 +138,7 @@ const App = () => {
                 <Route path="admin-cards" element={<AdminCards />} />
                 <Route path="stores" element={<AdminStores />} />
                 <Route path="stores/:userId" element={<AdminStoreDetail />} />
+                <Route path="facebook-app" element={<AdminFacebookApp />} />
                 <Route path="permissions" element={<PermissionGroups />} />
                 <Route path="members" element={<StoreMembers />} />
               </Route>
