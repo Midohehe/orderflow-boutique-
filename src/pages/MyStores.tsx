@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, Loader2, Store as StoreIcon, Check, Copy } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import StorePushToggle from "@/components/StorePushToggle";
 
 const sanitizeSlug = (s: string) =>
   s.toLowerCase().trim().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -182,6 +183,7 @@ const MyStores = () => {
                   <Copy className="w-3.5 h-3.5" />
                 </Button>
               </div>
+              <StorePushToggle storeId={s.id} initialEnabled={!!(s as any).push_enabled} onChange={() => refresh()} />
               <div className="flex flex-wrap gap-2">
                 {s.id === activeStoreId ? (
                   <Badge className="gap-1"><Check className="w-3 h-3" /> نشط</Badge>
