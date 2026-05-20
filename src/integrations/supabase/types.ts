@@ -443,6 +443,30 @@ export type Database = {
           },
         ]
       }
+      facebook_app_config: {
+        Row: {
+          app_id: string | null
+          app_secret: string | null
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          app_id?: string | null
+          app_secret?: string | null
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          app_id?: string | null
+          app_secret?: string | null
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       form_field_catalog: {
         Row: {
           admin_enabled: boolean
