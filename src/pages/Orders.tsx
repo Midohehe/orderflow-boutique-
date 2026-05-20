@@ -1886,6 +1886,17 @@ const Orders = () => {
                     })}
                   </SelectContent>
                 </Select>
+                <Select value={shippedProductFilter} onValueChange={setShippedProductFilter}>
+                  <SelectTrigger className="sm:w-52">
+                    <SelectValue placeholder="فلترة حسب المنتج" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل المنتجات</SelectItem>
+                    {productNames.filter(Boolean).map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="outline"
