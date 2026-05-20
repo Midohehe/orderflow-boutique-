@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     // Authoritative price lookup
     const { data: product, error: pErr } = await supabase
       .from("products")
-      .select("id, name, price, is_visible, owner_id, store_id, upsell_enabled, upsell_offers")
+      .select("id, name, price, is_visible, owner_id, store_id, upsell_enabled, upsell_offers, colors, sizes")
       .eq("id", product_id)
       .maybeSingle();
 
@@ -76,6 +76,48 @@ Deno.serve(async (req) => {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Server-side variant validation: if the product defines colors/sizes,
+    // each ordered piece MUST carry a matching selection. This blocks
+    // bots and scripts that bypass the client form.
+    const productColors = Array.isArray((product as any).colors) ? (product as any).colors.filter(Boolean) : [];
+    const productSizes = Array.isArray((product as any).sizes) ? (product as any).sizes.filter(Boolean) : [];
+    const requiresColor = productColors.length > 0;
+    const requiresSize = productSizes.length > 0;
+    if (requiresColor || requiresSize) {
+      const items = Array.isArray(body.items) && body.items.length > 0
+        ? body.items
+        : [{
+            color: body.selected_color,
+            size: body.selected_size,
+            product_code: body.selected_product_code,
+            quantity,
+          }];
+      for (const it of items) {
+        const c = s(it?.color ?? "", 200);
+        const sz = s(it?.size ?? "", 200);
+        if (requiresColor && !c) {
+          return new Response(JSON.stringify({ error: "missing_variant_color" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (requiresSize && !sz) {
+          return new Response(JSON.stringify({ error: "missing_variant_size" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (requiresColor && !productColors.includes(c)) {
+          return new Response(JSON.stringify({ error: "invalid_variant_color" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (requiresSize && !productSizes.includes(sz)) {
+          return new Response(JSON.stringify({ error: "invalid_variant_size" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
     }
 
     let totalPrice = Number(product.price) * quantity;
