@@ -12,7 +12,7 @@ function html(body: string) {
 }
 
 function redirectBack(status: "success" | "error", message?: string) {
-  const url = new URL(`${APP_ORIGIN}/dashboard/settings`);
+  const url = new URL(`${APP_ORIGIN}/dashboard/facebook-ads`);
   url.searchParams.set("fb", status);
   if (message) url.searchParams.set("msg", message);
   return Response.redirect(url.toString(), 302);
