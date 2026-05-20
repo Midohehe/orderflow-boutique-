@@ -2064,6 +2064,51 @@ export type Database = {
         }
         Relationships: []
       }
+      store_facebook_connections: {
+        Row: {
+          access_token: string
+          ad_account_id: string | null
+          ad_account_name: string | null
+          connected_at: string
+          fb_user_id: string | null
+          fb_user_name: string | null
+          id: string
+          owner_id: string
+          scopes: string | null
+          store_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          connected_at?: string
+          fb_user_id?: string | null
+          fb_user_name?: string | null
+          id?: string
+          owner_id: string
+          scopes?: string | null
+          store_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          connected_at?: string
+          fb_user_id?: string | null
+          fb_user_name?: string | null
+          id?: string
+          owner_id?: string
+          scopes?: string | null
+          store_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       store_member_permissions: {
         Row: {
           member_id: string
