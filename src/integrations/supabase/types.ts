@@ -467,6 +467,27 @@ export type Database = {
         }
         Relationships: []
       }
+      facebook_oauth_states: {
+        Row: {
+          created_at: string
+          owner_id: string
+          store_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          owner_id: string
+          store_id: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          owner_id?: string
+          store_id?: string
+          token?: string
+        }
+        Relationships: []
+      }
       form_field_catalog: {
         Row: {
           admin_enabled: boolean
