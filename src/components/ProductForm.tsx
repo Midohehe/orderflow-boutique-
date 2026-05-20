@@ -9,6 +9,8 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useStoreContext } from "@/hooks/useStoreContext";
+import { toast } from "@/hooks/use-toast";
 import {
   ImageIcon,
   Tag,
@@ -189,26 +191,38 @@ const TagsField = ({
 
 const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
+  const { activeStoreId } = useStoreContext();
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
   };
 
-  // توليد SKU تلقائي لجميع المتغيرات
-  const autoGenerateSkus = (overwrite: boolean) => {
+  // توليد SKU تلقائي تسلسلي (001, 002...) لكل متجر على حدة، بدون تكرار
+  const fetchNextSkus = async (count: number): Promise<string[]> => {
+    const { data, error } = await supabase.rpc("next_skus_for_store", {
+      _store_id: activeStoreId,
+      _count: count,
+    });
+    if (error) {
+      toast({ title: "تعذر توليد الأكواد", description: error.message, variant: "destructive" });
+      return [];
+    }
+    return (data || []) as string[];
+  };
+
+  const autoGenerateSkus = async (overwrite: boolean) => {
     const keys = buildVariantKeys(product.colors, product.sizes, product.productCodes);
     if (keys.length === 0) return;
-    const base = (product.name || "SKU")
-      .replace(/[\u064B-\u0652\u0670]/g, "")
-      .replace(/[^A-Za-z0-9]+/g, "")
-      .toUpperCase()
-      .slice(0, 4) || "SKU";
     const next: Record<string, string> = { ...(product.variantSkus || {}) };
-    keys.forEach((k, idx) => {
-      if (!overwrite && next[k]) return;
-      const rand = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
-      next[k] = `${base}-${String(idx + 1).padStart(2, "0")}-${rand}`;
-    });
+    const toFill = keys.filter((k) => overwrite || !next[k]);
+    if (toFill.length === 0) return;
+    const codes = await fetchNextSkus(toFill.length);
+    toFill.forEach((k, i) => { if (codes[i]) next[k] = codes[i]; });
     onProductChange({ ...product, variantSkus: next });
+  };
+
+  const autoGenerateSingleSku = async () => {
+    const codes = await fetchNextSkus(1);
+    if (codes[0]) onProductChange({ ...product, productCodes: codes[0] });
   };
 
   const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null }>>([]);
@@ -605,14 +619,24 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         ) : (
           <div className="space-y-2">
             <Label className="font-semibold">كود المنتج (SKU)</Label>
-            <Input
-              value={product.productCodes}
-              onChange={(e) => updateField("productCodes", e.target.value.replace(/,.*$/, ""))}
-              placeholder="SKU-001"
-              dir="ltr"
-              className="text-left font-mono"
-            />
-            <p className="text-[11px] text-muted-foreground">كود واحد للمنتج كاملاً (بدون متغيرات).</p>
+            <div className="flex gap-2">
+              <Input
+                value={product.productCodes}
+                onChange={(e) => updateField("productCodes", e.target.value.replace(/,.*$/, ""))}
+                placeholder="001"
+                dir="ltr"
+                className="text-left font-mono flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+                onClick={autoGenerateSingleSku}
+              >
+                توليد تلقائي
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">كود واحد للمنتج كاملاً. التوليد التلقائي يبدأ من 001 لكل متجر.</p>
           </div>
         )}
       </SectionCard>
