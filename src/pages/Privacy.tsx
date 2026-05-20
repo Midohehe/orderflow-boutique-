@@ -1,13 +1,11 @@
-import { Helmet } from "react-helmet-async";
+import { useEffect } from "react";
 
 const Privacy = () => {
+  useEffect(() => {
+    document.title = "سياسة الخصوصية | منصة وصلة";
+  }, []);
   return (
     <div dir="rtl" className="min-h-screen bg-background text-foreground py-12 px-4">
-      <Helmet>
-        <title>سياسة الخصوصية | منصة وصلة</title>
-        <meta name="description" content="سياسة الخصوصية الخاصة بمنصة وصلة لإدارة المتاجر الإلكترونية" />
-        <link rel="canonical" href="https://www.was-la.com/privacy" />
-      </Helmet>
       <article className="max-w-3xl mx-auto space-y-6 leading-relaxed">
         <h1 className="text-3xl font-bold">سياسة الخصوصية</h1>
         <p className="text-sm text-muted-foreground">آخر تحديث: 20 مايو 2026</p>
