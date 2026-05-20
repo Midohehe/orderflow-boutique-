@@ -94,12 +94,11 @@ const App = () => {
               <Route path="/p/:username/:slug" element={<LandingPage />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/thank-you" element={<ThankYou />} />
+              <Route path="/privacy" element={<Privacy />} />
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-              <Route path="/login" element={<Login />} />
-              <Route path="/privacy" element={<Privacy />} />
                   </ProtectedRoute>
                 }
               >
