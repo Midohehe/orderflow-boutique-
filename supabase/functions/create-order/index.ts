@@ -271,6 +271,22 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ order_id: orderId }),
           });
         } catch (e) { console.error("wa-confirm failed", e); }
+
+        // 4) Push notification to store owner.
+        try {
+          await fetch(`${baseUrl}/functions/v1/send-push`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({
+              store_id: (product as any).store_id ?? null,
+              user_id: (product as any).store_id ? undefined : (product as any).owner_id,
+              title: "🔔 طلب جديد",
+              body: `${customer_name || "زبون"} — ${product.name}`,
+              url: "/orders",
+              tag: `order-${orderId}`,
+            }),
+          });
+        } catch (e) { console.error("push notify failed", e); }
       })();
 
       // Keep the runtime alive until background work completes, but don't
