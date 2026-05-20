@@ -619,14 +619,24 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         ) : (
           <div className="space-y-2">
             <Label className="font-semibold">كود المنتج (SKU)</Label>
-            <Input
-              value={product.productCodes}
-              onChange={(e) => updateField("productCodes", e.target.value.replace(/,.*$/, ""))}
-              placeholder="SKU-001"
-              dir="ltr"
-              className="text-left font-mono"
-            />
-            <p className="text-[11px] text-muted-foreground">كود واحد للمنتج كاملاً (بدون متغيرات).</p>
+            <div className="flex gap-2">
+              <Input
+                value={product.productCodes}
+                onChange={(e) => updateField("productCodes", e.target.value.replace(/,.*$/, ""))}
+                placeholder="001"
+                dir="ltr"
+                className="text-left font-mono flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+                onClick={autoGenerateSingleSku}
+              >
+                توليد تلقائي
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">كود واحد للمنتج كاملاً. التوليد التلقائي يبدأ من 001 لكل متجر.</p>
           </div>
         )}
       </SectionCard>
