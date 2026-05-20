@@ -49,6 +49,7 @@ const Wallet = lazy(() => import("./pages/Wallet"));
 const AdminCards = lazy(() => import("./pages/AdminCards"));
 const AdminStores = lazy(() => import("./pages/AdminStores"));
 const AdminStoreDetail = lazy(() => import("./pages/AdminStoreDetail"));
+const AdminFacebookApp = lazy(() => import("./pages/AdminFacebookApp"));
 const PermissionGroups = lazy(() => import("./pages/PermissionGroups"));
 const StoreMembers = lazy(() => import("./pages/StoreMembers"));
 const ConfirmationCenter = lazy(() => import("./pages/ConfirmationCenter"));
@@ -137,6 +138,7 @@ const App = () => {
                 <Route path="admin-cards" element={<AdminCards />} />
                 <Route path="stores" element={<AdminStores />} />
                 <Route path="stores/:userId" element={<AdminStoreDetail />} />
+                <Route path="facebook-app" element={<AdminFacebookApp />} />
                 <Route path="permissions" element={<PermissionGroups />} />
                 <Route path="members" element={<StoreMembers />} />
               </Route>
