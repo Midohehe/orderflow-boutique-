@@ -9,7 +9,18 @@ const corsHeaders = {
 
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
+
+// Sanitize subject: strip spaces, angle brackets, ensure mailto: or https:// prefix
+function normalizeSubject(raw?: string): string {
+  const fallback = "mailto:admin@example.com";
+  if (!raw) return fallback;
+  let s = raw.trim().replace(/[<>]/g, "").replace(/\s+/g, "");
+  if (!s) return fallback;
+  if (s.startsWith("mailto:") || s.startsWith("https://") || s.startsWith("http://")) return s;
+  if (s.includes("@")) return `mailto:${s}`;
+  return `https://${s}`;
+}
+const VAPID_SUBJECT = normalizeSubject(Deno.env.get("VAPID_SUBJECT"));
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
