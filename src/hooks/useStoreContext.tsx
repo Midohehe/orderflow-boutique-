@@ -8,6 +8,7 @@ export interface Store {
   name: string;
   slug: string;
   is_default: boolean;
+  push_enabled?: boolean;
 }
 
 interface StoreContextType {
