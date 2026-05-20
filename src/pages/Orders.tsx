@@ -1268,6 +1268,11 @@ const Orders = () => {
                     حالة شركة التوصيل: {displayCarrierStatus(order)}
                   </Badge>
                 )}
+                {order.shipping_reference && (
+                  <Badge variant="outline" className="font-mono">
+                    رقم شركة الشحن: {order.shipping_reference}
+                  </Badge>
+                )}
               </div>
               {(order.carrier_cancellation_reason_id || order.carrier_notes) && (
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
