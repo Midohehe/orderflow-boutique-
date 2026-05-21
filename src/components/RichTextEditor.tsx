@@ -14,7 +14,10 @@ import {
   Image as ImageIcon,
   Video,
   Link,
-  Trash2
+  Trash2,
+  Highlighter,
+  Eraser,
+  Type
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -547,9 +550,49 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
           type="color"
           onMouseDown={(e) => e.preventDefault()}
           onChange={(e) => execCommand("foreColor", e.target.value)}
-          className="w-8 h-8 p-1 border rounded cursor-pointer"
+          className="w-7 h-7 sm:w-8 sm:h-8 p-1 border rounded cursor-pointer flex-shrink-0"
           title="لون النص"
         />
+
+        <label
+          className="relative w-7 h-7 sm:w-8 sm:h-8 border rounded cursor-pointer flex items-center justify-center hover:bg-muted flex-shrink-0"
+          title="لون الخلفية (تظليل)"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <Highlighter className="w-4 h-4 pointer-events-none" />
+          <input
+            type="color"
+            onChange={(e) => {
+              if (!document.execCommand("hiliteColor", false, e.target.value)) {
+                execCommand("backColor", e.target.value);
+              } else {
+                handleInput();
+              }
+            }}
+            className="absolute inset-0 opacity-0 cursor-pointer"
+          />
+        </label>
+
+        <ToolButton
+          onClick={() => {
+            execCommand("hiliteColor", "transparent");
+            execCommand("backColor", "transparent");
+          }}
+          title="إزالة لون الخلفية"
+        >
+          <Type className="w-4 h-4" />
+        </ToolButton>
+
+        <ToolButton
+          onClick={() => {
+            execCommand("removeFormat");
+            execCommand("hiliteColor", "transparent");
+            execCommand("backColor", "transparent");
+          }}
+          title="مسح التنسيق"
+        >
+          <Eraser className="w-4 h-4" />
+        </ToolButton>
       </div>
 
       {/* Editor */}
