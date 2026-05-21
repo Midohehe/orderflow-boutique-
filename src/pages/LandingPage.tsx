@@ -493,13 +493,13 @@ const LandingPage = () => {
 
           // Track page view in background (non-blocking)
           if (loadedProduct) {
-            const utmSource = getUtmSource();
+            const attr = getAttribution();
             supabase.from("analytics_events").insert({
               event_type: "page_view",
               product_slug: slug,
-              utm_source: utmSource,
               owner_id: ownerForSettings || null,
               store_id: storeForSettings || null,
+              ...attr,
             }).then(() => {});
           }
 
@@ -620,13 +620,13 @@ const LandingPage = () => {
       }
       
       // Fire-and-forget so input stays buttery smooth
-      const utmSource = getUtmSource();
+      const attr = getAttribution();
       supabase.from("analytics_events").insert({
         event_type: "checkout_start",
         product_slug: slug,
-        utm_source: utmSource,
           owner_id: ownerId || null,
           store_id: storeId || null,
+        ...attr,
       }).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
