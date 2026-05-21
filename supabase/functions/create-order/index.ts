@@ -23,7 +23,6 @@ interface OrderPayload {
   landing_slug?: string | null;
   hp?: string | null;
   elapsed_ms?: number | null;
-  turnstile_token?: string | null;
   items?: Array<{
     color?: string | null;
     size?: string | null;
@@ -115,38 +114,6 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-
-    // 3) Cloudflare Turnstile verification (invisible CAPTCHA).
-    const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
-    if (turnstileSecret) {
-      const token = s(body.turnstile_token ?? "", 4096);
-      // NOTE: Do NOT reject when the token is missing. Some browsers
-      // (Facebook/Instagram in-app, older WebViews) cannot load Turnstile,
-      // and real customers were being lost. We only verify when a token is
-      // provided; honeypot + time-check + variant validation remain enforced.
-      if (token) try {
-        const form = new FormData();
-        form.append("secret", turnstileSecret);
-        form.append("response", token);
-        if (clientIp) form.append("remoteip", clientIp);
-        const vRes = await fetch(
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-          { method: "POST", body: form },
-        );
-        const vJson = await vRes.json().catch(() => ({}));
-        if (!vJson?.success) {
-          console.warn("turnstile verify failed", vJson);
-          await logRejected("turnstile_failed");
-          return new Response(JSON.stringify({ error: "captcha_failed" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      } catch (e) {
-        // Fail-open on network errors so real customers aren't lost.
-        console.error("turnstile verify error (ignored)", e);
-      }
     }
 
     const product_id = s(body.product_id, 64);
