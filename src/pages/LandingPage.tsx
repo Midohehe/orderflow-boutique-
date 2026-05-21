@@ -150,6 +150,7 @@ const LandingPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const template = useStoreTemplate(ownerId);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
