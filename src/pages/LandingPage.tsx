@@ -1056,7 +1056,13 @@ const LandingPage = () => {
                           while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
                           return next.slice(0, newQty);
                         });
-                        setSelectedUpsellIndex(null);
+                        // Auto-apply matching upsell offer if the new quantity
+                        // matches one of the configured offer quantities, so
+                        // the customer always gets the discount price.
+                        const matchIdx = product.upsell_enabled && Array.isArray(product.upsell_offers)
+                          ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
+                          : -1;
+                        setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
                     >
@@ -1074,7 +1080,10 @@ const LandingPage = () => {
                           while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
                           return next.slice(0, newQty);
                         });
-                        setSelectedUpsellIndex(null);
+                        const matchIdx = product.upsell_enabled && Array.isArray(product.upsell_offers)
+                          ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
+                          : -1;
+                        setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
                     >
