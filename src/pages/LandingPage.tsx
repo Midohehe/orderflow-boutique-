@@ -1031,7 +1031,21 @@ const LandingPage = () => {
       <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
-      {template === "fashion" ? (
+      {template === "stylish" ? (
+        <StylishHero
+          title={product.name}
+          subtitle="الدفع عند الاستلام · شحن لكل ليبيا · استبدال مجاني خلال 7 أيام"
+          imageUrl={product.images?.[0]}
+          ctaText="اشترِ الآن"
+          badge={product.original_price && Number(product.original_price) > Number(product.price)
+            ? `خصم ${Math.round(((Number(product.original_price) - Number(product.price)) / Number(product.original_price)) * 100)}%`
+            : "وصل حديثاً"}
+          onCta={() => {
+            const el = document.getElementById("order-form");
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      ) : template === "fashion" ? (
         <FashionHero
           title={product.name}
           subtitle={product.original_price && Number(product.original_price) > Number(product.price)
