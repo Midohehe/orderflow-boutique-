@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Save, Palette, Image as ImageIcon, Sparkles, Plus, X } from "lucide-react";
+import { Loader2, Save, Palette, Image as ImageIcon, Sparkles } from "lucide-react";
 import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Row {
   id: string;
@@ -34,7 +35,6 @@ export default function ThemesSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [row, setRow] = useState<Row | null>(null);
-  const [newImg, setNewImg] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -52,14 +52,6 @@ export default function ThemesSettings() {
   }, [activeStoreId]);
 
   const update = (k: keyof Row, v: any) => row && setRow({ ...row, [k]: v });
-
-  const addImage = () => {
-    const url = newImg.trim();
-    if (!url || !row) return;
-    update("gallery_images", [...row.gallery_images, url]);
-    setNewImg("");
-  };
-  const removeImage = (i: number) => row && update("gallery_images", row.gallery_images.filter((_, idx) => idx !== i));
 
   const save = async () => {
     if (!row) return;
@@ -103,9 +95,12 @@ export default function ThemesSettings() {
 
       <SectionCard icon={ImageIcon} title="صورة الهيرو الرئيسية" description="الصورة الكبيرة في أعلى المتجر" iconColor="bg-indigo-500">
         <div className="space-y-2">
-          <Label className="font-semibold">رابط الصورة (URL)</Label>
-          <Input value={row.hero_image || ""} onChange={(e) => update("hero_image", e.target.value)} placeholder="https://..." dir="ltr" className="font-mono text-xs" />
-          {row.hero_image && <img src={row.hero_image} alt="" className="mt-3 w-full max-h-56 object-cover rounded-lg border" />}
+          <Label className="font-semibold">صورة الهيرو</Label>
+          <ImageUpload
+            images={row.hero_image ? [row.hero_image] : []}
+            onImagesChange={(imgs) => update("hero_image", imgs[0] || null)}
+            maxImages={1}
+          />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-2">
@@ -120,24 +115,11 @@ export default function ThemesSettings() {
       </SectionCard>
 
       <SectionCard icon={ImageIcon} title="معرض الصور / البانرات" description="صور إضافية تظهر بين الأقسام" iconColor="bg-emerald-500">
-        <div className="flex gap-2">
-          <Input value={newImg} onChange={(e) => setNewImg(e.target.value)} placeholder="https://..." dir="ltr" className="font-mono text-xs" onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addImage())} />
-          <Button type="button" onClick={addImage} className="gap-1"><Plus className="w-4 h-4" />إضافة</Button>
-        </div>
-        {row.gallery_images.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-4">
-            {row.gallery_images.map((img, i) => (
-              <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border">
-                <img src={img} alt="" className="w-full h-full object-cover" />
-                <button type="button" onClick={() => removeImage(i)} className="absolute top-1 left-1 w-7 h-7 grid place-items-center rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-6">لم تضف أي صور بعد</p>
-        )}
+        <ImageUpload
+          images={row.gallery_images}
+          onImagesChange={(imgs) => update("gallery_images", imgs)}
+          maxImages={10}
+        />
       </SectionCard>
 
       <Button onClick={save} disabled={saving} className="w-full bg-gradient-to-l from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
