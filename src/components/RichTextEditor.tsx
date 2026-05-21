@@ -140,6 +140,98 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
     handleInput();
   };
 
+  const applyFontSize = useCallback((size: string) => {
+    restoreSelection();
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) {
+      editorRef.current?.focus();
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current.contains(range.commonAncestorContainer)) {
+      editorRef.current.focus();
+      return;
+    }
+
+    if (selection.isCollapsed) {
+      const span = document.createElement('span');
+      span.style.fontSize = size;
+      span.innerHTML = '\u200B';
+      range.insertNode(span);
+
+      const newRange = document.createRange();
+      newRange.setStart(span.firstChild!, 1);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+      editorRef.current.focus();
+      saveSelection();
+      handleInput();
+      return;
+    }
+
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        if (!node.textContent?.length) return NodeFilter.FILTER_REJECT;
+
+        try {
+          return range.intersectsNode(node)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT;
+        } catch {
+          return NodeFilter.FILTER_REJECT;
+        }
+      },
+    });
+
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      textNodes.push(currentNode as Text);
+      currentNode = walker.nextNode();
+    }
+
+    const insertedSpans: HTMLSpanElement[] = [];
+
+    [...textNodes].reverse().forEach((textNode) => {
+      const textLength = textNode.textContent?.length ?? 0;
+      const startOffset = textNode === range.startContainer ? range.startOffset : 0;
+      const endOffset = textNode === range.endContainer ? range.endOffset : textLength;
+
+      if (startOffset >= endOffset) return;
+
+      const textRange = document.createRange();
+      textRange.setStart(textNode, startOffset);
+      textRange.setEnd(textNode, endOffset);
+
+      const span = document.createElement('span');
+      span.style.fontSize = size;
+      span.dataset.fontSizeSelection = 'true';
+
+      const contents = textRange.extractContents();
+      span.appendChild(contents);
+      textRange.insertNode(span);
+      insertedSpans.push(span);
+    });
+
+    if (insertedSpans.length > 0) {
+      const orderedSpans = insertedSpans.reverse();
+      const newRange = document.createRange();
+      newRange.setStartBefore(orderedSpans[0]);
+      newRange.setEndAfter(orderedSpans[orderedSpans.length - 1]);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+
+      orderedSpans.forEach((span) => delete span.dataset.fontSizeSelection);
+    }
+
+    editorRef.current.focus();
+    saveSelection();
+    handleInput();
+  }, [restoreSelection, saveSelection]);
+
   const handleInput = () => {
     if (editorRef.current) {
       onChange(editorRef.current.innerHTML);
@@ -329,43 +421,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
 
         <select
           onMouseDown={() => saveSelection()}
-          onChange={(e) => {
-            restoreSelection();
-            const size = e.target.value;
-            const selection = window.getSelection();
-            if (!selection || selection.rangeCount === 0) {
-              editorRef.current?.focus();
-              return;
-            }
-            const range = selection.getRangeAt(0);
-            if (!editorRef.current?.contains(range.commonAncestorContainer)) {
-              editorRef.current?.focus();
-              return;
-            }
-            const span = document.createElement('span');
-            span.style.fontSize = size;
-
-            if (selection.isCollapsed) {
-              span.innerHTML = '\u200B';
-              range.insertNode(span);
-              const newRange = document.createRange();
-              newRange.setStart(span.firstChild!, 1);
-              newRange.collapse(true);
-              selection.removeAllRanges();
-              selection.addRange(newRange);
-            } else {
-              const contents = range.extractContents();
-              span.appendChild(contents);
-              range.insertNode(span);
-              const newRange = document.createRange();
-              newRange.selectNodeContents(span);
-              selection.removeAllRanges();
-              selection.addRange(newRange);
-            }
-            editorRef.current?.focus();
-            saveSelection();
-            handleInput();
-          }}
+          onChange={(e) => applyFontSize(e.target.value)}
           className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm bg-card border border-border rounded-md cursor-pointer hover:bg-muted transition-colors focus:ring-2 focus:ring-primary focus:outline-none font-medium text-foreground flex-shrink-0"
           defaultValue="16px"
           title="حجم الخط"
