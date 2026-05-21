@@ -27,6 +27,62 @@ const tokens = (s: string) => norm(s).split(/[\s,،\-\/]+/).filter(Boolean);
 interface Z { external_id: number; parent_external_id: number | null; name: string; kind: string; }
 interface Pair { city: string; area: string; }
 
+// Service-type "areas" that carriers add as logistics options (not real
+// geographic places). Examples: "توصيل نسائي", "VIP", "اكسبرس". These should
+// NEVER be auto-selected unless the customer's own text explicitly contains
+// the same keyword (e.g. the customer asked for ladies-only delivery).
+const SERVICE_KEYWORDS = [
+  "نسائي",
+  "توصيل نسائي",
+  "vip",
+  "في اي بي",
+  "express",
+  "اكسبرس",
+  "اكسبريس",
+  "سريع",
+  "خاص",
+  "شركات",
+  "مكتب",
+];
+function areaServiceKeywords(areaName: string): string[] {
+  const a = norm(areaName);
+  return SERVICE_KEYWORDS.filter((k) => a.includes(norm(k)));
+}
+function isServiceArea(areaName: string): boolean {
+  return areaServiceKeywords(areaName).length > 0;
+}
+function inputAllowsServiceArea(inputNorm: string, areaName: string): boolean {
+  const kws = areaServiceKeywords(areaName);
+  if (kws.length === 0) return true;
+  // every service keyword in the area's name must be present in the input
+  return kws.every((k) => inputNorm.includes(norm(k)));
+}
+
+// Validate that an area name has REAL evidence in the customer's input.
+// Used to reject low-quality fuzzy picks like "الصين" appearing in طرابلس
+// when the customer never mentioned it. Returns true if any meaningful token
+// of the area name actually appears (as a token / substring / ≤1 edit) in
+// the input, OR if the area equals the city (placeholder row).
+function areaHasInputEvidence(areaName: string, cityName: string, inputNorm: string, inputToks: string[]): boolean {
+  const aN = norm(areaName);
+  const cN = norm(cityName);
+  if (!aN || aN === cN) return true; // city==area placeholder
+  // Split into significant words (skip very short ones like "ال", "بن").
+  const words = aN.split(/\s+/).filter((w) => w.length >= 3);
+  if (words.length === 0) return true;
+  for (const w of words) {
+    if (inputNorm.includes(w)) return true;
+    if (inputToks.includes(w)) return true;
+    if (w.length >= 5) {
+      // tolerate 1 edit for longer words only
+      for (const t of inputToks) {
+        if (Math.abs(t.length - w.length) <= 1 && lev(t, w) <= 1) return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Find the best area inside a given city by fuzzy matching every token of the
 // customer input against every area name. Uses combinedScore (Lev + similar_text)
 // and also rewards substring/prefix overlap so partial words like "بوعط" match
@@ -464,10 +520,40 @@ Deno.serve(async (req) => {
       candidates.sort((a, b) => b.weight - a.weight);
       console.log("match-city candidates", { city, address, candidates: candidates.slice(0, 5).map((c) => ({ ...c.pair, w: c.weight, s: c.src })) });
 
-      let final: Pair | undefined = candidates[0]?.pair;
+      // GUARD: drop candidates that are service areas (e.g. "توصيل نسائي")
+      // unless the customer's input actually contains those service keywords.
+      // Also drop candidates with no real textual evidence in the input
+      // (prevents fuzzy noise like "الصين" sneaking into طرابلس).
+      const inputNormAll = norm((city || "") + " " + (address || ""));
+      const filtered = candidates.filter((c) => {
+        if (!inputAllowsServiceArea(inputNormAll, c.pair.area)) {
+          console.log("match-city dropped (service area without keyword)", c.pair);
+          return false;
+        }
+        if (!areaHasInputEvidence(c.pair.area, c.pair.city, inputNormAll, inputToks)) {
+          console.log("match-city dropped (no input evidence)", c.pair, "w=", c.weight);
+          return false;
+        }
+        return true;
+      });
 
-      // Final fallback: weak local hit if AIs gave nothing usable.
-      if (!final && topLocal) final = topLocal.row;
+      let final: Pair | undefined = filtered[0]?.pair;
+
+      // Final fallback: weak local hit if AIs gave nothing usable — but still
+      // respect the service-area guard.
+      if (!final && topLocal && inputAllowsServiceArea(inputNormAll, topLocal.row.area)) {
+        final = topLocal.row;
+      }
+
+      // If we filtered everything out but we DID identify a city confidently,
+      // fall back to the city-only row (city==area) so we don't return junk.
+      if (!final) {
+        const cityOnly = candidates.find((c) =>
+          norm(c.pair.city) === norm(c.pair.area) &&
+          inputAllowsServiceArea(inputNormAll, c.pair.area)
+        );
+        if (cityOnly) final = cityOnly.pair;
+      }
 
       if (final) {
         return new Response(JSON.stringify({
