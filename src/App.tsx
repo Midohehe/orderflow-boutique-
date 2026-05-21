@@ -38,6 +38,10 @@ const Purchases = lazy(() => import("./pages/Purchases"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
+const PreviewIndex = lazy(() => import("./pages/previews/PreviewIndex"));
+const PreviewAurora = lazy(() => import("./pages/previews/PreviewAurora"));
+const PreviewCinematic = lazy(() => import("./pages/previews/PreviewCinematic"));
+const PreviewApple = lazy(() => import("./pages/previews/PreviewApple"));
 const HeaderSettings = lazy(() => import("./pages/HeaderSettings"));
 const ThemesSettings = lazy(() => import("./pages/ThemesSettings"));
 const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
@@ -97,6 +101,10 @@ const App = () => {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/thank-you" element={<ThankYou />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/preview" element={<PreviewIndex />} />
+              <Route path="/preview/aurora" element={<PreviewAurora />} />
+              <Route path="/preview/cinematic" element={<PreviewCinematic />} />
+              <Route path="/preview/apple" element={<PreviewApple />} />
               <Route
                 path="/dashboard"
                 element={
