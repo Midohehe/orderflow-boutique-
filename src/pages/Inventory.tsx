@@ -162,6 +162,7 @@ const Inventory = () => {
         variant_key: e.variantKey,
         warehouse_code: null,
         qty: isRemove ? -e.qty : e.qty,
+        unit_price: prod.price ?? null,
         reason: isRemove ? "manual_remove" : "manual_add",
         notes: isRemove ? "سحب كميات يدوياً" : "إضافة كميات يدوياً",
       }));

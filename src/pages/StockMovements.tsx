@@ -22,11 +22,17 @@ interface MovementRow {
   variant_key: string | null;
   warehouse_code: string | null;
   qty: number;
+  unit_price: number | null;
   reason: string;
   order_id: string | null;
   return_id: string | null;
   notes: string | null;
   created_at: string;
+}
+
+interface ProductPrice {
+  id: string;
+  price: number;
 }
 
 const REASON_LABEL: Record<string, string> = {
@@ -41,6 +47,7 @@ const REASON_LABEL: Record<string, string> = {
 
 const StockMovements = () => {
   const [rows, setRows] = useState<MovementRow[]>([]);
+  const [products, setProducts] = useState<ProductPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -54,24 +61,52 @@ const StockMovements = () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) {
       setRows([]);
+      setProducts([]);
       setLoading(false);
       return;
     }
     const { data: ownerRow } = await (supabase as any)
       .rpc("get_effective_owner_id", { _uid: userData.user.id });
     const effectiveOwnerId = (ownerRow as string) || userData.user.id;
-    const { data, error } = await (supabase as any)
-      .from("stock_movements")
-      .select("*")
-      .eq("owner_id", effectiveOwnerId)
-      .order("created_at", { ascending: false })
-      .limit(1000);
-    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    else setRows((data as MovementRow[]) || []);
+    const [smRes, prRes] = await Promise.all([
+      (supabase as any)
+        .from("stock_movements")
+        .select("*")
+        .eq("owner_id", effectiveOwnerId)
+        .order("created_at", { ascending: false })
+        .limit(1000),
+      (supabase as any)
+        .from("products")
+        .select("id, price")
+        .eq("owner_id", effectiveOwnerId)
+        .limit(1000),
+    ]);
+    if (smRes.error) toast({ title: "خطأ", description: smRes.error.message, variant: "destructive" });
+    else setRows((smRes.data as MovementRow[]) || []);
+    if (prRes.error) toast({ title: "خطأ", description: prRes.error.message, variant: "destructive" });
+    else setProducts((prRes.data as ProductPrice[]) || []);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  const productPriceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of products) {
+      if (p.price != null) map.set(p.id, Number(p.price));
+    }
+    return map;
+  }, [products]);
+
+  const getRowTotal = (row: MovementRow): number | null => {
+    const price = row.unit_price ?? (row.product_id ? productPriceMap.get(row.product_id) ?? null : null);
+    if (price == null || row.qty == null) return null;
+    return Number((price * row.qty).toFixed(2));
+  };
+
+  const getRowUnitPrice = (row: MovementRow): number | null => {
+    return row.unit_price ?? (row.product_id ? productPriceMap.get(row.product_id) ?? null : null);
+  };
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -276,6 +311,8 @@ const StockMovements = () => {
                     <TableHead className="text-right">المتغير</TableHead>
                     <TableHead className="text-right">كود التخزين</TableHead>
                     <TableHead className="text-right">الكمية</TableHead>
+                    <TableHead className="text-right">سعر الوحدة</TableHead>
+                    <TableHead className="text-right">الإجمالي</TableHead>
                     <TableHead className="text-right">السبب</TableHead>
                     <TableHead className="text-right">الطلب</TableHead>
                   </TableRow>
@@ -295,6 +332,12 @@ const StockMovements = () => {
                           : "bg-green-500/10 text-green-600 hover:bg-green-500/10"}>
                           {r.qty > 0 ? `+${r.qty}` : r.qty}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {getRowUnitPrice(r) != null ? Number(getRowUnitPrice(r)).toFixed(2) : "—"}
+                      </TableCell>
+                      <TableCell className="font-bold">
+                        {getRowTotal(r) != null ? Number(getRowTotal(r)).toFixed(2) : "—"}
                       </TableCell>
                       <TableCell>{REASON_LABEL[r.reason] || r.reason}</TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">
