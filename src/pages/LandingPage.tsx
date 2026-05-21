@@ -264,6 +264,23 @@ const LandingPage = () => {
     return "direct";
   };
 
+  // Full UTM + FB attribution captured from URL
+  const getAttribution = () => {
+    const fbclid = searchParams.get("fbclid") || "";
+    const inferredSource = (fbclid && !searchParams.get("utm_source")) ? "facebook" : getUtmSource();
+    return {
+      utm_source: inferredSource,
+      utm_medium: searchParams.get("utm_medium") || (fbclid ? "paid" : null),
+      utm_campaign: searchParams.get("utm_campaign") || null,
+      utm_content: searchParams.get("utm_content") || null,
+      utm_term: searchParams.get("utm_term") || null,
+      fb_campaign_id: searchParams.get("fb_campaign_id") || searchParams.get("utm_campaign") || null,
+      fb_adset_id: searchParams.get("fb_adset_id") || searchParams.get("utm_term") || null,
+      fb_ad_id: searchParams.get("fb_ad_id") || searchParams.get("utm_content") || null,
+      fbclid: fbclid || null,
+    };
+  };
+
   useEffect(() => {
     const ac = new AbortController();
     const loadData = async () => {
@@ -995,6 +1012,7 @@ const LandingPage = () => {
           elapsed_ms: elapsedMs,
           hp: honeypot,
           turnstile_token: turnstileToken,
+          ...getAttribution(),
         },
       });
 
