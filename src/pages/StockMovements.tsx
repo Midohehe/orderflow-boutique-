@@ -333,6 +333,12 @@ const StockMovements = () => {
                           {r.qty > 0 ? `+${r.qty}` : r.qty}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {getRowUnitPrice(r) != null ? Number(getRowUnitPrice(r)).toFixed(2) : "—"}
+                      </TableCell>
+                      <TableCell className="font-bold">
+                        {getRowTotal(r) != null ? Number(getRowTotal(r)).toFixed(2) : "—"}
+                      </TableCell>
                       <TableCell>{REASON_LABEL[r.reason] || r.reason}</TableCell>
                       <TableCell className="text-xs text-muted-foreground font-mono">
                         {r.order_id ? r.order_id.slice(0, 8) : "—"}
