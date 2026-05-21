@@ -84,6 +84,8 @@ const emptyFormData: ProductFormData = {
   upsellTitle: "",
   upsellOffers: [],
   categoryId: null,
+  sizeChartUrl: "",
+  reviews: [],
 };
 
 interface Category { id: string; name: string; sort_order?: number }
