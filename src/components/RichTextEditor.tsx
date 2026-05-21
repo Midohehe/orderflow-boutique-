@@ -309,27 +309,37 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
           onChange={(e) => {
             const size = e.target.value;
             const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              const span = document.createElement('span');
-              span.style.fontSize = size;
-              
-              if (selection.isCollapsed) {
-                // No text selected - insert span with zero-width space for future typing
-                span.innerHTML = '&#8203;';
-                range.insertNode(span);
-                // Move cursor inside the span
-                range.setStart(span.firstChild!, 1);
-                range.setEnd(span.firstChild!, 1);
-                selection.removeAllRanges();
-                selection.addRange(range);
-              } else {
-                // Text is selected - wrap it
-                range.surroundContents(span);
-              }
+            if (!selection || selection.rangeCount === 0) {
               editorRef.current?.focus();
-              handleInput();
+              return;
             }
+            const range = selection.getRangeAt(0);
+            if (!editorRef.current?.contains(range.commonAncestorContainer)) {
+              editorRef.current?.focus();
+              return;
+            }
+            const span = document.createElement('span');
+            span.style.fontSize = size;
+
+            if (selection.isCollapsed) {
+              span.innerHTML = '\u200B';
+              range.insertNode(span);
+              const newRange = document.createRange();
+              newRange.setStart(span.firstChild!, 1);
+              newRange.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(newRange);
+            } else {
+              const contents = range.extractContents();
+              span.appendChild(contents);
+              range.insertNode(span);
+              const newRange = document.createRange();
+              newRange.selectNodeContents(span);
+              selection.removeAllRanges();
+              selection.addRange(newRange);
+            }
+            editorRef.current?.focus();
+            handleInput();
           }}
           className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm bg-card border border-border rounded-md cursor-pointer hover:bg-muted transition-colors focus:ring-2 focus:ring-primary focus:outline-none font-medium text-foreground flex-shrink-0"
           defaultValue="16px"
