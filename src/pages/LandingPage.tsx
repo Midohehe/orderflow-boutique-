@@ -170,7 +170,11 @@ const LandingPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
-  const template = useStoreTemplate(ownerId);
+  const rawTemplate = useStoreTemplate(ownerId);
+  // صفحة الهبوط تبقى على التصميم الافتراضي بغض النظر عن تيم المتجر
+  const template = (rawTemplate === "aurora" || rawTemplate === "cinematic" || rawTemplate === "apple")
+    ? "classic"
+    : rawTemplate;
   const bgColor = useStoreBgColor(ownerId);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
