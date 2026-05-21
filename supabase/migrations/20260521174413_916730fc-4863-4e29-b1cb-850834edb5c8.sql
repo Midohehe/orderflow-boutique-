@@ -1,0 +1,3 @@
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS client_ip TEXT,
+  ADD COLUMN IF NOT EXISTS user_agent TEXT;
