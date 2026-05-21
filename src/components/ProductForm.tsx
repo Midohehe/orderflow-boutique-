@@ -899,10 +899,10 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           <Button
             type="button"
             size="sm"
-            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg transition-all"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-9 rounded-md px-3 bg-emerald-500 hover:bg-emerald-600 text-white shadow-md hover:shadow-lg transition-all text-left"
             onClick={() => autoLinkEoVariants(true)}
           >
-            ربط المتغيرات تلقائياً (استبدال)
+            ربط المتغيرات ايزي اوردرز تلقائياً (استبدال)
           </Button>
         )}
       </SectionCard>
