@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
+import { getThemeTokens } from "@/lib/themeTokens";
 import FashionHero from "@/components/themes/FashionHero";
 import StylishHero from "@/components/themes/StylishHero";
 import { useStoreTemplate } from "@/hooks/useStoreTemplate";
@@ -1026,7 +1027,7 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24" dir="rtl">
+    <LandingThemeWrapper template={template}>
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
