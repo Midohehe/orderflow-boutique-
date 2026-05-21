@@ -994,6 +994,7 @@ const LandingPage = () => {
           landing_slug: slug,
           elapsed_ms: elapsedMs,
           hp: honeypot,
+          turnstile_token: turnstileToken,
         },
       });
 
