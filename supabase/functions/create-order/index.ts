@@ -121,14 +121,11 @@ Deno.serve(async (req) => {
     const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
     if (turnstileSecret) {
       const token = s(body.turnstile_token ?? "", 4096);
-      if (!token) {
-        await logRejected("turnstile_missing");
-        return new Response(JSON.stringify({ error: "captcha_required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      try {
+      // NOTE: Do NOT reject when the token is missing. Some browsers
+      // (Facebook/Instagram in-app, older WebViews) cannot load Turnstile,
+      // and real customers were being lost. We only verify when a token is
+      // provided; honeypot + time-check + variant validation remain enforced.
+      if (token) try {
         const form = new FormData();
         form.append("secret", turnstileSecret);
         form.append("response", token);
@@ -147,13 +144,8 @@ Deno.serve(async (req) => {
           });
         }
       } catch (e) {
-        console.error("turnstile verify error", e);
-        // Fail-closed: reject if verification call itself errors.
-        await logRejected("turnstile_error");
-        return new Response(JSON.stringify({ error: "captcha_error" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        // Fail-open on network errors so real customers aren't lost.
+        console.error("turnstile verify error (ignored)", e);
       }
     }
 
