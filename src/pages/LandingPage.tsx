@@ -1557,7 +1557,7 @@ const LandingPage = () => {
           </Button>
         </div>
       </div>
-    </div>
+    </LandingThemeWrapper>
   );
 };
 
