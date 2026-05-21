@@ -65,6 +65,13 @@ export function usePushNotifications(storeId: string | null) {
       }
       const reg = await registerSW();
       await navigator.serviceWorker.ready;
+      const existingSub = await reg.pushManager.getSubscription();
+      if (existingSub) {
+        await supabase.functions.invoke("push-subscribe", {
+          body: { subscription: existingSub.toJSON(), action: "unsubscribe" },
+        }).catch(() => undefined);
+        await existingSub.unsubscribe().catch(() => undefined);
+      }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
@@ -78,7 +85,7 @@ export function usePushNotifications(storeId: string | null) {
       toast({ title: "تم التفعيل ✅", description: "ستصلك الإشعارات الآن." });
     } catch (e: any) {
       console.error(e);
-      toast({ title: "فشل التفعيل", description: e?.message || "تعذر تفعيل الإشعارات", variant: "destructive" });
+      toast({ title: "فشل التفعيل", description: e?.message || "أعد تفعيل الإشعارات على هذا الجهاز مرة واحدة", variant: "destructive" });
     } finally {
       setLoading(false);
     }
