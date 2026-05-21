@@ -147,7 +147,7 @@ const LandingPage = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
-  const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ", currency_code: "AED", button_text: "اطلب الآن - الدفع عند الاستلام" });
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.ل", currency_code: "LYD", button_text: "اطلب الآن - الدفع عند الاستلام" });
   const [formData, setFormData] = useState<Record<string, string>>({});
   // Bot protection: honeypot field + form load time
   const [honeypot, setHoneypot] = useState("");
