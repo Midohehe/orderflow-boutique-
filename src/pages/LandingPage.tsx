@@ -1156,8 +1156,6 @@ const LandingPage = () => {
                     onChange={(e) => setHoneypot(e.target.value)}
                   />
                 </div>
-                {/* Cloudflare Turnstile invisible widget */}
-                <div ref={turnstileContainerRef} style={{ display: "none" }} />
                 {/* Quantity Selection - First */}
                 {product.show_quantity !== false && (
                   <div className="space-y-1.5 sm:space-y-2">
