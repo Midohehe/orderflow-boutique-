@@ -1061,6 +1061,9 @@ const Products = () => {
         order_form_on_top: !!editLp.orderFormOnTop,
         show_quantity: editLp.showQuantity !== false,
         is_visible: editLp.isVisible !== false,
+        faqs: (editLp.faqs || [])
+          .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
+          .filter((f) => f.question && f.answer),
       }).eq("id", editingLpId);
       if (error) {
         if (error.code === "23505") {
