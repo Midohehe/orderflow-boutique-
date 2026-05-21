@@ -975,6 +975,9 @@ const Products = () => {
         order_form_on_top: !!newLp.orderFormOnTop,
         show_quantity: newLp.showQuantity !== false,
         is_visible: newLp.isVisible !== false,
+        faqs: (newLp.faqs || [])
+          .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
+          .filter((f) => f.question && f.answer),
       }).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
         if (error.code === "23505") {
