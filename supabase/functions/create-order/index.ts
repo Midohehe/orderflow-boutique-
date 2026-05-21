@@ -117,6 +117,46 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 3) Cloudflare Turnstile verification (invisible CAPTCHA).
+    const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
+    if (turnstileSecret) {
+      const token = s(body.turnstile_token ?? "", 4096);
+      if (!token) {
+        await logRejected("turnstile_missing");
+        return new Response(JSON.stringify({ error: "captcha_required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      try {
+        const form = new FormData();
+        form.append("secret", turnstileSecret);
+        form.append("response", token);
+        if (clientIp) form.append("remoteip", clientIp);
+        const vRes = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          { method: "POST", body: form },
+        );
+        const vJson = await vRes.json().catch(() => ({}));
+        if (!vJson?.success) {
+          console.warn("turnstile verify failed", vJson);
+          await logRejected("turnstile_failed");
+          return new Response(JSON.stringify({ error: "captcha_failed" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (e) {
+        console.error("turnstile verify error", e);
+        // Fail-closed: reject if verification call itself errors.
+        await logRejected("turnstile_error");
+        return new Response(JSON.stringify({ error: "captcha_error" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const product_id = s(body.product_id, 64);
     let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
     const upsellIndex =
