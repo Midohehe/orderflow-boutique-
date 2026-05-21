@@ -9,7 +9,8 @@ const corsHeaders = {
 
 function cleanKey(raw?: string): string {
   if (!raw) return "";
-  return raw.replace(/\s+/g, "").replace(/=+$/g, "");
+  // Keep only base64url characters; strip quotes, commas, whitespace, padding
+  return raw.replace(/[^A-Za-z0-9_-]/g, "");
 }
 const VAPID_PUBLIC = cleanKey(Deno.env.get("VAPID_PUBLIC_KEY"));
 const VAPID_PRIVATE = cleanKey(Deno.env.get("VAPID_PRIVATE_KEY"));
