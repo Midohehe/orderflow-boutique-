@@ -93,7 +93,9 @@ Deno.serve(async (req) => {
         sent++;
       } catch (err: any) {
         const code = err?.statusCode;
-        if (code === 404 || code === 410) {
+        const details = String(err?.body || err?.message || "").toLowerCase();
+        const staleVapid = code === 403 && details.includes("vapid credentials") && details.includes("do not correspond");
+        if (code === 404 || code === 410 || staleVapid) {
           await admin.from("push_subscriptions").delete().eq("id", s.id);
           removed++;
         } else {
