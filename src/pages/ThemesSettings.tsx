@@ -36,6 +36,9 @@ const TEMPLATES = [
   { id: "emeraldGold", title: "Emerald Gold", desc: "زمردي وذهبي — فاخر ومميز", emoji: "💚" },
   { id: "midnightSapphire", title: "Midnight Sapphire", desc: "ياقوت أزرق ليلي — أناقة هادئة", emoji: "💙" },
   { id: "roseAmethyst", title: "Rose Amethyst", desc: "وردي بنفسجي ساحر — للنساء الراقيات", emoji: "💖" },
+  { id: "aurora", title: "Aurora Glass ✨ جديد", desc: "خلفية متدرجة متحركة + Parallax — تيم متطور بحركات احترافية", emoji: "🌌" },
+  { id: "cinematic", title: "Cinematic Luxe ✨ جديد", desc: "أسود وذهبي سينمائي + Preloader + حركات نص حرف بحرف", emoji: "👑" },
+  { id: "apple", title: "Apple Clean ✨ جديد", desc: "تيم Apple نظيف + تكبير عند التمرير + Sticky CTA", emoji: "🍎" },
 ];
 
 export default function ThemesSettings() {

@@ -15,6 +15,9 @@ import TechStore from "@/components/themes/TechStore";
 import SportStore from "@/components/themes/SportStore";
 import GamingStore from "@/components/themes/GamingStore";
 import BoutiqueStore from "@/components/themes/BoutiqueStore";
+import AuroraStore from "@/components/themes/AuroraStore";
+import CinematicStore from "@/components/themes/CinematicStore";
+import AppleStore from "@/components/themes/AppleStore";
 import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 interface Product {
@@ -120,7 +123,7 @@ const StoreFront = () => {
   }
 
   // Full-page themes replace the entire store page (with their own header/footer)
-  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech", "sport", "gaming", "boutique", "noirGold", "emeraldGold", "midnightSapphire", "roseAmethyst"] as const;
+  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech", "sport", "gaming", "boutique", "noirGold", "emeraldGold", "midnightSapphire", "roseAmethyst", "aurora", "cinematic", "apple"] as const;
   if ((fullPageThemes as readonly string[]).includes(template)) {
     const commonProps = { products, currencySymbol: storeSettings.currency_symbol, onOpenProduct: openProductPage, ownerId };
     return (
@@ -134,6 +137,9 @@ const StoreFront = () => {
         {template === "gaming" && <GamingStore {...commonProps} />}
         {template === "boutique" && <BoutiqueStore {...commonProps} />}
         {(template === "noirGold" || template === "emeraldGold" || template === "midnightSapphire" || template === "roseAmethyst") && <LuxuryStore {...commonProps} />}
+        {template === "aurora" && <AuroraStore {...commonProps} />}
+        {template === "cinematic" && <CinematicStore {...commonProps} />}
+        {template === "apple" && <AppleStore {...commonProps} />}
       </div>
     );
   }
