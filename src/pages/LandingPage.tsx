@@ -172,6 +172,57 @@ const LandingPage = () => {
   // Bot protection: honeypot field + form load time
   const [honeypot, setHoneypot] = useState("");
   const formLoadedAtRef = useRef<number>(Date.now());
+  // Cloudflare Turnstile (invisible CAPTCHA)
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+  const turnstileResolverRef = useRef<((token: string) => void) | null>(null);
+  const turnstileRejecterRef = useRef<((err: any) => void) | null>(null);
+
+  // Load Turnstile script once
+  useEffect(() => {
+    if (document.getElementById("cf-turnstile-script")) return;
+    const s = document.createElement("script");
+    s.id = "cf-turnstile-script";
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }, []);
+
+  const getTurnstileToken = (): Promise<string> =>
+    new Promise((resolve, reject) => {
+      if (!window.turnstile || !turnstileContainerRef.current) {
+        reject(new Error("turnstile_not_ready"));
+        return;
+      }
+      turnstileResolverRef.current = resolve;
+      turnstileRejecterRef.current = reject;
+      try {
+        if (turnstileWidgetIdRef.current) {
+          window.turnstile.reset(turnstileWidgetIdRef.current);
+        } else {
+          turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+            sitekey: TURNSTILE_SITE_KEY,
+            size: "invisible",
+            callback: (token: string) => {
+              turnstileResolverRef.current?.(token);
+              turnstileResolverRef.current = null;
+            },
+            "error-callback": () => {
+              turnstileRejecterRef.current?.(new Error("turnstile_error"));
+              turnstileRejecterRef.current = null;
+            },
+            "timeout-callback": () => {
+              turnstileRejecterRef.current?.(new Error("turnstile_timeout"));
+              turnstileRejecterRef.current = null;
+            },
+          });
+        }
+        window.turnstile.execute(turnstileWidgetIdRef.current!);
+      } catch (e) {
+        reject(e);
+      }
+    });
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
