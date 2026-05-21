@@ -5,7 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package } from "lucide-react";
+import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
   icon: Icon,
@@ -49,6 +50,7 @@ export interface LandingPageFormData {
   orderFormOnTop?: boolean;
   showQuantity?: boolean;
   isVisible: boolean;
+  faqs?: Array<{ question: string; answer: string }>;
 }
 
 export const emptyLandingPageData: LandingPageFormData = {
@@ -66,6 +68,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   orderFormOnTop: false,
   showQuantity: true,
   isVisible: true,
+  faqs: [],
 };
 
 interface ProductOption {
