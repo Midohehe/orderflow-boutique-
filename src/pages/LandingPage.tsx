@@ -32,6 +32,7 @@ interface Product {
   upsell_title?: string;
   upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
   order_form_on_top?: boolean;
+  show_quantity?: boolean;
   owner_id?: string;
 }
 
@@ -226,7 +227,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible")
           .eq("slug", slug)
           .maybeSingle();
 
