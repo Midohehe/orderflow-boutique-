@@ -5,7 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package } from "lucide-react";
+import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
   icon: Icon,
@@ -49,6 +50,7 @@ export interface LandingPageFormData {
   orderFormOnTop?: boolean;
   showQuantity?: boolean;
   isVisible: boolean;
+  faqs?: Array<{ question: string; answer: string }>;
 }
 
 export const emptyLandingPageData: LandingPageFormData = {
@@ -66,6 +68,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   orderFormOnTop: false,
   showQuantity: true,
   isVisible: true,
+  faqs: [],
 };
 
 interface ProductOption {
@@ -309,6 +312,62 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
             </Button>
           </div>
         )}
+      </SectionCard>
+
+      {/* FAQ */}
+      <SectionCard icon={HelpCircle} title="الأسئلة الشائعة" description="أسئلة وأجوبة تظهر بشكل قابل للطي" iconColor="bg-cyan-500">
+        <div className="space-y-3">
+          {(data.faqs || []).map((faq, idx) => (
+            <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 p-3 border rounded-lg bg-muted/20 items-start">
+              <div className="space-y-1">
+                <Label className="text-xs">السؤال</Label>
+                <Input
+                  value={faq.question}
+                  onChange={(e) => {
+                    const next = [...(data.faqs || [])];
+                    next[idx] = { ...next[idx], question: e.target.value };
+                    update("faqs", next);
+                  }}
+                  placeholder="هل الدفع عند الاستلام؟"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">الجواب</Label>
+                <Textarea
+                  value={faq.answer}
+                  onChange={(e) => {
+                    const next = [...(data.faqs || [])];
+                    next[idx] = { ...next[idx], answer: e.target.value };
+                    update("faqs", next);
+                  }}
+                  placeholder="نعم، تدفع للمندوب عند استلام طلبك"
+                  rows={2}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  const next = (data.faqs || []).filter((_, i) => i !== idx);
+                  update("faqs", next);
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+            onClick={() =>
+              update("faqs", [...(data.faqs || []), { question: "", answer: "" }])
+            }
+          >
+            + إضافة سؤال
+          </Button>
+        </div>
       </SectionCard>
 
       {/* الإظهار */}

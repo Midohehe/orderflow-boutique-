@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ShoppingBag, Phone, MapPin, User, Mail } from "lucide-react";
+import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,10 @@ interface Product {
   order_form_on_top?: boolean;
   show_quantity?: boolean;
   owner_id?: string;
+  stock?: number;
+  size_chart_url?: string | null;
+  reviews?: Array<{ name: string; rating: number; comment: string }>;
+  faqs?: Array<{ question: string; answer: string }>;
 }
 
 interface PixelSettings {
@@ -145,6 +149,9 @@ const LandingPage = () => {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [showSizeChart, setShowSizeChart] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.ل", currency_code: "LYD", button_text: "اطلب الآن - الدفع عند الاستلام" });
@@ -220,7 +227,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, size_chart_url, reviews";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -230,7 +237,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -306,6 +313,10 @@ const LandingPage = () => {
             show_quantity: lp?.show_quantity != null ? !!lp.show_quantity : true,
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
+            stock: typeof (matched as any).stock === "number" ? (matched as any).stock : undefined,
+            size_chart_url: (matched as any).size_chart_url || null,
+            reviews: Array.isArray((matched as any).reviews) ? (matched as any).reviews : [],
+            faqs: Array.isArray(lp?.faqs) ? lp.faqs : [],
           };
           setProduct(loadedProduct);
 
@@ -1011,16 +1022,26 @@ const LandingPage = () => {
           <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
             <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
-                <img
-                  src={product.images[selectedImage]}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                  loading="eager"
-                  decoding="async"
-                  width={800}
-                  height={800}
-                  {...({ fetchpriority: "high" } as any)}
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="relative w-full h-full group cursor-zoom-in"
+                  aria-label="تكبير الصورة"
+                >
+                  <img
+                    src={product.images[selectedImage]}
+                    alt={product.name}
+                    className="w-full h-full object-contain"
+                    loading="eager"
+                    decoding="async"
+                    width={800}
+                    height={800}
+                    {...({ fetchpriority: "high" } as any)}
+                  />
+                  <div className="absolute top-2 left-2 bg-black/50 text-white p-1.5 rounded-full opacity-70 group-hover:opacity-100 transition-opacity">
+                    <ZoomIn className="w-4 h-4" />
+                  </div>
+                </button>
               ) : (
                 <Skeleton className="w-full h-full" />
               )}
@@ -1060,6 +1081,22 @@ const LandingPage = () => {
                   <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="font-medium">متوفر في المخزون</span>
                 </div>
+                {/* عداد المخزون الديناميكي */}
+                {typeof product.stock === "number" && product.stock > 0 && product.stock <= 20 && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 bg-red-500/10 text-red-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold animate-pulse">
+                    🔥 باقي {product.stock} قطعة فقط!
+                  </div>
+                )}
+                {/* زر جدول المقاسات */}
+                {product.size_chart_url && product.sizes && product.sizes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeChart(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 text-primary text-xs sm:text-sm font-medium hover:underline"
+                  >
+                    <Ruler className="w-4 h-4" /> جدول المقاسات
+                  </button>
+                )}
                 {/* شريط الثقة */}
                 <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] sm:text-xs">
                   <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
@@ -1341,7 +1378,99 @@ const LandingPage = () => {
             />
           </section>
         )}
+
+        {/* Reviews */}
+        {product.reviews && product.reviews.length > 0 && (
+          <section className="mt-8 sm:mt-12">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-foreground flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> آراء عملائنا
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {product.reviews.map((rv, i) => (
+                <div key={i} className="p-4 rounded-xl border border-border bg-card shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm">{rv.name}</span>
+                    <span className="text-yellow-500 text-sm">{"⭐".repeat(Math.max(1, Math.min(5, rv.rating || 5)))}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{rv.comment}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* FAQ */}
+        {product.faqs && product.faqs.length > 0 && (
+          <section className="mt-8 sm:mt-12">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-foreground">الأسئلة الشائعة</h2>
+            <div className="space-y-2">
+              {product.faqs.map((faq, i) => (
+                <div key={i} className="border border-border rounded-xl overflow-hidden bg-card">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between gap-3 p-4 text-right hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="font-semibold text-sm sm:text-base flex-1">{faq.question}</span>
+                    <ChevronDown className={`w-5 h-5 shrink-0 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+                  </button>
+                  {openFaq === i && (
+                    <div className="px-4 pb-4 text-sm text-muted-foreground leading-relaxed border-t">
+                      <p className="pt-3 whitespace-pre-wrap">{faq.answer}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Lightbox */}
+      {lightboxOpen && product.images && product.images.length > 0 && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            onClick={() => setLightboxOpen(false)}
+            aria-label="إغلاق"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={product.images[selectedImage]}
+            alt={product.name}
+            className="max-w-full max-h-full object-contain cursor-zoom-out"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Size Chart Modal */}
+      {showSizeChart && product.size_chart_url && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowSizeChart(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            onClick={() => setShowSizeChart(false)}
+            aria-label="إغلاق"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={product.size_chart_url}
+            alt="جدول المقاسات"
+            className="max-w-full max-h-full object-contain bg-white rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };

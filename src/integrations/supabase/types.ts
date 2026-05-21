@@ -633,6 +633,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          faqs: Json
           id: string
           images: string[]
           is_visible: boolean
@@ -654,6 +655,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          faqs?: Json
           id?: string
           images?: string[]
           is_visible?: boolean
@@ -675,6 +677,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          faqs?: Json
           id?: string
           images?: string[]
           is_visible?: boolean
@@ -1256,6 +1259,8 @@ export type Database = {
           price: number
           product_codes: string[] | null
           purchase_price: number
+          reviews: Json
+          size_chart_url: string | null
           sizes: string[] | null
           slug: string
           stock: number
@@ -1287,6 +1292,8 @@ export type Database = {
           price: number
           product_codes?: string[] | null
           purchase_price?: number
+          reviews?: Json
+          size_chart_url?: string | null
           sizes?: string[] | null
           slug: string
           stock?: number
@@ -1318,6 +1325,8 @@ export type Database = {
           price?: number
           product_codes?: string[] | null
           purchase_price?: number
+          reviews?: Json
+          size_chart_url?: string | null
           sizes?: string[] | null
           slug?: string
           stock?: number

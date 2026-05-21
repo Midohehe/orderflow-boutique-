@@ -84,6 +84,8 @@ const emptyFormData: ProductFormData = {
   upsellTitle: "",
   upsellOffers: [],
   categoryId: null,
+  sizeChartUrl: "",
+  reviews: [],
 };
 
 interface Category { id: string; name: string; sort_order?: number }
@@ -363,6 +365,14 @@ const Products = () => {
           label: (o.label || "").trim(),
         }))
         .filter((o) => o.quantity > 0 && o.price > 0),
+      size_chart_url: newProduct.sizeChartUrl?.trim() || null,
+      reviews: (newProduct.reviews || [])
+        .map((r) => ({
+          name: (r.name || "").trim(),
+          rating: Math.max(1, Math.min(5, parseInt(String(r.rating)) || 5)),
+          comment: (r.comment || "").trim(),
+        }))
+        .filter((r) => r.name && r.comment),
       }).select("id").single();
 
       if (error) {
@@ -528,6 +538,14 @@ const Products = () => {
           label: (o.label || "").trim(),
         }))
         .filter((o) => o.quantity > 0 && o.price > 0),
+      size_chart_url: editProduct.sizeChartUrl?.trim() || null,
+      reviews: (editProduct.reviews || [])
+        .map((r) => ({
+          name: (r.name || "").trim(),
+          rating: Math.max(1, Math.min(5, parseInt(String(r.rating)) || 5)),
+          comment: (r.comment || "").trim(),
+        }))
+        .filter((r) => r.name && r.comment),
       };
       if (imagesChanged) updatePayload.images = editProduct.images;
 
@@ -665,7 +683,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id, size_chart_url, reviews")
           .eq("id", product.id)
           .single()
       );
@@ -711,6 +729,14 @@ const Products = () => {
             }))
           : [],
         categoryId: (data as any).category_id || null,
+        sizeChartUrl: (data as any).size_chart_url || "",
+        reviews: Array.isArray((data as any).reviews)
+          ? ((data as any).reviews as any[]).map((r) => ({
+              name: String(r?.name ?? ""),
+              rating: parseInt(String(r?.rating ?? 5)) || 5,
+              comment: String(r?.comment ?? ""),
+            }))
+          : [],
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
@@ -949,6 +975,9 @@ const Products = () => {
         order_form_on_top: !!newLp.orderFormOnTop,
         show_quantity: newLp.showQuantity !== false,
         is_visible: newLp.isVisible !== false,
+        faqs: (newLp.faqs || [])
+          .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
+          .filter((f) => f.question && f.answer),
       }).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
         if (error.code === "23505") {
@@ -1003,6 +1032,12 @@ const Products = () => {
       orderFormOnTop: !!d.order_form_on_top,
       showQuantity: d.show_quantity !== false,
       isVisible: d.is_visible !== false,
+      faqs: Array.isArray(d.faqs)
+        ? (d.faqs as any[]).map((f) => ({
+            question: String(f?.question ?? ""),
+            answer: String(f?.answer ?? ""),
+          }))
+        : [],
     });
   };
 
@@ -1032,6 +1067,9 @@ const Products = () => {
         order_form_on_top: !!editLp.orderFormOnTop,
         show_quantity: editLp.showQuantity !== false,
         is_visible: editLp.isVisible !== false,
+        faqs: (editLp.faqs || [])
+          .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
+          .filter((f) => f.question && f.answer),
       }).eq("id", editingLpId);
       if (error) {
         if (error.code === "23505") {
