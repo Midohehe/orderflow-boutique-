@@ -21,6 +21,9 @@ import {
   TrendingUp,
   Link2,
   Boxes,
+  Ruler,
+  Star,
+  Trash2,
 } from "lucide-react";
 
 const SectionCard = ({
