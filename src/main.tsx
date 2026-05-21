@@ -2,10 +2,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { initTheme } from "./hooks/useTheme";
-import { initPanelTheme } from "./hooks/usePanelTheme";
 
 initTheme();
-initPanelTheme();
 createRoot(document.getElementById("root")!).render(<App />);
 
 // PWA service worker registration — guarded against iframes and Lovable preview hosts

@@ -22,7 +22,6 @@ interface HeaderSettingsRow {
   facebook_url: string | null;
   whatsapp_url: string | null;
   tiktok_url: string | null;
-  template: string;
 }
 
 const HeaderSettings = () => {
@@ -63,7 +62,6 @@ const HeaderSettings = () => {
       facebook_url: row.facebook_url || "",
       whatsapp_url: row.whatsapp_url || "",
       tiktok_url: row.tiktok_url || "",
-      template: row.template || "classic",
     }).eq("id", row.id);
     setSaving(false);
     if (error) { console.error(error); toast({ title: "خطأ", description: "تعذر حفظ الإعدادات", variant: "destructive" }); return; }
@@ -77,31 +75,6 @@ const HeaderSettings = () => {
       <PageHeader icon={LayoutTemplate} title="إعدادات هيدر المتجر" description="الشعار، التواصل، وروابط السوشيال ميديا" iconGradient="from-sky-500 to-blue-500" />
 
       <AccountInfoCard />
-
-      <SectionCard icon={LayoutTemplate} title="قالب التصميم" description="اختر شكل صفحات الهبوط والمتجر" iconColor="bg-amber-500">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { id: "classic", title: "كلاسيكي", desc: "التصميم الحالي الملوّن" },
-            { id: "fashion", title: "Fashion / محرّر", desc: "هيرو بإطار أسود وألوان بيج راقية" },
-            { id: "stylish", title: "Stylish / متجر", desc: "هيرو بصورة كبيرة عريضة وخط Playfair" },
-          ].map((t) => {
-            const selected = (row.template || "classic") === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => update("template", t.id)}
-                className={`text-right p-4 rounded-lg border-2 transition-all ${
-                  selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
-                }`}
-              >
-                <div className="font-bold mb-1">{t.title}</div>
-                <div className="text-xs text-muted-foreground">{t.desc}</div>
-              </button>
-            );
-          })}
-        </div>
-      </SectionCard>
 
       <SectionCard icon={Store} title="هوية المتجر" description="الاسم والشعار" iconColor="bg-indigo-500">
         <div className="space-y-2">

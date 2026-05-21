@@ -6,19 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, ShoppingBag } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
 import { isolateLatin } from "@/lib/bidi";
-import FashionHero from "@/components/themes/FashionHero";
-import StylishStore from "@/components/themes/StylishStore";
-import LuxuryStore from "@/components/themes/LuxuryStore";
-import EditorialStore from "@/components/themes/EditorialStore";
-import VibrantStore from "@/components/themes/VibrantStore";
-import TechStore from "@/components/themes/TechStore";
-import SportStore from "@/components/themes/SportStore";
-import GamingStore from "@/components/themes/GamingStore";
-import BoutiqueStore from "@/components/themes/BoutiqueStore";
-import AuroraStore from "@/components/themes/AuroraStore";
-import CinematicStore from "@/components/themes/CinematicStore";
-import AppleStore from "@/components/themes/AppleStore";
-import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 interface Product {
   id: string;
@@ -37,7 +24,6 @@ const StoreFront = () => {
   const { username } = useParams<{ username?: string }>();
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
-  const template = useStoreTemplate(ownerId);
   const [notFound, setNotFound] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: 'د.ل' });
@@ -122,48 +108,9 @@ const StoreFront = () => {
     );
   }
 
-  // Full-page themes replace the entire store page (with their own header/footer)
-  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech", "sport", "gaming", "boutique", "noirGold", "emeraldGold", "midnightSapphire", "roseAmethyst", "aurora", "cinematic", "apple"] as const;
-  if ((fullPageThemes as readonly string[]).includes(template)) {
-    const commonProps = { products, currencySymbol: storeSettings.currency_symbol, onOpenProduct: openProductPage, ownerId };
-    return (
-      <div dir="rtl" className="bg-white min-h-screen -mx-4 -my-6">
-        {template === "stylish" && <StylishStore {...commonProps} />}
-        {template === "luxury" && <LuxuryStore {...commonProps} />}
-        {template === "editorial" && <EditorialStore {...commonProps} />}
-        {template === "vibrant" && <VibrantStore {...commonProps} />}
-        {template === "tech" && <TechStore {...commonProps} />}
-        {template === "sport" && <SportStore {...commonProps} />}
-        {template === "gaming" && <GamingStore {...commonProps} />}
-        {template === "boutique" && <BoutiqueStore {...commonProps} />}
-        {(template === "noirGold" || template === "emeraldGold" || template === "midnightSapphire" || template === "roseAmethyst") && <LuxuryStore {...commonProps} />}
-        {template === "aurora" && <AuroraStore {...commonProps} />}
-        {template === "cinematic" && <CinematicStore {...commonProps} />}
-        {template === "apple" && <AppleStore {...commonProps} />}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6" dir="rtl">
       <StoreHeader ownerId={ownerId || undefined} />
-
-      {template === "fashion" && products.length > 0 && (
-        <div className="-mx-4">
-          <FashionHero
-            title="مجموعة الموسم"
-            subtitle="عروض حصرية"
-            description="اكتشف أحدث المنتجات بأسعار مميّزة. الدفع عند الاستلام وشحن لكل ليبيا."
-            imageUrl={products[0]?.images?.[0]}
-            primaryCtaText="تسوّق الآن"
-            onPrimaryCta={() => {
-              document.getElementById("products-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            sideTextRight="LIBYA STORE"
-            sideTextLeft="الموسم الجديد"
-          />
-        </div>
-      )}
 
       {products.length === 0 ? (
         <div className="text-center py-16">
@@ -171,7 +118,7 @@ const StoreFront = () => {
           <p className="text-muted-foreground text-lg">لا توجد منتجات حالياً</p>
         </div>
       ) : (
-        <div id="products-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.map((product) => (
             <Card
               key={product.id}

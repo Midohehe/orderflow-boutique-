@@ -1,1 +1,0 @@
-ALTER TABLE public.header_settings ADD COLUMN IF NOT EXISTS template text NOT NULL DEFAULT 'classic';

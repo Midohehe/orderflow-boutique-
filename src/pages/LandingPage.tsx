@@ -10,27 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
-import { getThemeTokens } from "@/lib/themeTokens";
-import { useEffect as useEffectTheme } from "react";
-
-function LandingThemeWrapper({ template, bgColor, children }: { template: any; bgColor?: string | null; children: React.ReactNode }) {
-  const { style, fontLink } = getThemeTokens(template, bgColor);
-  useEffectTheme(() => {
-    if (!fontLink) return;
-    const id = `theme-font-${template}`;
-    if (document.getElementById(id)) return;
-    const l = document.createElement("link"); l.id = id; l.rel = "stylesheet"; l.href = fontLink;
-    document.head.appendChild(l);
-  }, [template, fontLink]);
-  return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24 text-foreground" dir="rtl" style={style}>
-      {children}
-    </div>
-  );
-}
-import FashionHero from "@/components/themes/FashionHero";
-import StylishHero from "@/components/themes/StylishHero";
-import { useStoreTemplate, useStoreBgColor } from "@/hooks/useStoreTemplate";
 
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
@@ -169,12 +148,6 @@ const LandingPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
-  const rawTemplate = useStoreTemplate(ownerId);
-  // صفحة الهبوط تبقى على التصميم الافتراضي بغض النظر عن تيم المتجر
-  const template = (rawTemplate === "aurora" || rawTemplate === "cinematic" || rawTemplate === "apple")
-    ? "classic"
-    : rawTemplate;
-  const bgColor = useStoreBgColor(ownerId);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1049,50 +1022,18 @@ const LandingPage = () => {
   }
 
   return (
-    <LandingThemeWrapper template={template} bgColor={bgColor}>
+    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24" dir="rtl">
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
-      {template === "stylish" ? (
-        <StylishHero
-          title={product.name}
-          subtitle="الدفع عند الاستلام · شحن لكل ليبيا · استبدال مجاني خلال 7 أيام"
-          imageUrl={product.images?.[0]}
-          ctaText="اشترِ الآن"
-          badge={product.original_price && Number(product.original_price) > Number(product.price)
-            ? `خصم ${Math.round(((Number(product.original_price) - Number(product.price)) / Number(product.original_price)) * 100)}%`
-            : "وصل حديثاً"}
-          onCta={() => {
-            const el = document.getElementById("order-form");
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-        />
-      ) : template === "fashion" ? (
-        <FashionHero
-          title={product.name}
-          subtitle={product.original_price && Number(product.original_price) > Number(product.price)
-            ? `خصم ${Math.round(((Number(product.original_price) - Number(product.price)) / Number(product.original_price)) * 100)}%`
-            : "وصل حديثاً"}
-          description="الدفع عند الاستلام · شحن لكل ليبيا · استبدال مجاني خلال 7 أيام"
-          imageUrl={product.images?.[0]}
-          primaryCtaText="اشترِ الآن"
-          onPrimaryCta={() => {
-            const el = document.getElementById("order-form");
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-          sideTextRight={`${product.price} ${storeSettings.currency_symbol}`}
-          sideTextLeft="عرض محدود"
-        />
-      ) : (
-        <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
-          <h1 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3">{product.name}</h1>
-          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
-            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>الدفع عند الاستلام</span>
-          </div>
-        </section>
-      )}
+      <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
+        <h1 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3">{product.name}</h1>
+        <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+          <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span>الدفع عند الاستلام</span>
+        </div>
+      </section>
 
       <main className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
@@ -1579,7 +1520,7 @@ const LandingPage = () => {
           </Button>
         </div>
       </div>
-    </LandingThemeWrapper>
+    </div>
   );
 };
 
