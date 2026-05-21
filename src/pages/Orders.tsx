@@ -2224,6 +2224,106 @@ const Orders = () => {
             </>
           )}
         </TabsContent>
+
+        <TabsContent value="rejected" className="space-y-4">
+          <Card className="card-shadow border-amber-500/30 bg-amber-500/5">
+            <CardContent className="p-3 flex items-center gap-2 text-sm">
+              <Bot className="w-5 h-5 text-amber-600" />
+              <span>
+                هذه طلبات تم رفضها تلقائياً بحماية البوتات (حقل خفي مملوء أو إرسال أسرع من 3 ثوانٍ). لم تُضف للطلبات الحقيقية.
+              </span>
+            </CardContent>
+          </Card>
+
+          {rejectedLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : rejectedOrders.length === 0 ? (
+            <Card className="card-shadow">
+              <CardContent className="p-8 text-center text-muted-foreground">
+                لا توجد طلبات مرفوضة 🎉
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {rejectedOrders.map((r) => (
+                <Card key={r.id} className="card-shadow border-zinc-300 dark:border-zinc-700">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={r.reason === "honeypot" ? "destructive" : "secondary"} className="text-xs">
+                          {r.reason === "honeypot" ? "🍯 حقل خفي" : r.reason === "too_fast" ? "⚡ إرسال سريع" : r.reason}
+                        </Badge>
+                        {r.product_name && (
+                          <span className="text-sm font-semibold">{r.product_name}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(r.created_at).toLocaleString("ar-LY")}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                      {r.customer_name && <div><span className="text-muted-foreground">الاسم:</span> {r.customer_name}</div>}
+                      {r.phone && <div><span className="text-muted-foreground">الهاتف:</span> <span dir="ltr">{r.phone}</span></div>}
+                      {r.city && <div><span className="text-muted-foreground">المدينة:</span> {r.city}</div>}
+                      {r.address && <div><span className="text-muted-foreground">العنوان:</span> {r.address}</div>}
+                      {r.landing_slug && <div><span className="text-muted-foreground">الصفحة:</span> /p/{r.landing_slug}</div>}
+                      {r.elapsed_ms != null && (
+                        <div><span className="text-muted-foreground">زمن الإرسال:</span> {r.elapsed_ms} ms</div>
+                      )}
+                      {r.client_ip && <div><span className="text-muted-foreground">IP:</span> <span dir="ltr">{r.client_ip}</span></div>}
+                      {r.user_agent && (
+                        <div className="sm:col-span-2 truncate">
+                          <span className="text-muted-foreground">المتصفح:</span>{" "}
+                          <span dir="ltr" className="text-xs">{r.user_agent}</span>
+                        </div>
+                      )}
+                      {r.honeypot_value && (
+                        <div className="sm:col-span-2">
+                          <span className="text-muted-foreground">قيمة الحقل الخفي:</span>{" "}
+                          <code className="text-xs bg-muted px-1 py-0.5 rounded">{r.honeypot_value}</code>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4 ml-1" /> حذف
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>حذف السجل؟</AlertDialogTitle>
+                            <AlertDialogDescription>سيتم حذف هذا الطلب المرفوض نهائياً.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={async () => {
+                                const { error } = await supabase.from("rejected_orders").delete().eq("id", r.id);
+                                if (error) {
+                                  toast({ title: "تعذر الحذف", description: error.message, variant: "destructive" });
+                                } else {
+                                  setRejectedOrders((prev) => prev.filter((x) => x.id !== r.id));
+                                  toast({ title: "تم الحذف" });
+                                }
+                              }}
+                            >
+                              حذف
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
       <OrderDetailsDialog
         orderId={detailsId}
