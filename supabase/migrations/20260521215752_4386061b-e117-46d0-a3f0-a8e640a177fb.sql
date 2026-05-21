@@ -1,0 +1,1 @@
+ALTER TABLE public.header_settings ADD COLUMN IF NOT EXISTS bg_color text;
