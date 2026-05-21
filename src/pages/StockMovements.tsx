@@ -90,6 +90,24 @@ const StockMovements = () => {
 
   useEffect(() => { load(); }, []);
 
+  const productPriceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of products) {
+      if (p.price != null) map.set(p.id, Number(p.price));
+    }
+    return map;
+  }, [products]);
+
+  const getRowTotal = (row: MovementRow): number | null => {
+    const price = row.unit_price ?? (row.product_id ? productPriceMap.get(row.product_id) ?? null : null);
+    if (price == null || row.qty == null) return null;
+    return Number((price * row.qty).toFixed(2));
+  };
+
+  const getRowUnitPrice = (row: MovementRow): number | null => {
+    return row.unit_price ?? (row.product_id ? productPriceMap.get(row.product_id) ?? null : null);
+  };
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (reasonFilter !== "all" && r.reason !== reasonFilter) return false;
