@@ -42,10 +42,65 @@ Deno.serve(async (req) => {
   try {
     const body = (await req.json()) as OrderPayload;
 
+    // Capture client IP & user-agent (used for both real & rejected orders).
+    const clientIp =
+      req.headers.get("cf-connecting-ip") ||
+      (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      null;
+    const userAgent = req.headers.get("user-agent") || null;
+
+    // Helper: persist a rejected attempt so the dashboard can review it.
+    const logRejected = async (reason: string) => {
+      try {
+        const svc = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        );
+        let ownerId: string | null = null;
+        let storeId: string | null = null;
+        let productName: string | null = null;
+        const pid = s(body?.product_id ?? "", 64);
+        if (pid) {
+          const { data: p } = await svc
+            .from("products")
+            .select("owner_id, store_id, name")
+            .eq("id", pid)
+            .maybeSingle();
+          if (p) {
+            ownerId = (p as any).owner_id ?? null;
+            storeId = (p as any).store_id ?? null;
+            productName = (p as any).name ?? null;
+          }
+        }
+        await svc.from("rejected_orders").insert({
+          owner_id: ownerId,
+          store_id: storeId,
+          product_id: pid || null,
+          product_name: productName,
+          landing_slug: s(body?.landing_slug ?? "", 200) || null,
+          customer_name: s(body?.customer_name ?? "", 120) || null,
+          phone: s(body?.phone ?? "", 40) || null,
+          address: s(body?.address ?? "", 500) || null,
+          city: s(body?.city ?? "", 120) || null,
+          quantity: Math.max(1, Math.floor(Number(body?.quantity) || 1)),
+          reason,
+          elapsed_ms: Number.isFinite(Number(body?.elapsed_ms)) ? Math.floor(Number(body?.elapsed_ms)) : null,
+          honeypot_value: typeof body?.hp === "string" ? body.hp.slice(0, 500) : null,
+          client_ip: clientIp,
+          user_agent: userAgent,
+          payload: body as any,
+        });
+      } catch (e) {
+        console.error("rejected_orders log failed", e);
+      }
+    };
+
     // ---- Bot protection (Level 1) ----
     // 1) Honeypot: if the hidden field is filled, silently accept and discard.
     if (typeof body.hp === "string" && body.hp.trim() !== "") {
       console.warn("bot blocked: honeypot filled");
+      await logRejected("honeypot");
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -54,19 +109,12 @@ Deno.serve(async (req) => {
     const elapsedMs = Number(body.elapsed_ms);
     if (Number.isFinite(elapsedMs) && elapsedMs > 0 && elapsedMs < 3000) {
       console.warn("bot blocked: submitted too fast", elapsedMs);
+      await logRejected("too_fast");
       return new Response(JSON.stringify({ error: "too_fast" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Capture client IP & user-agent for review (do not block on these).
-    const clientIp =
-      req.headers.get("cf-connecting-ip") ||
-      (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
-      req.headers.get("x-real-ip") ||
-      null;
-    const userAgent = req.headers.get("user-agent") || null;
 
     const product_id = s(body.product_id, 64);
     let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
