@@ -365,6 +365,14 @@ const Products = () => {
           label: (o.label || "").trim(),
         }))
         .filter((o) => o.quantity > 0 && o.price > 0),
+      size_chart_url: newProduct.sizeChartUrl?.trim() || null,
+      reviews: (newProduct.reviews || [])
+        .map((r) => ({
+          name: (r.name || "").trim(),
+          rating: Math.max(1, Math.min(5, parseInt(String(r.rating)) || 5)),
+          comment: (r.comment || "").trim(),
+        }))
+        .filter((r) => r.name && r.comment),
       }).select("id").single();
 
       if (error) {
