@@ -8,6 +8,10 @@ import StoreHeader from "@/components/StoreHeader";
 import { isolateLatin } from "@/lib/bidi";
 import FashionHero from "@/components/themes/FashionHero";
 import StylishStore from "@/components/themes/StylishStore";
+import LuxuryStore from "@/components/themes/LuxuryStore";
+import EditorialStore from "@/components/themes/EditorialStore";
+import VibrantStore from "@/components/themes/VibrantStore";
+import TechStore from "@/components/themes/TechStore";
 import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 interface Product {
@@ -112,23 +116,17 @@ const StoreFront = () => {
     );
   }
 
-  // Full Stylish theme replaces the entire store page (with its own header/footer)
-  if (template === "stylish") {
+  // Full-page themes replace the entire store page (with their own header/footer)
+  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech"] as const;
+  if ((fullPageThemes as readonly string[]).includes(template)) {
+    const commonProps = { products, currencySymbol: storeSettings.currency_symbol, onOpenProduct: openProductPage, ownerId };
     return (
       <div dir="rtl" className="bg-white min-h-screen -mx-4 -my-6">
-        {products.length === 0 ? (
-          <div className="text-center py-16">
-            <ShoppingBag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-lg">لا توجد منتجات حالياً</p>
-          </div>
-        ) : (
-          <StylishStore
-            products={products}
-            currencySymbol={storeSettings.currency_symbol}
-            onOpenProduct={openProductPage}
-            ownerId={ownerId}
-          />
-        )}
+        {template === "stylish" && <StylishStore {...commonProps} />}
+        {template === "luxury" && <LuxuryStore {...commonProps} />}
+        {template === "editorial" && <EditorialStore {...commonProps} />}
+        {template === "vibrant" && <VibrantStore {...commonProps} />}
+        {template === "tech" && <TechStore {...commonProps} />}
       </div>
     );
   }
