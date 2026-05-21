@@ -903,6 +903,8 @@ const LandingPage = () => {
           items: itemsPayload,
           upsell_index: selectedUpsellIndex,
           landing_slug: slug,
+          elapsed_ms: elapsedMs,
+          hp: honeypot,
         },
       });
 
