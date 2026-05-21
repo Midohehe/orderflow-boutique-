@@ -932,13 +932,11 @@ const LandingPage = () => {
       try {
         turnstileToken = await getTurnstileToken();
       } catch (e) {
-        setIsSubmitting(false);
-        toast({
-          title: "تعذر التحقق",
-          description: "يرجى المحاولة مرة أخرى",
-          variant: "destructive",
-        });
-        return;
+        // Fail-open: in-app browsers (Facebook/Instagram WebView) and older
+        // browsers cannot load Turnstile. Don't block real customers — the
+        // server validates honeypot + time-check + variants as a safety net.
+        console.warn("turnstile unavailable, submitting without token", e);
+        turnstileToken = "";
       }
 
       // SKU is hidden from landing page; auto-use the first code if any exist
