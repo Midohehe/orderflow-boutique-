@@ -12,8 +12,11 @@ function cleanKey(raw?: string): string {
   // Keep only base64url characters; strip quotes, commas, whitespace, padding
   return raw.replace(/[^A-Za-z0-9_-]/g, "");
 }
-const VAPID_PUBLIC = cleanKey(Deno.env.get("VAPID_PUBLIC_KEY"));
-const VAPID_PRIVATE = cleanKey(Deno.env.get("VAPID_PRIVATE_KEY"));
+const VAPID_PUBLIC_RAW = Deno.env.get("VAPID_PUBLIC_KEY") || "";
+const VAPID_PRIVATE_RAW = Deno.env.get("VAPID_PRIVATE_KEY") || "";
+const VAPID_PUBLIC = cleanKey(VAPID_PUBLIC_RAW);
+const VAPID_PRIVATE = cleanKey(VAPID_PRIVATE_RAW);
+console.log("VAPID key lengths", { pub: VAPID_PUBLIC.length, priv: VAPID_PRIVATE.length, rawPub: VAPID_PUBLIC_RAW.length });
 
 // Sanitize subject: strip spaces, angle brackets, ensure mailto: or https:// prefix
 function normalizeSubject(raw?: string): string {
@@ -27,10 +30,21 @@ function normalizeSubject(raw?: string): string {
 }
 const VAPID_SUBJECT = normalizeSubject(Deno.env.get("VAPID_SUBJECT"));
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+let vapidReady = false;
+let vapidError: string | null = null;
+try {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+  vapidReady = true;
+} catch (e: any) {
+  vapidError = String(e?.message || e);
+  console.error("VAPID init failed:", vapidError);
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (!vapidReady) {
+    return new Response(JSON.stringify({ error: "vapid_invalid", detail: vapidError, pubLen: VAPID_PUBLIC.length, privLen: VAPID_PRIVATE.length }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
   try {
     const body = await req.json();
     // { store_id?, user_id?, title, body, url?, image?, tag? }
