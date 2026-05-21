@@ -1063,6 +1063,28 @@ const LandingPage = () => {
               </div>
 
               <form onSubmit={handleSubmitOrder} className="space-y-3 sm:space-y-4">
+                {/* Honeypot field — invisible to real users, bots will fill it */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "-9999px",
+                    width: "1px",
+                    height: "1px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <label htmlFor="website_url">Website (leave empty)</label>
+                  <input
+                    type="text"
+                    id="website_url"
+                    name="website_url"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                  />
+                </div>
                 {/* Quantity Selection - First */}
                 {product.show_quantity !== false && (
                   <div className="space-y-1.5 sm:space-y-2">
