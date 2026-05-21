@@ -30,7 +30,6 @@ function LandingThemeWrapper({ template, bgColor, children }: { template: any; b
 }
 import FashionHero from "@/components/themes/FashionHero";
 import StylishHero from "@/components/themes/StylishHero";
-import PremiumLandingHero from "@/components/themes/PremiumLandingHero";
 import { useStoreTemplate, useStoreBgColor } from "@/hooks/useStoreTemplate";
 
 // Lazy-load DOMPurify only when description is rendered
