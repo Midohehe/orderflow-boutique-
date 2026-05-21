@@ -31,8 +31,15 @@ export function PWAInstallPrompt() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    // Never show on customer-facing landing pages, storefront, or checkout
+    const p = window.location.pathname;
+    if (p.startsWith("/p/") || p.startsWith("/store") || p.startsWith("/thank-you")) {
+      setOpen(false);
+      return;
+    }
     if (canInstall && !isDismissed()) {
-      const t = setTimeout(() => setOpen(true), 2500);
+      // Delay so it never competes with first paint / user intent
+      const t = setTimeout(() => setOpen(true), 30000);
       return () => clearTimeout(t);
     }
     setOpen(false);
