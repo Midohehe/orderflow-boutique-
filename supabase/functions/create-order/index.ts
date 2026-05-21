@@ -199,6 +199,8 @@ Deno.serve(async (req) => {
       selected_product_code: s(body.selected_product_code ?? "", 200) || null,
       shipping_included: body.shipping_included === true,
       upsell_offers: upsellOffers && upsellOffers.length > 0 ? upsellOffers : [],
+      client_ip: clientIp,
+      user_agent: userAgent,
     }).select("id").single();
 
     if (iErr) {
