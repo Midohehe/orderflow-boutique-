@@ -66,6 +66,7 @@ interface Order {
   is_deleted?: boolean;
   locked_insufficient_balance?: boolean;
   insufficient_stock?: boolean;
+  upsell_offers?: any[] | null;
 }
 
 type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
@@ -86,7 +87,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -1258,6 +1259,11 @@ const Orders = () => {
               <div className="flex items-center gap-4 flex-wrap">
                 <span className="text-foreground">{isolateLatin(order.product_name)}</span>
                 <span className="text-primary font-bold">{order.price} {currencySymbol}</span>
+                {Array.isArray(order.upsell_offers) && order.upsell_offers.length > 0 && (
+                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1">
+                    عروض تخفيض
+                  </Badge>
+                )}
                 {order.order_code && (
                   <Badge variant="outline" className="font-mono">
                     كود الشحنة: {order.order_code}

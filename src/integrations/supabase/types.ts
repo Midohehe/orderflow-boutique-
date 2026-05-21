@@ -893,6 +893,7 @@ export type Database = {
           status: string
           store_id: string | null
           updated_at: string
+          upsell_offers: Json
         }
         Insert: {
           address: string
@@ -943,6 +944,7 @@ export type Database = {
           status?: string
           store_id?: string | null
           updated_at?: string
+          upsell_offers?: Json
         }
         Update: {
           address?: string
@@ -993,6 +995,7 @@ export type Database = {
           status?: string
           store_id?: string | null
           updated_at?: string
+          upsell_offers?: Json
         }
         Relationships: [
           {
