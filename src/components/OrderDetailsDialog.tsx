@@ -210,7 +210,22 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   };
 
   const updateItem = (idx: number, patch: Partial<ItemRow>) => {
-    setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+    setItems((arr) => arr.map((it, i) => {
+      if (i !== idx) return it;
+      const next: any = { ...it, ...patch };
+      // If variant selection changed, invalidate cached warehouse_code & EO variant id
+      // so they get re-resolved from the product's mappings on save.
+      const variantChanged =
+        "selected_color" in patch ||
+        "selected_size" in patch ||
+        "selected_product_code" in patch ||
+        "product_id" in patch;
+      if (variantChanged) {
+        next.warehouse_code = null;
+        next.easyorders_variant_id = null;
+      }
+      return next;
+    }));
   };
 
   const onItemProductChange = (idx: number, id: string) => {
@@ -412,7 +427,8 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     if (items.length > 0) {
       const rows = items.map((it) => {
         const prod = products.find((p) => p.id === it.product_id);
-        const key = `${it.selected_color || ""}-${it.selected_size || ""}`;
+        const key = [it.selected_color, it.selected_size].filter(Boolean).join(" - ")
+          || it.selected_color || it.selected_size || it.selected_product_code || "";
         const wh = prod?.variant_warehouse_codes?.[key] || it.warehouse_code || null;
         const eoVar = prod?.variant_easyorders_ids?.[key] || it.easyorders_variant_id || null;
         return {
