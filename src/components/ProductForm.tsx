@@ -73,6 +73,8 @@ export interface ProductFormData {
   upsellTitle?: string;
   upsellOffers: Array<{ quantity: string; price: string; label: string }>;
   categoryId?: string | null;
+  sizeChartUrl?: string;
+  reviews?: Array<{ name: string; rating: number; comment: string }>;
 }
 
 interface ProductFormProps {
