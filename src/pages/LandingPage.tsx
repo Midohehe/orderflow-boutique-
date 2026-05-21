@@ -1022,16 +1022,26 @@ const LandingPage = () => {
           <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
             <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
-                <img
-                  src={product.images[selectedImage]}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                  loading="eager"
-                  decoding="async"
-                  width={800}
-                  height={800}
-                  {...({ fetchpriority: "high" } as any)}
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="relative w-full h-full group cursor-zoom-in"
+                  aria-label="تكبير الصورة"
+                >
+                  <img
+                    src={product.images[selectedImage]}
+                    alt={product.name}
+                    className="w-full h-full object-contain"
+                    loading="eager"
+                    decoding="async"
+                    width={800}
+                    height={800}
+                    {...({ fetchpriority: "high" } as any)}
+                  />
+                  <div className="absolute top-2 left-2 bg-black/50 text-white p-1.5 rounded-full opacity-70 group-hover:opacity-100 transition-opacity">
+                    <ZoomIn className="w-4 h-4" />
+                  </div>
+                </button>
               ) : (
                 <Skeleton className="w-full h-full" />
               )}
