@@ -120,7 +120,7 @@ const StoreFront = () => {
   }
 
   // Full-page themes replace the entire store page (with their own header/footer)
-  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech", "sport", "gaming", "boutique"] as const;
+  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech", "sport", "gaming", "boutique", "noirGold", "emeraldGold", "midnightSapphire", "roseAmethyst"] as const;
   if ((fullPageThemes as readonly string[]).includes(template)) {
     const commonProps = { products, currencySymbol: storeSettings.currency_symbol, onOpenProduct: openProductPage, ownerId };
     return (
@@ -133,6 +133,7 @@ const StoreFront = () => {
         {template === "sport" && <SportStore {...commonProps} />}
         {template === "gaming" && <GamingStore {...commonProps} />}
         {template === "boutique" && <BoutiqueStore {...commonProps} />}
+        {(template === "noirGold" || template === "emeraldGold" || template === "midnightSapphire" || template === "roseAmethyst") && <LuxuryStore {...commonProps} />}
       </div>
     );
   }

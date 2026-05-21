@@ -31,6 +31,10 @@ const TEMPLATES = [
   { id: "sport", title: "Sport", desc: "أسود/برتقالي وخطوط حادة — للملابس الرياضية", emoji: "🏆" },
   { id: "gaming", title: "Gaming", desc: "نيون بنفسجي/سيان وشبكة Glow — للجيمنق", emoji: "🎮" },
   { id: "boutique", title: "Boutique", desc: "وردي ناعم وخط Serif أنيق — للنساء", emoji: "🌸" },
+  { id: "noirGold", title: "Noir & Gold", desc: "أسود وذهبي ملكي — فخامة كلاسيكية", emoji: "🖤" },
+  { id: "emeraldGold", title: "Emerald Gold", desc: "زمردي وذهبي — فاخر ومميز", emoji: "💚" },
+  { id: "midnightSapphire", title: "Midnight Sapphire", desc: "ياقوت أزرق ليلي — أناقة هادئة", emoji: "💙" },
+  { id: "roseAmethyst", title: "Rose Amethyst", desc: "وردي بنفسجي ساحر — للنساء الراقيات", emoji: "💖" },
 ];
 
 export default function ThemesSettings() {
