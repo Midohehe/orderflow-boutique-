@@ -21,6 +21,8 @@ interface OrderPayload {
   shipping_included?: boolean;
   upsell_index?: number | null;
   landing_slug?: string | null;
+  hp?: string | null;
+  elapsed_ms?: number | null;
   items?: Array<{
     color?: string | null;
     size?: string | null;
@@ -39,6 +41,32 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json()) as OrderPayload;
+
+    // ---- Bot protection (Level 1) ----
+    // 1) Honeypot: if the hidden field is filled, silently accept and discard.
+    if (typeof body.hp === "string" && body.hp.trim() !== "") {
+      console.warn("bot blocked: honeypot filled");
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // 2) Time-to-submit: real users can't fill the form in < 3s.
+    const elapsedMs = Number(body.elapsed_ms);
+    if (Number.isFinite(elapsedMs) && elapsedMs > 0 && elapsedMs < 3000) {
+      console.warn("bot blocked: submitted too fast", elapsedMs);
+      return new Response(JSON.stringify({ error: "too_fast" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Capture client IP & user-agent for review (do not block on these).
+    const clientIp =
+      req.headers.get("cf-connecting-ip") ||
+      (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      null;
+    const userAgent = req.headers.get("user-agent") || null;
 
     const product_id = s(body.product_id, 64);
     let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
@@ -171,6 +199,8 @@ Deno.serve(async (req) => {
       selected_product_code: s(body.selected_product_code ?? "", 200) || null,
       shipping_included: body.shipping_included === true,
       upsell_offers: upsellOffers && upsellOffers.length > 0 ? upsellOffers : [],
+      client_ip: clientIp,
+      user_agent: userAgent,
     }).select("id").single();
 
     if (iErr) {

@@ -854,6 +854,7 @@ export type Database = {
           carrier_status_raw: Json | null
           carrier_status_updated_at: string | null
           city: string
+          client_ip: string | null
           confirmation_attempts: number
           confirmation_notes: string | null
           confirmation_status: string
@@ -894,6 +895,7 @@ export type Database = {
           store_id: string | null
           updated_at: string
           upsell_offers: Json
+          user_agent: string | null
         }
         Insert: {
           address: string
@@ -905,6 +907,7 @@ export type Database = {
           carrier_status_raw?: Json | null
           carrier_status_updated_at?: string | null
           city: string
+          client_ip?: string | null
           confirmation_attempts?: number
           confirmation_notes?: string | null
           confirmation_status?: string
@@ -945,6 +948,7 @@ export type Database = {
           store_id?: string | null
           updated_at?: string
           upsell_offers?: Json
+          user_agent?: string | null
         }
         Update: {
           address?: string
@@ -956,6 +960,7 @@ export type Database = {
           carrier_status_raw?: Json | null
           carrier_status_updated_at?: string | null
           city?: string
+          client_ip?: string | null
           confirmation_attempts?: number
           confirmation_notes?: string | null
           confirmation_status?: string
@@ -996,6 +1001,7 @@ export type Database = {
           store_id?: string | null
           updated_at?: string
           upsell_offers?: Json
+          user_agent?: string | null
         }
         Relationships: [
           {

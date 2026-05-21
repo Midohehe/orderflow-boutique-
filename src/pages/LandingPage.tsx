@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,6 +149,9 @@ const LandingPage = () => {
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ", currency_code: "AED", button_text: "اطلب الآن - الدفع عند الاستلام" });
   const [formData, setFormData] = useState<Record<string, string>>({});
+  // Bot protection: honeypot field + form load time
+  const [honeypot, setHoneypot] = useState("");
+  const formLoadedAtRef = useRef<number>(Date.now());
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
@@ -765,7 +768,25 @@ const LandingPage = () => {
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Bot protection: honeypot field — real users never fill this.
+    // Silently pretend success to avoid telling the bot it was caught.
+    if (honeypot.trim() !== "") {
+      navigate("/thank-you", { state: { orderData: { productName: product?.name } } });
+      return;
+    }
+
+    // Bot protection: reject form submitted in less than 3 seconds.
+    const elapsedMs = Date.now() - formLoadedAtRef.current;
+    if (elapsedMs < 3000) {
+      toast({
+        title: "خطأ",
+        description: "يرجى مراجعة بياناتك قبل الإرسال",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check required fields
     const requiredFields = formFields.filter(f => f.required);
     const missingFields = requiredFields.filter(f => !formData[f.field_key]);
@@ -882,6 +903,8 @@ const LandingPage = () => {
           items: itemsPayload,
           upsell_index: selectedUpsellIndex,
           landing_slug: slug,
+          elapsed_ms: elapsedMs,
+          hp: honeypot,
         },
       });
 
@@ -1040,6 +1063,28 @@ const LandingPage = () => {
               </div>
 
               <form onSubmit={handleSubmitOrder} className="space-y-3 sm:space-y-4">
+                {/* Honeypot field — invisible to real users, bots will fill it */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "-9999px",
+                    width: "1px",
+                    height: "1px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <label htmlFor="website_url">Website (leave empty)</label>
+                  <input
+                    type="text"
+                    id="website_url"
+                    name="website_url"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                  />
+                </div>
                 {/* Quantity Selection - First */}
                 {product.show_quantity !== false && (
                   <div className="space-y-1.5 sm:space-y-2">
