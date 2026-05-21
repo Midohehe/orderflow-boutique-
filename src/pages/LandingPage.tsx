@@ -910,6 +910,20 @@ const LandingPage = () => {
     setIsSubmitting(true);
 
     try {
+      // Cloudflare Turnstile: get an invisible CAPTCHA token before submitting.
+      let turnstileToken = "";
+      try {
+        turnstileToken = await getTurnstileToken();
+      } catch (e) {
+        setIsSubmitting(false);
+        toast({
+          title: "تعذر التحقق",
+          description: "يرجى المحاولة مرة أخرى",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // SKU is hidden from landing page; auto-use the first code if any exist
       const singleCode = product?.product_codes && product.product_codes.length > 0
         ? product.product_codes[0]
