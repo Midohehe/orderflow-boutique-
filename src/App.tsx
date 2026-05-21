@@ -39,6 +39,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
 const HeaderSettings = lazy(() => import("./pages/HeaderSettings"));
+const ThemesSettings = lazy(() => import("./pages/ThemesSettings"));
 const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
 const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
 const StickerDesigner = lazy(() => import("./pages/StickerDesigner"));
@@ -129,6 +130,7 @@ const App = () => {
                 <Route path="thank-you" element={<ThankYouSettings />} />
                 <Route path="currency" element={<CurrencySettings />} />
                 <Route path="header" element={<HeaderSettings />} />
+                <Route path="themes" element={<ThemesSettings />} />
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
                 <Route path="shipping-zones" element={<ShippingZones />} />
