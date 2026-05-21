@@ -10,6 +10,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
+import { getThemeTokens } from "@/lib/themeTokens";
+import { useEffect as useEffectTheme } from "react";
+
+function LandingThemeWrapper({ template, children }: { template: any; children: React.ReactNode }) {
+  const { style, fontLink } = getThemeTokens(template);
+  useEffectTheme(() => {
+    if (!fontLink) return;
+    const id = `theme-font-${template}`;
+    if (document.getElementById(id)) return;
+    const l = document.createElement("link"); l.id = id; l.rel = "stylesheet"; l.href = fontLink;
+    document.head.appendChild(l);
+  }, [template, fontLink]);
+  return (
+    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24 text-foreground" dir="rtl" style={style}>
+      {children}
+    </div>
+  );
+}
 import FashionHero from "@/components/themes/FashionHero";
 import StylishHero from "@/components/themes/StylishHero";
 import { useStoreTemplate } from "@/hooks/useStoreTemplate";
@@ -1026,7 +1044,7 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24" dir="rtl">
+    <LandingThemeWrapper template={template}>
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
@@ -1556,7 +1574,7 @@ const LandingPage = () => {
           </Button>
         </div>
       </div>
-    </div>
+    </LandingThemeWrapper>
   );
 };
 
