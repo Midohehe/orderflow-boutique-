@@ -83,6 +83,13 @@ function buildHead(product: any, currency: string, pageUrl: string): string {
 <title>${title}</title>
 <meta name="description" content="${desc}" />
 <link rel="canonical" href="${escapeHtml(pageUrl)}" />
+<link rel="preconnect" href="${SUPABASE_URL}" crossorigin />
+<link rel="dns-prefetch" href="${SUPABASE_URL}" />
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="dns-prefetch" href="https://connect.facebook.net" />
+<link rel="dns-prefetch" href="https://analytics.tiktok.com" />
+<link rel="dns-prefetch" href="https://www.googletagmanager.com" />
 <meta property="og:type" content="product" />
 <meta property="og:title" content="${title}" />
 <meta property="og:description" content="${desc}" />
