@@ -170,6 +170,7 @@ const LandingPage = () => {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
   const template = useStoreTemplate(ownerId);
+  const bgColor = useStoreBgColor(ownerId);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1044,7 +1045,7 @@ const LandingPage = () => {
   }
 
   return (
-    <LandingThemeWrapper template={template}>
+    <LandingThemeWrapper template={template} bgColor={bgColor}>
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
