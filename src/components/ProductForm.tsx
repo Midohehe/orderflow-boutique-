@@ -727,27 +727,6 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             <p className="text-xs text-muted-foreground">
               اكتب المتغير واضغط Enter لإضافته. يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
             </p>
-            {hasVariants && (
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t mt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
-                  onClick={() => autoGenerateSkus(false)}
-                >
-                  إنشاء الأكواد تلقائياً
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => autoGenerateSkus(true)}
-                >
-                  إعادة إنشاء (استبدال الكل)
-                </Button>
-                <p className="text-[11px] text-muted-foreground">يقوم النظام بتوليد SKU فريد لكل متغير تلقائياً.</p>
-              </div>
-            )}
           </>
         ) : (
           <div className="space-y-2">
@@ -903,6 +882,26 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       {/* Stock Management */}
       <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
         <div className="flex items-center justify-end gap-2 flex-wrap">
+        {hasVariants && (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
+              onClick={() => autoGenerateSkus(false)}
+            >
+              إنشاء الأكواد تلقائياً
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => autoGenerateSkus(true)}
+            >
+              إعادة إنشاء (استبدال الكل)
+            </Button>
+          </>
+        )}
         {hasVariants && product.easyOrdersProductId && eoVariants.length > 0 && (
           <Button
             type="button"
