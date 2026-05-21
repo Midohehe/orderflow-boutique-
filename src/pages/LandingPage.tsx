@@ -300,6 +300,7 @@ const LandingPage = () => {
             upsell_title: (lp?.upsell_title || "🎁 عروض خاصة"),
             upsell_offers: Array.isArray(lp?.upsell_offers) ? lp.upsell_offers : [],
             order_form_on_top: lp?.order_form_on_top != null ? !!lp.order_form_on_top : !!(matched as any).order_form_on_top,
+            show_quantity: lp?.show_quantity != null ? !!lp.show_quantity : true,
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
           };
