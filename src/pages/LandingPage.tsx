@@ -149,6 +149,9 @@ const LandingPage = () => {
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ", currency_code: "AED", button_text: "اطلب الآن - الدفع عند الاستلام" });
   const [formData, setFormData] = useState<Record<string, string>>({});
+  // Bot protection: honeypot field + form load time
+  const [honeypot, setHoneypot] = useState("");
+  const formLoadedAtRef = useRef<number>(Date.now());
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
