@@ -58,6 +58,43 @@ function findBestAreaInCity(
   return best;
 }
 
+// STRONG signal: find an area whose normalized name appears as an exact token
+// (or near-exact, ≤1 edit) inside the customer's input. Example: input
+// "الرياضية، طرابلس" → area "الرياضية" under "طرابلس". This is way more reliable
+// than fuzzy partial overlap because it requires a full word boundary match.
+function findExactTokenArea(
+  list: Pair[],
+  inputTokens: string[],
+): { pair: Pair; score: number } | null {
+  if (inputTokens.length === 0) return null;
+  const tokSet = new Set(inputTokens.filter((t) => t && t.length >= 3));
+  let best: { pair: Pair; score: number } | null = null;
+  for (const r of list) {
+    const aN = norm(r.area);
+    const cN = norm(r.city);
+    if (!aN || aN === cN) continue; // skip city==area placeholder rows
+    let score = 0;
+    if (tokSet.has(aN)) score = 1;
+    else if (aN.length >= 4) {
+      // multi-word area name: all words present as tokens
+      const aWords = aN.split(/\s+/).filter(Boolean);
+      if (aWords.length > 1 && aWords.every((w) => tokSet.has(w))) score = 0.95;
+      else {
+        // tolerate 1 edit for areas length ≥ 5
+        for (const t of tokSet) {
+          if (Math.abs(t.length - aN.length) <= 1 && lev(t, aN) <= 1) { score = 0.9; break; }
+        }
+      }
+    }
+    if (score > 0) {
+      // small bonus if the city is also mentioned in input tokens
+      if (cN && tokSet.has(cN)) score += 0.2;
+      if (!best || score > best.score) best = { pair: r, score };
+    }
+  }
+  return best;
+}
+
 function lev(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length || !b.length) return Math.max(a.length, b.length);
@@ -281,6 +318,31 @@ Deno.serve(async (req) => {
         if (!hidden.has(`${c}||${a}`)) list.push({ city: c, area: a });
       }
     }
+    // Merge the carrier's LIVE shipping_zones cache so areas the carrier
+    // actually supports (e.g. "الرياضية" under "طرابلس") become first-class
+    // candidates — not just a last-resort fallback.
+    {
+      const { data: liveZones } = await admin
+        .from("shipping_zones")
+        .select("external_id,parent_external_id,name,kind");
+      const zall = (liveZones || []) as Z[];
+      const zoneRows = zall.filter((x) => x.kind === "zone");
+      const areaRows = zall.filter((x) => x.kind === "area");
+      const seen = new Set(list.map((r) => `${norm(r.city)}||${norm(r.area)}`));
+      for (const z of zoneRows) {
+        const zAreas = areaRows.filter((a) => a.parent_external_id === z.external_id);
+        const rows = zAreas.length === 0
+          ? [{ city: z.name, area: z.name }]
+          : zAreas.map((a) => ({ city: z.name, area: a.name }));
+        for (const r of rows) {
+          const key = `${norm(r.city)}||${norm(r.area)}`;
+          if (!seen.has(key) && !hidden.has(`${r.city}||${r.area}`)) {
+            list.push(r);
+            seen.add(key);
+          }
+        }
+      }
+    }
     let overrides: Array<{ city: string; area: string; input_text: string | null }> = [];
     {
       const { data: corrections } = await admin
@@ -389,6 +451,14 @@ Deno.serve(async (req) => {
           const pair = list.find((r) => r.city === cc && r.area === ba.area);
           if (pair) push(pair, 1.5 + ba.score, "fuzzy-area");
         }
+      }
+
+      // STRONGEST local signal: an area whose name appears as an exact token in
+      // the input. Weighted higher than the AI picks so the carrier's own area
+      // names always win over geographic guesses.
+      const exactArea = findExactTokenArea(list, inputToks);
+      if (exactArea) {
+        push(exactArea.pair, 4 + exactArea.score, "exact-token-area");
       }
 
       candidates.sort((a, b) => b.weight - a.weight);
