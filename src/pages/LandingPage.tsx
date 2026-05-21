@@ -149,6 +149,9 @@ const LandingPage = () => {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [showSizeChart, setShowSizeChart] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.ل", currency_code: "LYD", button_text: "اطلب الآن - الدفع عند الاستلام" });
