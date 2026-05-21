@@ -768,7 +768,25 @@ const LandingPage = () => {
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Bot protection: honeypot field — real users never fill this.
+    // Silently pretend success to avoid telling the bot it was caught.
+    if (honeypot.trim() !== "") {
+      navigate("/thank-you", { state: { orderData: { productName: product?.name } } });
+      return;
+    }
+
+    // Bot protection: reject form submitted in less than 3 seconds.
+    const elapsedMs = Date.now() - formLoadedAtRef.current;
+    if (elapsedMs < 3000) {
+      toast({
+        title: "خطأ",
+        description: "يرجى مراجعة بياناتك قبل الإرسال",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check required fields
     const requiredFields = formFields.filter(f => f.required);
     const missingFields = requiredFields.filter(f => !formData[f.field_key]);
