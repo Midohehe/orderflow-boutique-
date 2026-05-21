@@ -13,10 +13,12 @@ self.addEventListener("push", (event) => {
     icon: data.icon || "/icon-192.png",
     badge: data.badge || "/icon-192.png",
     image: data.image,
-    tag: data.tag,
+    tag: data.tag || `n-${Date.now()}`,
+    renotify: true,
     data: { url: data.url || "/dashboard" },
     vibrate: [200, 100, 200],
-    requireInteraction: false,
+    requireInteraction: true,
+    silent: false,
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
