@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ShoppingBag, Phone, MapPin, User, Mail } from "lucide-react";
+import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,10 @@ interface Product {
   order_form_on_top?: boolean;
   show_quantity?: boolean;
   owner_id?: string;
+  stock?: number;
+  size_chart_url?: string | null;
+  reviews?: Array<{ name: string; rating: number; comment: string }>;
+  faqs?: Array<{ question: string; answer: string }>;
 }
 
 interface PixelSettings {
