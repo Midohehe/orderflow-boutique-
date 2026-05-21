@@ -18,29 +18,50 @@ export type Database = {
         Row: {
           created_at: string
           event_type: string
+          fb_ad_id: string | null
+          fb_campaign_id: string | null
+          fbclid: string | null
           id: string
           owner_id: string | null
           product_slug: string | null
           store_id: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
           utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           created_at?: string
           event_type: string
+          fb_ad_id?: string | null
+          fb_campaign_id?: string | null
+          fbclid?: string | null
           id?: string
           owner_id?: string | null
           product_slug?: string | null
           store_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
           utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           created_at?: string
           event_type?: string
+          fb_ad_id?: string | null
+          fb_campaign_id?: string | null
+          fbclid?: string | null
           id?: string
           owner_id?: string | null
           product_slug?: string | null
           store_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
           utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: []
       }
@@ -488,6 +509,195 @@ export type Database = {
         }
         Relationships: []
       }
+      fb_ads: {
+        Row: {
+          creative_thumbnail_url: string | null
+          fb_ad_id: string
+          fb_adset_id: string | null
+          fb_adset_name: string | null
+          fb_campaign_id: string | null
+          id: string
+          landing_url: string | null
+          name: string | null
+          owner_id: string
+          status: string | null
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          creative_thumbnail_url?: string | null
+          fb_ad_id: string
+          fb_adset_id?: string | null
+          fb_adset_name?: string | null
+          fb_campaign_id?: string | null
+          id?: string
+          landing_url?: string | null
+          name?: string | null
+          owner_id: string
+          status?: string | null
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          creative_thumbnail_url?: string | null
+          fb_ad_id?: string
+          fb_adset_id?: string | null
+          fb_adset_name?: string | null
+          fb_campaign_id?: string | null
+          id?: string
+          landing_url?: string | null
+          name?: string | null
+          owner_id?: string
+          status?: string | null
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fb_campaigns: {
+        Row: {
+          created_time: string | null
+          daily_budget: number | null
+          fb_campaign_id: string
+          id: string
+          lifetime_budget: number | null
+          name: string | null
+          objective: string | null
+          owner_id: string
+          start_time: string | null
+          status: string | null
+          stop_time: string | null
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_time?: string | null
+          daily_budget?: number | null
+          fb_campaign_id: string
+          id?: string
+          lifetime_budget?: number | null
+          name?: string | null
+          objective?: string | null
+          owner_id: string
+          start_time?: string | null
+          status?: string | null
+          stop_time?: string | null
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_time?: string | null
+          daily_budget?: number | null
+          fb_campaign_id?: string
+          id?: string
+          lifetime_budget?: number | null
+          name?: string | null
+          objective?: string | null
+          owner_id?: string
+          start_time?: string | null
+          status?: string | null
+          stop_time?: string | null
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fb_insights_daily: {
+        Row: {
+          actions: Json | null
+          clicks: number
+          cpc: number | null
+          cpm: number | null
+          ctr: number | null
+          date: string
+          fb_ad_id: string | null
+          fb_adset_id: string | null
+          fb_campaign_id: string | null
+          id: string
+          impressions: number
+          owner_id: string
+          reach: number
+          spend: number
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json | null
+          clicks?: number
+          cpc?: number | null
+          cpm?: number | null
+          ctr?: number | null
+          date: string
+          fb_ad_id?: string | null
+          fb_adset_id?: string | null
+          fb_campaign_id?: string | null
+          id?: string
+          impressions?: number
+          owner_id: string
+          reach?: number
+          spend?: number
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json | null
+          clicks?: number
+          cpc?: number | null
+          cpm?: number | null
+          ctr?: number | null
+          date?: string
+          fb_ad_id?: string | null
+          fb_adset_id?: string | null
+          fb_campaign_id?: string | null
+          id?: string
+          impressions?: number
+          owner_id?: string
+          reach?: number
+          spend?: number
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fb_sync_log: {
+        Row: {
+          ads_synced: number | null
+          campaigns_synced: number | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          insights_synced: number | null
+          owner_id: string
+          started_at: string
+          status: string
+          store_id: string
+        }
+        Insert: {
+          ads_synced?: number | null
+          campaigns_synced?: number | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          insights_synced?: number | null
+          owner_id: string
+          started_at?: string
+          status?: string
+          store_id: string
+        }
+        Update: {
+          ads_synced?: number | null
+          campaigns_synced?: number | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          insights_synced?: number | null
+          owner_id?: string
+          started_at?: string
+          status?: string
+          store_id?: string
+        }
+        Relationships: []
+      }
       form_field_catalog: {
         Row: {
           admin_enabled: boolean
@@ -865,9 +1075,14 @@ export type Database = {
           confirmed_by: string | null
           created_at: string
           customer_name: string
+          fb_ad_id: string | null
+          fb_adset_id: string | null
+          fb_campaign_id: string | null
+          fbclid: string | null
           id: string
           insufficient_stock: boolean
           is_deleted: boolean
+          landing_slug: string | null
           last_attempt_at: string | null
           link_error: string | null
           locked_insufficient_balance: boolean
@@ -899,6 +1114,11 @@ export type Database = {
           updated_at: string
           upsell_offers: Json
           user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           address: string
@@ -918,9 +1138,14 @@ export type Database = {
           confirmed_by?: string | null
           created_at?: string
           customer_name: string
+          fb_ad_id?: string | null
+          fb_adset_id?: string | null
+          fb_campaign_id?: string | null
+          fbclid?: string | null
           id?: string
           insufficient_stock?: boolean
           is_deleted?: boolean
+          landing_slug?: string | null
           last_attempt_at?: string | null
           link_error?: string | null
           locked_insufficient_balance?: boolean
@@ -952,6 +1177,11 @@ export type Database = {
           updated_at?: string
           upsell_offers?: Json
           user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           address?: string
@@ -971,9 +1201,14 @@ export type Database = {
           confirmed_by?: string | null
           created_at?: string
           customer_name?: string
+          fb_ad_id?: string | null
+          fb_adset_id?: string | null
+          fb_campaign_id?: string | null
+          fbclid?: string | null
           id?: string
           insufficient_stock?: boolean
           is_deleted?: boolean
+          landing_slug?: string | null
           last_attempt_at?: string | null
           link_error?: string | null
           locked_insufficient_balance?: boolean
@@ -1005,6 +1240,11 @@ export type Database = {
           updated_at?: string
           upsell_offers?: Json
           user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: [
           {
