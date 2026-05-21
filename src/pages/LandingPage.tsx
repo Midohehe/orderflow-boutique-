@@ -1045,9 +1045,17 @@ const LandingPage = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const newQty = Math.max(1, quantity - 1);
+                        // If an upsell offer is active, the counter starts
+                        // operating on the base price — reset to 1 piece so
+                        // the displayed total doesn't jump (offer.quantity-1).
+                        const base = selectedUpsellIndex !== null ? 1 : quantity;
+                        const newQty = Math.max(1, base - 1);
                         setQuantity(newQty);
-                        setItemVariants(prev => prev.slice(0, newQty));
+                        setItemVariants(prev => {
+                          const next = [...prev];
+                          while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
+                          return next.slice(0, newQty);
+                        });
                         setSelectedUpsellIndex(null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
@@ -1058,9 +1066,14 @@ const LandingPage = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const newQty = quantity + 1;
+                        const base = selectedUpsellIndex !== null ? 1 : quantity;
+                        const newQty = base + 1;
                         setQuantity(newQty);
-                        setItemVariants(prev => [...prev, { color: "", size: "", productCode: "" }]);
+                        setItemVariants(prev => {
+                          const next = selectedUpsellIndex !== null ? [{ color: "", size: "", productCode: "" }] : [...prev];
+                          while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
+                          return next.slice(0, newQty);
+                        });
                         setSelectedUpsellIndex(null);
                       }}
                       className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
