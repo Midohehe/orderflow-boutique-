@@ -45,6 +45,10 @@ export function getThemeTokens(template: StoreTemplate, bgOverride?: string | nu
     emeraldGold:      { primary: "45 65% 52%",  primaryFg: "0 0% 5%",  bg: "163 75% 5%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
     midnightSapphire: { primary: "213 94% 68%", primaryFg: "0 0% 5%",  bg: "217 75% 5%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
     roseAmethyst:     { primary: "330 84% 71%", primaryFg: "0 0% 5%",  bg: "280 60% 6%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
+    // Premium animated themes
+    aurora:           { primary: "292 84% 61%", primaryFg: "0 0% 100%", bg: "229 39% 7%" },
+    cinematic:        { primary: "42 95% 55%",  primaryFg: "0 0% 5%",   bg: "0 0% 3%",   font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
+    apple:            { primary: "217 91% 50%", primaryFg: "0 0% 100%", bg: "0 0% 100%" },
   };
   const t = map[template] || map.classic;
   const overrideBg = bgOverride ? hexToHsl(bgOverride) : null;

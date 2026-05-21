@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export type StoreTemplate =
   | "classic" | "fashion" | "stylish" | "luxury" | "editorial" | "vibrant"
   | "tech" | "sport" | "gaming" | "boutique"
-  | "noirGold" | "emeraldGold" | "midnightSapphire" | "roseAmethyst";
+  | "noirGold" | "emeraldGold" | "midnightSapphire" | "roseAmethyst"
+  | "aurora" | "cinematic" | "apple";
 
 /**
  * Reads the visual template chosen by the store owner from header_settings.
@@ -25,7 +26,7 @@ export function useStoreTemplate(ownerId?: string | null): StoreTemplate {
       .then(({ data }) => {
         if (cancelled || !data) return;
         const t = (data as any).template;
-        const allowed: StoreTemplate[] = ["classic","fashion","stylish","luxury","editorial","vibrant","tech","sport","gaming","boutique","noirGold","emeraldGold","midnightSapphire","roseAmethyst"];
+        const allowed: StoreTemplate[] = ["classic","fashion","stylish","luxury","editorial","vibrant","tech","sport","gaming","boutique","noirGold","emeraldGold","midnightSapphire","roseAmethyst","aurora","cinematic","apple"];
         if (allowed.includes(t)) setTemplate(t);
       });
     return () => {
