@@ -112,13 +112,10 @@ const StoreFront = () => {
     );
   }
 
-  // Full Stylish theme replaces the entire store page
+  // Full Stylish theme replaces the entire store page (with its own header/footer)
   if (template === "stylish") {
     return (
       <div dir="rtl" className="bg-white min-h-screen -mx-4 -my-6">
-        <div className="container mx-auto px-4 py-6">
-          <StoreHeader ownerId={ownerId || undefined} />
-        </div>
         {products.length === 0 ? (
           <div className="text-center py-16">
             <ShoppingBag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
@@ -129,6 +126,7 @@ const StoreFront = () => {
             products={products}
             currencySymbol={storeSettings.currency_symbol}
             onOpenProduct={openProductPage}
+            ownerId={ownerId}
           />
         )}
       </div>
