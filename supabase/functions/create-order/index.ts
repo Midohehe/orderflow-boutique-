@@ -23,6 +23,7 @@ interface OrderPayload {
   landing_slug?: string | null;
   hp?: string | null;
   elapsed_ms?: number | null;
+  turnstile_token?: string | null;
   items?: Array<{
     color?: string | null;
     size?: string | null;
