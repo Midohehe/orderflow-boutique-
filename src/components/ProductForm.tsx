@@ -884,6 +884,107 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         )}
       </SectionCard>
 
+      {/* Size Chart */}
+      <SectionCard icon={Ruler} title="جدول المقاسات" description="رابط صورة جدول المقاسات (يظهر كزر في صفحة الهبوط)" iconColor="bg-violet-500">
+        <div className="space-y-2">
+          <Label className="font-semibold">رابط صورة جدول المقاسات</Label>
+          <Input
+            value={product.sizeChartUrl || ""}
+            onChange={(e) => updateField("sizeChartUrl", e.target.value)}
+            placeholder="https://example.com/size-chart.jpg"
+            dir="ltr"
+            className="text-left"
+          />
+          {product.sizeChartUrl && (
+            <div className="mt-2 p-2 border rounded-lg bg-muted/30 inline-block">
+              <img
+                src={product.sizeChartUrl}
+                alt="جدول المقاسات"
+                className="max-h-32 rounded"
+                onError={(e) => ((e.currentTarget.style.display = "none"))}
+              />
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* Reviews */}
+      <SectionCard icon={Star} title="تقييمات العملاء" description="أضف تقييمات تظهر في صفحة الهبوط" iconColor="bg-yellow-500">
+        <div className="space-y-3">
+          {(product.reviews || []).map((rv, idx) => (
+            <div key={idx} className="grid grid-cols-1 md:grid-cols-[10rem_8rem_1fr_auto] gap-2 p-3 border rounded-lg bg-muted/20 items-start">
+              <div className="space-y-1">
+                <Label className="text-xs">اسم العميل</Label>
+                <Input
+                  value={rv.name}
+                  onChange={(e) => {
+                    const next = [...(product.reviews || [])];
+                    next[idx] = { ...next[idx], name: e.target.value };
+                    updateField("reviews", next);
+                  }}
+                  placeholder="أحمد"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">النجوم (1-5)</Label>
+                <Select
+                  value={String(rv.rating || 5)}
+                  onValueChange={(v) => {
+                    const next = [...(product.reviews || [])];
+                    next[idx] = { ...next[idx], rating: parseInt(v) };
+                    updateField("reviews", next);
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[5, 4, 3, 2, 1].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{"⭐".repeat(n)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">التعليق</Label>
+                <Textarea
+                  value={rv.comment}
+                  onChange={(e) => {
+                    const next = [...(product.reviews || [])];
+                    next[idx] = { ...next[idx], comment: e.target.value };
+                    updateField("reviews", next);
+                  }}
+                  placeholder="منتج ممتاز وجودة عالية"
+                  rows={2}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  const next = (product.reviews || []).filter((_, i) => i !== idx);
+                  updateField("reviews", next);
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+            onClick={() =>
+              updateField("reviews", [
+                ...(product.reviews || []),
+                { name: "", rating: 5, comment: "" },
+              ])
+            }
+          >
+            + إضافة تقييم
+          </Button>
+        </div>
+      </SectionCard>
+
       {/* Stock Management */}
       <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
         <div className="flex items-center justify-between gap-2 flex-wrap">
