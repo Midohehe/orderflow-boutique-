@@ -311,6 +311,8 @@ const StockMovements = () => {
                     <TableHead className="text-right">المتغير</TableHead>
                     <TableHead className="text-right">كود التخزين</TableHead>
                     <TableHead className="text-right">الكمية</TableHead>
+                    <TableHead className="text-right">سعر الوحدة</TableHead>
+                    <TableHead className="text-right">الإجمالي</TableHead>
                     <TableHead className="text-right">السبب</TableHead>
                     <TableHead className="text-right">الطلب</TableHead>
                   </TableRow>
