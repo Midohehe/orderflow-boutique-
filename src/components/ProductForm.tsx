@@ -896,6 +896,14 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           </p>
         )}
         {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
+          <p className="text-xs text-muted-foreground">يمكنك ربط متغيرات EasyOrders تلقائياً من قسم المخزون أدناه.</p>
+        )}
+      </SectionCard>
+
+      {/* Stock Management */}
+      <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+        {hasVariants && product.easyOrdersProductId && eoVariants.length > 0 && (
           <Button
             type="button"
             size="sm"
@@ -905,11 +913,6 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
             ربط المتغيرات ايزي اوردرز تلقائياً (استبدال)
           </Button>
         )}
-      </SectionCard>
-
-      {/* Stock Management */}
-      <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
-        <div className="flex items-center justify-end gap-2 flex-wrap">
         {hasVariants && whProducts.length > 0 && product.warehouseLinked !== false && (
           <Button
             type="button"
