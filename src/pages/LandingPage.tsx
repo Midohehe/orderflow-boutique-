@@ -1081,6 +1081,22 @@ const LandingPage = () => {
                   <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="font-medium">متوفر في المخزون</span>
                 </div>
+                {/* عداد المخزون الديناميكي */}
+                {typeof product.stock === "number" && product.stock > 0 && product.stock <= 20 && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 bg-red-500/10 text-red-600 px-3 py-1 rounded-full text-xs sm:text-sm font-bold animate-pulse">
+                    🔥 باقي {product.stock} قطعة فقط!
+                  </div>
+                )}
+                {/* زر جدول المقاسات */}
+                {product.size_chart_url && product.sizes && product.sizes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSizeChart(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 text-primary text-xs sm:text-sm font-medium hover:underline"
+                  >
+                    <Ruler className="w-4 h-4" /> جدول المقاسات
+                  </button>
+                )}
                 {/* شريط الثقة */}
                 <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] sm:text-xs">
                   <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
