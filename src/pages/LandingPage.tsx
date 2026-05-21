@@ -864,18 +864,6 @@ const LandingPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Cloudflare Turnstile: get an invisible CAPTCHA token before submitting.
-      let turnstileToken = "";
-      try {
-        turnstileToken = await getTurnstileToken();
-      } catch (e) {
-        // Fail-open: in-app browsers (Facebook/Instagram WebView) and older
-        // browsers cannot load Turnstile. Don't block real customers — the
-        // server validates honeypot + time-check + variants as a safety net.
-        console.warn("turnstile unavailable, submitting without token", e);
-        turnstileToken = "";
-      }
-
       // SKU is hidden from landing page; auto-use the first code if any exist
       const singleCode = product?.product_codes && product.product_codes.length > 0
         ? product.product_codes[0]
@@ -946,7 +934,6 @@ const LandingPage = () => {
           landing_slug: slug,
           elapsed_ms: elapsedMs,
           hp: honeypot,
-          turnstile_token: turnstileToken,
           ...getAttribution(),
         },
       });
