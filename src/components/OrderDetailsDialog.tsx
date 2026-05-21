@@ -427,7 +427,8 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     if (items.length > 0) {
       const rows = items.map((it) => {
         const prod = products.find((p) => p.id === it.product_id);
-        const key = `${it.selected_color || ""}-${it.selected_size || ""}`;
+        const key = [it.selected_color, it.selected_size].filter(Boolean).join(" - ")
+          || it.selected_color || it.selected_size || it.selected_product_code || "";
         const wh = prod?.variant_warehouse_codes?.[key] || it.warehouse_code || null;
         const eoVar = prod?.variant_easyorders_ids?.[key] || it.easyorders_variant_id || null;
         return {
