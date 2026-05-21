@@ -88,7 +88,8 @@ Deno.serve(async (req) => {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          payload
+          payload,
+          { TTL: 3600, urgency: "high", topic: tag?.toString().slice(0, 32) }
         );
         sent++;
       } catch (err: any) {
