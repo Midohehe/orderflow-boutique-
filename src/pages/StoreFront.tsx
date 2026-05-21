@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, ShoppingBag } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
 import { isolateLatin } from "@/lib/bidi";
+import FashionHero from "@/components/themes/FashionHero";
+import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 interface Product {
   id: string;
@@ -24,6 +26,7 @@ const StoreFront = () => {
   const { username } = useParams<{ username?: string }>();
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const template = useStoreTemplate(ownerId);
   const [notFound, setNotFound] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: 'د.ل' });
@@ -112,13 +115,30 @@ const StoreFront = () => {
     <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6" dir="rtl">
       <StoreHeader ownerId={ownerId || undefined} />
 
+      {template === "fashion" && products.length > 0 && (
+        <div className="-mx-4">
+          <FashionHero
+            title="مجموعة الموسم"
+            subtitle="عروض حصرية"
+            description="اكتشف أحدث المنتجات بأسعار مميّزة. الدفع عند الاستلام وشحن لكل ليبيا."
+            imageUrl={products[0]?.images?.[0]}
+            primaryCtaText="تسوّق الآن"
+            onPrimaryCta={() => {
+              document.getElementById("products-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            sideTextRight="LIBYA STORE"
+            sideTextLeft="الموسم الجديد"
+          />
+        </div>
+      )}
+
       {products.length === 0 ? (
         <div className="text-center py-16">
           <ShoppingBag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
           <p className="text-muted-foreground text-lg">لا توجد منتجات حالياً</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div id="products-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.map((product) => (
             <Card
               key={product.id}

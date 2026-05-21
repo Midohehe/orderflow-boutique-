@@ -748,6 +748,7 @@ export type Database = {
           show_search: boolean
           store_id: string | null
           tagline: string | null
+          template: string
           tiktok_url: string | null
           updated_at: string
           whatsapp_url: string | null
@@ -765,6 +766,7 @@ export type Database = {
           show_search?: boolean
           store_id?: string | null
           tagline?: string | null
+          template?: string
           tiktok_url?: string | null
           updated_at?: string
           whatsapp_url?: string | null
@@ -782,6 +784,7 @@ export type Database = {
           show_search?: boolean
           store_id?: string | null
           tagline?: string | null
+          template?: string
           tiktok_url?: string | null
           updated_at?: string
           whatsapp_url?: string | null

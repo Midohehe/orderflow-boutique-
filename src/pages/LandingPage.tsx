@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
+import FashionHero from "@/components/themes/FashionHero";
+import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
@@ -148,6 +150,7 @@ const LandingPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const template = useStoreTemplate(ownerId);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1027,13 +1030,31 @@ const LandingPage = () => {
       <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
-        <h1 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3">{product.name}</h1>
-        <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
-          <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>الدفع عند الاستلام</span>
-        </div>
-      </section>
+      {template === "fashion" ? (
+        <FashionHero
+          title={product.name}
+          subtitle={product.original_price && Number(product.original_price) > Number(product.price)
+            ? `خصم ${Math.round(((Number(product.original_price) - Number(product.price)) / Number(product.original_price)) * 100)}%`
+            : "وصل حديثاً"}
+          description="الدفع عند الاستلام · شحن لكل ليبيا · استبدال مجاني خلال 7 أيام"
+          imageUrl={product.images?.[0]}
+          primaryCtaText="اشترِ الآن"
+          onPrimaryCta={() => {
+            const el = document.getElementById("order-form");
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          sideTextRight={`${product.price} ${storeSettings.currency_symbol}`}
+          sideTextLeft="عرض محدود"
+        />
+      ) : (
+        <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
+          <h1 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3">{product.name}</h1>
+          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>الدفع عند الاستلام</span>
+          </div>
+        </section>
+      )}
 
       <main className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
