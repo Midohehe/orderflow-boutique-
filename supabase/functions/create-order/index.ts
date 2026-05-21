@@ -282,6 +282,16 @@ Deno.serve(async (req) => {
       upsell_offers: upsellOffers && upsellOffers.length > 0 ? upsellOffers : [],
       client_ip: clientIp,
       user_agent: userAgent,
+      utm_source: s(body.utm_source ?? "", 120) || null,
+      utm_medium: s(body.utm_medium ?? "", 120) || null,
+      utm_campaign: s(body.utm_campaign ?? "", 200) || null,
+      utm_content: s(body.utm_content ?? "", 200) || null,
+      utm_term: s(body.utm_term ?? "", 200) || null,
+      fb_campaign_id: s(body.fb_campaign_id ?? body.utm_campaign ?? "", 64) || null,
+      fb_adset_id: s(body.fb_adset_id ?? "", 64) || null,
+      fb_ad_id: s(body.fb_ad_id ?? body.utm_content ?? "", 64) || null,
+      fbclid: s(body.fbclid ?? "", 500) || null,
+      landing_slug: s(body.landing_slug ?? landingSlug ?? "", 200) || null,
     }).select("id").single();
 
     if (iErr) {
