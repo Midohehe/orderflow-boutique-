@@ -167,8 +167,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Price cache for products
+    const priceCache = new Map<string, number | null>();
+
     for (const line of lines) {
       const qty = sign * line.quantity;
+      let unitPrice: number | null = null;
+      if (line.product_id) {
+        let cached = priceCache.get(line.product_id);
+        if (cached === undefined) {
+          const { data: p } = await admin
+            .from("products")
+            .select("price")
+            .eq("id", line.product_id)
+            .maybeSingle();
+          cached = (p as any)?.price ?? null;
+          priceCache.set(line.product_id, cached);
+        }
+        unitPrice = cached;
+      }
       // Insert ledger row (idempotent via unique index)
       const { error: insErr } = await admin.from("stock_movements").insert({
         owner_id: (order as any).owner_id,
@@ -177,6 +194,7 @@ Deno.serve(async (req) => {
         variant_key: line.variant_key,
         warehouse_code: line.warehouse_code,
         qty,
+        unit_price: unitPrice,
         reason: body.reason,
         order_id: order.id,
         return_id: body.return_id ?? null,
