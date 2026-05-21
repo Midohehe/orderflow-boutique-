@@ -30,6 +30,7 @@ function LandingThemeWrapper({ template, bgColor, children }: { template: any; b
 }
 import FashionHero from "@/components/themes/FashionHero";
 import StylishHero from "@/components/themes/StylishHero";
+import PremiumLandingHero from "@/components/themes/PremiumLandingHero";
 import { useStoreTemplate, useStoreBgColor } from "@/hooks/useStoreTemplate";
 
 // Lazy-load DOMPurify only when description is rendered
@@ -1050,7 +1051,23 @@ const LandingPage = () => {
       <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
-      {template === "stylish" ? (
+      {(template === "aurora" || template === "cinematic" || template === "apple") ? (
+        <PremiumLandingHero
+          variant={template as "aurora" | "cinematic" | "apple"}
+          title={product.name}
+          subtitle={product.original_price && Number(product.original_price) > Number(product.price)
+            ? `خصم ${Math.round(((Number(product.original_price) - Number(product.price)) / Number(product.original_price)) * 100)}% · الدفع عند الاستلام`
+            : "الدفع عند الاستلام · شحن لكل ليبيا"}
+          imageUrl={product.images?.[0]}
+          price={product.price}
+          originalPrice={product.original_price}
+          currencySymbol={storeSettings.currency_symbol}
+          onCta={() => {
+            const el = document.getElementById("order-form");
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      ) : template === "stylish" ? (
         <StylishHero
           title={product.name}
           subtitle="الدفع عند الاستلام · شحن لكل ليبيا · استبدال مجاني خلال 7 أيام"
