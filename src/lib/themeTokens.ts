@@ -52,8 +52,12 @@ export function getThemeTokens(template: StoreTemplate, bgOverride?: string | nu
   };
   const t = map[template] || map.classic;
   const overrideBg = bgOverride ? hexToHsl(bgOverride) : null;
+  // Classic is the system default — do NOT override any tokens unless the user set a custom bg color.
+  if (template === "classic" && !overrideBg) {
+    return { style: {} };
+  }
   const bg = overrideBg || t.bg;
-  const style: React.CSSProperties = {
+  const style: React.CSSProperties = template === "classic" ? {} : {
     ["--primary" as any]: t.primary,
     ["--primary-foreground" as any]: t.primaryFg,
     ["--ring" as any]: t.primary,
