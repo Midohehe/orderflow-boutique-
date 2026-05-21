@@ -224,7 +224,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible";
+        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, size_chart_url, reviews";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -234,7 +234,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs")
           .eq("slug", slug)
           .maybeSingle();
 
