@@ -416,6 +416,7 @@ Deno.serve(async (req) => {
       const rows = lineItems.map((li) => ({
         order_id: order.id,
         owner_id: userId,
+        store_id: storeId,
         product_id: li.product_id,
         product_name: li.product_name || product_name || "—",
         selected_color: li.selected_color,
