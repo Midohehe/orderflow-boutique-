@@ -64,6 +64,7 @@ const baseMenuGroups = [
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
       { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
       { icon: Crosshair, label: "إعلانات فيسبوك", path: "/dashboard/facebook-ads", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Crosshair, label: "أداء إعلانات فيسبوك", path: "/dashboard/facebook-performance", external: false, adminOnly: false, dynamicStore: false },
       { icon: Users, label: "المستخدمون الفرعيون", path: "/dashboard/members", external: false, adminOnly: false, dynamicStore: false, ownerOnly: true },
     ],
   },
