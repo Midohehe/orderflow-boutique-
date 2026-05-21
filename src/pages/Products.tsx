@@ -538,6 +538,14 @@ const Products = () => {
           label: (o.label || "").trim(),
         }))
         .filter((o) => o.quantity > 0 && o.price > 0),
+      size_chart_url: editProduct.sizeChartUrl?.trim() || null,
+      reviews: (editProduct.reviews || [])
+        .map((r) => ({
+          name: (r.name || "").trim(),
+          rating: Math.max(1, Math.min(5, parseInt(String(r.rating)) || 5)),
+          comment: (r.comment || "").trim(),
+        }))
+        .filter((r) => r.name && r.comment),
       };
       if (imagesChanged) updatePayload.images = editProduct.images;
 
