@@ -310,6 +310,10 @@ const LandingPage = () => {
             show_quantity: lp?.show_quantity != null ? !!lp.show_quantity : true,
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
+            stock: typeof (matched as any).stock === "number" ? (matched as any).stock : undefined,
+            size_chart_url: (matched as any).size_chart_url || null,
+            reviews: Array.isArray((matched as any).reviews) ? (matched as any).reviews : [],
+            faqs: Array.isArray(lp?.faqs) ? lp.faqs : [],
           };
           setProduct(loadedProduct);
 
