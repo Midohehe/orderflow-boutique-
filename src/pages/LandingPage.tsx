@@ -1378,7 +1378,99 @@ const LandingPage = () => {
             />
           </section>
         )}
+
+        {/* Reviews */}
+        {product.reviews && product.reviews.length > 0 && (
+          <section className="mt-8 sm:mt-12">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-foreground flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> آراء عملائنا
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {product.reviews.map((rv, i) => (
+                <div key={i} className="p-4 rounded-xl border border-border bg-card shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-sm">{rv.name}</span>
+                    <span className="text-yellow-500 text-sm">{"⭐".repeat(Math.max(1, Math.min(5, rv.rating || 5)))}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{rv.comment}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* FAQ */}
+        {product.faqs && product.faqs.length > 0 && (
+          <section className="mt-8 sm:mt-12">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-foreground">الأسئلة الشائعة</h2>
+            <div className="space-y-2">
+              {product.faqs.map((faq, i) => (
+                <div key={i} className="border border-border rounded-xl overflow-hidden bg-card">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between gap-3 p-4 text-right hover:bg-muted/40 transition-colors"
+                  >
+                    <span className="font-semibold text-sm sm:text-base flex-1">{faq.question}</span>
+                    <ChevronDown className={`w-5 h-5 shrink-0 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+                  </button>
+                  {openFaq === i && (
+                    <div className="px-4 pb-4 text-sm text-muted-foreground leading-relaxed border-t">
+                      <p className="pt-3 whitespace-pre-wrap">{faq.answer}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Lightbox */}
+      {lightboxOpen && product.images && product.images.length > 0 && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            onClick={() => setLightboxOpen(false)}
+            aria-label="إغلاق"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={product.images[selectedImage]}
+            alt={product.name}
+            className="max-w-full max-h-full object-contain cursor-zoom-out"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Size Chart Modal */}
+      {showSizeChart && product.size_chart_url && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowSizeChart(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            onClick={() => setShowSizeChart(false)}
+            aria-label="إغلاق"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={product.size_chart_url}
+            alt="جدول المقاسات"
+            className="max-w-full max-h-full object-contain bg-white rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
