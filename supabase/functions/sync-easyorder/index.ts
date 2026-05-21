@@ -378,8 +378,23 @@ Deno.serve(async (req) => {
       }
     } catch (e) { console.error("match-city failed", e); }
 
+    // Resolve store_id: prefer body.store_id, else user's default store, else first store
+    let storeId: string | null = s(body.store_id, 100) || null;
+    if (!storeId) {
+      const { data: defStore } = await supabase
+        .from("stores")
+        .select("id, is_default, created_at")
+        .eq("owner_id", userId)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      storeId = (defStore as any)?.id ?? null;
+    }
+
     const { data: order, error: iErr } = await supabase.from("orders").insert({
       owner_id: userId,
+      store_id: storeId,
       customer_name, phone, address, city,
       product_name: product_name || "طلب من EasyOrders",
       price: isNaN(total) ? 0 : total,
