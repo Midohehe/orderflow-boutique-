@@ -18,6 +18,11 @@ export function getThemeTokens(template: StoreTemplate): {
     sport:     { primary: "20 95% 55%",  primaryFg: "0 0% 5%",   bg: "0 0% 5%" },
     gaming:    { primary: "190 90% 50%", primaryFg: "0 0% 5%",   bg: "240 30% 6%", font: "Orbitron, Cairo, sans-serif", fontLink: "https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Cairo:wght@500;700&display=swap" },
     boutique:  { primary: "340 50% 45%", primaryFg: "0 0% 100%", bg: "10 50% 97%", font: "Tajawal, sans-serif" },
+    // Luxury dark presets (from "Arabiyat Prestige" set)
+    noirGold:         { primary: "34 33% 64%",  primaryFg: "0 0% 5%",  bg: "240 14% 4%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
+    emeraldGold:      { primary: "45 65% 52%",  primaryFg: "0 0% 5%",  bg: "163 75% 5%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
+    midnightSapphire: { primary: "213 94% 68%", primaryFg: "0 0% 5%",  bg: "217 75% 5%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
+    roseAmethyst:     { primary: "330 84% 71%", primaryFg: "0 0% 5%",  bg: "280 60% 6%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
   };
   const t = map[template] || map.classic;
   const style: React.CSSProperties = {
