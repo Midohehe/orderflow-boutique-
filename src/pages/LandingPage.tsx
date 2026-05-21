@@ -1049,7 +1049,7 @@ const LandingPage = () => {
             <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-border">
               <div className="text-center mb-4 sm:mb-6">
                 <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
-                  {product.original_price && (
+                  {product.original_price && Number(product.original_price) > Number(product.price) && (
                     <span className="text-muted-foreground line-through text-lg sm:text-xl">
                       {product.original_price} {storeSettings.currency_symbol}
                     </span>
@@ -1059,6 +1059,21 @@ const LandingPage = () => {
                 <div className="inline-flex items-center gap-2 bg-accent/10 text-accent px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-sm sm:text-base">
                   <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="font-medium">متوفر في المخزون</span>
+                </div>
+                {/* شريط الثقة */}
+                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] sm:text-xs">
+                  <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
+                    <span className="text-lg">💵</span>
+                    <span className="font-medium text-center leading-tight">الدفع عند الاستلام</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
+                    <span className="text-lg">🚚</span>
+                    <span className="font-medium text-center leading-tight">شحن لكل ليبيا</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
+                    <span className="text-lg">🔄</span>
+                    <span className="font-medium text-center leading-tight">استبدال مجاني</span>
+                  </div>
                 </div>
               </div>
 
