@@ -79,10 +79,11 @@ const HeaderSettings = () => {
       <AccountInfoCard />
 
       <SectionCard icon={LayoutTemplate} title="قالب التصميم" description="اختر شكل صفحات الهبوط والمتجر" iconColor="bg-amber-500">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { id: "classic", title: "كلاسيكي", desc: "التصميم الحالي الملوّن" },
             { id: "fashion", title: "Fashion / محرّر", desc: "هيرو بإطار أسود وألوان بيج راقية" },
+            { id: "stylish", title: "Stylish / متجر", desc: "هيرو بصورة كبيرة عريضة وخط Playfair" },
           ].map((t) => {
             const selected = (row.template || "classic") === t.id;
             return (

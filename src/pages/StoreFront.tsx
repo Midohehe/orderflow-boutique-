@@ -7,6 +7,8 @@ import { ExternalLink, ShoppingBag } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
 import { isolateLatin } from "@/lib/bidi";
 import FashionHero from "@/components/themes/FashionHero";
+import StylishHero from "@/components/themes/StylishHero";
+import StylishDiscountBanner from "@/components/themes/StylishDiscountBanner";
 import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 interface Product {
@@ -114,6 +116,26 @@ const StoreFront = () => {
   return (
     <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6" dir="rtl">
       <StoreHeader ownerId={ownerId || undefined} />
+
+      {template === "stylish" && products.length > 0 && (
+        <div className="-mx-4">
+          <StylishHero
+            title="مجموعتنا الجديدة"
+            subtitle="اكتشف أحدث المنتجات بأسعار مميّزة · الدفع عند الاستلام"
+            imageUrl={products[0]?.images?.[0]}
+            ctaText="تسوّق الآن"
+            badge="عروض الموسم"
+            onCta={() => {
+              document.getElementById("products-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
+          <StylishDiscountBanner
+            onCta={() => {
+              document.getElementById("products-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
+        </div>
+      )}
 
       {template === "fashion" && products.length > 0 && (
         <div className="-mx-4">
