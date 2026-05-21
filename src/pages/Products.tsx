@@ -683,7 +683,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id")
+          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id, size_chart_url, reviews")
           .eq("id", product.id)
           .single()
       );
@@ -729,6 +729,14 @@ const Products = () => {
             }))
           : [],
         categoryId: (data as any).category_id || null,
+        sizeChartUrl: (data as any).size_chart_url || "",
+        reviews: Array.isArray((data as any).reviews)
+          ? ((data as any).reviews as any[]).map((r) => ({
+              name: String(r?.name ?? ""),
+              rating: parseInt(String(r?.rating ?? 5)) || 5,
+              comment: String(r?.comment ?? ""),
+            }))
+          : [],
       }));
     } catch (error) {
       console.error("Error loading product details:", error);
