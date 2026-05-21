@@ -32,6 +32,7 @@ interface Product {
   upsell_title?: string;
   upsell_offers?: Array<{ quantity: number; price: number; label: string }>;
   order_form_on_top?: boolean;
+  show_quantity?: boolean;
   owner_id?: string;
 }
 
@@ -226,7 +227,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible")
+          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -299,6 +300,7 @@ const LandingPage = () => {
             upsell_title: (lp?.upsell_title || "🎁 عروض خاصة"),
             upsell_offers: Array.isArray(lp?.upsell_offers) ? lp.upsell_offers : [],
             order_form_on_top: lp?.order_form_on_top != null ? !!lp.order_form_on_top : !!(matched as any).order_form_on_top,
+            show_quantity: lp?.show_quantity != null ? !!lp.show_quantity : true,
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
           };
@@ -1039,67 +1041,69 @@ const LandingPage = () => {
 
               <form onSubmit={handleSubmitOrder} className="space-y-3 sm:space-y-4">
                 {/* Quantity Selection - First */}
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label className="text-sm sm:text-base">عدد القطع</Label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // If an upsell offer is active, the counter starts
-                        // operating on the base price — reset to 1 piece so
-                        // the displayed total doesn't jump (offer.quantity-1).
-                        const base = selectedUpsellIndex !== null ? 1 : quantity;
-                        const newQty = Math.max(1, base - 1);
-                        setQuantity(newQty);
-                        setItemVariants(prev => {
-                          const next = [...prev];
-                          while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
-                          return next.slice(0, newQty);
-                        });
-                        // Auto-apply matching upsell offer if the new quantity
-                        // matches one of the configured offer quantities, so
-                        // the customer always gets the discount price.
-                        const matchIdx = product.upsell_enabled && Array.isArray(product.upsell_offers)
-                          ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
-                          : -1;
-                        setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
-                      }}
-                      className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
-                    >
-                      -
-                    </button>
-                    <span className="text-xl font-bold min-w-[40px] text-center">{quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const base = selectedUpsellIndex !== null ? 1 : quantity;
-                        const newQty = base + 1;
-                        setQuantity(newQty);
-                        setItemVariants(prev => {
-                          const next = selectedUpsellIndex !== null ? [{ color: "", size: "", productCode: "" }] : [...prev];
-                          while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
-                          return next.slice(0, newQty);
-                        });
-                        const matchIdx = product.upsell_enabled && Array.isArray(product.upsell_offers)
-                          ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
-                          : -1;
-                        setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
-                      }}
-                      className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
-                    >
-                      +
-                    </button>
+                {product.show_quantity !== false && (
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-sm sm:text-base">عدد القطع</Label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // If an upsell offer is active, the counter starts
+                          // operating on the base price — reset to 1 piece so
+                          // the displayed total doesn't jump (offer.quantity-1).
+                          const base = selectedUpsellIndex !== null ? 1 : quantity;
+                          const newQty = Math.max(1, base - 1);
+                          setQuantity(newQty);
+                          setItemVariants(prev => {
+                            const next = [...prev];
+                            while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
+                            return next.slice(0, newQty);
+                          });
+                          // Auto-apply matching upsell offer if the new quantity
+                          // matches one of the configured offer quantities, so
+                          // the customer always gets the discount price.
+                          const matchIdx = product.upsell_enabled && Array.isArray(product.upsell_offers)
+                            ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
+                            : -1;
+                          setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
+                        }}
+                        className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
+                      >
+                        -
+                      </button>
+                      <span className="text-xl font-bold min-w-[40px] text-center">{quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = selectedUpsellIndex !== null ? 1 : quantity;
+                          const newQty = base + 1;
+                          setQuantity(newQty);
+                          setItemVariants(prev => {
+                            const next = selectedUpsellIndex !== null ? [{ color: "", size: "", productCode: "" }] : [...prev];
+                            while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
+                            return next.slice(0, newQty);
+                          });
+                          const matchIdx = product.upsell_enabled && Array.isArray(product.upsell_offers)
+                            ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
+                            : -1;
+                          setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
+                        }}
+                        className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {(quantity > 1 || selectedUpsellIndex !== null) && (
+                      <p className="text-sm text-muted-foreground">
+                        الإجمالي:{" "}
+                        {selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
+                          ? product.upsell_offers[selectedUpsellIndex].price.toFixed(2)
+                          : (parseFloat(product.price) * quantity).toFixed(2)}{" "}
+                        {storeSettings.currency_symbol}
+                      </p>
+                    )}
                   </div>
-                  {(quantity > 1 || selectedUpsellIndex !== null) && (
-                    <p className="text-sm text-muted-foreground">
-                      الإجمالي:{" "}
-                      {selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
-                        ? product.upsell_offers[selectedUpsellIndex].price.toFixed(2)
-                        : (parseFloat(product.price) * quantity).toFixed(2)}{" "}
-                      {storeSettings.currency_symbol}
-                    </p>
-                  )}
-                </div>
+                )}
 
                 {/* Upsell Offers */}
                 {product.upsell_enabled && product.upsell_offers && product.upsell_offers.length > 0 && (
