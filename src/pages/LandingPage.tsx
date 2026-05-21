@@ -1022,7 +1022,7 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24 lg:pb-0" dir="rtl">
+    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24" dir="rtl">
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
@@ -1491,8 +1491,8 @@ const LandingPage = () => {
         </div>
       )}
 
-      {/* Sticky mobile CTA */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+      {/* Sticky CTA (mobile + desktop) */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
         <div className="flex items-center gap-3 max-w-md mx-auto">
           <div className="flex flex-col">
             <span className="text-lg font-bold text-primary leading-tight">
@@ -1516,7 +1516,7 @@ const LandingPage = () => {
             }}
             className="flex-1 bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white font-bold py-5 rounded-xl"
           >
-            {storeSettings.button_text || "اطلب الآن"}
+            اضغط هنا للشراء
           </Button>
         </div>
       </div>
