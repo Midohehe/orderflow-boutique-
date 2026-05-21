@@ -1392,7 +1392,7 @@ const LandingPage = () => {
           <section className="mt-8 sm:mt-12 cv-auto overflow-hidden">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-foreground">وصف المنتج</h2>
             <div
-              className="prose prose-sm sm:prose-lg max-w-none text-foreground break-words [&_*]:max-w-full [&_img]:!w-full [&_img]:!h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain [&_iframe]:!w-full [&_iframe]:aspect-video [&_video]:!w-full [&_video]:!h-auto [&_table]:!w-full [&_table]:block [&_table]:overflow-x-auto [&_*]:!float-none [&_*]:!static"
+              className="prose prose-sm sm:prose-lg max-w-none text-foreground break-words [&_*]:max-w-full [&_img]:!w-full [&_img]:!h-auto [&_img]:rounded-xl [&_img]:my-4 [&_img]:object-contain [&_iframe]:!w-full [&_iframe]:aspect-video [&_video]:!w-full [&_video]:!h-auto [&_table]:!w-full [&_table]:!block [&_thead]:!block [&_tbody]:!block [&_tr]:!flex [&_tr]:!flex-wrap [&_tr]:!items-center [&_tr]:!justify-center [&_tr]:!gap-2 [&_td]:!block [&_td]:!w-auto [&_td]:!p-0 [&_th]:!block [&_*]:!float-none [&_*]:!static"
               dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             />
           </section>
