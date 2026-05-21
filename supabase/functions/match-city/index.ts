@@ -520,10 +520,40 @@ Deno.serve(async (req) => {
       candidates.sort((a, b) => b.weight - a.weight);
       console.log("match-city candidates", { city, address, candidates: candidates.slice(0, 5).map((c) => ({ ...c.pair, w: c.weight, s: c.src })) });
 
-      let final: Pair | undefined = candidates[0]?.pair;
+      // GUARD: drop candidates that are service areas (e.g. "توصيل نسائي")
+      // unless the customer's input actually contains those service keywords.
+      // Also drop candidates with no real textual evidence in the input
+      // (prevents fuzzy noise like "الصين" sneaking into طرابلس).
+      const inputNormAll = norm((city || "") + " " + (address || ""));
+      const filtered = candidates.filter((c) => {
+        if (!inputAllowsServiceArea(inputNormAll, c.pair.area)) {
+          console.log("match-city dropped (service area without keyword)", c.pair);
+          return false;
+        }
+        if (!areaHasInputEvidence(c.pair.area, c.pair.city, inputNormAll, inputToks)) {
+          console.log("match-city dropped (no input evidence)", c.pair, "w=", c.weight);
+          return false;
+        }
+        return true;
+      });
 
-      // Final fallback: weak local hit if AIs gave nothing usable.
-      if (!final && topLocal) final = topLocal.row;
+      let final: Pair | undefined = filtered[0]?.pair;
+
+      // Final fallback: weak local hit if AIs gave nothing usable — but still
+      // respect the service-area guard.
+      if (!final && topLocal && inputAllowsServiceArea(inputNormAll, topLocal.row.area)) {
+        final = topLocal.row;
+      }
+
+      // If we filtered everything out but we DID identify a city confidently,
+      // fall back to the city-only row (city==area) so we don't return junk.
+      if (!final) {
+        const cityOnly = candidates.find((c) =>
+          norm(c.pair.city) === norm(c.pair.area) &&
+          inputAllowsServiceArea(inputNormAll, c.pair.area)
+        );
+        if (cityOnly) final = cityOnly.pair;
+      }
 
       if (final) {
         return new Response(JSON.stringify({
