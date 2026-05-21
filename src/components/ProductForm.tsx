@@ -881,7 +881,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
 
       {/* Stock Management */}
       <SectionCard icon={Boxes} title="المخزون" description="حدد عدد القطع المتوفرة" iconColor="bg-teal-500">
-        <div className="flex items-center justify-end gap-2 flex-wrap">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
         {hasVariants && (
           <>
             <Button
