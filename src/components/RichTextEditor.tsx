@@ -140,7 +140,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
     handleInput();
   };
 
-  const applyFontSize = useCallback((size: string) => {
+  const applyFontSize = (size: string) => {
     restoreSelection();
 
     const selection = window.getSelection();
@@ -230,7 +230,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
     editorRef.current.focus();
     saveSelection();
     handleInput();
-  }, [restoreSelection, saveSelection]);
+  };
 
   const handleInput = () => {
     if (editorRef.current) {
