@@ -25,6 +25,8 @@ project_id = "iyqooryhmshlajuhabmc"
     verify_jwt = false
   [functions.facebook-oauth-callback]
     verify_jwt = false
+  [functions.facebook-sync-insights]
+    verify_jwt = false
   [functions.send-push]
     verify_jwt = true
   [functions.push-subscribe]
