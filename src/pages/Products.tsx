@@ -405,6 +405,7 @@ const Products = () => {
             variant_key: null,
             warehouse_code: null,
             qty: stockNum,
+            unit_price: newProduct.price ?? null,
             reason: "opening_stock",
             notes: "كمية افتتاحية عند إنشاء المنتج",
           });
