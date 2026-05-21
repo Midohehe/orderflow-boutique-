@@ -386,6 +386,21 @@ const Orders = () => {
     let cancelled = false;
     if (!activeStoreId) { setOrders([]); setLoading(false); return; }
     setLoading(true);
+    // Load rejected (bot) orders in parallel — independent of orders list.
+    (async () => {
+      try {
+        setRejectedLoading(true);
+        const { data } = await supabase
+          .from("rejected_orders")
+          .select("*")
+          .eq("store_id", activeStoreId)
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (!cancelled) setRejectedOrders(data || []);
+      } finally {
+        if (!cancelled) setRejectedLoading(false);
+      }
+    })();
     (async () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
