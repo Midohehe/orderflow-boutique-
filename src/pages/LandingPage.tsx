@@ -1022,7 +1022,7 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden" dir="rtl">
+    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24 lg:pb-0" dir="rtl">
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
