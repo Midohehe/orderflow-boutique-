@@ -97,6 +97,10 @@ const App = () => {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/thank-you" element={<ThankYou />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/preview" element={<PreviewIndex />} />
+              <Route path="/preview/aurora" element={<PreviewAurora />} />
+              <Route path="/preview/cinematic" element={<PreviewCinematic />} />
+              <Route path="/preview/apple" element={<PreviewApple />} />
               <Route
                 path="/dashboard"
                 element={
