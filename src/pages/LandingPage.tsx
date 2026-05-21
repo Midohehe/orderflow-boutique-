@@ -500,7 +500,7 @@ const LandingPage = () => {
               owner_id: ownerForSettings || null,
               store_id: storeForSettings || null,
               ...attr,
-            }).then(() => {});
+            } as any).then(() => {});
           }
 
           // Initialize tracking pixels when browser is idle
@@ -627,7 +627,7 @@ const LandingPage = () => {
           owner_id: ownerId || null,
           store_id: storeId || null,
         ...attr,
-      }).then(({ error }) => {
+      } as any).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
     }
