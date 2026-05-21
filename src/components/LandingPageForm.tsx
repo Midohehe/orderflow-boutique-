@@ -314,6 +314,62 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
         )}
       </SectionCard>
 
+      {/* FAQ */}
+      <SectionCard icon={HelpCircle} title="الأسئلة الشائعة" description="أسئلة وأجوبة تظهر بشكل قابل للطي" iconColor="bg-cyan-500">
+        <div className="space-y-3">
+          {(data.faqs || []).map((faq, idx) => (
+            <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 p-3 border rounded-lg bg-muted/20 items-start">
+              <div className="space-y-1">
+                <Label className="text-xs">السؤال</Label>
+                <Input
+                  value={faq.question}
+                  onChange={(e) => {
+                    const next = [...(data.faqs || [])];
+                    next[idx] = { ...next[idx], question: e.target.value };
+                    update("faqs", next);
+                  }}
+                  placeholder="هل الدفع عند الاستلام؟"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">الجواب</Label>
+                <Textarea
+                  value={faq.answer}
+                  onChange={(e) => {
+                    const next = [...(data.faqs || [])];
+                    next[idx] = { ...next[idx], answer: e.target.value };
+                    update("faqs", next);
+                  }}
+                  placeholder="نعم، تدفع للمندوب عند استلام طلبك"
+                  rows={2}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  const next = (data.faqs || []).filter((_, i) => i !== idx);
+                  update("faqs", next);
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+            onClick={() =>
+              update("faqs", [...(data.faqs || []), { question: "", answer: "" }])
+            }
+          >
+            + إضافة سؤال
+          </Button>
+        </div>
+      </SectionCard>
+
       {/* الإظهار */}
       <SectionCard icon={Eye} title="الإظهار" iconColor="bg-teal-500">
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
