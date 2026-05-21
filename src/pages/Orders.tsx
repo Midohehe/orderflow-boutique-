@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
@@ -169,6 +169,8 @@ const Orders = () => {
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [storeName, setStoreName] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [rejectedOrders, setRejectedOrders] = useState<any[]>([]);
+  const [rejectedLoading, setRejectedLoading] = useState(false);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -384,6 +386,21 @@ const Orders = () => {
     let cancelled = false;
     if (!activeStoreId) { setOrders([]); setLoading(false); return; }
     setLoading(true);
+    // Load rejected (bot) orders in parallel — independent of orders list.
+    (async () => {
+      try {
+        setRejectedLoading(true);
+        const { data } = await supabase
+          .from("rejected_orders")
+          .select("*")
+          .eq("store_id", activeStoreId)
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (!cancelled) setRejectedOrders(data || []);
+      } finally {
+        if (!cancelled) setRejectedLoading(false);
+      }
+    })();
     (async () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
@@ -1626,7 +1643,7 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-7 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-8 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
           <TabsTrigger value="pending" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Clock className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">قيد الانتظار</span>
@@ -1661,6 +1678,11 @@ const Orders = () => {
             <Archive className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">محذوفة</span>
             <span className="text-[11px] sm:text-xs font-bold">({deletedOrders.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="rejected" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg col-span-2 sm:col-span-1 border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-zinc-700 data-[state=active]:to-zinc-900 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
+            <Bot className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span className="text-[11px] sm:text-xs font-medium leading-tight">طلبات مرفوضة</span>
+            <span className="text-[11px] sm:text-xs font-bold">({rejectedOrders.length})</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2200,6 +2222,106 @@ const Orders = () => {
                 {deletedOrders.map((order) => renderOrderCard(order, true))}
               </div>
             </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="rejected" className="space-y-4">
+          <Card className="card-shadow border-amber-500/30 bg-amber-500/5">
+            <CardContent className="p-3 flex items-center gap-2 text-sm">
+              <Bot className="w-5 h-5 text-amber-600" />
+              <span>
+                هذه طلبات تم رفضها تلقائياً بحماية البوتات (حقل خفي مملوء أو إرسال أسرع من 3 ثوانٍ). لم تُضف للطلبات الحقيقية.
+              </span>
+            </CardContent>
+          </Card>
+
+          {rejectedLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : rejectedOrders.length === 0 ? (
+            <Card className="card-shadow">
+              <CardContent className="p-8 text-center text-muted-foreground">
+                لا توجد طلبات مرفوضة 🎉
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {rejectedOrders.map((r) => (
+                <Card key={r.id} className="card-shadow border-zinc-300 dark:border-zinc-700">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={r.reason === "honeypot" ? "destructive" : "secondary"} className="text-xs">
+                          {r.reason === "honeypot" ? "🍯 حقل خفي" : r.reason === "too_fast" ? "⚡ إرسال سريع" : r.reason}
+                        </Badge>
+                        {r.product_name && (
+                          <span className="text-sm font-semibold">{r.product_name}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(r.created_at).toLocaleString("ar-LY")}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                      {r.customer_name && <div><span className="text-muted-foreground">الاسم:</span> {r.customer_name}</div>}
+                      {r.phone && <div><span className="text-muted-foreground">الهاتف:</span> <span dir="ltr">{r.phone}</span></div>}
+                      {r.city && <div><span className="text-muted-foreground">المدينة:</span> {r.city}</div>}
+                      {r.address && <div><span className="text-muted-foreground">العنوان:</span> {r.address}</div>}
+                      {r.landing_slug && <div><span className="text-muted-foreground">الصفحة:</span> /p/{r.landing_slug}</div>}
+                      {r.elapsed_ms != null && (
+                        <div><span className="text-muted-foreground">زمن الإرسال:</span> {r.elapsed_ms} ms</div>
+                      )}
+                      {r.client_ip && <div><span className="text-muted-foreground">IP:</span> <span dir="ltr">{r.client_ip}</span></div>}
+                      {r.user_agent && (
+                        <div className="sm:col-span-2 truncate">
+                          <span className="text-muted-foreground">المتصفح:</span>{" "}
+                          <span dir="ltr" className="text-xs">{r.user_agent}</span>
+                        </div>
+                      )}
+                      {r.honeypot_value && (
+                        <div className="sm:col-span-2">
+                          <span className="text-muted-foreground">قيمة الحقل الخفي:</span>{" "}
+                          <code className="text-xs bg-muted px-1 py-0.5 rounded">{r.honeypot_value}</code>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4 ml-1" /> حذف
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>حذف السجل؟</AlertDialogTitle>
+                            <AlertDialogDescription>سيتم حذف هذا الطلب المرفوض نهائياً.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={async () => {
+                                const { error } = await supabase.from("rejected_orders").delete().eq("id", r.id);
+                                if (error) {
+                                  toast({ title: "تعذر الحذف", description: error.message, variant: "destructive" });
+                                } else {
+                                  setRejectedOrders((prev) => prev.filter((x) => x.id !== r.id));
+                                  toast({ title: "تم الحذف" });
+                                }
+                              }}
+                            >
+                              حذف
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </TabsContent>
       </Tabs>
