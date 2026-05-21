@@ -1032,6 +1032,12 @@ const Products = () => {
       orderFormOnTop: !!d.order_form_on_top,
       showQuantity: d.show_quantity !== false,
       isVisible: d.is_visible !== false,
+      faqs: Array.isArray(d.faqs)
+        ? (d.faqs as any[]).map((f) => ({
+            question: String(f?.question ?? ""),
+            answer: String(f?.answer ?? ""),
+          }))
+        : [],
     });
   };
 
