@@ -2096,6 +2096,7 @@ export type Database = {
           qty: number
           reason: string
           return_id: string | null
+          unit_price: number | null
           variant_key: string | null
           warehouse_code: string | null
         }
@@ -2110,6 +2111,7 @@ export type Database = {
           qty: number
           reason: string
           return_id?: string | null
+          unit_price?: number | null
           variant_key?: string | null
           warehouse_code?: string | null
         }
@@ -2124,6 +2126,7 @@ export type Database = {
           qty?: number
           reason?: string
           return_id?: string | null
+          unit_price?: number | null
           variant_key?: string | null
           warehouse_code?: string | null
         }
