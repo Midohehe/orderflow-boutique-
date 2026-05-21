@@ -191,7 +191,26 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     })();
   }, [open, orderId]);
 
-  const update = (k: string, v: any) => setData((d: any) => ({ ...d, [k]: v }));
+  const update = (k: string, v: any) => {
+    setData((d: any) => ({ ...d, [k]: v }));
+    // Keep the top-level "السعر" / "الكمية" inputs in sync with the items
+    // array, because on save the aggregate is recomputed from items. Without
+    // this, edits to those top fields silently get overwritten.
+    if ((k === "price" || k === "quantity") && items.length === 1) {
+      const num = Number(v) || 0;
+      setItems((prev) => {
+        if (prev.length !== 1) return prev;
+        const next = [...prev];
+        if (k === "price") {
+          const qty = Number(next[0].quantity) || 1;
+          next[0] = { ...next[0], price: qty > 0 ? num / qty : num };
+        } else {
+          next[0] = { ...next[0], quantity: Math.max(1, Math.floor(num) || 1) };
+        }
+        return next;
+      });
+    }
+  };
 
   const selectedProduct = products.find((p) => p.id === data?.product_id);
 
