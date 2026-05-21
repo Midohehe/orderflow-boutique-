@@ -30,6 +30,7 @@ interface RichTextEditorProps {
 const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const isInitialized = useRef(false);
+  const savedSelectionRef = useRef<Range | null>(null);
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [showVideoDialog, setShowVideoDialog] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -111,9 +112,31 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
     }
   }, [isResizing, handleResizeMove, handleResizeEnd]);
 
+  const saveSelection = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    if (editorRef.current?.contains(range.commonAncestorContainer)) {
+      savedSelectionRef.current = range.cloneRange();
+    }
+  }, []);
+
+  const restoreSelection = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || !savedSelectionRef.current) return false;
+
+    editorRef.current?.focus();
+    selection.removeAllRanges();
+    selection.addRange(savedSelectionRef.current);
+    return true;
+  }, []);
+
   const execCommand = (command: string, commandValue?: string) => {
+    restoreSelection();
     document.execCommand(command, false, commandValue);
     editorRef.current?.focus();
+    saveSelection();
     handleInput();
   };
 
@@ -305,8 +328,9 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
         <div className="w-px h-6 bg-border mx-1" />
 
         <select
-          onMouseDown={(e) => e.preventDefault()}
+          onMouseDown={() => saveSelection()}
           onChange={(e) => {
+            restoreSelection();
             const size = e.target.value;
             const selection = window.getSelection();
             if (!selection || selection.rangeCount === 0) {
@@ -339,6 +363,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
               selection.addRange(newRange);
             }
             editorRef.current?.focus();
+            saveSelection();
             handleInput();
           }}
           className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm bg-card border border-border rounded-md cursor-pointer hover:bg-muted transition-colors focus:ring-2 focus:ring-primary focus:outline-none font-medium text-foreground flex-shrink-0"
@@ -612,6 +637,9 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
           contentEditable
           onInput={handleInput}
           onClick={handleEditorClick}
+          onMouseUp={saveSelection}
+          onKeyUp={saveSelection}
+          onFocus={saveSelection}
           className={cn(
             "min-h-[200px] p-4 focus:outline-none",
             "[&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-2 [&_img]:cursor-pointer",
