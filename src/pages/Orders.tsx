@@ -1259,6 +1259,11 @@ const Orders = () => {
               <div className="flex items-center gap-4 flex-wrap">
                 <span className="text-foreground">{isolateLatin(order.product_name)}</span>
                 <span className="text-primary font-bold">{order.price} {currencySymbol}</span>
+                {Array.isArray(order.upsell_offers) && order.upsell_offers.length > 0 && (
+                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1">
+                    عروض تخفيض
+                  </Badge>
+                )}
                 {order.order_code && (
                   <Badge variant="outline" className="font-mono">
                     كود الشحنة: {order.order_code}
