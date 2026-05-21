@@ -1030,6 +1030,7 @@ const Products = () => {
           }))
           .filter((o) => o.quantity > 0 && o.price > 0),
         order_form_on_top: !!editLp.orderFormOnTop,
+        show_quantity: editLp.showQuantity !== false,
         is_visible: editLp.isVisible !== false,
       }).eq("id", editingLpId);
       if (error) {
