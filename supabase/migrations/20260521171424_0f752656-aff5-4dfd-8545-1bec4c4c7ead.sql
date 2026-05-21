@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS upsell_offers jsonb NOT NULL DEFAULT '[]'::jsonb;
