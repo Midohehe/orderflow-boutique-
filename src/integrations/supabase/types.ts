@@ -641,6 +641,7 @@ export type Database = {
           owner_id: string
           price: number | null
           product_id: string
+          show_quantity: boolean
           slug: string
           store_id: string | null
           subtitle: string | null
@@ -661,6 +662,7 @@ export type Database = {
           owner_id: string
           price?: number | null
           product_id: string
+          show_quantity?: boolean
           slug: string
           store_id?: string | null
           subtitle?: string | null
@@ -681,6 +683,7 @@ export type Database = {
           owner_id?: string
           price?: number | null
           product_id?: string
+          show_quantity?: boolean
           slug?: string
           store_id?: string | null
           subtitle?: string | null

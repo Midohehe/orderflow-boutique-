@@ -1,0 +1,1 @@
+ALTER TABLE public.landing_pages ADD COLUMN show_quantity BOOLEAN NOT NULL DEFAULT true;
