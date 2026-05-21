@@ -11,18 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
 
-// Cloudflare Turnstile site key (public, safe to expose)
-const TURNSTILE_SITE_KEY = "0x4AAAAAADT4Xg2YS4jR-qiO";
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (el: HTMLElement, opts: any) => string;
-      execute: (id: string) => void;
-      reset: (id: string) => void;
-      remove: (id: string) => void;
-    };
-  }
-}
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
 const loadDOMPurify = async () => {
