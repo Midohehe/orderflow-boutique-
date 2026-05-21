@@ -13,8 +13,8 @@ import StoreHeader from "@/components/StoreHeader";
 import { getThemeTokens } from "@/lib/themeTokens";
 import { useEffect as useEffectTheme } from "react";
 
-function LandingThemeWrapper({ template, children }: { template: any; children: React.ReactNode }) {
-  const { style, fontLink } = getThemeTokens(template);
+function LandingThemeWrapper({ template, bgColor, children }: { template: any; bgColor?: string | null; children: React.ReactNode }) {
+  const { style, fontLink } = getThemeTokens(template, bgColor);
   useEffectTheme(() => {
     if (!fontLink) return;
     const id = `theme-font-${template}`;
