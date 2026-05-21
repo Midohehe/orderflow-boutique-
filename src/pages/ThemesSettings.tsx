@@ -18,6 +18,7 @@ interface Row {
   hero_title: string | null;
   hero_subtitle: string | null;
   gallery_images: string[];
+  bg_color: string | null;
 }
 
 const TEMPLATES = [
@@ -48,10 +49,10 @@ export default function ThemesSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !activeStoreId) { setLoading(false); return; }
       setLoading(true);
-      const { data } = await supabase.from("header_settings").select("id, template, hero_image, hero_title, hero_subtitle, gallery_images").eq("store_id", activeStoreId).limit(1).maybeSingle();
+      const { data } = await supabase.from("header_settings").select("id, template, hero_image, hero_title, hero_subtitle, gallery_images, bg_color").eq("store_id", activeStoreId).limit(1).maybeSingle();
       if (data) setRow({ ...(data as any), gallery_images: (data as any).gallery_images || [] });
       else {
-        const { data: created } = await supabase.from("header_settings").insert({ owner_id: user.id, store_id: activeStoreId, logo_text: "متجري" }).select("id, template, hero_image, hero_title, hero_subtitle, gallery_images").single();
+        const { data: created } = await supabase.from("header_settings").insert({ owner_id: user.id, store_id: activeStoreId, logo_text: "متجري" }).select("id, template, hero_image, hero_title, hero_subtitle, gallery_images, bg_color").single();
         if (created) setRow({ ...(created as any), gallery_images: (created as any).gallery_images || [] });
       }
       setLoading(false);
@@ -69,6 +70,7 @@ export default function ThemesSettings() {
       hero_title: row.hero_title || null,
       hero_subtitle: row.hero_subtitle || null,
       gallery_images: row.gallery_images,
+      bg_color: row.bg_color || null,
     }).eq("id", row.id);
     setSaving(false);
     if (error) { toast({ title: "خطأ", description: "تعذر الحفظ", variant: "destructive" }); return; }
@@ -127,6 +129,38 @@ export default function ThemesSettings() {
           onImagesChange={(imgs) => update("gallery_images", imgs)}
           maxImages={10}
         />
+      </SectionCard>
+
+      <SectionCard icon={Palette} title="لون خلفية مخصص" description="اختر لون خلفية يطبّق فوق لون التيم الافتراضي (اختياري)" iconColor="bg-amber-500">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={row.bg_color || "#ffffff"}
+              onChange={(e) => update("bg_color", e.target.value)}
+              className="w-14 h-14 rounded-lg border-2 border-border cursor-pointer"
+            />
+            <Input
+              value={row.bg_color || ""}
+              onChange={(e) => update("bg_color", e.target.value)}
+              placeholder="#ffffff"
+              className="w-36 font-mono"
+              dir="ltr"
+            />
+          </div>
+          {row.bg_color && (
+            <Button type="button" variant="outline" size="sm" onClick={() => update("bg_color", null)}>
+              إزالة (استخدام لون التيم)
+            </Button>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {["#ffffff","#0a0a0a","#fdf6ec","#0c1a2e","#1a0f2e","#fef0f5","#f5f0e0","#02140f"].map(c => (
+              <button key={c} type="button" onClick={() => update("bg_color", c)}
+                className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${row.bg_color === c ? "border-primary ring-2 ring-primary/30" : "border-border"}`}
+                style={{ background: c }} aria-label={c} />
+            ))}
+          </div>
+        </div>
       </SectionCard>
 
       <Button onClick={save} disabled={saving} className="w-full bg-gradient-to-l from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
