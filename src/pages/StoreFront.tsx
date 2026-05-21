@@ -12,6 +12,9 @@ import LuxuryStore from "@/components/themes/LuxuryStore";
 import EditorialStore from "@/components/themes/EditorialStore";
 import VibrantStore from "@/components/themes/VibrantStore";
 import TechStore from "@/components/themes/TechStore";
+import SportStore from "@/components/themes/SportStore";
+import GamingStore from "@/components/themes/GamingStore";
+import BoutiqueStore from "@/components/themes/BoutiqueStore";
 import { useStoreTemplate } from "@/hooks/useStoreTemplate";
 
 interface Product {
@@ -117,7 +120,7 @@ const StoreFront = () => {
   }
 
   // Full-page themes replace the entire store page (with their own header/footer)
-  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech"] as const;
+  const fullPageThemes = ["stylish", "luxury", "editorial", "vibrant", "tech", "sport", "gaming", "boutique"] as const;
   if ((fullPageThemes as readonly string[]).includes(template)) {
     const commonProps = { products, currencySymbol: storeSettings.currency_symbol, onOpenProduct: openProductPage, ownerId };
     return (
@@ -127,6 +130,9 @@ const StoreFront = () => {
         {template === "editorial" && <EditorialStore {...commonProps} />}
         {template === "vibrant" && <VibrantStore {...commonProps} />}
         {template === "tech" && <TechStore {...commonProps} />}
+        {template === "sport" && <SportStore {...commonProps} />}
+        {template === "gaming" && <GamingStore {...commonProps} />}
+        {template === "boutique" && <BoutiqueStore {...commonProps} />}
       </div>
     );
   }
