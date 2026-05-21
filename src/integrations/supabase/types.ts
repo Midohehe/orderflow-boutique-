@@ -1508,6 +1508,69 @@ export type Database = {
         }
         Relationships: []
       }
+      rejected_orders: {
+        Row: {
+          address: string | null
+          city: string | null
+          client_ip: string | null
+          created_at: string
+          customer_name: string | null
+          elapsed_ms: number | null
+          honeypot_value: string | null
+          id: string
+          landing_slug: string | null
+          owner_id: string | null
+          payload: Json | null
+          phone: string | null
+          product_id: string | null
+          product_name: string | null
+          quantity: number | null
+          reason: string
+          store_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          client_ip?: string | null
+          created_at?: string
+          customer_name?: string | null
+          elapsed_ms?: number | null
+          honeypot_value?: string | null
+          id?: string
+          landing_slug?: string | null
+          owner_id?: string | null
+          payload?: Json | null
+          phone?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          reason: string
+          store_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          client_ip?: string | null
+          created_at?: string
+          customer_name?: string | null
+          elapsed_ms?: number | null
+          honeypot_value?: string | null
+          id?: string
+          landing_slug?: string | null
+          owner_id?: string | null
+          payload?: Json | null
+          phone?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          reason?: string
+          store_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       return_shipments: {
         Row: {
           area_name: string | null
