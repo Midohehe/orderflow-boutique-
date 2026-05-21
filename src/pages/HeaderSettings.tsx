@@ -83,6 +83,7 @@ const HeaderSettings = () => {
           {[
             { id: "classic", title: "كلاسيكي", desc: "التصميم الحالي الملوّن" },
             { id: "fashion", title: "Fashion / محرّر", desc: "هيرو بإطار أسود وألوان بيج راقية" },
+            { id: "stylish", title: "Stylish / متجر", desc: "هيرو بصورة كبيرة عريضة وخط Playfair" },
           ].map((t) => {
             const selected = (row.template || "classic") === t.id;
             return (
