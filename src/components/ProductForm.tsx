@@ -284,11 +284,81 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     }
   };
 
-  // Normalize Arabic for matching
+  // Normalize Arabic for matching (diacritics, hamza variants, digit unification)
   const norm = (s: string) => (s || "").toString().trim()
     .replace(/[\u064B-\u0652\u0670]/g, "")
     .replace(/[إأآا]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ة/g, "ه")
+    // Arabic-Indic + Persian digits → Western
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
     .replace(/\s+/g, " ").toLowerCase();
+
+  // Color/size synonyms (Arabic ↔ English ↔ common variants)
+  const SYNONYMS: Record<string, string[]> = {
+    "احمر": ["red", "أحمر", "حمراء"],
+    "ازرق": ["blue", "أزرق", "زرقاء", "كحلي", "navy"],
+    "اخضر": ["green", "أخضر", "خضراء"],
+    "اصفر": ["yellow", "أصفر", "صفراء"],
+    "اسود": ["black", "أسود", "سوداء"],
+    "ابيض": ["white", "أبيض", "بيضاء", "off white"],
+    "وردي": ["pink", "زهري", "روز", "rose"],
+    "بنفسجي": ["purple", "violet", "موف"],
+    "بني": ["brown", "بنى"],
+    "رمادي": ["gray", "grey", "سيلفر", "silver", "فضي"],
+    "ذهبي": ["gold", "golden"],
+    "برتقالي": ["orange"],
+    "بيج": ["beige", "بيج فاتح", "كريمي", "cream"],
+    "تركواز": ["turquoise", "تيركواز"],
+    "نيلي": ["indigo"],
+    "كحلي": ["navy"],
+    // Sizes
+    "صغير": ["s", "small"],
+    "وسط": ["m", "medium", "متوسط", "ميديم"],
+    "كبير": ["l", "large", "لارج"],
+    "xl": ["اكسترا لارج", "اكس لارج", "x large"],
+    "xxl": ["double xl", "2xl"],
+    "3xl": ["triple xl"],
+  };
+  const synonymEquiv = (a: string, b: string): boolean => {
+    const na = norm(a); const nb = norm(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    for (const [k, arr] of Object.entries(SYNONYMS)) {
+      const all = [k, ...arr].map(norm);
+      if (all.includes(na) && all.includes(nb)) return true;
+    }
+    return false;
+  };
+
+  // Levenshtein distance (small strings)
+  const lev = (a: string, b: string): number => {
+    if (a === b) return 0;
+    const al = a.length, bl = b.length;
+    if (!al) return bl; if (!bl) return al;
+    const dp = Array.from({ length: al + 1 }, (_, i) => i);
+    for (let j = 1; j <= bl; j++) {
+      let prev = dp[0]; dp[0] = j;
+      for (let i = 1; i <= al; i++) {
+        const tmp = dp[i];
+        dp[i] = a[i - 1] === b[j - 1]
+          ? prev
+          : 1 + Math.min(prev, dp[i], dp[i - 1]);
+        prev = tmp;
+      }
+    }
+    return dp[al];
+  };
+  // Fuzzy equality with tolerance proportional to length
+  const fuzzyEq = (a: string, b: string): boolean => {
+    const na = norm(a); const nb = norm(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    if (synonymEquiv(na, nb)) return true;
+    const len = Math.max(na.length, nb.length);
+    if (len < 4) return false;
+    const tol = len >= 8 ? 2 : 1;
+    return lev(na, nb) <= tol;
+  };
 
   // Token-aware match: local part appears as a standalone token within EO variation_prop
   const valueMatches = (localPart: string, eoVal: string) => {
@@ -296,8 +366,11 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     const ev = norm(eoVal);
     if (!lp || !ev) return false;
     if (lp === ev) return true;
+    if (synonymEquiv(lp, ev)) return true;
     const tokens = ev.split(/[\s\-_/،,]+/).filter(Boolean);
     if (tokens.includes(lp)) return true;
+    if (tokens.some((t) => synonymEquiv(t, lp))) return true;
+    if (tokens.some((t) => fuzzyEq(t, lp))) return true;
     if (ev.startsWith(lp + " ")) return true;
     return false;
   };
@@ -319,6 +392,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     let score = 0;
     for (const tk of tTokens) {
       if (cTokens.has(tk)) score += 3;
+      else if ([...cTokens].some((ct) => synonymEquiv(ct, tk))) score += 3;
+      else if ([...cTokens].some((ct) => fuzzyEq(ct, tk))) score += 2;
       else if (c.includes(tk)) score += 1;
     }
     // small bonus if candidate contains the full target as substring
@@ -326,72 +401,133 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     return score;
   };
 
-  const autoLinkEoVariants = (overwrite: boolean) => {
-    if (!eoVariants.length || !variantKeys.length) return;
+  // Stage 1: Local ↔ EasyOrders variants
+  // Uses global greedy assignment (best score wins) so two local variants can't fight over the same EO id.
+  const autoLinkEoVariants = (overwrite: boolean, silent = false) => {
+    if (!eoVariants.length || !variantKeys.length) return 0;
     const next: Record<string, string> = { ...(product.variantEasyOrdersIds || {}) };
-    let linked = 0;
-    const used = new Set<string>(Object.values(next));
-    for (const key of variantKeys) {
-      if (!overwrite && next[key]) continue;
+    const used = new Set<string>(overwrite ? [] : Object.values(next));
+    const keysToFill = variantKeys.filter((k) => overwrite || !next[k]);
+
+    // Build candidate scores for every (key, eo) pair
+    type Cand = { key: string; eoId: string; score: number };
+    const candidates: Cand[] = [];
+    for (const key of keysToFill) {
       const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
-      // المرحلة 1: المطابقة بين المتغيرات في ايزي اوردر والمحلي بالاسم فقط
-      // 1) Strict: all parts match EO props with same arity (exact value match)
-      let match = eoVariants.find((v) => {
-        if (!overwrite && used.has(v.id)) return false;
+      const localSku = norm(product.variantSkus?.[key] || "");
+      for (const v of eoVariants) {
+        if (!overwrite && used.has(v.id)) continue;
         const vals: string[] = (v.props || []).map((p: any) => p?.variation_prop || "");
-        if (vals.length !== parts.length) return false;
-        return parts.every((p) => vals.some((vv) => valueMatches(p, vv)));
-      });
-      // 2) Loose by name/props: pick best-scoring EO variant whose name/props contain all parts (SKU excluded)
-      if (!match) {
-        let bestScore = 0;
-        let best: typeof eoVariants[number] | undefined;
-        for (const v of eoVariants) {
-          if (!overwrite && used.has(v.id)) continue;
-          const haystack = [
-            v.name || "",
-            ...(v.props || []).map((p: any) => p?.variation_prop || ""),
-          ].join(" ");
-          // require all key parts to appear (token or substring) before scoring
-          const allFound = parts.every((p) => scoreMatch(p, haystack) > 0);
-          if (!allFound) continue;
-          const sc = scoreMatch(key, haystack);
-          if (sc > bestScore) { bestScore = sc; best = v; }
+        const haystack = [v.name || "", ...vals].join(" ");
+        let score = 0;
+        // (a) Strict prop match with same arity → top priority
+        if (vals.length === parts.length && parts.every((p) => vals.some((vv) => valueMatches(p, vv)))) {
+          score = 100;
+        } else {
+          // (b) Token-level: each part must appear
+          const allFound = parts.every((p) => valueMatches(p, haystack) || scoreMatch(p, haystack) > 0);
+          if (allFound) score = scoreMatch(key, haystack);
         }
-        if (best && bestScore >= 3) match = best;
+        // (c) SKU exact equality bonus
+        if (v.sku) {
+          const sk = norm(v.sku);
+          if (localSku && localSku === sk) score = Math.max(score, 90);
+          if (norm(key) === sk) score = Math.max(score, 80);
+        }
+        if (score >= 3) candidates.push({ key, eoId: v.id, score });
       }
-      // 3) Fallback: SKU exact equality (only if no name match found)
-      if (!match) match = eoVariants.find((v) => {
-        if (!v.sku) return false;
-        if (!overwrite && used.has(v.id)) return false;
-        const sk = norm(v.sku);
-        if (norm(key) === sk) return true;
-        return parts.some((p) => norm(p) === sk);
-      });
-      if (match) { next[key] = match.id; used.add(match.id); linked++; }
+    }
+    // Greedy: assign highest-scoring pairs first; each key & each eoId used once
+    candidates.sort((a, b) => b.score - a.score);
+    const usedKeys = new Set<string>();
+    let linked = 0;
+    for (const c of candidates) {
+      if (usedKeys.has(c.key) || used.has(c.eoId)) continue;
+      next[c.key] = c.eoId;
+      usedKeys.add(c.key);
+      used.add(c.eoId);
+      linked++;
     }
     onProductChange({ ...product, variantEasyOrdersIds: next });
+    if (!silent) {
+      const remaining = keysToFill.length - linked;
+      toast({
+        title: `تمت مطابقة EasyOrders: ${linked} متغير`,
+        description: remaining > 0 ? `لم يتم إيجاد مطابقة لـ ${remaining} متغير — تحقق يدوياً` : "كل المتغيرات تم ربطها",
+      });
+    }
     return linked;
   };
 
-  // المرحلة 2: المطابقة بين المحلي وشركة الشحن.
-  // ناخذ ال SKU من متغير EasyOrders المربوط بالمتغير المحلي ونطابقه مع code لدى شركة الشحن.
-  const autoLinkWarehouseVariants = (overwrite: boolean) => {
+  // Stage 2: Local ↔ Shipping warehouse (independent of stage 1).
+  // Strategies per variant key (in order of confidence):
+  //   (a) local SKU == warehouse.code
+  //   (b) linked EO variant SKU == warehouse.code
+  //   (c) linked EO variant name fuzzy-equals warehouse.name
+  //   (d) [product.name + key parts] vs warehouse.name → score with required token coverage
+  const autoLinkWarehouseVariants = (overwrite: boolean, silent = false) => {
     if (!whProducts.length || !variantKeys.length) return 0;
     const next: Record<string, string> = { ...(product.variantWarehouseCodes || {}) };
     const eoMap = product.variantEasyOrdersIds || {};
+    const used = new Set<string>(overwrite ? [] : Object.values(next));
+    const keysToFill = variantKeys.filter((k) => overwrite || !next[k]);
+
+    type Cand = { key: string; ext: string; score: number };
+    const candidates: Cand[] = [];
+    const productName = product.name || "";
+    for (const key of keysToFill) {
+      const parts = key.split(" - ").map((x) => x.trim()).filter(Boolean);
+      const localSku = norm(product.variantSkus?.[key] || "");
+      const eoVar = eoMap[key] ? eoVariants.find((v) => v.id === eoMap[key]) : undefined;
+      const eoSku = norm(eoVar?.sku || "");
+      const eoName = eoVar?.name || "";
+
+      for (const w of whProducts) {
+        const ext = String(w.external_id);
+        if (!overwrite && used.has(ext)) continue;
+        const wcode = norm(w.code || "");
+        const wname = w.name || "";
+        let score = 0;
+        if (wcode) {
+          if (localSku && wcode === localSku) score = Math.max(score, 100);
+          if (eoSku && wcode === eoSku) score = Math.max(score, 95);
+        }
+        if (eoName && wname && fuzzyEq(eoName, wname)) score = Math.max(score, 60);
+        // Name-based: require product name tokens AND part tokens to be present
+        if (wname) {
+          const haystackTokens = new Set(tokenize(wname));
+          const productTokens = tokenize(productName).filter((t) => t.length >= 3);
+          const productOk = productTokens.length === 0 ||
+            productTokens.every((t) => haystackTokens.has(t) || [...haystackTokens].some((h) => fuzzyEq(h, t)));
+          const partsOk = parts.every((p) =>
+            [...haystackTokens].some((h) => synonymEquiv(h, p) || fuzzyEq(h, p) || h === norm(p))
+          );
+          if (productOk && partsOk) {
+            const s = scoreMatch([productName, ...parts].join(" "), wname);
+            if (s > 0) score = Math.max(score, Math.min(55, s * 2));
+          }
+        }
+        if (score >= 50) candidates.push({ key, ext, score });
+      }
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    const usedKeys = new Set<string>();
     let linked = 0;
-    for (const key of variantKeys) {
-      if (!overwrite && next[key]) continue;
-      const eoId = eoMap[key];
-      if (!eoId) continue; // يتطلب أولاً ربط متغير EasyOrders
-      const eoVar = eoVariants.find((v) => v.id === eoId);
-      const sku = eoVar?.sku ? norm(eoVar.sku) : "";
-      if (!sku) continue;
-      const match = whProducts.find((w) => w.code && norm(w.code) === sku);
-      if (match) { next[key] = String(match.external_id); linked++; }
+    for (const c of candidates) {
+      if (usedKeys.has(c.key) || used.has(c.ext)) continue;
+      next[c.key] = c.ext;
+      usedKeys.add(c.key);
+      used.add(c.ext);
+      linked++;
     }
     onProductChange({ ...product, variantWarehouseCodes: next });
+    if (!silent) {
+      const remaining = keysToFill.length - linked;
+      toast({
+        title: `تمت مطابقة المخزن: ${linked} متغير`,
+        description: remaining > 0 ? `لم يتم إيجاد مطابقة لـ ${remaining} متغير — تحقق يدوياً` : "كل المتغيرات تم ربطها",
+      });
+    }
     return linked;
   };
 
@@ -400,20 +536,17 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   useEffect(() => {
     if (!product.easyOrdersProductId || !eoVariants.length || !variantKeys.length) return;
     const hasEmpty = variantKeys.some((k) => !product.variantEasyOrdersIds?.[k]);
-    if (hasEmpty) autoLinkEoVariants(false);
+    if (hasEmpty) autoLinkEoVariants(false, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.easyOrdersProductId, eoProducts.length, variantKeys.join("|")]);
 
   // Auto-link warehouse products بعد توفر ربط EasyOrders + قائمة المخزن (المرحلة 2)
   useEffect(() => {
     if (!whProducts.length || !variantKeys.length) return;
-    // ربط أي متغير فيه EO link لكنه بدون كود مخزن — لا نشترط أن تكون كل الخانات فارغة
-    const needsLink = variantKeys.some(
-      (k) => product.variantEasyOrdersIds?.[k] && !product.variantWarehouseCodes?.[k]
-    );
-    if (needsLink) autoLinkWarehouseVariants(false);
+    const needsLink = variantKeys.some((k) => !product.variantWarehouseCodes?.[k]);
+    if (needsLink) autoLinkWarehouseVariants(false, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [whProducts.length, variantKeys.join("|"), JSON.stringify(product.variantEasyOrdersIds || {})]);
+  }, [whProducts.length, variantKeys.join("|"), JSON.stringify(product.variantEasyOrdersIds || {}), JSON.stringify(product.variantSkus || {})]);
 
   const updateVariantQty = (key: string, value: string) => {
     onProductChange({
