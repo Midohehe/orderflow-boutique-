@@ -7,8 +7,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
-const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
+function cleanKey(raw?: string): string {
+  if (!raw) return "";
+  return raw.replace(/\s+/g, "").replace(/=+$/g, "");
+}
+const VAPID_PUBLIC = cleanKey(Deno.env.get("VAPID_PUBLIC_KEY"));
+const VAPID_PRIVATE = cleanKey(Deno.env.get("VAPID_PRIVATE_KEY"));
 
 // Sanitize subject: strip spaces, angle brackets, ensure mailto: or https:// prefix
 function normalizeSubject(raw?: string): string {
