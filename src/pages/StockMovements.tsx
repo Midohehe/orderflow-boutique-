@@ -61,20 +61,30 @@ const StockMovements = () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) {
       setRows([]);
+      setProducts([]);
       setLoading(false);
       return;
     }
     const { data: ownerRow } = await (supabase as any)
       .rpc("get_effective_owner_id", { _uid: userData.user.id });
     const effectiveOwnerId = (ownerRow as string) || userData.user.id;
-    const { data, error } = await (supabase as any)
-      .from("stock_movements")
-      .select("*")
-      .eq("owner_id", effectiveOwnerId)
-      .order("created_at", { ascending: false })
-      .limit(1000);
-    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
-    else setRows((data as MovementRow[]) || []);
+    const [smRes, prRes] = await Promise.all([
+      (supabase as any)
+        .from("stock_movements")
+        .select("*")
+        .eq("owner_id", effectiveOwnerId)
+        .order("created_at", { ascending: false })
+        .limit(1000),
+      (supabase as any)
+        .from("products")
+        .select("id, price")
+        .eq("owner_id", effectiveOwnerId)
+        .limit(1000),
+    ]);
+    if (smRes.error) toast({ title: "خطأ", description: smRes.error.message, variant: "destructive" });
+    else setRows((smRes.data as MovementRow[]) || []);
+    if (prRes.error) toast({ title: "خطأ", description: prRes.error.message, variant: "destructive" });
+    else setProducts((prRes.data as ProductPrice[]) || []);
     setLoading(false);
   };
 
