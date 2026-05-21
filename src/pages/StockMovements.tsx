@@ -22,11 +22,17 @@ interface MovementRow {
   variant_key: string | null;
   warehouse_code: string | null;
   qty: number;
+  unit_price: number | null;
   reason: string;
   order_id: string | null;
   return_id: string | null;
   notes: string | null;
   created_at: string;
+}
+
+interface ProductPrice {
+  id: string;
+  price: number;
 }
 
 const REASON_LABEL: Record<string, string> = {
