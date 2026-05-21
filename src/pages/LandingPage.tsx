@@ -1490,6 +1490,36 @@ const LandingPage = () => {
           />
         </div>
       )}
+
+      {/* Sticky mobile CTA */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-3 max-w-md mx-auto">
+          <div className="flex flex-col">
+            <span className="text-lg font-bold text-primary leading-tight">
+              {product.price} {storeSettings.currency_symbol}
+            </span>
+            {product.original_price && Number(product.original_price) > Number(product.price) && (
+              <span className="text-xs text-muted-foreground line-through leading-tight">
+                {product.original_price} {storeSettings.currency_symbol}
+              </span>
+            )}
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById("order-form");
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                const firstInput = el.querySelector<HTMLInputElement>("input, textarea");
+                setTimeout(() => firstInput?.focus({ preventScroll: true }), 500);
+              }
+            }}
+            className="flex-1 bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white font-bold py-5 rounded-xl"
+          >
+            {storeSettings.button_text || "اطلب الآن"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
