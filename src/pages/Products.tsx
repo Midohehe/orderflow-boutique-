@@ -1001,6 +1001,7 @@ const Products = () => {
           }))
         : [],
       orderFormOnTop: !!d.order_form_on_top,
+      showQuantity: d.show_quantity !== false,
       isVisible: d.is_visible !== false,
     });
   };
