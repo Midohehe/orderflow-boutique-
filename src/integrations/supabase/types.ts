@@ -736,6 +736,7 @@ export type Database = {
       }
       header_settings: {
         Row: {
+          bg_color: string | null
           created_at: string
           email: string | null
           facebook_url: string | null
@@ -758,6 +759,7 @@ export type Database = {
           whatsapp_url: string | null
         }
         Insert: {
+          bg_color?: string | null
           created_at?: string
           email?: string | null
           facebook_url?: string | null
@@ -780,6 +782,7 @@ export type Database = {
           whatsapp_url?: string | null
         }
         Update: {
+          bg_color?: string | null
           created_at?: string
           email?: string | null
           facebook_url?: string | null

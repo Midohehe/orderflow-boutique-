@@ -13,8 +13,8 @@ import StoreHeader from "@/components/StoreHeader";
 import { getThemeTokens } from "@/lib/themeTokens";
 import { useEffect as useEffectTheme } from "react";
 
-function LandingThemeWrapper({ template, children }: { template: any; children: React.ReactNode }) {
-  const { style, fontLink } = getThemeTokens(template);
+function LandingThemeWrapper({ template, bgColor, children }: { template: any; bgColor?: string | null; children: React.ReactNode }) {
+  const { style, fontLink } = getThemeTokens(template, bgColor);
   useEffectTheme(() => {
     if (!fontLink) return;
     const id = `theme-font-${template}`;
@@ -30,7 +30,7 @@ function LandingThemeWrapper({ template, children }: { template: any; children: 
 }
 import FashionHero from "@/components/themes/FashionHero";
 import StylishHero from "@/components/themes/StylishHero";
-import { useStoreTemplate } from "@/hooks/useStoreTemplate";
+import { useStoreTemplate, useStoreBgColor } from "@/hooks/useStoreTemplate";
 
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
@@ -170,6 +170,7 @@ const LandingPage = () => {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
   const template = useStoreTemplate(ownerId);
+  const bgColor = useStoreBgColor(ownerId);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1044,7 +1045,7 @@ const LandingPage = () => {
   }
 
   return (
-    <LandingThemeWrapper template={template}>
+    <LandingThemeWrapper template={template} bgColor={bgColor}>
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 

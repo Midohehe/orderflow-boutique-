@@ -1,7 +1,29 @@
 import type { StoreTemplate } from "@/hooks/useStoreTemplate";
 
 /** Returns CSS variable overrides + font family for the landing page wrapper. */
-export function getThemeTokens(template: StoreTemplate): {
+/** Convert #rrggbb to "H S% L%" string for CSS variable use. */
+function hexToHsl(hex: string): string | null {
+  const m = hex.replace("#", "");
+  if (m.length !== 6) return null;
+  const r = parseInt(m.slice(0, 2), 16) / 255;
+  const g = parseInt(m.slice(2, 4), 16) / 255;
+  const b = parseInt(m.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+  }
+  return `${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
+export function getThemeTokens(template: StoreTemplate, bgOverride?: string | null): {
   style: React.CSSProperties;
   fontLink?: string;
   bodyClass?: string;
@@ -25,19 +47,21 @@ export function getThemeTokens(template: StoreTemplate): {
     roseAmethyst:     { primary: "330 84% 71%", primaryFg: "0 0% 5%",  bg: "280 60% 6%",  font: "Cormorant Garamond, serif", fontLink: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Tajawal:wght@400;500;700&display=swap" },
   };
   const t = map[template] || map.classic;
+  const overrideBg = bgOverride ? hexToHsl(bgOverride) : null;
+  const bg = overrideBg || t.bg;
   const style: React.CSSProperties = {
     ["--primary" as any]: t.primary,
     ["--primary-foreground" as any]: t.primaryFg,
     ["--ring" as any]: t.primary,
     ["--accent" as any]: t.primary,
   };
-  if (t.bg) {
-    (style as any)["--background"] = t.bg;
+  if (bg) {
+    (style as any)["--background"] = bg;
     // tweak foreground contrast for dark bgs
-    const lightness = parseInt(t.bg.split(" ")[2]);
+    const lightness = parseInt(bg.split(" ")[2]);
     if (!isNaN(lightness) && lightness < 30) {
       (style as any)["--foreground"] = "0 0% 95%";
-      (style as any)["--card"] = t.bg;
+      (style as any)["--card"] = bg;
       (style as any)["--card-foreground"] = "0 0% 95%";
       (style as any)["--muted"] = "0 0% 15%";
       (style as any)["--muted-foreground"] = "0 0% 70%";
