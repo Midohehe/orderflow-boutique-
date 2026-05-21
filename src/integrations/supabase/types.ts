@@ -736,9 +736,14 @@ export type Database = {
       }
       header_settings: {
         Row: {
+          bg_color: string | null
           created_at: string
           email: string | null
           facebook_url: string | null
+          gallery_images: Json
+          hero_image: string | null
+          hero_subtitle: string | null
+          hero_title: string | null
           id: string
           instagram_url: string | null
           logo_image: string | null
@@ -748,14 +753,20 @@ export type Database = {
           show_search: boolean
           store_id: string | null
           tagline: string | null
+          template: string
           tiktok_url: string | null
           updated_at: string
           whatsapp_url: string | null
         }
         Insert: {
+          bg_color?: string | null
           created_at?: string
           email?: string | null
           facebook_url?: string | null
+          gallery_images?: Json
+          hero_image?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
           id?: string
           instagram_url?: string | null
           logo_image?: string | null
@@ -765,14 +776,20 @@ export type Database = {
           show_search?: boolean
           store_id?: string | null
           tagline?: string | null
+          template?: string
           tiktok_url?: string | null
           updated_at?: string
           whatsapp_url?: string | null
         }
         Update: {
+          bg_color?: string | null
           created_at?: string
           email?: string | null
           facebook_url?: string | null
+          gallery_images?: Json
+          hero_image?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
           id?: string
           instagram_url?: string | null
           logo_image?: string | null
@@ -782,6 +799,7 @@ export type Database = {
           show_search?: boolean
           store_id?: string | null
           tagline?: string | null
+          template?: string
           tiktok_url?: string | null
           updated_at?: string
           whatsapp_url?: string | null
