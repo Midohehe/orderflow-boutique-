@@ -739,6 +739,10 @@ export type Database = {
           created_at: string
           email: string | null
           facebook_url: string | null
+          gallery_images: Json
+          hero_image: string | null
+          hero_subtitle: string | null
+          hero_title: string | null
           id: string
           instagram_url: string | null
           logo_image: string | null
@@ -757,6 +761,10 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook_url?: string | null
+          gallery_images?: Json
+          hero_image?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
           id?: string
           instagram_url?: string | null
           logo_image?: string | null
@@ -775,6 +783,10 @@ export type Database = {
           created_at?: string
           email?: string | null
           facebook_url?: string | null
+          gallery_images?: Json
+          hero_image?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
           id?: string
           instagram_url?: string | null
           logo_image?: string | null
