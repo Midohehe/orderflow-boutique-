@@ -28,6 +28,9 @@ const TEMPLATES = [
   { id: "editorial", title: "Editorial", desc: "مجلة مينيمال أبيض راقي", emoji: "📰" },
   { id: "vibrant", title: "Vibrant Pop", desc: "ألوان جريئة ومرحة — للشباب", emoji: "🌈" },
   { id: "tech", title: "Tech Grid", desc: "Bento داكن مع لمسة Neon — للإلكترونيات", emoji: "⚡" },
+  { id: "sport", title: "Sport", desc: "أسود/برتقالي وخطوط حادة — للملابس الرياضية", emoji: "🏆" },
+  { id: "gaming", title: "Gaming", desc: "نيون بنفسجي/سيان وشبكة Glow — للجيمنق", emoji: "🎮" },
+  { id: "boutique", title: "Boutique", desc: "وردي ناعم وخط Serif أنيق — للنساء", emoji: "🌸" },
 ];
 
 export default function ThemesSettings() {
