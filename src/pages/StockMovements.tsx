@@ -47,6 +47,7 @@ const REASON_LABEL: Record<string, string> = {
 
 const StockMovements = () => {
   const [rows, setRows] = useState<MovementRow[]>([]);
+  const [products, setProducts] = useState<ProductPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
