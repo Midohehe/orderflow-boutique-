@@ -947,6 +947,7 @@ const Products = () => {
           }))
           .filter((o) => o.quantity > 0 && o.price > 0),
         order_form_on_top: !!newLp.orderFormOnTop,
+        show_quantity: newLp.showQuantity !== false,
         is_visible: newLp.isVisible !== false,
       }).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
