@@ -169,6 +169,8 @@ const Orders = () => {
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [storeName, setStoreName] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [rejectedOrders, setRejectedOrders] = useState<any[]>([]);
+  const [rejectedLoading, setRejectedLoading] = useState(false);
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
