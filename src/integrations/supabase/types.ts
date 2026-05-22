@@ -14,6 +14,157 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_spends: {
+        Row: {
+          amount_foreign: number
+          amount_local: number
+          campaign_name: string | null
+          cost_rate: number
+          created_at: string
+          created_by: string | null
+          fb_campaign_id: string | null
+          id: string
+          notes: string | null
+          owner_id: string
+          product_id: string | null
+          spend_date: string
+          store_id: string | null
+          wallet_id: string
+        }
+        Insert: {
+          amount_foreign: number
+          amount_local: number
+          campaign_name?: string | null
+          cost_rate: number
+          created_at?: string
+          created_by?: string | null
+          fb_campaign_id?: string | null
+          id?: string
+          notes?: string | null
+          owner_id: string
+          product_id?: string | null
+          spend_date?: string
+          store_id?: string | null
+          wallet_id: string
+        }
+        Update: {
+          amount_foreign?: number
+          amount_local?: number
+          campaign_name?: string | null
+          cost_rate?: number
+          created_at?: string
+          created_by?: string | null
+          fb_campaign_id?: string | null
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          product_id?: string | null
+          spend_date?: string
+          store_id?: string | null
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_spends_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "ad_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_wallet_topups: {
+        Row: {
+          amount_foreign: number
+          amount_local: number
+          created_at: string
+          created_by: string | null
+          exchange_rate: number
+          id: string
+          notes: string | null
+          owner_id: string
+          safe_id: string
+          store_id: string | null
+          wallet_id: string
+        }
+        Insert: {
+          amount_foreign: number
+          amount_local: number
+          created_at?: string
+          created_by?: string | null
+          exchange_rate: number
+          id?: string
+          notes?: string | null
+          owner_id: string
+          safe_id: string
+          store_id?: string | null
+          wallet_id: string
+        }
+        Update: {
+          amount_foreign?: number
+          amount_local?: number
+          created_at?: string
+          created_by?: string | null
+          exchange_rate?: number
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          safe_id?: string
+          store_id?: string | null
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_wallet_topups_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "ad_wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_wallets: {
+        Row: {
+          avg_cost_rate: number
+          balance: number
+          created_at: string
+          currency: string
+          id: string
+          is_active: boolean
+          name: string
+          owner_id: string
+          platform: string
+          store_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          avg_cost_rate?: number
+          balance?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          owner_id: string
+          platform?: string
+          store_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avg_cost_rate?: number
+          balance?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          owner_id?: string
+          platform?: string
+          store_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           created_at: string

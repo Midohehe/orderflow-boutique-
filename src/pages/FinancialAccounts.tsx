@@ -38,6 +38,7 @@ interface ExpenseRow { id: string; amount: number; created_at: string; expense_t
 interface PurchaseRow { id: string; amount: number; created_at: string; }
 interface SafeRow { id: string; name: string; balance: number; }
 interface ExpenseTypeRow { id: string; name: string; }
+interface AdSpendRow { id: string; product_id: string | null; campaign_name: string | null; amount_local: number; spend_date: string; }
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -52,6 +53,7 @@ const FinancialAccounts = () => {
   const [expenseTypes, setExpenseTypes] = useState<ExpenseTypeRow[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
   const [safes, setSafes] = useState<SafeRow[]>([]);
+  const [adSpends, setAdSpends] = useState<AdSpendRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -63,7 +65,7 @@ const FinancialAccounts = () => {
     (async () => {
       setLoading(true);
       try {
-        const [o, p, oi, e, et, pu, sa] = await Promise.all([
+        const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
           supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
           supabase.from("products").select("id, name, purchase_price").eq("store_id", activeStoreId).is("deleted_at", null),
           supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
@@ -71,6 +73,7 @@ const FinancialAccounts = () => {
           supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId),
           supabase.from("purchases").select("id, amount, created_at").eq("store_id", activeStoreId),
           supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId),
+          supabase.from("ad_spends").select("id, product_id, campaign_name, amount_local, spend_date").eq("store_id", activeStoreId),
         ]);
         setOrders((o.data as Order[]) || []);
         setProducts((p.data as ProductRow[]) || []);
@@ -79,6 +82,7 @@ const FinancialAccounts = () => {
         setExpenseTypes((et.data as ExpenseTypeRow[]) || []);
         setPurchases((pu.data as PurchaseRow[]) || []);
         setSafes((sa.data as SafeRow[]) || []);
+        setAdSpends((ads.data as AdSpendRow[]) || []);
       } catch (err) {
         console.error(err);
         toast({ title: "خطأ", description: "تعذر تحميل البيانات", variant: "destructive" });
@@ -137,12 +141,20 @@ const FinancialAccounts = () => {
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
+  const filteredAdSpends = useMemo(() => adSpends.filter(a => {
+    if (!inDateRange(a.spend_date)) return false;
+    if (selectedProduct === "all") return true;
+    const pr = products.find(p => p.name === selectedProduct);
+    return pr ? a.product_id === pr.id : false;
+  }), [adSpends, dateFrom, dateTo, selectedProduct, products]);
 
   // Core financials
   const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
   const totalCOGS = deliveredOrders.reduce((s, o) => s + orderCost(o), 0);
   const grossProfit = totalRevenue - totalCOGS;
-  const totalExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
+  const totalRegularExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
+  const totalAdSpend = filteredAdSpends.reduce((s, a) => s + Number(a.amount_local), 0);
+  const totalExpenses = totalRegularExpenses + totalAdSpend;
   const totalPurchases = selectedProduct === "all" ? filteredPurchases.reduce((s, p) => s + Number(p.amount), 0) : 0;
   const netProfit = grossProfit - totalExpenses;
 
@@ -204,7 +216,8 @@ const FinancialAccounts = () => {
 
   // Top products by revenue
   const topProducts = useMemo(() => {
-    const map: Record<string, { revenue: number; profit: number; count: number }> = {};
+    const map: Record<string, { revenue: number; profit: number; count: number; ad: number }> = {};
+    const productIdByName = new Map(products.map(p => [p.name, p.id]));
     deliveredOrders.forEach(o => {
       const items = itemsByOrder.get(o.id);
       if (items && items.length > 0) {
@@ -212,7 +225,7 @@ const FinancialAccounts = () => {
           const qty = Number(it.quantity || 1);
           const rev = Number(it.price) * qty;
           const cost = purchasePriceOf(it) * qty;
-          if (!map[it.product_name]) map[it.product_name] = { revenue: 0, profit: 0, count: 0 };
+          if (!map[it.product_name]) map[it.product_name] = { revenue: 0, profit: 0, count: 0, ad: 0 };
           map[it.product_name].revenue += rev;
           map[it.product_name].profit += rev - cost;
           map[it.product_name].count += qty;
@@ -220,17 +233,25 @@ const FinancialAccounts = () => {
       } else {
         const qty = Number(o.quantity || 1);
         const cost = orderCost(o);
-        if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0 };
+        if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0, ad: 0 };
         map[o.product_name].revenue += Number(o.price);
         map[o.product_name].profit += Number(o.price) - cost;
         map[o.product_name].count += qty;
       }
     });
+    // Apply ad spend per product
+    filteredAdSpends.forEach(a => {
+      if (!a.product_id) return;
+      const pname = products.find(p => p.id === a.product_id)?.name;
+      if (!pname) return;
+      if (!map[pname]) map[pname] = { revenue: 0, profit: 0, count: 0, ad: 0 };
+      map[pname].ad += Number(a.amount_local);
+    });
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
-  }, [deliveredOrders, productByName, itemsByOrder]);
+  }, [deliveredOrders, productByName, itemsByOrder, filteredAdSpends, products]);
 
   // In-delivery aggregation by product
   const shippedByProduct = useMemo(() => {
@@ -346,6 +367,7 @@ const FinancialAccounts = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPI icon={ShoppingBag} label="المشتريات (مخزون)" value={fmt(totalPurchases)} sub="لا تؤثر على الأرباح" color="from-amber-500/10 to-amber-600/5 border-amber-500/20" />
         <KPI icon={Wallet} label="رصيد الخزائن" value={fmt(totalSafesBalance)} sub={`${safes.length} خزينة`} color="from-violet-500/10 to-violet-600/5 border-violet-500/20" />
+        <KPI icon={Receipt} label="مصروف الإعلانات المستهلك" value={fmt(totalAdSpend)} sub="مدرج ضمن المصروفات" color="from-fuchsia-500/10 to-fuchsia-600/5 border-fuchsia-500/20" />
         <KPI icon={Hourglass} label="بانتظار التسوية" value={fmt(pendingSettlement)} sub="مسلّم وغير مستلم مالياً" color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
         <KPI icon={ShoppingCart} label="متوسط قيمة الطلب" value={fmt(avgOrderValue)} sub={`نسبة التسليم ${conversionRate.toFixed(1)}%`} color="from-pink-500/10 to-pink-600/5 border-pink-500/20" />
       </div>
@@ -478,18 +500,23 @@ const FinancialAccounts = () => {
                     <TableHead className="text-right">المنتج</TableHead>
                     <TableHead className="text-right">عدد الطلبات</TableHead>
                     <TableHead className="text-right">الإيرادات</TableHead>
-                    <TableHead className="text-right">الربح</TableHead>
+                    <TableHead className="text-right">الربح الإجمالي</TableHead>
+                    <TableHead className="text-right">تكلفة الإعلان</TableHead>
+                    <TableHead className="text-right">صافي الربح</TableHead>
                     <TableHead className="text-right">الهامش %</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {topProducts.map(p => {
-                      const m = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+                      const net = p.profit - p.ad;
+                      const m = p.revenue > 0 ? (net / p.revenue) * 100 : 0;
                       return (
                         <TableRow key={p.name}>
                           <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell>{p.count}</TableCell>
                           <TableCell>{fmt(p.revenue)}</TableCell>
                           <TableCell className={p.profit >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>{fmt(p.profit)}</TableCell>
+                          <TableCell className="text-fuchsia-600">{fmt(p.ad)}</TableCell>
+                          <TableCell className={net >= 0 ? "text-emerald-600 font-bold" : "text-red-500 font-bold"}>{fmt(net)}</TableCell>
                           <TableCell>{m.toFixed(1)}%</TableCell>
                         </TableRow>
                       );

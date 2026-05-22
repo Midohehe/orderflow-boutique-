@@ -35,6 +35,7 @@ const Inventory = lazy(() => import("./pages/Inventory"));
 const Safes = lazy(() => import("./pages/Safes"));
 const Expenses = lazy(() => import("./pages/Expenses"));
 const Purchases = lazy(() => import("./pages/Purchases"));
+const AdWallets = lazy(() => import("./pages/AdWallets"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
@@ -119,6 +120,7 @@ const App = () => {
                 <Route path="safes" element={<Safes />} />
                 <Route path="expenses" element={<Expenses />} />
                 <Route path="purchases" element={<Purchases />} />
+                <Route path="ad-wallets" element={<AdWallets />} />
                 <Route path="settlements" element={<Settlements />} />
                 <Route path="settlements/:id" element={<SettlementDetail />} />
                 <Route path="returns" element={<Returns />} />
