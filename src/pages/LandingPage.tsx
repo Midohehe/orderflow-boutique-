@@ -1022,24 +1022,24 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24" dir="rtl">
+    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-[calc(6rem+env(safe-area-inset-bottom))]" dir="rtl">
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
-        <h1 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3">{product.name}</h1>
-        <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+      <section className="bg-gradient-to-l from-primary to-accent py-5 sm:py-12 px-3 sm:px-4 text-center text-white w-full">
+        <h1 className="text-lg sm:text-2xl md:text-4xl font-bold mb-1.5 sm:mb-3 leading-snug">{product.name}</h1>
+        <div className="flex items-center justify-center gap-2 text-xs sm:text-base">
           <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
           <span>الدفع عند الاستلام</span>
         </div>
       </section>
 
-      <main className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+      <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
           {/* Product Gallery */}
           <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
-            <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
+            <div className="aspect-[4/5] sm:aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-2.5 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
                 <button
                   type="button"
@@ -1086,15 +1086,15 @@ const LandingPage = () => {
 
           {/* Order Form */}
           <div className={`lg:sticky lg:top-8 h-fit ${product.order_form_on_top ? "order-1 lg:order-2" : ""}`}>
-            <div className="bg-card rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-border">
+            <div className="bg-card rounded-xl sm:rounded-2xl p-3 sm:p-6 shadow-lg border border-border">
               <div className="text-center mb-4 sm:mb-6">
-                <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                   {product.original_price && Number(product.original_price) > Number(product.price) && (
-                    <span className="text-muted-foreground line-through text-lg sm:text-xl">
+                    <span className="text-muted-foreground line-through text-base sm:text-xl">
                       {product.original_price} {storeSettings.currency_symbol}
                     </span>
                   )}
-                  <span className="text-3xl sm:text-4xl font-bold text-primary">{product.price} {storeSettings.currency_symbol}</span>
+                  <span className="text-2xl sm:text-4xl font-bold text-primary">{product.price} {storeSettings.currency_symbol}</span>
                 </div>
                 <div className="inline-flex items-center gap-2 bg-accent/10 text-accent px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-sm sm:text-base">
                   <Check className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -1117,17 +1117,17 @@ const LandingPage = () => {
                   </button>
                 )}
                 {/* شريط الثقة */}
-                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] sm:text-xs">
-                  <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
-                    <span className="text-lg">💵</span>
+                <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
+                  <div className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg bg-muted/50 border border-border">
+                    <span className="text-base sm:text-lg">💵</span>
                     <span className="font-medium text-center leading-tight">الدفع عند الاستلام</span>
                   </div>
-                  <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
-                    <span className="text-lg">🚚</span>
+                  <div className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg bg-muted/50 border border-border">
+                    <span className="text-base sm:text-lg">🚚</span>
                     <span className="font-medium text-center leading-tight">شحن لكل ليبيا</span>
                   </div>
-                  <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted/50 border border-border">
-                    <span className="text-lg">🔄</span>
+                  <div className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg bg-muted/50 border border-border">
+                    <span className="text-base sm:text-lg">🔄</span>
                     <span className="font-medium text-center leading-tight">استبدال مجاني</span>
                   </div>
                 </div>
@@ -1183,11 +1183,11 @@ const LandingPage = () => {
                             : -1;
                           setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
                         }}
-                        className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
+                        className="w-11 h-11 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all active:scale-95"
                       >
                         -
                       </button>
-                      <span className="text-xl font-bold min-w-[40px] text-center">{quantity}</span>
+                      <span className="text-xl font-bold min-w-[44px] text-center">{quantity}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -1204,7 +1204,7 @@ const LandingPage = () => {
                             : -1;
                           setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
                         }}
-                        className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
+                        className="w-11 h-11 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all active:scale-95"
                       >
                         +
                       </button>
@@ -1298,7 +1298,7 @@ const LandingPage = () => {
                                   newVariants[index] = { ...newVariants[index], color };
                                   setItemVariants(newVariants);
                                 }}
-                                className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                                className={`px-4 py-2.5 min-h-[44px] rounded-lg border-2 transition-all text-sm ${
                                   item.color === color
                                     ? "border-primary bg-primary/10 text-primary font-medium"
                                     : "border-border hover:border-primary/50"
@@ -1324,7 +1324,7 @@ const LandingPage = () => {
                                   newVariants[index] = { ...newVariants[index], size };
                                   setItemVariants(newVariants);
                                 }}
-                                className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                                className={`px-4 py-2.5 min-h-[44px] rounded-lg border-2 transition-all text-sm ${
                                   item.size === size
                                     ? "border-primary bg-primary/10 text-primary font-medium"
                                     : "border-border hover:border-primary/50"
@@ -1362,9 +1362,10 @@ const LandingPage = () => {
                         onChange={(e) => handleInputChange(field.field_key, e.target.value)}
                         placeholder={field.placeholder}
                         type={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
+                        inputMode={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
                         dir={field.field_type === "phone" || field.field_type === "email" ? "ltr" : "rtl"}
                         required={field.required}
-                        className="text-base h-11 sm:h-10"
+                        className="text-base h-12 sm:h-11"
                         autoComplete="off"
                       />
                     )}
@@ -1373,7 +1374,7 @@ const LandingPage = () => {
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white text-base sm:text-lg py-5 sm:py-6 rounded-xl font-bold"
+                  className="w-full bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white text-base sm:text-lg py-6 sm:py-6 rounded-xl font-bold active:scale-[0.99]"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? "جاري إرسال الطلب..." : (storeSettings.button_text || "اطلب الآن - الدفع عند الاستلام")}
@@ -1453,7 +1454,7 @@ const LandingPage = () => {
         >
           <button
             type="button"
-            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            className="absolute top-[calc(1rem+env(safe-area-inset-top))] left-4 bg-white/20 hover:bg-white/30 text-white p-2.5 rounded-full z-10"
             onClick={() => setLightboxOpen(false)}
             aria-label="إغلاق"
           >
@@ -1476,7 +1477,7 @@ const LandingPage = () => {
         >
           <button
             type="button"
-            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            className="absolute top-[calc(1rem+env(safe-area-inset-top))] left-4 bg-white/20 hover:bg-white/30 text-white p-2.5 rounded-full z-10"
             onClick={() => setShowSizeChart(false)}
             aria-label="إغلاق"
           >
@@ -1492,14 +1493,14 @@ const LandingPage = () => {
       )}
 
       {/* Sticky CTA (mobile + desktop) */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-        <div className="flex items-center gap-3 max-w-md mx-auto">
-          <div className="flex flex-col">
-            <span className="text-lg font-bold text-primary leading-tight">
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-2 sm:gap-3 max-w-md mx-auto">
+          <div className="flex flex-col shrink-0">
+            <span className="text-base sm:text-lg font-bold text-primary leading-tight whitespace-nowrap">
               {product.price} {storeSettings.currency_symbol}
             </span>
             {product.original_price && Number(product.original_price) > Number(product.price) && (
-              <span className="text-xs text-muted-foreground line-through leading-tight">
+              <span className="text-[11px] sm:text-xs text-muted-foreground line-through leading-tight whitespace-nowrap">
                 {product.original_price} {storeSettings.currency_symbol}
               </span>
             )}
@@ -1514,7 +1515,7 @@ const LandingPage = () => {
                 setTimeout(() => firstInput?.focus({ preventScroll: true }), 500);
               }
             }}
-            className="flex-1 bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white font-bold py-5 rounded-xl"
+            className="flex-1 min-w-0 bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white font-bold text-sm sm:text-base py-5 rounded-xl active:scale-[0.99]"
           >
             اضغط هنا للشراء
           </Button>
