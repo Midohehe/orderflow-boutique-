@@ -1362,9 +1362,10 @@ const LandingPage = () => {
                         onChange={(e) => handleInputChange(field.field_key, e.target.value)}
                         placeholder={field.placeholder}
                         type={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
+                        inputMode={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
                         dir={field.field_type === "phone" || field.field_type === "email" ? "ltr" : "rtl"}
                         required={field.required}
-                        className="text-base h-11 sm:h-10"
+                        className="text-base h-12 sm:h-11"
                         autoComplete="off"
                       />
                     )}
@@ -1373,7 +1374,7 @@ const LandingPage = () => {
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white text-base sm:text-lg py-5 sm:py-6 rounded-xl font-bold"
+                  className="w-full bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white text-base sm:text-lg py-6 sm:py-6 rounded-xl font-bold active:scale-[0.99]"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? "جاري إرسال الطلب..." : (storeSettings.button_text || "اطلب الآن - الدفع عند الاستلام")}
