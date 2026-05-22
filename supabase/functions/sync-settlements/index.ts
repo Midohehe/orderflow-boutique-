@@ -28,12 +28,16 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const ownerId = userData.user.id;
+    const uid = userData.user.id;
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Resolve effective owner_id (handles sub-members)
+    const { data: ownerData } = await admin.rpc("get_effective_owner_id", { _uid: uid });
+    const ownerId = (ownerData as string) || uid;
 
     const { data: settingsRows } = await admin
       .from("shipping_settings")
