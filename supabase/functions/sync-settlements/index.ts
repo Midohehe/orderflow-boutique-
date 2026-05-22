@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const storeId: string | null = (settings as any).store_id ?? null;
 
     // Login on the financial endpoint
     const loginRes = await fetch(FINANCIAL_ENDPOINT, {
@@ -105,6 +106,7 @@ Deno.serve(async (req) => {
     // Upsert settlements
     const settlementRows = allPayments.map((p) => ({
       owner_id: ownerId,
+      store_id: storeId,
       external_id: p.id,
       code: p.code,
       settlement_date: p.date ? new Date(p.date.replace(" ", "T") + "Z").toISOString() : null,
