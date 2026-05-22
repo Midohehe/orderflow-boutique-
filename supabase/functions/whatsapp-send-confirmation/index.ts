@@ -10,9 +10,11 @@ const corsHeaders = {
 function normalizePhone(p: string): string {
   const digits = (p || "").replace(/\D/g, "");
   if (!digits) return "";
-  if (digits.startsWith("00218")) return "0" + digits.slice(5);
-  if (digits.startsWith("218")) return "0" + digits.slice(3);
-  return digits;
+  // Green API requires international format without '+' (e.g. 2189XXXXXXXX for Libya)
+  if (digits.startsWith("00218")) return digits.slice(2); // drop 00
+  if (digits.startsWith("218")) return digits;
+  if (digits.startsWith("0")) return "218" + digits.slice(1);
+  return "218" + digits;
 }
 
 Deno.serve(async (req) => {
