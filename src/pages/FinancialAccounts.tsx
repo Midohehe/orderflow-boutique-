@@ -216,7 +216,8 @@ const FinancialAccounts = () => {
 
   // Top products by revenue
   const topProducts = useMemo(() => {
-    const map: Record<string, { revenue: number; profit: number; count: number }> = {};
+    const map: Record<string, { revenue: number; profit: number; count: number; ad: number }> = {};
+    const productIdByName = new Map(products.map(p => [p.name, p.id]));
     deliveredOrders.forEach(o => {
       const items = itemsByOrder.get(o.id);
       if (items && items.length > 0) {
@@ -224,7 +225,7 @@ const FinancialAccounts = () => {
           const qty = Number(it.quantity || 1);
           const rev = Number(it.price) * qty;
           const cost = purchasePriceOf(it) * qty;
-          if (!map[it.product_name]) map[it.product_name] = { revenue: 0, profit: 0, count: 0 };
+          if (!map[it.product_name]) map[it.product_name] = { revenue: 0, profit: 0, count: 0, ad: 0 };
           map[it.product_name].revenue += rev;
           map[it.product_name].profit += rev - cost;
           map[it.product_name].count += qty;
@@ -232,17 +233,25 @@ const FinancialAccounts = () => {
       } else {
         const qty = Number(o.quantity || 1);
         const cost = orderCost(o);
-        if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0 };
+        if (!map[o.product_name]) map[o.product_name] = { revenue: 0, profit: 0, count: 0, ad: 0 };
         map[o.product_name].revenue += Number(o.price);
         map[o.product_name].profit += Number(o.price) - cost;
         map[o.product_name].count += qty;
       }
     });
+    // Apply ad spend per product
+    filteredAdSpends.forEach(a => {
+      if (!a.product_id) return;
+      const pname = products.find(p => p.id === a.product_id)?.name;
+      if (!pname) return;
+      if (!map[pname]) map[pname] = { revenue: 0, profit: 0, count: 0, ad: 0 };
+      map[pname].ad += Number(a.amount_local);
+    });
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
-  }, [deliveredOrders, productByName, itemsByOrder]);
+  }, [deliveredOrders, productByName, itemsByOrder, filteredAdSpends, products]);
 
   // In-delivery aggregation by product
   const shippedByProduct = useMemo(() => {
