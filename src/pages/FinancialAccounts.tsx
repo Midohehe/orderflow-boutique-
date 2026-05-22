@@ -67,7 +67,7 @@ const FinancialAccounts = () => {
       try {
         const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
           supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
-          supabase.from("products").select("id, name, purchase_price").eq("store_id", activeStoreId).is("deleted_at", null),
+          supabase.from("products").select("id, name").eq("store_id", activeStoreId).is("deleted_at", null),
           supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
           supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("store_id", activeStoreId),
           supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId),
