@@ -67,6 +67,12 @@ function areaHasInputEvidence(areaName: string, cityName: string, inputNorm: str
   const aN = norm(areaName);
   const cN = norm(cityName);
   if (!aN || aN === cN) return true; // city==area placeholder
+  // STRICT rule for short area names (≤ 4 chars after normalization, e.g. "صين"):
+  // require an EXACT token match in the input. Short names produce too many
+  // false positives via fuzzy/substring matching.
+  if (aN.length <= 4) {
+    return inputToks.includes(aN);
+  }
   // Split into significant words (skip very short ones like "ال", "بن").
   const words = aN.split(/\s+/).filter((w) => w.length >= 3);
   if (words.length === 0) return true;
