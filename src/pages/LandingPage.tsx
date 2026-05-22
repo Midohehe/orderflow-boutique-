@@ -1022,24 +1022,24 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-24" dir="rtl">
+    <div className="min-h-screen w-full bg-background font-cairo overflow-x-hidden pb-[calc(6rem+env(safe-area-inset-bottom))]" dir="rtl">
       {/* Header */}
       <StoreHeader ownerId={product?.owner_id} />
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-l from-primary to-accent py-8 sm:py-12 px-4 text-center text-white w-full">
-        <h1 className="text-xl sm:text-2xl md:text-4xl font-bold mb-2 sm:mb-3">{product.name}</h1>
-        <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+      <section className="bg-gradient-to-l from-primary to-accent py-5 sm:py-12 px-3 sm:px-4 text-center text-white w-full">
+        <h1 className="text-lg sm:text-2xl md:text-4xl font-bold mb-1.5 sm:mb-3 leading-snug">{product.name}</h1>
+        <div className="flex items-center justify-center gap-2 text-xs sm:text-base">
           <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
           <span>الدفع عند الاستلام</span>
         </div>
       </section>
 
-      <main className="w-full max-w-6xl mx-auto px-4 py-6 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+      <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
           {/* Product Gallery */}
           <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
-            <div className="aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-3 sm:mb-4 gpu">
+            <div className="aspect-[4/5] sm:aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-muted shadow-lg mb-2.5 sm:mb-4 gpu">
               {product.images && product.images.length > 0 ? (
                 <button
                   type="button"
