@@ -367,8 +367,8 @@ const FinancialAccounts = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPI icon={ShoppingBag} label="المشتريات (مخزون)" value={fmt(totalPurchases)} sub="لا تؤثر على الأرباح" color="from-amber-500/10 to-amber-600/5 border-amber-500/20" />
         <KPI icon={Wallet} label="رصيد الخزائن" value={fmt(totalSafesBalance)} sub={`${safes.length} خزينة`} color="from-violet-500/10 to-violet-600/5 border-violet-500/20" />
+        <KPI icon={Receipt} label="مصروف الإعلانات المستهلك" value={fmt(totalAdSpend)} sub="مدرج ضمن المصروفات" color="from-fuchsia-500/10 to-fuchsia-600/5 border-fuchsia-500/20" />
         <KPI icon={Hourglass} label="بانتظار التسوية" value={fmt(pendingSettlement)} sub="مسلّم وغير مستلم مالياً" color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
-        <KPI icon={ShoppingCart} label="متوسط قيمة الطلب" value={fmt(avgOrderValue)} sub={`نسبة التسليم ${conversionRate.toFixed(1)}%`} color="from-pink-500/10 to-pink-600/5 border-pink-500/20" />
       </div>
 
       {/* Ratios */}
