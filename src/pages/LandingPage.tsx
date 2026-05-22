@@ -240,8 +240,9 @@ const LandingPage = () => {
         }
 
         // Run profile + product in parallel
-        const profilePromise = username
-          ? supabase.from("profiles").select("user_id, is_active").eq("username", username).maybeSingle()
+        const profilePromise: any = username
+          ? (supabase as any).rpc("get_public_profile_by_username", { _username: username })
+              .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
@@ -385,10 +386,11 @@ const LandingPage = () => {
         }
 
         // Stale-while-revalidate: ALWAYS fetch fresh so admin edits show up.
-        const pixelQ = supabase.from("pixel_settings").select("facebook_pixel_id, facebook_enabled, tiktok_pixel_id, tiktok_enabled, google_analytics_id, google_enabled, snapchat_pixel_id, snapchat_enabled");
-        if (ownerForSettings) pixelQ.eq("owner_id", ownerForSettings);
-        if (storeForSettings) pixelQ.eq("store_id", storeForSettings);
-        const pixelPromise = pixelQ.limit(1).maybeSingle();
+        const pixelPromise: any = ownerForSettings
+          ? (supabase as any)
+              .rpc("get_pixel_settings_public", { _owner_id: ownerForSettings, _store_id: storeForSettings || null })
+              .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
+          : Promise.resolve({ data: null, error: null } as any);
 
         const formQ = supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true);
         if (ownerForSettings) formQ.eq("owner_id", ownerForSettings);

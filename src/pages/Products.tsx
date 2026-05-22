@@ -161,7 +161,7 @@ const Products = () => {
         // Phase 1: lightweight metadata only (no images) — fast
         let metaQuery = supabase
           .from("products")
-          .select("id, name, slug, price, original_price, purchase_price, is_visible, category_id")
+          .select("id, name, slug, price, original_price, is_visible, category_id")
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
         metaQuery = metaQuery.eq("store_id", activeStoreId);
@@ -170,13 +170,17 @@ const Products = () => {
         if (metaError) throw metaError;
         if (cancelled) return;
 
+        // Fetch purchase prices via RPC (sensitive cost data is no longer publicly readable)
+        const { data: costsData } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+        const costMap = new Map<string, number>((costsData || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
+
         const baseList: Product[] = (metaData || []).map((p: any) => ({
           id: p.id,
           name: p.name,
           slug: p.slug,
           price: String(p.price),
           original_price: p.original_price ? String(p.original_price) : undefined,
-          purchase_price: p.purchase_price != null ? String(p.purchase_price) : "0",
+          purchase_price: String(costMap.get(p.id) ?? 0),
           description: "",
           images: [],
           product_codes: [],
@@ -242,13 +246,16 @@ const Products = () => {
       if (!activeStoreId) return;
       let query = supabase
         .from("products")
-        .select("id, name, slug, price, original_price, purchase_price, images, is_visible")
+        .select("id, name, slug, price, original_price, images, is_visible")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       query = query.eq("store_id", activeStoreId);
       const { data, error } = await runWithTimeout(query, 30000);
 
       if (error) throw error;
+
+      const { data: costsData2 } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+      const costMap2 = new Map<string, number>((costsData2 || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
 
       setProducts(
         (data || []).map((p: any) => ({
@@ -257,7 +264,7 @@ const Products = () => {
           slug: p.slug,
           price: String(p.price),
           original_price: p.original_price ? String(p.original_price) : undefined,
-          purchase_price: p.purchase_price != null ? String(p.purchase_price) : "0",
+          purchase_price: String(costMap2.get(p.id) ?? 0),
           description: "",
           images: p.images || [],
           product_codes: [],

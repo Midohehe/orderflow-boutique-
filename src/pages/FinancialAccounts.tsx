@@ -67,7 +67,7 @@ const FinancialAccounts = () => {
       try {
         const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
           supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
-          supabase.from("products").select("id, name, purchase_price").eq("store_id", activeStoreId).is("deleted_at", null),
+          supabase.from("products").select("id, name").eq("store_id", activeStoreId).is("deleted_at", null),
           supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
           supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("store_id", activeStoreId),
           supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId),
@@ -76,7 +76,10 @@ const FinancialAccounts = () => {
           supabase.from("ad_spends").select("id, product_id, campaign_name, amount_local, spend_date").eq("store_id", activeStoreId),
         ]);
         setOrders((o.data as Order[]) || []);
-        setProducts((p.data as ProductRow[]) || []);
+        // Fetch sensitive purchase_price via secure RPC and merge
+        const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+        const cmap = new Map<string, number>((costs || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
+        setProducts(((p.data || []) as any[]).map((pr) => ({ ...pr, purchase_price: cmap.get(pr.id) ?? 0 })) as ProductRow[]);
         setOrderItems((oi.data as OrderItemRow[]) || []);
         setExpenses((e.data as ExpenseRow[]) || []);
         setExpenseTypes((et.data as ExpenseTypeRow[]) || []);
