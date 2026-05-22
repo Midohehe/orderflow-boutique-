@@ -1454,7 +1454,7 @@ const LandingPage = () => {
         >
           <button
             type="button"
-            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            className="absolute top-[calc(1rem+env(safe-area-inset-top))] left-4 bg-white/20 hover:bg-white/30 text-white p-2.5 rounded-full z-10"
             onClick={() => setLightboxOpen(false)}
             aria-label="إغلاق"
           >
@@ -1477,7 +1477,7 @@ const LandingPage = () => {
         >
           <button
             type="button"
-            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full"
+            className="absolute top-[calc(1rem+env(safe-area-inset-top))] left-4 bg-white/20 hover:bg-white/30 text-white p-2.5 rounded-full z-10"
             onClick={() => setShowSizeChart(false)}
             aria-label="إغلاق"
           >
