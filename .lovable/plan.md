@@ -1,95 +1,97 @@
+## نظام محافظ الإعلانات (Advertising Wallets)
 
-# دعم متاجر متعددة لكل حساب
-
-تحويل النظام من "حساب = متجر" إلى "حساب = عدة متاجر مستقلة". كل متجر يحتوي على منتجاته وطلباته وماليته وإعدادات الشحن والبيكسل بشكل منفصل تماماً.
-
----
-
-## 1. قاعدة البيانات
-
-### جدول جديد `stores`
-- `id`, `owner_id` (مالك الحساب), `name`, `slug` (للرابط العام، فريد عالمياً), `is_default`, `created_at`
-
-### إضافة `store_id` إلى جميع جداول البيانات التشغيلية
-سيُضاف عمود `store_id uuid` إلى:
-- `products`, `landing_pages`, `orders`, `order_items`
-- `safes`, `safe_movements`, `expenses`, `purchases`, `expense_types`
-- `shipping_settings`, `shipping_zones`, `shipping_warehouse_products`
-- `pixel_settings`, `header_settings`, `order_form_fields`, `confirmation_settings`, `confirmation_templates`, `cancellation_reasons`
-- `easyorders_products`, `returns`, `return_shipments`, `settlements`, `settlement_shipments`
-- `city_corrections` (الخاصة بالمستخدم), `analytics_events`, `order_confirmation_attempts`, `carrier_status_mappings` (الخاصة بالمستخدم), `hidden_default_*`
-
-### الترحيل التلقائي للبيانات الحالية
-لكل `owner_id` موجود يُنشأ متجر افتراضي باسم "المتجر الرئيسي" مع `is_default=true`، ثم تُحدّث كل الصفوف القديمة لتشير إليه.
-
-### المستخدمون الفرعيون
-- إضافة جدول `store_member_stores(member_id, store_id)` لتحديد المتاجر المتاحة لكل موظف.
-- تحديث `is_member_of()` لتأخذ `store_id` بعين الاعتبار، وإضافة `has_store_access(store_id)`.
-
-### تحديث سياسات RLS
-كل السياسات تتغير من `is_member_of(owner_id)` فقط إلى `is_member_of(owner_id) AND has_store_access(store_id)`.
+نظام احترافي لفصل **شحن رصيد الإعلانات** عن **استهلاك الإعلانات الفعلي**، حتى لا يُحسب الشحن كمصروف على الأرباح إلا عند استهلاكه فعلياً.
 
 ---
 
-## 2. الواجهة الأمامية
+### 1. قاعدة البيانات (Migrations جديدة)
 
-### سياق المتجر النشط (`useStoreContext`)
-- يخزّن `activeStoreId` في `localStorage` لكل مستخدم.
-- يُحمَّل ضمن `useUserContext` ويُمرَّر لكل الاستعلامات.
-- محوّل متاجر (Store Switcher) في أعلى الـ Sidebar (dropdown) يعرض جميع المتاجر مع زر "+ إضافة متجر".
+**جدول `ad_wallets`** — محافظ الإعلانات
+- `name` (مثل: Facebook Ads, TikTok Ads)
+- `platform` (facebook / tiktok / google / snapchat / other)
+- `currency` (USD افتراضي)
+- `balance` (الرصيد الحالي بعملة المحفظة)
+- `avg_cost_rate` (متوسط سعر الشراء المرجح — يُحدّث تلقائياً عند كل شحنة)
+- `store_id`, `owner_id`, `is_active`
 
-### صفحات جديدة
-- `/dashboard/stores-list` (للمالك): إدارة متاجره الشخصية — إضافة، تعديل اسم/slug، حذف.
-- صفحة "إضافة متجر" — اسم + slug + خيار نسخ الإعدادات من متجر آخر.
+**جدول `ad_wallet_topups`** — عمليات الشحن
+- `wallet_id`, `safe_id` (الخزينة المخصوم منها)
+- `amount_foreign` (الدولار المشحون)
+- `exchange_rate` (سعر الصرف)
+- `amount_local` (= amount_foreign × rate)
+- `notes`, `created_at`, `created_by`
 
-### تعديل كل الصفحات الموجودة
-كل الصفحات التي تستعلم من Supabase تضيف فلتر `.eq('store_id', activeStoreId)`، وكل INSERT يضيف `store_id`.
+**جدول `ad_spends`** — استهلاك الإعلانات (= مصروف فعلي)
+- `wallet_id`, `product_id` (للربط بالمنتج)
+- `campaign_name` (اسم الحملة - نص حر)
+- `fb_campaign_id` (اختياري للربط بحملات FB الموجودة)
+- `amount_foreign` (المستهلك بالدولار)
+- `cost_rate` (السعر المستخدم للتحويل = متوسط سعر المحفظة وقت الاستهلاك)
+- `amount_local` (= amount_foreign × cost_rate) — هذا هو المصروف الفعلي
+- `spend_date`, `notes`
 
-### الواجهة العامة (Storefront)
-- `/store/:slug` يبحث في `stores.slug` بدل `profiles.username`.
-- `/p/:productSlug` يحتاج `store_id` ضمني — إما عبر الـ subdomain/slug أو يصبح `/s/:storeSlug/p/:productSlug`.
+**لا يُسجّل في `expenses` العادية** — يُحسب من `ad_spends` مباشرة في التقارير لتجنب الازدواج.
 
----
-
-## 3. Edge Functions
-كل الدوال (`create-order`, `ship-orders`, `sync-*`, `webhook-order`, `landing-ssr`, إلخ) تحتاج تمرير/قراءة `store_id`:
-- استدعاءات الواجهة تمرر `store_id` صراحةً.
-- الـ webhooks العامة تحلّ المتجر عبر slug في الرابط.
-- إعدادات الشحن وEasyOrders تُقرأ حسب `store_id` بدل `owner_id`.
-
----
-
-## 4. التفاصيل التقنية
-
-```text
-profiles (owner) ──┐
-                   ├─< stores ──< products / orders / safes / shipping_settings / ...
-store_members ─────┤        │
-                   └────────┴─< store_member_stores (أي متاجر يصلها الموظف)
-```
-
-- تحويل `webhook_token` ليصبح على مستوى المتجر بدل الحساب.
-- `header_settings.logo_text` يحدد اسم المتجر المعروض في الـ Sidebar حسب المتجر النشط.
-- التحقق من سياسات RLS بدقة لتفادي تسريب بيانات بين متاجر نفس المالك.
+RLS: `is_member_of(owner_id) OR admin` على الثلاثة، مع `set_owner_id` trigger.
 
 ---
 
-## 5. التنفيذ على مراحل
+### 2. منطق العمليات
 
-1. **المرحلة أ — البنية:** إنشاء `stores` + ترحيل البيانات + إضافة `store_id` لكل الجداول + تحديث RLS.
-2. **المرحلة ب — السياق:** `useStoreContext` + Store Switcher + صفحة إدارة المتاجر + إضافة متجر.
-3. **المرحلة ج — تكييف الصفحات:** تحديث جميع استعلامات Frontend (منتجات، طلبات، مالية، شحن، بيكسل، إعدادات...).
-4. **المرحلة د — Edge Functions:** تكييف كل الدوال لاستخدام `store_id`.
-5. **المرحلة هـ — الواجهة العامة:** تحديث `/store/:slug` و `/p/:slug` للعمل مع متاجر متعددة.
-6. **المرحلة و — المستخدمون الفرعيون:** ربط الموظفين بمتاجر محددة.
+**عند الشحن (topup):**
+1. خصم `amount_local` من `safes.balance` + إضافة `safe_movement` بنوع `ad_topup`
+2. زيادة `ad_wallets.balance += amount_foreign`
+3. تحديث `avg_cost_rate` بالمتوسط المرجح:
+   `new_avg = (old_balance × old_avg + amount_foreign × new_rate) / (old_balance + amount_foreign)`
+4. **لا يُسجّل كمصروف** على الأرباح
+
+**عند الاستهلاك (spend):**
+1. التحقق أن `wallet.balance >= amount_foreign`
+2. خصم من `ad_wallets.balance -= amount_foreign`
+3. حساب `amount_local = amount_foreign × wallet.avg_cost_rate`
+4. إدراج في `ad_spends` (هذا هو المصروف الفعلي على المنتج/المتجر)
 
 ---
 
-## ملاحظات مهمة
+### 3. الواجهة (صفحات جديدة)
 
-- هذا تغيير ضخم يمس **كل ملف تقريباً** في المشروع (50+ ملف، 20+ migration).
-- سيستغرق التنفيذ عدة جولات متتابعة.
-- يُفضّل عمل نسخة احتياطية قبل البدء (يمكنك استخدام نقاط الاستعادة في Lovable).
-- بعد المرحلة أ مباشرة سيعمل النظام بمتجر افتراضي واحد بشكل طبيعي، ثم نضيف تدريجياً.
+**`/ad-wallets`** — صفحة إدارة المحافظ الإعلانية:
+- تبويب "المحافظ": قائمة محافظ + إضافة محفظة جديدة + رصيد كل محفظة بالدولار + ما يعادله بالدينار حسب متوسط سعرها
+- تبويب "شحن رصيد": فورم (محفظة، خزينة، قيمة بالدولار، سعر الصرف، إجمالي بالدينار يُحسب تلقائياً، ملاحظات)
+- تبويب "تسجيل استهلاك": فورم (محفظة، منتج، اسم الحملة، قيمة بالدولار، تاريخ، ملاحظات)
+- تبويب "سجل الحركات": عرض كل الشحنات والاستهلاكات مع فلاتر
 
-هل أبدأ بالمرحلة (أ): إنشاء جدول `stores`، الترحيل التلقائي، وإضافة `store_id` لجميع الجداول مع تحديث RLS؟
+**تعديل `/financial-accounts` (الأرباح والخسائر):**
+- إضافة كتلة "مصروفات الإعلانات المستهلكة" (مجموع `ad_spends.amount_local`)
+- استبعاد رصيد المحافظ غير المستهلك من حساب الأرباح
+- إضافة عمود "تكلفة الإعلان" لكل منتج (مجموع `ad_spends.amount_local` لذلك المنتج) و**صافي الربح الحقيقي** = ربح المنتج − تكلفة إعلانه
+
+**تقارير جديدة داخل نفس الصفحة:**
+- تقرير الأرباح لكل منتج (مع عمود تكلفة الإعلان)
+- تقرير المصروفات حسب الحملة (group by `campaign_name`)
+
+**إضافة لشريط التنقل:** رابط "محافظ الإعلانات" تحت قسم المالية.
+
+---
+
+### 4. تفاصيل تقنية مختصرة
+
+- العملة الافتراضية USD لكن الحقل قابل للتعديل لو احتاج المستخدم EUR لاحقاً.
+- متوسط السعر المرجح يضمن دقة احتساب المصروف عبر شحنات بأسعار صرف مختلفة.
+- جميع الاستعلامات مفلترة بـ `activeStoreId`.
+- استخدام `safe_movements` الموجود لتتبع حركة الخزينة (نوع جديد: `ad_topup`).
+- التحقق من صحة الإدخال client + server side (zod في الفورم).
+
+---
+
+### الملفات المتأثرة
+
+**Migrations جديدة:** جدول `ad_wallets`, `ad_wallet_topups`, `ad_spends` مع RLS وtriggers.
+
+**ملفات جديدة:**
+- `src/pages/AdWallets.tsx`
+- إضافة Route في `src/App.tsx`
+- إضافة رابط في `src/components/DashboardLayout.tsx`
+
+**ملفات معدّلة:**
+- `src/pages/FinancialAccounts.tsx` — استبعاد شحنات المحافظ من المصروفات + إضافة كتلة مصروفات الإعلانات المستهلكة + تقارير لكل منتج/حملة
