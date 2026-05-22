@@ -1493,14 +1493,14 @@ const LandingPage = () => {
       )}
 
       {/* Sticky CTA (mobile + desktop) */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-        <div className="flex items-center gap-3 max-w-md mx-auto">
-          <div className="flex flex-col">
-            <span className="text-lg font-bold text-primary leading-tight">
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur border-t border-border px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-2 sm:gap-3 max-w-md mx-auto">
+          <div className="flex flex-col shrink-0">
+            <span className="text-base sm:text-lg font-bold text-primary leading-tight whitespace-nowrap">
               {product.price} {storeSettings.currency_symbol}
             </span>
             {product.original_price && Number(product.original_price) > Number(product.price) && (
-              <span className="text-xs text-muted-foreground line-through leading-tight">
+              <span className="text-[11px] sm:text-xs text-muted-foreground line-through leading-tight whitespace-nowrap">
                 {product.original_price} {storeSettings.currency_symbol}
               </span>
             )}
@@ -1515,7 +1515,7 @@ const LandingPage = () => {
                 setTimeout(() => firstInput?.focus({ preventScroll: true }), 500);
               }
             }}
-            className="flex-1 bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white font-bold py-5 rounded-xl"
+            className="flex-1 min-w-0 bg-gradient-to-l from-primary to-accent hover:opacity-90 text-white font-bold text-sm sm:text-base py-5 rounded-xl active:scale-[0.99]"
           >
             اضغط هنا للشراء
           </Button>
