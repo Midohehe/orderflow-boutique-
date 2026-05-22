@@ -113,11 +113,30 @@ export default function WhatsAppPage() {
     setMessages((data as any) || []);
   }
   async function loadSettings() {
-    const { data } = await supabase.from("whatsapp_settings").select("*").maybeSingle();
-    if (data) setSettings(data);
-    else {
-      // create default row
-      const { data: created } = await supabase.from("whatsapp_settings").insert({ owner_id: ownerId! }).select("*").single();
+    if (!ownerId) return;
+    const { data, error } = await supabase
+      .from("whatsapp_settings")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    if (error) {
+      console.error("loadSettings error", error);
+      toast({ title: "تعذر تحميل الإعدادات", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (data) {
+      setSettings(data);
+    } else {
+      const { data: created, error: insErr } = await supabase
+        .from("whatsapp_settings")
+        .insert({ owner_id: ownerId })
+        .select("*")
+        .single();
+      if (insErr) {
+        console.error("create settings error", insErr);
+        toast({ title: "تعذر إنشاء الإعدادات", description: insErr.message, variant: "destructive" });
+        return;
+      }
       setSettings(created);
     }
   }
