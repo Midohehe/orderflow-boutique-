@@ -1183,11 +1183,11 @@ const LandingPage = () => {
                             : -1;
                           setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
                         }}
-                        className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
+                        className="w-11 h-11 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all active:scale-95"
                       >
                         -
                       </button>
-                      <span className="text-xl font-bold min-w-[40px] text-center">{quantity}</span>
+                      <span className="text-xl font-bold min-w-[44px] text-center">{quantity}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -1204,7 +1204,7 @@ const LandingPage = () => {
                             : -1;
                           setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
                         }}
-                        className="w-10 h-10 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all"
+                        className="w-11 h-11 rounded-lg border-2 border-border hover:border-primary/50 flex items-center justify-center text-xl font-bold transition-all active:scale-95"
                       >
                         +
                       </button>
@@ -1298,7 +1298,7 @@ const LandingPage = () => {
                                   newVariants[index] = { ...newVariants[index], color };
                                   setItemVariants(newVariants);
                                 }}
-                                className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                                className={`px-4 py-2.5 min-h-[44px] rounded-lg border-2 transition-all text-sm ${
                                   item.color === color
                                     ? "border-primary bg-primary/10 text-primary font-medium"
                                     : "border-border hover:border-primary/50"
@@ -1324,7 +1324,7 @@ const LandingPage = () => {
                                   newVariants[index] = { ...newVariants[index], size };
                                   setItemVariants(newVariants);
                                 }}
-                                className={`px-4 py-2 rounded-lg border-2 transition-all text-sm ${
+                                className={`px-4 py-2.5 min-h-[44px] rounded-lg border-2 transition-all text-sm ${
                                   item.size === size
                                     ? "border-primary bg-primary/10 text-primary font-medium"
                                     : "border-border hover:border-primary/50"
