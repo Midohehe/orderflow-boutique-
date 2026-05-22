@@ -273,6 +273,28 @@ const AI_TOOL = {
   },
 };
 
+// Verification tool: ask a stronger model to pick the BEST of a short list of
+// already-ranked candidates (or reject all of them). This is the second-pass
+// "judge" that catches cases where the first-pass picks an area that happens
+// to fuzzy-match but is geographically/contextually wrong.
+const VERIFY_TOOL = {
+  type: "function",
+  function: {
+    name: "verify_best_candidate",
+    description: "اختر أفضل مرشح صحيح من القائمة المختصرة، أو ارفضها جميعًا.",
+    parameters: {
+      type: "object",
+      properties: {
+        index: { type: "integer", description: "رقم المرشح الأفضل (يبدأ من 1)، أو 0 لرفض الجميع." },
+        confidence: { type: "number", description: "ثقة من 0 إلى 1." },
+        reasoning: { type: "string", description: "شرح موجز جدًا (سطر واحد)." },
+      },
+      required: ["index", "confidence"],
+      additionalProperties: false,
+    },
+  },
+};
+
 function buildPrompt(list: Pair[], city: string, address: string): string {
   // Group pairs by city for compactness.
   const byCity: Record<string, string[]> = {};
@@ -299,6 +321,75 @@ ${catalog}
 4) إن لم يكن اسم المدينة واضحًا في المدخل، استنتجها من اسم الحي/المنطقة (مثلًا "تاجوراء" → طرابلس).
 5) إذا تعذّر الاستنتاج بثقة، أعد city="NONE" area="NONE".
 استدعِ الأداة pick_city_area فقط.`;
+}
+
+// Build a tight verification prompt that shows ONLY the top candidates and
+// asks a stronger model to pick the single best one (or reject all).
+function buildVerifyPrompt(
+  candidates: Array<{ pair: Pair; weight: number; src: string }>,
+  city: string,
+  address: string,
+): string {
+  const lines = candidates
+    .map((c, i) => `${i + 1}) المدينة: "${c.pair.city}" — المنطقة: "${c.pair.area}"`)
+    .join("\n");
+  return `أنت مدقّق خبير بجغرافيا ليبيا وأحياء مدنها.
+مدخل العميل:
+- مدينة: "${city || ""}"
+- عنوان: "${address || ""}"
+
+لدينا المرشحون التالون (مرتّبون مبدئيًا):
+${lines}
+
+المطلوب: اختر رقم المرشّح الأنسب جغرافيًا ومنطقيًا لمدخل العميل.
+قواعد:
+- لا تخترع مرشحًا غير موجود في القائمة.
+- لا تختر منطقة لم تُذكر بأي شكل في مدخل العميل ولا يمكن استنتاجها منطقيًا منه.
+- إذا كان مدخل العميل لا يطابق أي مرشح فعليًا (مثلًا يذكر حيًا غير موجود ضمنهم)، أعد index=0.
+- لو كان المدخل عامًا (مدينة فقط بدون حي)، فضّل المرشح الذي تكون فيه المنطقة = المدينة نفسها.
+استدعِ الأداة verify_best_candidate فقط.`;
+}
+
+async function verifyWithModel(
+  model: string,
+  candidates: Array<{ pair: Pair; weight: number; src: string }>,
+  city: string,
+  address: string,
+  apiKey: string,
+  timeoutMs = 10000,
+): Promise<{ index: number; confidence: number } | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: buildVerifyPrompt(candidates, city, address) }],
+        tools: [VERIFY_TOOL],
+        tool_choice: { type: "function", function: { name: "verify_best_candidate" } },
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      console.error("verify AI", model, "status", res.status, await res.text().catch(() => ""));
+      return null;
+    }
+    const j = await res.json();
+    const call = j?.choices?.[0]?.message?.tool_calls?.[0];
+    const argsStr = call?.function?.arguments;
+    if (!argsStr) return null;
+    const args = typeof argsStr === "string" ? JSON.parse(argsStr) : argsStr;
+    const idx = Number(args.index);
+    if (!Number.isFinite(idx)) return null;
+    return { index: idx, confidence: Number(args.confidence) || 0 };
+  } catch (e) {
+    console.error("verify AI", model, "error", (e as Error).message);
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function askModel(model: string, prompt: string, apiKey: string, timeoutMs = 12000): Promise<{ city: string; area: string; confidence: number } | null> {
@@ -538,6 +629,50 @@ Deno.serve(async (req) => {
       });
 
       let final: Pair | undefined = filtered[0]?.pair;
+
+      // ============ EXTRA VERIFICATION LAYER ============
+      // Two strong models judge the top-3 filtered candidates. We require
+      // consensus (both agree on same candidate) OR very high single-model
+      // confidence to override the first-pass pick. If they unanimously
+      // reject all top candidates (index=0), we drop to the city-only row.
+      const topForVerify = filtered.slice(0, 3);
+      if (apiKey && topForVerify.length >= 2) {
+        const [v1, v2] = await Promise.all([
+          verifyWithModel("google/gemini-2.5-pro", topForVerify, city || "", address || "", apiKey, 10000),
+          verifyWithModel("openai/gpt-5-mini", topForVerify, city || "", address || "", apiKey, 10000),
+        ]);
+        const valid = (v: { index: number; confidence: number } | null) =>
+          v && Number.isInteger(v.index) && v.index >= 0 && v.index <= topForVerify.length;
+        const ok1 = valid(v1) ? v1! : null;
+        const ok2 = valid(v2) ? v2! : null;
+        console.log("match-city verify votes", { v1: ok1, v2: ok2, topForVerify: topForVerify.map((c) => c.pair) });
+
+        // Both reject → fall back to city-only row of the top filtered candidate.
+        if (ok1?.index === 0 && ok2?.index === 0) {
+          const topCityName = topForVerify[0]?.pair.city;
+          if (topCityName) {
+            const cityOnly = list.find((r) => r.city === topCityName && norm(r.city) === norm(r.area));
+            if (cityOnly) {
+              console.log("match-city verify: both rejected, using city-only", cityOnly);
+              final = cityOnly;
+            }
+          }
+        } else if (ok1 && ok2 && ok1.index > 0 && ok1.index === ok2.index) {
+          // Consensus on a specific candidate.
+          final = topForVerify[ok1.index - 1].pair;
+          console.log("match-city verify consensus", final);
+        } else {
+          // No consensus: prefer the verifier with highest confidence ≥ 0.75.
+          const best = [ok1, ok2]
+            .filter((v): v is { index: number; confidence: number } => !!v && v.index > 0)
+            .sort((a, b) => b.confidence - a.confidence)[0];
+          if (best && best.confidence >= 0.75) {
+            final = topForVerify[best.index - 1].pair;
+            console.log("match-city verify single-high-conf", final, "conf=", best.confidence);
+          }
+        }
+      }
+      // ===================================================
 
       // Final fallback: weak local hit if AIs gave nothing usable — but still
       // respect the service-area guard.
