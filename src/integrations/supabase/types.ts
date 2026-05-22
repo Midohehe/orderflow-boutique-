@@ -3184,6 +3184,33 @@ export type Database = {
         Returns: Json
       }
       get_effective_owner_id: { Args: { _uid: string }; Returns: string }
+      get_owner_product_costs: {
+        Args: { _product_ids?: string[] }
+        Returns: {
+          id: string
+          purchase_price: number
+        }[]
+      }
+      get_pixel_settings_public: {
+        Args: { _owner_id: string; _store_id?: string }
+        Returns: {
+          facebook_enabled: boolean
+          facebook_pixel_id: string
+          google_analytics_id: string
+          google_enabled: boolean
+          snapchat_enabled: boolean
+          snapchat_pixel_id: string
+          tiktok_enabled: boolean
+          tiktok_pixel_id: string
+        }[]
+      }
+      get_public_profile_by_username: {
+        Args: { _username: string }
+        Returns: {
+          is_active: boolean
+          user_id: string
+        }[]
+      }
       has_permission: { Args: { _key: string }; Returns: boolean }
       has_role: {
         Args: {
