@@ -141,12 +141,20 @@ const FinancialAccounts = () => {
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
+  const filteredAdSpends = useMemo(() => adSpends.filter(a => {
+    if (!inDateRange(a.spend_date)) return false;
+    if (selectedProduct === "all") return true;
+    const pr = products.find(p => p.name === selectedProduct);
+    return pr ? a.product_id === pr.id : false;
+  }), [adSpends, dateFrom, dateTo, selectedProduct, products]);
 
   // Core financials
   const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
   const totalCOGS = deliveredOrders.reduce((s, o) => s + orderCost(o), 0);
   const grossProfit = totalRevenue - totalCOGS;
-  const totalExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
+  const totalRegularExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
+  const totalAdSpend = filteredAdSpends.reduce((s, a) => s + Number(a.amount_local), 0);
+  const totalExpenses = totalRegularExpenses + totalAdSpend;
   const totalPurchases = selectedProduct === "all" ? filteredPurchases.reduce((s, p) => s + Number(p.amount), 0) : 0;
   const netProfit = grossProfit - totalExpenses;
 
