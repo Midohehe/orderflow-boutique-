@@ -38,6 +38,7 @@ interface ExpenseRow { id: string; amount: number; created_at: string; expense_t
 interface PurchaseRow { id: string; amount: number; created_at: string; }
 interface SafeRow { id: string; name: string; balance: number; }
 interface ExpenseTypeRow { id: string; name: string; }
+interface AdSpendRow { id: string; product_id: string | null; campaign_name: string | null; amount_local: number; spend_date: string; }
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -52,6 +53,7 @@ const FinancialAccounts = () => {
   const [expenseTypes, setExpenseTypes] = useState<ExpenseTypeRow[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
   const [safes, setSafes] = useState<SafeRow[]>([]);
+  const [adSpends, setAdSpends] = useState<AdSpendRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -63,7 +65,7 @@ const FinancialAccounts = () => {
     (async () => {
       setLoading(true);
       try {
-        const [o, p, oi, e, et, pu, sa] = await Promise.all([
+        const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
           supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
           supabase.from("products").select("id, name, purchase_price").eq("store_id", activeStoreId).is("deleted_at", null),
           supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
@@ -71,6 +73,7 @@ const FinancialAccounts = () => {
           supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId),
           supabase.from("purchases").select("id, amount, created_at").eq("store_id", activeStoreId),
           supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId),
+          supabase.from("ad_spends").select("id, product_id, campaign_name, amount_local, spend_date").eq("store_id", activeStoreId),
         ]);
         setOrders((o.data as Order[]) || []);
         setProducts((p.data as ProductRow[]) || []);
@@ -79,6 +82,7 @@ const FinancialAccounts = () => {
         setExpenseTypes((et.data as ExpenseTypeRow[]) || []);
         setPurchases((pu.data as PurchaseRow[]) || []);
         setSafes((sa.data as SafeRow[]) || []);
+        setAdSpends((ads.data as AdSpendRow[]) || []);
       } catch (err) {
         console.error(err);
         toast({ title: "خطأ", description: "تعذر تحميل البيانات", variant: "destructive" });
