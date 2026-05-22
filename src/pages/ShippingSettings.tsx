@@ -429,8 +429,9 @@ const ShippingSettingsPage = () => {
         .from("shipping_settings")
         .select("*")
         .eq("store_id", activeStoreId)
-        .maybeSingle();
-      if (data) setSettings(data as ShippingSettings);
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) setSettings(data[0] as ShippingSettings);
       else setSettings(DEFAULT);
       setLoading(false);
     })();

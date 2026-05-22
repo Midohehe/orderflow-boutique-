@@ -42,7 +42,7 @@ const Settlements = () => {
     const { data, error } = await supabase
       .from("settlements")
       .select("*")
-      .eq("store_id", activeStoreId)
+      .or(`store_id.eq.${activeStoreId},store_id.is.null`)
       .order("settlement_date", { ascending: false });
     if (error) {
       toast({ title: "خطأ", description: error.message, variant: "destructive" });
