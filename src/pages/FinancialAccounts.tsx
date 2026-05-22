@@ -76,7 +76,10 @@ const FinancialAccounts = () => {
           supabase.from("ad_spends").select("id, product_id, campaign_name, amount_local, spend_date").eq("store_id", activeStoreId),
         ]);
         setOrders((o.data as Order[]) || []);
-        setProducts((p.data as ProductRow[]) || []);
+        // Fetch sensitive purchase_price via secure RPC and merge
+        const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+        const cmap = new Map<string, number>((costs || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
+        setProducts(((p.data || []) as any[]).map((pr) => ({ ...pr, purchase_price: cmap.get(pr.id) ?? 0 })) as ProductRow[]);
         setOrderItems((oi.data as OrderItemRow[]) || []);
         setExpenses((e.data as ExpenseRow[]) || []);
         setExpenseTypes((et.data as ExpenseTypeRow[]) || []);
