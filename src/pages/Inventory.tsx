@@ -65,7 +65,7 @@ const Inventory = () => {
     setLoading(true);
     const q = supabase
       .from("products")
-      .select("id, name, price, purchase_price, stock, variant_stock, colors, sizes, product_codes")
+      .select("id, name, price, stock, variant_stock, colors, sizes, product_codes")
       .order("name", { ascending: true });
     const { data, error } = await q.eq("store_id", activeStoreId);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
