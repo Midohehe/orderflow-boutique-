@@ -35,6 +35,7 @@ const Inventory = lazy(() => import("./pages/Inventory"));
 const Safes = lazy(() => import("./pages/Safes"));
 const Expenses = lazy(() => import("./pages/Expenses"));
 const Purchases = lazy(() => import("./pages/Purchases"));
+const AdWallets = lazy(() => import("./pages/AdWallets"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const ThankYou = lazy(() => import("./pages/ThankYou"));
 const StoreFront = lazy(() => import("./pages/StoreFront"));
