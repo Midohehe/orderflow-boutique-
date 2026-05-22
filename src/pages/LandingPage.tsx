@@ -245,8 +245,8 @@ const LandingPage = () => {
               .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
           : Promise.resolve({ data: null, error: null } as any);
 
-        // Two-stage fetch: lightweight fields first (fast), images second (heavy base64)
-        const productLightSelect = "id, name, slug, price, original_price, description, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, size_chart_url, reviews";
+        // Two-stage fetch: lightweight fields first (fast), heavy fields (description/images/reviews) second
+        const productLightSelect = "id, name, slug, price, original_price, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, size_chart_url";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -256,7 +256,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, description, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs")
+          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -319,7 +319,7 @@ const LandingPage = () => {
             slug: lp?.slug || matched.slug,
             price: String(lp?.price ?? matched.price),
             original_price: (lp?.original_price ?? matched.original_price) ? String(lp?.original_price ?? matched.original_price) : undefined,
-            description: (lp?.description ?? matched.description) || "",
+            description: cachedProduct?.product?.description || "",
             images: lpImages.length ? lpImages : (cachedProduct?.product?.images || []),
             product_codes: matched.product_codes || [],
             colors: matched.colors || [],
@@ -334,23 +334,32 @@ const LandingPage = () => {
             ...(lp?.title ? { name: lp.title } : {}),
             stock: typeof (matched as any).stock === "number" ? (matched as any).stock : undefined,
             size_chart_url: (matched as any).size_chart_url || null,
-            reviews: Array.isArray((matched as any).reviews) ? (matched as any).reviews : [],
+            reviews: cachedProduct?.product?.reviews || [],
             faqs: Array.isArray(lp?.faqs) ? lp.faqs : [],
           };
           setProduct(loadedProduct);
 
-          // Fetch heavy product images separately فقط إذا لم تكن صفحة الهبوط تملك صورها الخاصة
-          if (!lpImages.length) {
-            supabase.from("products").select("images").eq("id", matched.id).maybeSingle().then(({ data }) => {
-              if (data?.images && (data.images as string[]).length) {
-                const imgs = data.images as string[];
-                setProduct((prev) => prev ? { ...prev, images: imgs } : prev);
-                setToCache(productCacheKey, { product: { ...(loadedProduct as Product), images: imgs }, ownerId: resolvedOwnerId || matched.owner_id });
-              }
-            });
-          } else {
-            setToCache(productCacheKey, { product: loadedProduct, ownerId: resolvedOwnerId || matched.owner_id });
-          }
+          // Fetch heavy fields (images/description/reviews) separately after first paint
+          const needProductHeavy = !lpImages.length;
+          const heavyProductPromise = needProductHeavy
+            ? supabase.from("products").select("images, description, reviews").eq("id", matched.id).maybeSingle()
+            : supabase.from("products").select("description, reviews").eq("id", matched.id).maybeSingle();
+          const heavyLandingPromise = lp
+            ? supabase.from("landing_pages").select("description").eq("id", lp.id).maybeSingle()
+            : Promise.resolve({ data: null } as any);
+
+          Promise.all([heavyProductPromise, heavyLandingPromise]).then(([prodHeavy, landingHeavy]: any[]) => {
+            const prodData = prodHeavy?.data || {};
+            const landingDesc = landingHeavy?.data?.description;
+            const finalDesc = (landingDesc ?? prodData.description) || "";
+            const finalReviews = Array.isArray(prodData.reviews) ? prodData.reviews : [];
+            const finalImages = needProductHeavy && Array.isArray(prodData.images) && prodData.images.length
+              ? prodData.images
+              : (loadedProduct as Product).images;
+            const merged: Product = { ...(loadedProduct as Product), description: finalDesc, reviews: finalReviews, images: finalImages };
+            setProduct(merged);
+            setToCache(productCacheKey, { product: merged, ownerId: resolvedOwnerId || matched.owner_id });
+          });
         }
 
         setLoading(false);
