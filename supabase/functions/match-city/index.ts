@@ -630,6 +630,50 @@ Deno.serve(async (req) => {
 
       let final: Pair | undefined = filtered[0]?.pair;
 
+      // ============ EXTRA VERIFICATION LAYER ============
+      // Two strong models judge the top-3 filtered candidates. We require
+      // consensus (both agree on same candidate) OR very high single-model
+      // confidence to override the first-pass pick. If they unanimously
+      // reject all top candidates (index=0), we drop to the city-only row.
+      const topForVerify = filtered.slice(0, 3);
+      if (apiKey && topForVerify.length >= 2) {
+        const [v1, v2] = await Promise.all([
+          verifyWithModel("google/gemini-2.5-pro", topForVerify, city || "", address || "", apiKey, 10000),
+          verifyWithModel("openai/gpt-5-mini", topForVerify, city || "", address || "", apiKey, 10000),
+        ]);
+        const valid = (v: { index: number; confidence: number } | null) =>
+          v && Number.isInteger(v.index) && v.index >= 0 && v.index <= topForVerify.length;
+        const ok1 = valid(v1) ? v1! : null;
+        const ok2 = valid(v2) ? v2! : null;
+        console.log("match-city verify votes", { v1: ok1, v2: ok2, topForVerify: topForVerify.map((c) => c.pair) });
+
+        // Both reject → fall back to city-only row of the top filtered candidate.
+        if (ok1?.index === 0 && ok2?.index === 0) {
+          const topCityName = topForVerify[0]?.pair.city;
+          if (topCityName) {
+            const cityOnly = list.find((r) => r.city === topCityName && norm(r.city) === norm(r.area));
+            if (cityOnly) {
+              console.log("match-city verify: both rejected, using city-only", cityOnly);
+              final = cityOnly;
+            }
+          }
+        } else if (ok1 && ok2 && ok1.index > 0 && ok1.index === ok2.index) {
+          // Consensus on a specific candidate.
+          final = topForVerify[ok1.index - 1].pair;
+          console.log("match-city verify consensus", final);
+        } else {
+          // No consensus: prefer the verifier with highest confidence ≥ 0.75.
+          const best = [ok1, ok2]
+            .filter((v): v is { index: number; confidence: number } => !!v && v.index > 0)
+            .sort((a, b) => b.confidence - a.confidence)[0];
+          if (best && best.confidence >= 0.75) {
+            final = topForVerify[best.index - 1].pair;
+            console.log("match-city verify single-high-conf", final, "conf=", best.confidence);
+          }
+        }
+      }
+      // ===================================================
+
       // Final fallback: weak local hit if AIs gave nothing usable — but still
       // respect the service-area guard.
       if (!final && topLocal && inputAllowsServiceArea(inputNormAll, topLocal.row.area)) {
