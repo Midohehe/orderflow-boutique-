@@ -500,18 +500,23 @@ const FinancialAccounts = () => {
                     <TableHead className="text-right">المنتج</TableHead>
                     <TableHead className="text-right">عدد الطلبات</TableHead>
                     <TableHead className="text-right">الإيرادات</TableHead>
-                    <TableHead className="text-right">الربح</TableHead>
+                    <TableHead className="text-right">الربح الإجمالي</TableHead>
+                    <TableHead className="text-right">تكلفة الإعلان</TableHead>
+                    <TableHead className="text-right">صافي الربح</TableHead>
                     <TableHead className="text-right">الهامش %</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {topProducts.map(p => {
-                      const m = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
+                      const net = p.profit - p.ad;
+                      const m = p.revenue > 0 ? (net / p.revenue) * 100 : 0;
                       return (
                         <TableRow key={p.name}>
                           <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell>{p.count}</TableCell>
                           <TableCell>{fmt(p.revenue)}</TableCell>
                           <TableCell className={p.profit >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>{fmt(p.profit)}</TableCell>
+                          <TableCell className="text-fuchsia-600">{fmt(p.ad)}</TableCell>
+                          <TableCell className={net >= 0 ? "text-emerald-600 font-bold" : "text-red-500 font-bold"}>{fmt(net)}</TableCell>
                           <TableCell>{m.toFixed(1)}%</TableCell>
                         </TableRow>
                       );
