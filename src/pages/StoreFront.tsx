@@ -47,10 +47,10 @@ const StoreFront = () => {
           setOwnerId(store.owner_id);
           setStoreId(store.id);
         } else {
-          const { data: prof } = await supabase
-          .from("profiles").select("user_id, is_active")
-          .eq("username", username).maybeSingle();
+          const { data: profArr } = await (supabase as any)
+            .rpc("get_public_profile_by_username", { _username: username });
           if (cancelled) return;
+          const prof = Array.isArray(profArr) ? profArr[0] : profArr;
           if (!prof || !prof.is_active) { setNotFound(true); setLoading(false); return; }
           resolvedOwnerId = prof.user_id;
           setOwnerId(prof.user_id);
