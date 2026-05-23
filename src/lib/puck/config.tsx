@@ -832,3 +832,84 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
 });
 
 export const EMPTY_PUCK_DATA = { content: [], root: { props: {} } };
+
+/**
+ * قالب ابتدائي يحاكي شكل صفحة الهبوط الحالية (بانر + مميزات + وصف + تقييمات + أسئلة).
+ * يُستخدم عند إنشاء قالب جديد ليبدأ المستخدم بتصميم جاهز للتعديل.
+ */
+export const LANDING_PAGE_STARTER_PUCK_DATA = {
+  content: [
+    {
+      type: "Hero",
+      props: {
+        id: "Hero-starter",
+        image: "",
+        title: "اطلب الآن واحصل على عرض حصري",
+        subtitle: "جودة عالية • شحن سريع لكل المدن • الدفع عند الاستلام",
+        button_text: "اطلب الآن",
+        button_link: "#order-form",
+        text_color: "#ffffff",
+        overlay: 0.45,
+        min_height: 380,
+        max_width: "full",
+        padding_top: 0,
+        padding_bottom: 0,
+      },
+    },
+    {
+      type: "Features",
+      props: {
+        id: "Features-starter",
+        title: "لماذا تختار منتجاتنا؟",
+        items: [
+          { icon: "🚚", title: "شحن لكل المدن", desc: "توصيل سريع لكل ليبيا" },
+          { icon: "💵", title: "الدفع عند الاستلام", desc: "ادفع عند وصول طلبك" },
+          { icon: "✅", title: "ضمان الجودة", desc: "منتجات أصلية 100%" },
+          { icon: "💬", title: "دعم متواصل", desc: "نحن هنا للمساعدة" },
+        ],
+        padding_top: 40,
+        padding_bottom: 40,
+      },
+    },
+    {
+      type: "RichText",
+      props: {
+        id: "RichText-starter",
+        html: "<h2>تفاصيل المنتج</h2><p>اكتب هنا وصفًا تفصيليًا للمنتج، مميزاته، وكيفية استخدامه. يمكنك إضافة صور وفيديوهات لإقناع العميل.</p>",
+        align: "right",
+        padding_top: 20,
+        padding_bottom: 20,
+      },
+    },
+    {
+      type: "Reviews",
+      props: {
+        id: "Reviews-starter",
+        title: "ماذا يقول عملاؤنا",
+        items: [
+          { name: "أحمد", text: "منتج ممتاز وجودة عالية. أنصح به!", rating: 5 },
+          { name: "فاطمة", text: "وصلني بسرعة والتغليف رائع.", rating: 5 },
+          { name: "محمد", text: "تجربة شراء مميزة، شكرًا لكم.", rating: 5 },
+        ],
+        padding_top: 40,
+        padding_bottom: 40,
+      },
+    },
+    {
+      type: "Faq",
+      props: {
+        id: "Faq-starter",
+        title: "الأسئلة الشائعة",
+        items: [
+          { q: "هل الدفع عند الاستلام؟", a: "نعم، تدفع للمندوب عند استلام طلبك." },
+          { q: "كم يستغرق التوصيل؟", a: "عادة من 2 إلى 4 أيام عمل حسب المدينة." },
+          { q: "هل يمكنني إرجاع المنتج؟", a: "نعم، خلال 7 أيام إذا كان المنتج في حالته الأصلية." },
+        ],
+        padding_top: 30,
+        padding_bottom: 30,
+        max_width: "narrow",
+      },
+    },
+  ],
+  root: { props: {} },
+};
