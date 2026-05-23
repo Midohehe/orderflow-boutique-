@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Star, ShoppingBag, ChevronDown } from "lucide-react";
+import { Star, ShoppingBag, ChevronDown, Facebook, Instagram, Twitter, Youtube, Send, Phone, Mail } from "lucide-react";
 
 export type PuckContext = {
   ownerId?: string;
@@ -15,54 +15,137 @@ export type PuckContext = {
 
 /* ---------- Shared style props (applied to every component) ---------- */
 type StyleProps = {
-  padding_y?: number;
-  padding_x?: number;
+  padding_top?: number;
+  padding_bottom?: number;
+  padding_left?: number;
+  padding_right?: number;
+  margin_top?: number;
+  margin_bottom?: number;
   max_width?: "full" | "container" | "narrow";
   bg_color?: string;
+  bg_gradient?: string;
+  bg_image?: string;
+  bg_size?: "cover" | "contain" | "auto";
   min_height?: number;
   text_align?: "right" | "center" | "left";
+  border_width?: number;
+  border_color?: string;
+  border_radius?: number;
+  shadow?: "none" | "sm" | "md" | "lg" | "xl";
+  animation?: "none" | "fade-in" | "fade-up" | "fade-down" | "zoom-in" | "slide-right" | "slide-left";
+  custom_class?: string;
+  custom_id?: string;
   hide_mobile?: boolean;
   hide_desktop?: boolean;
+  hide_tablet?: boolean;
+};
+
+const SHADOW_MAP: Record<string, string> = {
+  none: "none",
+  sm: "0 1px 2px rgba(0,0,0,0.08)",
+  md: "0 4px 12px rgba(0,0,0,0.12)",
+  lg: "0 10px 25px rgba(0,0,0,0.15)",
+  xl: "0 20px 50px rgba(0,0,0,0.25)",
 };
 
 const STYLE_FIELDS = {
-  padding_y: { type: "number" as const, label: "مسافة علوية/سفلية (px)", min: 0, max: 200 },
-  padding_x: { type: "number" as const, label: "مسافة جانبية (px)", min: 0, max: 100 },
+  // --- Spacing ---
+  padding_top:    { type: "number" as const, label: "حشو علوي (px)",  min: 0, max: 400 },
+  padding_bottom: { type: "number" as const, label: "حشو سفلي (px)",  min: 0, max: 400 },
+  padding_left:   { type: "number" as const, label: "حشو يسار (px)",  min: 0, max: 200 },
+  padding_right:  { type: "number" as const, label: "حشو يمين (px)",  min: 0, max: 200 },
+  margin_top:     { type: "number" as const, label: "هامش علوي (px)", min: 0, max: 200 },
+  margin_bottom:  { type: "number" as const, label: "هامش سفلي (px)", min: 0, max: 200 },
+  // --- Layout ---
   max_width: { type: "select" as const, label: "العرض الأقصى", options: [
     { label: "كامل العرض", value: "full" },
-    { label: "حاوية عادية (1200)", value: "container" },
+    { label: "حاوية (1200)", value: "container" },
     { label: "ضيق (768)", value: "narrow" },
   ]},
-  bg_color: { type: "text" as const, label: "لون الخلفية (hex/empty)" },
-  min_height: { type: "number" as const, label: "ارتفاع أدنى (px)", min: 0, max: 1000 },
+  min_height: { type: "number" as const, label: "ارتفاع أدنى (px)", min: 0, max: 1200 },
   text_align: { type: "select" as const, label: "محاذاة النص", options: [
     { label: "وسط", value: "center" }, { label: "يمين", value: "right" }, { label: "يسار", value: "left" },
   ]},
-  hide_mobile: { type: "radio" as const, label: "إخفاء على الجوال", options: [
-    { label: "لا", value: false }, { label: "نعم", value: true },
+  // --- Background ---
+  bg_color:    { type: "text" as const, label: "لون الخلفية (hex)" },
+  bg_gradient: { type: "text" as const, label: "تدرّج CSS مثل: linear-gradient(...)" },
+  bg_image:    { type: "text" as const, label: "رابط صورة الخلفية" },
+  bg_size: { type: "select" as const, label: "حجم خلفية الصورة", options: [
+    { label: "تغطية", value: "cover" }, { label: "احتواء", value: "contain" }, { label: "تلقائي", value: "auto" },
   ]},
-  hide_desktop: { type: "radio" as const, label: "إخفاء على الكمبيوتر", options: [
-    { label: "لا", value: false }, { label: "نعم", value: true },
+  // --- Border / Effects ---
+  border_width:  { type: "number" as const, label: "سماكة الحدّ (px)", min: 0, max: 20 },
+  border_color:  { type: "text" as const, label: "لون الحدّ (hex)" },
+  border_radius: { type: "number" as const, label: "تدوير الزوايا (px)", min: 0, max: 100 },
+  shadow: { type: "select" as const, label: "ظِل", options: [
+    { label: "بدون", value: "none" }, { label: "خفيف", value: "sm" }, { label: "متوسط", value: "md" },
+    { label: "كبير", value: "lg" }, { label: "ضخم", value: "xl" },
   ]},
+  animation: { type: "select" as const, label: "حركة الدخول", options: [
+    { label: "بدون", value: "none" }, { label: "ظهور", value: "fade-in" },
+    { label: "من الأسفل", value: "fade-up" }, { label: "من الأعلى", value: "fade-down" },
+    { label: "تكبير", value: "zoom-in" }, { label: "من اليمين", value: "slide-right" },
+    { label: "من اليسار", value: "slide-left" },
+  ]},
+  // --- Advanced ---
+  custom_class: { type: "text" as const, label: "CSS Class مخصص" },
+  custom_id:    { type: "text" as const, label: "ID مخصص (للروابط)" },
+  // --- Responsive ---
+  hide_mobile:  { type: "radio" as const, label: "إخفاء على الجوال",   options: [{ label: "لا", value: false }, { label: "نعم", value: true }] },
+  hide_tablet:  { type: "radio" as const, label: "إخفاء على التابلت",  options: [{ label: "لا", value: false }, { label: "نعم", value: true }] },
+  hide_desktop: { type: "radio" as const, label: "إخفاء على الكمبيوتر", options: [{ label: "لا", value: false }, { label: "نعم", value: true }] },
 };
 
 const STYLE_DEFAULTS: StyleProps = {
-  padding_y: 16, padding_x: 0, max_width: "container",
-  bg_color: "", min_height: 0, text_align: "center",
-  hide_mobile: false, hide_desktop: false,
+  padding_top: 16, padding_bottom: 16, padding_left: 0, padding_right: 0,
+  margin_top: 0, margin_bottom: 0,
+  max_width: "container", min_height: 0, text_align: "center",
+  bg_color: "", bg_gradient: "", bg_image: "", bg_size: "cover",
+  border_width: 0, border_color: "", border_radius: 0, shadow: "none",
+  animation: "none", custom_class: "", custom_id: "",
+  hide_mobile: false, hide_tablet: false, hide_desktop: false,
 };
 
 const StyleWrap = ({ s, children }: { s: StyleProps; children: React.ReactNode }) => {
   const maxW = s.max_width === "full" ? "100%" : s.max_width === "narrow" ? "768px" : "1200px";
-  const hideCls = `${s.hide_mobile ? "max-md:hidden " : ""}${s.hide_desktop ? "md:hidden " : ""}`;
+  const hideCls = [
+    s.hide_mobile ? "max-md:hidden" : "",
+    s.hide_tablet ? "max-lg:max-md:hidden md:max-lg:hidden" : "",
+    s.hide_desktop ? "lg:hidden" : "",
+    s.custom_class || "",
+    s.animation && s.animation !== "none" ? `puck-anim-${s.animation}` : "",
+  ].filter(Boolean).join(" ");
+  const bg: React.CSSProperties = {
+    backgroundColor: s.bg_color || undefined,
+    backgroundImage: s.bg_gradient
+      ? s.bg_gradient
+      : s.bg_image ? `url(${s.bg_image})` : undefined,
+    backgroundSize: s.bg_image ? s.bg_size || "cover" : undefined,
+    backgroundPosition: "center",
+  };
   return (
-    <div className={hideCls} style={{ backgroundColor: s.bg_color || undefined, width: "100%" }}>
+    <div
+      id={s.custom_id || undefined}
+      className={hideCls}
+      style={{
+        ...bg,
+        width: "100%",
+        marginTop: s.margin_top || undefined,
+        marginBottom: s.margin_bottom || undefined,
+      }}
+    >
       <div style={{
         maxWidth: maxW, marginInline: "auto",
-        paddingTop: s.padding_y, paddingBottom: s.padding_y,
-        paddingLeft: s.padding_x, paddingRight: s.padding_x,
+        paddingTop: s.padding_top, paddingBottom: s.padding_bottom,
+        paddingLeft: s.padding_left, paddingRight: s.padding_right,
         minHeight: s.min_height || undefined,
         textAlign: s.text_align as any,
+        borderWidth: s.border_width || undefined,
+        borderStyle: s.border_width ? "solid" : undefined,
+        borderColor: s.border_color || undefined,
+        borderRadius: s.border_radius || undefined,
+        boxShadow: s.shadow && s.shadow !== "none" ? SHADOW_MAP[s.shadow] : undefined,
+        overflow: s.border_radius ? "hidden" : undefined,
       }}>
         {children}
       </div>
@@ -71,9 +154,14 @@ const StyleWrap = ({ s, children }: { s: StyleProps; children: React.ReactNode }
 };
 
 const pickStyle = (p: any): StyleProps => ({
-  padding_y: p.padding_y, padding_x: p.padding_x, max_width: p.max_width,
-  bg_color: p.bg_color, min_height: p.min_height, text_align: p.text_align,
-  hide_mobile: p.hide_mobile, hide_desktop: p.hide_desktop,
+  padding_top: p.padding_top, padding_bottom: p.padding_bottom,
+  padding_left: p.padding_left, padding_right: p.padding_right,
+  margin_top: p.margin_top, margin_bottom: p.margin_bottom,
+  max_width: p.max_width, min_height: p.min_height, text_align: p.text_align,
+  bg_color: p.bg_color, bg_gradient: p.bg_gradient, bg_image: p.bg_image, bg_size: p.bg_size,
+  border_width: p.border_width, border_color: p.border_color, border_radius: p.border_radius,
+  shadow: p.shadow, animation: p.animation, custom_class: p.custom_class, custom_id: p.custom_id,
+  hide_mobile: p.hide_mobile, hide_tablet: p.hide_tablet, hide_desktop: p.hide_desktop,
 });
 
 /* ---------- Products grid (live data) ---------- */
