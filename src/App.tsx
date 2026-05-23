@@ -59,6 +59,7 @@ const ConfirmationCenter = lazy(() => import("./pages/ConfirmationCenter"));
 const ConfirmationSettings = lazy(() => import("./pages/ConfirmationSettings"));
 const ShippingErrorAliases = lazy(() => import("./pages/ShippingErrorAliases"));
 const ShippingZones = lazy(() => import("./pages/ShippingZones"));
+const ShippingPriceLists = lazy(() => import("./pages/ShippingPriceLists"));
 const MyStores = lazy(() => import("./pages/MyStores"));
 const HomeBuilder = lazy(() => import("./pages/HomeBuilder"));
 const PuckBuilder = lazy(() => import("./pages/PuckBuilder"));
@@ -142,6 +143,7 @@ const App = () => {
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
                 <Route path="shipping-zones" element={<ShippingZones />} />
+                <Route path="shipping-price-lists" element={<ShippingPriceLists />} />
                 <Route path="my-stores" element={<MyStores />} />
                 <Route path="whatsapp" element={<WhatsAppPage />} />
                 <Route path="sticker-designer" element={<StickerDesigner />} />
