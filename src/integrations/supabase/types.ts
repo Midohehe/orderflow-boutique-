@@ -1008,6 +1008,50 @@ export type Database = {
         }
         Relationships: []
       }
+      home_page_sections: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_visible: boolean
+          owner_id: string
+          position: number
+          section_type: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          owner_id: string
+          position?: number
+          section_type: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_visible?: boolean
+          owner_id?: string
+          position?: number
+          section_type?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "home_page_sections_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       landing_pages: {
         Row: {
           created_at: string
