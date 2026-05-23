@@ -553,12 +553,256 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
         );
       },
     },
+    Heading: {
+      label: "عنوان",
+      fields: {
+        text: { type: "text", label: "النص" },
+        tag: { type: "select", label: "نوع العنوان", options: [
+          { label: "H1", value: "h1" }, { label: "H2", value: "h2" }, { label: "H3", value: "h3" }, { label: "H4", value: "h4" },
+        ]},
+        size: { type: "number", label: "حجم الخط (px)", min: 10, max: 120 },
+        weight: { type: "number", label: "سماكة الخط (300-900)", min: 100, max: 900 },
+        color: { type: "text", label: "لون النص (hex)" },
+        letter_spacing: { type: "number", label: "تباعد الأحرف (px)", min: -5, max: 20 },
+        line_height: { type: "number", label: "ارتفاع السطر (×10)", min: 8, max: 30 },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { text: "عنوان رئيسي", tag: "h2", size: 36, weight: 800, color: "", letter_spacing: 0, line_height: 13, ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { text, tag, size, weight, color, letter_spacing, line_height } = p as any;
+        const Tag: any = tag || "h2";
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <Tag style={{ fontSize: size, fontWeight: weight, color: color || undefined, letterSpacing: letter_spacing, lineHeight: (line_height || 13) / 10, margin: 0 }}>{text}</Tag>
+          </StyleWrap>
+        );
+      },
+    },
+    ButtonBlock: {
+      label: "زر",
+      fields: {
+        text: { type: "text", label: "النص" },
+        link: { type: "text", label: "الرابط" },
+        variant: { type: "select", label: "النمط", options: [
+          { label: "ممتلئ", value: "solid" }, { label: "إطار فقط", value: "outline" },
+          { label: "شفاف", value: "ghost" }, { label: "تدرّج", value: "gradient" },
+        ]},
+        size: { type: "select", label: "الحجم", options: [
+          { label: "صغير", value: "sm" }, { label: "متوسط", value: "md" }, { label: "كبير", value: "lg" }, { label: "ضخم", value: "xl" },
+        ]},
+        bg: { type: "text", label: "لون الزر (hex)" },
+        color: { type: "text", label: "لون النص (hex)" },
+        rounded: { type: "number", label: "تدوير الزوايا (px)", min: 0, max: 999 },
+        full_width: { type: "radio", label: "عرض كامل", options: [{ label: "لا", value: false }, { label: "نعم", value: true }] },
+        new_tab: { type: "radio", label: "فتح في تبويب جديد", options: [{ label: "لا", value: false }, { label: "نعم", value: true }] },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { text: "اضغط هنا", link: "#", variant: "solid", size: "md", bg: "#7c3aed", color: "#ffffff", rounded: 8, full_width: false, new_tab: false, ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { text, link, variant, size, bg, color, rounded, full_width, new_tab } = p as any;
+        const sizeMap: any = { sm: "8px 16px", md: "12px 24px", lg: "16px 32px", xl: "20px 44px" };
+        const fontMap: any = { sm: 13, md: 15, lg: 17, xl: 20 };
+        const style: React.CSSProperties = {
+          display: full_width ? "block" : "inline-block",
+          width: full_width ? "100%" : undefined,
+          padding: sizeMap[size || "md"],
+          fontSize: fontMap[size || "md"],
+          fontWeight: 700, borderRadius: rounded,
+          textDecoration: "none", textAlign: "center" as const, transition: "all .2s",
+          background: variant === "gradient" ? `linear-gradient(135deg, ${bg || "#7c3aed"}, ${color || "#ec4899"})`
+            : variant === "solid" ? bg : variant === "outline" ? "transparent" : "transparent",
+          color: variant === "outline" ? bg : color,
+          border: variant === "outline" ? `2px solid ${bg}` : "none",
+          cursor: "pointer",
+        };
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <a href={link || "#"} target={new_tab ? "_blank" : undefined} rel={new_tab ? "noopener" : undefined} style={style}>{text}</a>
+          </StyleWrap>
+        );
+      },
+    },
+    ImageBlock: {
+      label: "صورة",
+      fields: {
+        src: { type: "text", label: "رابط الصورة" },
+        alt: { type: "text", label: "النص البديل" },
+        link: { type: "text", label: "رابط عند الضغط" },
+        width: { type: "number", label: "العرض (px، 0 = تلقائي)", min: 0, max: 2000 },
+        height: { type: "number", label: "الارتفاع (px، 0 = تلقائي)", min: 0, max: 2000 },
+        fit: { type: "select", label: "الملاءمة", options: [{ label: "تغطية", value: "cover" }, { label: "احتواء", value: "contain" }] },
+        rounded: { type: "number", label: "تدوير الزوايا (px)", min: 0, max: 999 },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { src: "", alt: "", link: "", width: 0, height: 0, fit: "cover", rounded: 12, ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { src, alt, link, width, height, fit, rounded } = p as any;
+        const img = src ? (
+          <img src={src} alt={alt || ""} style={{
+            width: width || "100%", height: height || "auto",
+            objectFit: fit, borderRadius: rounded, display: "inline-block", maxWidth: "100%",
+          }} />
+        ) : <div className="p-8 border-2 border-dashed rounded-xl text-muted-foreground">أضف رابط الصورة</div>;
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {link ? <a href={link}>{img}</a> : img}
+          </StyleWrap>
+        );
+      },
+    },
+    Columns: {
+      label: "أعمدة (Row)",
+      fields: {
+        count: { type: "select", label: "عدد الأعمدة", options: [{ label: "2", value: 2 }, { label: "3", value: 3 }, { label: "4", value: 4 }] },
+        gap: { type: "number", label: "المسافة بين الأعمدة (px)", min: 0, max: 80 },
+        col1: { type: "textarea", label: "محتوى العمود 1 (HTML)" },
+        col2: { type: "textarea", label: "محتوى العمود 2 (HTML)" },
+        col3: { type: "textarea", label: "محتوى العمود 3 (HTML)" },
+        col4: { type: "textarea", label: "محتوى العمود 4 (HTML)" },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { count: 2, gap: 24, col1: "<h3>عمود 1</h3><p>نص</p>", col2: "<h3>عمود 2</h3><p>نص</p>", col3: "", col4: "", ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { count, gap, col1, col2, col3, col4 } = p as any;
+        const cols = [col1, col2, col3, col4].slice(0, count).filter((_: any, i: number) => i < count);
+        const gridCls = count === 2 ? "md:grid-cols-2" : count === 3 ? "md:grid-cols-3" : "md:grid-cols-2 lg:grid-cols-4";
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <div className={`grid grid-cols-1 ${gridCls}`} style={{ gap }}>
+              {cols.map((c: string, i: number) => (
+                <div key={i} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(c || "") }} />
+              ))}
+            </div>
+          </StyleWrap>
+        );
+      },
+    },
+    Divider: {
+      label: "فاصل",
+      fields: {
+        thickness: { type: "number", label: "السماكة (px)", min: 1, max: 20 },
+        color: { type: "text", label: "اللون (hex)" },
+        style: { type: "select", label: "النمط", options: [
+          { label: "متّصل", value: "solid" }, { label: "متقطّع", value: "dashed" }, { label: "نقاط", value: "dotted" },
+        ]},
+        width_pct: { type: "number", label: "العرض (%)", min: 10, max: 100 },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { thickness: 1, color: "#e5e7eb", style: "solid", width_pct: 100, ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { thickness, color, style, width_pct } = p as any;
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <hr style={{ borderTop: `${thickness}px ${style} ${color}`, borderBottom: "none", borderLeft: "none", borderRight: "none", width: `${width_pct}%`, margin: "0 auto" }} />
+          </StyleWrap>
+        );
+      },
+    },
+    IconBox: {
+      label: "صندوق أيقونة",
+      fields: {
+        icon: { type: "text", label: "الإيموجي/أيقونة" },
+        title: { type: "text", label: "العنوان" },
+        desc: { type: "textarea", label: "الوصف" },
+        color: { type: "text", label: "لون الأيقونة (hex)" },
+        size: { type: "number", label: "حجم الأيقونة (px)", min: 20, max: 200 },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { icon: "🎯", title: "ميزة مميزة", desc: "وصف الميزة هنا", color: "#7c3aed", size: 56, ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { icon, title, desc, color, size } = p as any;
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <div className="flex flex-col items-center gap-3">
+              <div style={{ fontSize: size, color, lineHeight: 1 }}>{icon}</div>
+              {title && <h3 className="font-bold text-xl">{title}</h3>}
+              {desc && <p className="text-muted-foreground">{desc}</p>}
+            </div>
+          </StyleWrap>
+        );
+      },
+    },
+    Countdown: {
+      label: "عدّاد تنازلي",
+      fields: {
+        title: { type: "text", label: "العنوان" },
+        target: { type: "text", label: "التاريخ المستهدف (YYYY-MM-DD HH:MM)" },
+        color: { type: "text", label: "لون الأرقام (hex)" },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { title: "ينتهي العرض خلال:", target: "", color: "#7c3aed", ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { title, target, color } = p as any;
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <CountdownWidget title={title} target={target} color={color} />
+          </StyleWrap>
+        );
+      },
+    },
+    SocialIcons: {
+      label: "أيقونات التواصل",
+      fields: {
+        facebook: { type: "text", label: "رابط Facebook" },
+        instagram: { type: "text", label: "رابط Instagram" },
+        whatsapp: { type: "text", label: "رقم WhatsApp (218...)" },
+        tiktok: { type: "text", label: "رابط TikTok" },
+        youtube: { type: "text", label: "رابط YouTube" },
+        email: { type: "text", label: "بريد إلكتروني" },
+        size: { type: "number", label: "حجم الأيقونة (px)", min: 16, max: 80 },
+        color: { type: "text", label: "لون الأيقونات (hex)" },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { facebook: "", instagram: "", whatsapp: "", tiktok: "", youtube: "", email: "", size: 28, color: "#7c3aed", ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { facebook, instagram, whatsapp, tiktok, youtube, email, size, color } = p as any;
+        const items = [
+          { url: facebook, Icon: Facebook },
+          { url: instagram, Icon: Instagram },
+          { url: whatsapp ? `https://wa.me/${whatsapp}` : "", Icon: Phone },
+          { url: tiktok, Icon: Send },
+          { url: youtube, Icon: Youtube },
+          { url: email ? `mailto:${email}` : "", Icon: Mail },
+        ].filter(x => x.url);
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              {items.map(({ url, Icon }, i) => (
+                <a key={i} href={url} target="_blank" rel="noopener" className="hover:scale-110 transition">
+                  <Icon style={{ width: size, height: size, color }} />
+                </a>
+              ))}
+            </div>
+          </StyleWrap>
+        );
+      },
+    },
+    GoogleMap: {
+      label: "خريطة Google",
+      fields: {
+        embed_url: { type: "textarea", label: "رابط Embed من Google Maps" },
+        height: { type: "number", label: "الارتفاع (px)", min: 200, max: 800 },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { embed_url: "", height: 400, ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { embed_url, height } = p as any;
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {embed_url
+              ? <iframe src={embed_url} style={{ width: "100%", height, border: 0, borderRadius: 12 }} loading="lazy" />
+              : <div className="p-8 text-center border-2 border-dashed rounded-xl text-muted-foreground">أدخل رابط Embed</div>}
+          </StyleWrap>
+        );
+      },
+    },
   },
   categories: {
-    layout: { title: "تخطيط", components: ["Hero", "Banner", "PromoBar", "Spacer"] },
-    content: { title: "محتوى", components: ["RichText", "Video", "Faq", "Features", "Reviews"] },
-    commerce: { title: "متجر", components: ["ProductsGrid", "CategoriesGrid"] },
-    custom: { title: "مخصص", components: ["HtmlBlock"] },
+    layout:   { title: "تخطيط",  components: ["Hero", "Banner", "PromoBar", "Columns", "Divider", "Spacer"] },
+    basic:    { title: "أساسي",  components: ["Heading", "RichText", "ButtonBlock", "ImageBlock", "IconBox"] },
+    content:  { title: "محتوى",  components: ["Video", "Faq", "Features", "Reviews", "Countdown", "SocialIcons", "GoogleMap"] },
+    commerce: { title: "متجر",   components: ["ProductsGrid", "CategoriesGrid"] },
+    custom:   { title: "مخصص",   components: ["HtmlBlock"] },
   },
 });
 
