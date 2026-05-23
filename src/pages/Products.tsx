@@ -127,6 +127,7 @@ const Products = () => {
   const [editLp, setEditLp] = useState<LandingPageFormData>(emptyLandingPageData);
   const [isSavingLp, setIsSavingLp] = useState(false);
   const [deleteLpTarget, setDeleteLpTarget] = useState<LandingPage | null>(null);
+  const [lpTemplates, setLpTemplates] = useState<Array<{ id: string; name: string; is_default: boolean; puck_data: any }>>([]);
 
   // عداد صفحات الهبوط لكل منتج
   const lpCountByProduct = landingPages.reduce<Record<string, number>>((acc, lp) => {
