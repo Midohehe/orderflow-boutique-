@@ -13,6 +13,69 @@ export type PuckContext = {
   currencySymbol?: string;
 };
 
+/* ---------- Shared style props (applied to every component) ---------- */
+type StyleProps = {
+  padding_y?: number;
+  padding_x?: number;
+  max_width?: "full" | "container" | "narrow";
+  bg_color?: string;
+  min_height?: number;
+  text_align?: "right" | "center" | "left";
+  hide_mobile?: boolean;
+  hide_desktop?: boolean;
+};
+
+const STYLE_FIELDS = {
+  padding_y: { type: "number" as const, label: "مسافة علوية/سفلية (px)", min: 0, max: 200 },
+  padding_x: { type: "number" as const, label: "مسافة جانبية (px)", min: 0, max: 100 },
+  max_width: { type: "select" as const, label: "العرض الأقصى", options: [
+    { label: "كامل العرض", value: "full" },
+    { label: "حاوية عادية (1200)", value: "container" },
+    { label: "ضيق (768)", value: "narrow" },
+  ]},
+  bg_color: { type: "text" as const, label: "لون الخلفية (hex/empty)" },
+  min_height: { type: "number" as const, label: "ارتفاع أدنى (px)", min: 0, max: 1000 },
+  text_align: { type: "select" as const, label: "محاذاة النص", options: [
+    { label: "وسط", value: "center" }, { label: "يمين", value: "right" }, { label: "يسار", value: "left" },
+  ]},
+  hide_mobile: { type: "radio" as const, label: "إخفاء على الجوال", options: [
+    { label: "لا", value: false }, { label: "نعم", value: true },
+  ]},
+  hide_desktop: { type: "radio" as const, label: "إخفاء على الكمبيوتر", options: [
+    { label: "لا", value: false }, { label: "نعم", value: true },
+  ]},
+};
+
+const STYLE_DEFAULTS: StyleProps = {
+  padding_y: 16, padding_x: 0, max_width: "container",
+  bg_color: "", min_height: 0, text_align: "center",
+  hide_mobile: false, hide_desktop: false,
+};
+
+const StyleWrap = ({ s, children }: { s: StyleProps; children: React.ReactNode }) => {
+  const maxW = s.max_width === "full" ? "100%" : s.max_width === "narrow" ? "768px" : "1200px";
+  const hideCls = `${s.hide_mobile ? "max-md:hidden " : ""}${s.hide_desktop ? "md:hidden " : ""}`;
+  return (
+    <div className={hideCls} style={{ backgroundColor: s.bg_color || undefined, width: "100%" }}>
+      <div style={{
+        maxWidth: maxW, marginInline: "auto",
+        paddingTop: s.padding_y, paddingBottom: s.padding_y,
+        paddingLeft: s.padding_x, paddingRight: s.padding_x,
+        minHeight: s.min_height || undefined,
+        textAlign: s.text_align as any,
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const pickStyle = (p: any): StyleProps => ({
+  padding_y: p.padding_y, padding_x: p.padding_x, max_width: p.max_width,
+  bg_color: p.bg_color, min_height: p.min_height, text_align: p.text_align,
+  hide_mobile: p.hide_mobile, hide_desktop: p.hide_desktop,
+});
+
 /* ---------- Products grid (live data) ---------- */
 const ProductsGrid = ({
   title, limit, columns, ctx,
