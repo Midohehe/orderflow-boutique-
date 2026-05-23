@@ -136,6 +136,7 @@ const App = () => {
                 <Route path="header" element={<HeaderSettings />} />
                 <Route path="home-builder" element={<HomeBuilder />} />
                 <Route path="page-builder" element={<PuckBuilder />} />
+                <Route path="themes" element={<Themes />} />
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
                 <Route path="shipping-zones" element={<ShippingZones />} />
