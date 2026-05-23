@@ -518,6 +518,7 @@ const LandingPage = () => {
 
   // Track checkout start when user starts filling the form
   const [checkoutTracked, setCheckoutTracked] = useState(false);
+  const [puckData, setPuckData] = useState<any>(null);
 
   const handleInputChange = (fieldKey: string, value: string) => {
     let cleanedValue = value;
