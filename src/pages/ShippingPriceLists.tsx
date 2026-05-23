@@ -4,7 +4,7 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Trash2, Plus, Save } from "lucide-react";
+import { Trash2, Plus, Save, Truck } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PageHeader from "@/components/PageHeader";
 
@@ -88,7 +88,7 @@ export default function ShippingPriceLists() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <PageHeader title="قوائم أسعار الشحن" description="أسعار التوصيل لكل مدينة، يستخدمها الذكاء الاصطناعي في المحادثات." />
+      <PageHeader icon={Truck} title="قوائم أسعار الشحن" description="أسعار التوصيل لكل مدينة، يستخدمها الذكاء الاصطناعي في المحادثات." />
 
       {isAdmin && (
         <div className="flex flex-wrap gap-2">
