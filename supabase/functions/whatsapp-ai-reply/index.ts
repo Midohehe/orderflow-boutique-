@@ -151,6 +151,39 @@ Deno.serve(async (req) => {
       `• ${p.name} — ${p.price} (id:${p.id.slice(0, 8)}${p.colors?.length ? " | ألوان:" + p.colors.join("،") : ""}${p.sizes?.length ? " | مقاسات:" + p.sizes.join("،") : ""})`
     ).join("\n");
 
+    // Detect product slug from any URL the customer sent (e.g. landing page /p/<slug>)
+    let focusedProductInfo = "";
+    try {
+      const slugRegex = /\/p\/([a-zA-Z0-9_-]+)/g;
+      const slugs: string[] = [];
+      for (const m of (messages || [])) {
+        if (m.direction !== "in" || !m.content) continue;
+        let match: RegExpExecArray | null;
+        const re = new RegExp(slugRegex.source, "g");
+        while ((match = re.exec(m.content)) !== null) {
+          if (match[1]) slugs.push(match[1]);
+        }
+      }
+      const lastSlug = slugs[slugs.length - 1];
+      if (lastSlug) {
+        const focused = products.find((p: any) => p.slug === lastSlug)
+          || (await supabase.from("products")
+            .select("id, name, slug, price, colors, sizes, stock, description")
+            .eq("owner_id", owner_id).eq("slug", lastSlug).maybeSingle()).data;
+        if (focused) {
+          focusedProductInfo = `
+⭐ المنتج الذي دخل منه الزبون (من رابط صفحة الهبوط):
+- الاسم: ${focused.name}
+- المعرف: ${focused.id.slice(0, 8)}
+- السعر: ${focused.price} ${currency}
+${focused.colors?.length ? `- الألوان: ${focused.colors.join("، ")}\n` : ""}${focused.sizes?.length ? `- المقاسات: ${focused.sizes.join("، ")}\n` : ""}${focused.description ? `- الوصف: ${String(focused.description).replace(/<[^>]+>/g, "").slice(0, 300)}\n` : ""}
+اعتبر هذا المنتج هو محور الحديث ما لم يطلب الزبون منتجاً آخر صراحةً.`;
+        }
+      }
+    } catch (e) {
+      console.error("focused product detect failed", e);
+    }
+
     // Currency
     const { data: storeSettings } = await supabase
       .from("store_settings").select("currency_symbol").eq("owner_id", owner_id).maybeSingle();
@@ -182,6 +215,7 @@ Deno.serve(async (req) => {
 11. العملة: ${currency}.
 
 ${orderInfo}
+${focusedProductInfo}
 
 قائمة المنتجات المتاحة:
 ${catalogBrief || "(لا يوجد منتجات)"}
