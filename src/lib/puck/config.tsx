@@ -235,6 +235,31 @@ const FaqItem = ({ q, a }: { q: string; a: string }) => {
   );
 };
 
+const CountdownWidget = ({ title, target, color }: { title: string; target: string; color: string }) => {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const end = target ? new Date(target).getTime() : 0;
+  const diff = Math.max(0, end - now);
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff / 3600000) % 24);
+  const m = Math.floor((diff / 60000) % 60);
+  const s = Math.floor((diff / 1000) % 60);
+  const unit = (val: number, lbl: string) => (
+    <div className="text-center">
+      <div style={{ color, fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{String(val).padStart(2, "0")}</div>
+      <div className="text-xs text-muted-foreground mt-1">{lbl}</div>
+    </div>
+  );
+  return (
+    <div>
+      {title && <h3 className="text-xl font-bold text-center mb-4">{title}</h3>}
+      <div className="flex items-center justify-center gap-6">
+        {unit(d, "يوم")} {unit(h, "ساعة")} {unit(m, "دقيقة")} {unit(s, "ثانية")}
+      </div>
+    </div>
+  );
+};
+
 export type PuckProps = {
   Hero: StyleProps & { image: string; title: string; subtitle: string; button_text: string; button_link: string; text_color: string; overlay: number };
   Banner: StyleProps & { image: string; link: string; alt: string };
