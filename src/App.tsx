@@ -62,6 +62,7 @@ const ShippingZones = lazy(() => import("./pages/ShippingZones"));
 const MyStores = lazy(() => import("./pages/MyStores"));
 const HomeBuilder = lazy(() => import("./pages/HomeBuilder"));
 const PuckBuilder = lazy(() => import("./pages/PuckBuilder"));
+const Themes = lazy(() => import("./pages/Themes"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
