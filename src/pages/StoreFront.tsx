@@ -8,6 +8,7 @@ import StoreHeader from "@/components/StoreHeader";
 import { isolateLatin } from "@/lib/bidi";
 import { SectionRenderer } from "@/components/home-sections/SectionRenderer";
 import type { HomeSectionRow } from "@/lib/homeSections";
+import { PuckRender } from "@/components/PuckRender";
 
 interface Product {
   id: string;
@@ -31,6 +32,7 @@ const StoreFront = () => {
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: 'د.ل' });
   const [sections, setSections] = useState<HomeSectionRow[]>([]);
   const [hasBuilder, setHasBuilder] = useState(false);
+  const [puckData, setPuckData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -82,11 +84,15 @@ const StoreFront = () => {
       const sectionsQuery = resolvedStoreId
         ? supabase.from('home_page_sections').select('*').eq('store_id', resolvedStoreId).eq('is_visible', true).order('position')
         : Promise.resolve({ data: [] as any[] });
+      const layoutQuery = resolvedStoreId
+        ? supabase.from('store_page_layouts' as any).select('puck_data').eq('store_id', resolvedStoreId).eq('page_key', 'home').eq('is_published', true).maybeSingle()
+        : Promise.resolve({ data: null });
 
-      const [productsRes, settingsRes, sectionsRes] = await Promise.all([
+      const [productsRes, settingsRes, sectionsRes, layoutRes] = await Promise.all([
         productsQuery,
         settingsQuery.maybeSingle(),
         sectionsQuery as any,
+        layoutQuery as any,
       ]);
       if (cancelled) return;
 
@@ -96,7 +102,9 @@ const StoreFront = () => {
       if (settingsRes.data) setStoreSettings({ currency_symbol: settingsRes.data.currency_symbol });
       const secs = (sectionsRes?.data || []) as HomeSectionRow[];
       setSections(secs);
-      setHasBuilder(secs.length > 0);
+      const pd = (layoutRes as any)?.data?.puck_data || null;
+      setPuckData(pd);
+      setHasBuilder(secs.length > 0 || !!pd);
       setLoading(false);
     };
 
@@ -124,7 +132,11 @@ const StoreFront = () => {
     <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6" dir="rtl">
       <StoreHeader ownerId={ownerId || undefined} />
 
-      {sections.length > 0 && ownerId && storeId && (
+      {puckData && ownerId && storeId && (
+        <PuckRender data={puckData} ctx={{ ownerId, storeId, username, currencySymbol: storeSettings.currency_symbol }} />
+      )}
+
+      {!puckData && sections.length > 0 && ownerId && storeId && (
         <div className="space-y-2">
           {sections.map((s) => (
             <SectionRenderer
