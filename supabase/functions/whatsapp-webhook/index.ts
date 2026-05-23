@@ -28,6 +28,18 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
   return null;
 }
 
+function isStructuredConfirmationPrompt(text: string | null | undefined): boolean {
+  const t = (text || "").trim();
+  return t.includes("للتأكيد أرسل") && t.includes("للإلغاء أرسل");
+}
+
+function isRecentEnough(ts: string | null | undefined, maxAgeMs: number): boolean {
+  if (!ts) return false;
+  const time = new Date(ts).getTime();
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time <= maxAgeMs;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -181,7 +193,23 @@ Deno.serve(async (req) => {
       // Auto-confirm intent handling
       if (msgType === "text" && convOrderId && settings.auto_confirm_enabled) {
         const intent = parseConfirmIntent(content);
-        if (intent) {
+        const { data: lastOutgoing } = await supabase
+          .from("whatsapp_messages")
+          .select("content, created_at, order_id")
+          .eq("conversation_id", conversationId)
+          .eq("direction", "out")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const canUseAutoConfirm = !!(
+          intent &&
+          lastOutgoing?.order_id === convOrderId &&
+          isStructuredConfirmationPrompt(lastOutgoing?.content) &&
+          isRecentEnough(lastOutgoing?.created_at, 1000 * 60 * 60 * 24)
+        );
+
+        if (intent && canUseAutoConfirm) {
           // Mirror the manual confirm flow in Orders page:
           // only update confirmation_status (keep order.status as-is so workflow tabs stay correct).
           await supabase.from("orders").update({
@@ -221,6 +249,15 @@ Deno.serve(async (req) => {
           }
 
           return new Response("ok");
+        }
+
+        if (intent && !canUseAutoConfirm) {
+          console.log("Skipping auto-confirm; latest outgoing message is not an active confirmation prompt", {
+            conversationId,
+            convOrderId,
+            lastOutgoingOrderId: lastOutgoing?.order_id ?? null,
+            lastOutgoingPreview: (lastOutgoing?.content || "").slice(0, 80),
+          });
         }
       }
 
