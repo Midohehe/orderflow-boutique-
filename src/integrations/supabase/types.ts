@@ -1016,6 +1016,7 @@ export type Database = {
           is_visible: boolean
           owner_id: string
           position: number
+          puck_data: Json | null
           section_type: string
           store_id: string
           updated_at: string
@@ -1027,6 +1028,7 @@ export type Database = {
           is_visible?: boolean
           owner_id: string
           position?: number
+          puck_data?: Json | null
           section_type: string
           store_id: string
           updated_at?: string
@@ -1038,6 +1040,7 @@ export type Database = {
           is_visible?: boolean
           owner_id?: string
           position?: number
+          puck_data?: Json | null
           section_type?: string
           store_id?: string
           updated_at?: string
@@ -2822,6 +2825,47 @@ export type Database = {
           store_id?: string
         }
         Relationships: []
+      }
+      store_page_layouts: {
+        Row: {
+          created_at: string
+          id: string
+          is_published: boolean
+          owner_id: string
+          page_key: string
+          puck_data: Json
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          owner_id: string
+          page_key?: string
+          puck_data?: Json
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          owner_id?: string
+          page_key?: string
+          puck_data?: Json
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_page_layouts_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       store_settings: {
         Row: {
