@@ -1235,7 +1235,15 @@ const Products = () => {
               </DialogContent>
             </Dialog>
           ) : (
-            <Dialog open={isLpAddOpen} onOpenChange={(o) => { setIsLpAddOpen(o); if (!o) setNewLp(emptyLandingPageData); }}>
+            <Dialog open={isLpAddOpen} onOpenChange={(o) => {
+              setIsLpAddOpen(o);
+              if (o) {
+                const def = lpTemplates.find((t) => t.is_default);
+                if (def && !newLp.templateId) setNewLp((prev) => ({ ...prev, templateId: def.id }));
+              } else {
+                setNewLp(emptyLandingPageData);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
                   <Plus className="w-4 h-4" />
