@@ -173,8 +173,9 @@ Deno.serve(async (req) => {
 7. إذا أراد الزبون تقديم طلب جديد عبر المحادثة:
    - اجمع: المنتج (من القائمة)، الكمية، اللون/المقاس إذا المنتج عنده خيارات، الاسم، العنوان، المدينة.
    - اعرض ملخص الطلب وسعر التوصيل قبل التأكيد.
-   - بعد موافقة الزبون، استدعِ الأداة create_order.
-   - أخبره برقم الطلب بعد الإنشاء.
+   - بعد موافقة الزبون، **يجب** أن تستدعي الأداة create_order فوراً. ممنوع قول "تم حجز الطلب" أو "تم إنشاء الطلب" قبل أن تستدعي الأداة وتستلم نتيجة ok=true.
+   - إذا استدعيت الأداة وأرجعت خطأ، أبلغ الزبون بالخطأ. لا تتظاهر بنجاح الطلب أبداً.
+   - بعد نجاح create_order فقط، أخبر الزبون برقم الطلب الذي رجع من الأداة.
 8. إذا أراد تأكيد طلب سابق: قل له "للتأكيد أرسل: 1 أو نعم".
 9. إذا أراد إلغاء طلب: قل له "للإلغاء أرسل: 2 أو لا".
 10. إذا لم تفهم سؤاله، قل: "سأقوم بتحويلك لموظف متخصص للمساعدة."
@@ -348,6 +349,7 @@ ${catalogBrief || "(لا يوجد منتجات)"}
       const msg = aiData.choices?.[0]?.message;
       if (!msg) break;
       const toolCalls = msg.tool_calls || [];
+      console.log(`[ai-loop ${i}] tool_calls=${toolCalls.length} content_preview=${(msg.content||'').slice(0,80)}`);
       if (toolCalls.length === 0) {
         replyText = (msg.content || "").trim();
         break;
@@ -356,7 +358,9 @@ ${catalogBrief || "(لا يوجد منتجات)"}
       for (const tc of toolCalls) {
         let args: any = {};
         try { args = JSON.parse(tc.function?.arguments || "{}"); } catch {}
+        console.log(`[ai-loop ${i}] calling tool ${tc.function?.name} args=${JSON.stringify(args).slice(0,200)}`);
         const result = await runTool(tc.function?.name, args);
+        console.log(`[ai-loop ${i}] tool ${tc.function?.name} result=${result.slice(0,200)}`);
         chatMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
       }
     }
