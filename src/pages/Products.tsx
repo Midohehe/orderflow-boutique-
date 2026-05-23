@@ -976,6 +976,7 @@ const Products = () => {
     setIsSavingLp(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const chosenTpl = newLp.templateId ? lpTemplates.find((t) => t.id === newLp.templateId) : null;
       const { data, error } = await supabase.from("landing_pages").insert({
         owner_id: user!.id,
         store_id: activeStoreId,
@@ -1002,7 +1003,9 @@ const Products = () => {
         faqs: (newLp.faqs || [])
           .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
           .filter((f) => f.question && f.answer),
-      }).select("id, product_id, slug, title, subtitle, is_visible").single();
+        template_id: chosenTpl?.id || null,
+        puck_data: chosenTpl?.puck_data ?? null,
+      } as any).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
         if (error.code === "23505") {
           toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً، اختر رابطًا آخر", variant: "destructive" });
