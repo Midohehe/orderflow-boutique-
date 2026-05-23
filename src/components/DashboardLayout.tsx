@@ -78,6 +78,7 @@ const baseMenuGroups = [
     items: [
       { icon: Truck, label: "شركة الشحن", path: "/dashboard/shipping", external: false, adminOnly: false, dynamicStore: false },
       { icon: Truck, label: "مدن ومناطق الشحن", path: "/dashboard/shipping-zones", external: false, adminOnly: true, dynamicStore: false },
+      { icon: Truck, label: "قوائم أسعار الشحن", path: "/dashboard/shipping-price-lists", external: false, adminOnly: false, dynamicStore: false },
       { icon: Printer, label: "تصميم ستيكر الشحن", path: "/dashboard/sticker-designer", external: false, adminOnly: false, dynamicStore: false },
       { icon: SettingsIcon, label: "تعريفات فشل الإرسال (أدمن)", path: "/dashboard/shipping-error-aliases", external: false, adminOnly: true, dynamicStore: false },
     ],

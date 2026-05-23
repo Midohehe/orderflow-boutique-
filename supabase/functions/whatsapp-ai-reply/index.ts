@@ -194,6 +194,15 @@ ${focused.colors?.length ? `- الألوان: ${focused.colors.join("، ")}\n` :
       .from("shipping_settings").select("email, password, endpoint, enabled").eq("owner_id", owner_id).limit(1);
     const shipCfg = shipList?.[0];
 
+    // Local shipping price list (manual table)
+    const { data: priceList } = await supabase
+      .from("shipping_price_lists")
+      .select("region, cities, price, duration")
+      .order("sort_order", { ascending: true });
+    const priceListText = (priceList || []).map((r: any) =>
+      `- ${r.cities} (${r.region}): ${r.price} ${currency}${r.duration ? ` — مدة ${r.duration} يوم` : ""}`
+    ).join("\n");
+
     const systemPrompt = `أنت مساعد ذكي لمتجر إلكتروني اسمه "LIBYA STORE". أنت تتحدث مع عميل عبر واتساب.
 
 قواعد الرد:
@@ -219,6 +228,9 @@ ${focusedProductInfo}
 
 قائمة المنتجات المتاحة:
 ${catalogBrief || "(لا يوجد منتجات)"}
+
+قائمة أسعار التوصيل (استخدمها مباشرة عند سؤال الزبون عن سعر التوصيل لمدينة):
+${priceListText || "(لم تُعدّ بعد)"}
 `;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");

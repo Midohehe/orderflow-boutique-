@@ -2507,6 +2507,39 @@ export type Database = {
         }
         Relationships: []
       }
+      shipping_price_lists: {
+        Row: {
+          cities: string
+          created_at: string
+          duration: string | null
+          id: string
+          price: number
+          region: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          cities: string
+          created_at?: string
+          duration?: string | null
+          id?: string
+          price?: number
+          region: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          cities?: string
+          created_at?: string
+          duration?: string | null
+          id?: string
+          price?: number
+          region?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shipping_settings: {
         Row: {
           created_at: string
