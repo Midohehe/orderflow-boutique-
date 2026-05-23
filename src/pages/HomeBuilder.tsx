@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,7 @@ import ImageUpload from "@/components/ImageUpload";
 
 const HomeBuilder = () => {
   const { activeStore } = useStoreContext();
+  const { profile } = useUserContext();
   const storeId = activeStore?.id;
   const [sections, setSections] = useState<HomeSectionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,9 +50,10 @@ const HomeBuilder = () => {
     const meta = getMeta(type);
     if (!meta) return;
     const position = sections.length > 0 ? Math.max(...sections.map((s) => s.position)) + 1 : 0;
+    const ownerId = activeStore?.owner_id || profile?.user_id || "";
     const { data, error } = await supabase
       .from("home_page_sections")
-      .insert({ store_id: storeId, section_type: type, position, config: meta.defaults, is_visible: true })
+      .insert({ store_id: storeId, owner_id: ownerId, section_type: type, position, config: meta.defaults, is_visible: true })
       .select("*").single();
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
     setSections([...sections, data as any]);
