@@ -827,8 +827,74 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
         );
       },
     },
+    ProductImages: {
+      label: "صور المنتج (تلقائي)",
+      fields: { ...STYLE_FIELDS },
+      defaultProps: { ...STYLE_DEFAULTS, padding_top: 0, padding_bottom: 0 },
+      render: (p) => {
+        const slot = useLandingSlot("productImages");
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {slot || <SlotPlaceholder label="📷 صور المنتج" height={320} />}
+          </StyleWrap>
+        );
+      },
+    },
+    OrderForm: {
+      label: "نموذج الطلب (تلقائي)",
+      fields: { ...STYLE_FIELDS },
+      defaultProps: { ...STYLE_DEFAULTS, padding_top: 0, padding_bottom: 0 },
+      render: (p) => {
+        const slot = useLandingSlot("orderForm");
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {slot || <SlotPlaceholder label="🛒 نموذج الطلب + السعر + الكميات + الألوان والمقاسات" height={460} />}
+          </StyleWrap>
+        );
+      },
+    },
+    ProductDescription: {
+      label: "وصف المنتج (تلقائي)",
+      fields: { ...STYLE_FIELDS },
+      defaultProps: { ...STYLE_DEFAULTS, padding_top: 24, padding_bottom: 24 },
+      render: (p) => {
+        const slot = useLandingSlot("productDescription");
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {slot || <SlotPlaceholder label="📝 وصف المنتج" height={180} />}
+          </StyleWrap>
+        );
+      },
+    },
+    ProductReviews: {
+      label: "تقييمات المنتج (تلقائي)",
+      fields: { ...STYLE_FIELDS },
+      defaultProps: { ...STYLE_DEFAULTS, padding_top: 24, padding_bottom: 24 },
+      render: (p) => {
+        const slot = useLandingSlot("productReviews");
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {slot || <SlotPlaceholder label="⭐ تقييمات العملاء (من بيانات المنتج)" height={200} />}
+          </StyleWrap>
+        );
+      },
+    },
+    ProductFaq: {
+      label: "أسئلة المنتج (تلقائي)",
+      fields: { ...STYLE_FIELDS },
+      defaultProps: { ...STYLE_DEFAULTS, padding_top: 24, padding_bottom: 24, max_width: "narrow" },
+      render: (p) => {
+        const slot = useLandingSlot("productFaq");
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            {slot || <SlotPlaceholder label="❓ الأسئلة الشائعة (من بيانات المنتج)" height={180} />}
+          </StyleWrap>
+        );
+      },
+    },
   },
   categories: {
+    product:  { title: "بيانات المنتج", components: ["ProductImages", "OrderForm", "ProductDescription", "ProductReviews", "ProductFaq"] },
     layout:   { title: "تخطيط",  components: ["Hero", "Banner", "PromoBar", "Columns", "Divider", "Spacer"] },
     basic:    { title: "أساسي",  components: ["Heading", "RichText", "ButtonBlock", "ImageBlock", "IconBox"] },
     content:  { title: "محتوى",  components: ["Video", "Faq", "Features", "Reviews", "Countdown", "SocialIcons", "GoogleMap"] },
