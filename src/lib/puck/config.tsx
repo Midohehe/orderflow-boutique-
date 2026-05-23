@@ -954,6 +954,18 @@ export const LANDING_PAGE_STARTER_PUCK_DATA = {
       },
     },
     {
+      type: "ProductImages",
+      props: { id: "ProductImages-starter", ...STYLE_DEFAULTS, padding_top: 16, padding_bottom: 16 },
+    },
+    {
+      type: "OrderForm",
+      props: { id: "OrderForm-starter", ...STYLE_DEFAULTS, padding_top: 16, padding_bottom: 16 },
+    },
+    {
+      type: "ProductDescription",
+      props: { id: "ProductDescription-starter", ...STYLE_DEFAULTS, padding_top: 24, padding_bottom: 24 },
+    },
+    {
       type: "Reviews",
       props: {
         id: "Reviews-starter",
