@@ -1038,21 +1038,6 @@ const LandingPage = () => {
       {/* ترويسة المتجر الفخمة والثابتة بالقمة */}
       <StoreHeader ownerId={product?.owner_id} />
 
-      {/* محتوى Puck المخصص (إن وُجد) — يُعرض أعلى الصفحة قبل قسم الاستقبال */}
-      {puckData && Array.isArray(puckData?.content) && puckData.content.length > 0 && (
-        <section className="w-full">
-          <PuckRender
-            data={puckData}
-            ctx={{
-              ownerId: product?.owner_id || ownerId || undefined,
-              storeId: storeId || undefined,
-              username,
-              currencySymbol: storeSettings.currency_symbol,
-            }}
-          />
-        </section>
-      )}
-
       {/* تنبيه منبثق بديل للتوست مصمم على الطراز الفاخر */}
       {toastMessage && (
         <div
