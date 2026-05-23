@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2 } from "lucide-react";
+import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
@@ -51,6 +51,7 @@ export interface LandingPageFormData {
   showQuantity?: boolean;
   isVisible: boolean;
   faqs?: Array<{ question: string; answer: string }>;
+  templateId?: string;
 }
 
 export const emptyLandingPageData: LandingPageFormData = {
@@ -69,6 +70,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   showQuantity: true,
   isVisible: true,
   faqs: [],
+  templateId: "",
 };
 
 interface ProductOption {
@@ -88,9 +90,10 @@ interface LandingPageFormProps {
   products: ProductOption[];
   /** عند التعديل: لا نسمح بتغيير المنتج المرتبط */
   lockProduct?: boolean;
+  templates?: Array<{ id: string; name: string; is_default?: boolean }>;
 }
 
-const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, products, lockProduct }: LandingPageFormProps) => {
+const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, products, lockProduct, templates }: LandingPageFormProps) => {
   const update = <K extends keyof LandingPageFormData>(field: K, value: LandingPageFormData[K]) => {
     onChange({ ...data, [field]: value });
   };
