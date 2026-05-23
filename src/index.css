@@ -235,3 +235,17 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Puck builder entrance animations */
+@keyframes puck-fade-in   { from { opacity: 0 } to { opacity: 1 } }
+@keyframes puck-fade-up   { from { opacity: 0; transform: translateY(30px) } to { opacity: 1; transform: none } }
+@keyframes puck-fade-down { from { opacity: 0; transform: translateY(-30px) } to { opacity: 1; transform: none } }
+@keyframes puck-zoom-in   { from { opacity: 0; transform: scale(0.9) } to { opacity: 1; transform: none } }
+@keyframes puck-slide-right { from { opacity: 0; transform: translateX(40px) } to { opacity: 1; transform: none } }
+@keyframes puck-slide-left  { from { opacity: 0; transform: translateX(-40px) } to { opacity: 1; transform: none } }
+.puck-anim-fade-in    { animation: puck-fade-in    .6s ease both; }
+.puck-anim-fade-up    { animation: puck-fade-up    .7s ease both; }
+.puck-anim-fade-down  { animation: puck-fade-down  .7s ease both; }
+.puck-anim-zoom-in    { animation: puck-zoom-in    .6s ease both; }
+.puck-anim-slide-right{ animation: puck-slide-right .7s ease both; }
+.puck-anim-slide-left { animation: puck-slide-left  .7s ease both; }
