@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save, Wand2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
