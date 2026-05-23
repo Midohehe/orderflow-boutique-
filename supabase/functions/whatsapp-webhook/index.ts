@@ -100,6 +100,12 @@ Deno.serve(async (req) => {
 
       if (messageData.typeMessage === "textMessage" || messageData.typeMessage === "extendedTextMessage") {
         content = messageData.textMessageData?.textMessage || messageData.extendedTextMessageData?.text || "";
+      } else if (messageData.typeMessage === "quotedMessage") {
+        // Reply that quotes another message - extract the user's actual text
+        content = messageData.extendedTextMessageData?.text
+          || messageData.extendedTextMessageData?.stanzaId
+          || messageData.textMessageData?.textMessage
+          || "";
       } else if (messageData.typeMessage === "imageMessage") {
         msgType = "image";
         const fm = messageData.fileMessageData || {};
