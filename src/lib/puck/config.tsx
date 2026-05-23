@@ -148,16 +148,16 @@ const FaqItem = ({ q, a }: { q: string; a: string }) => {
 };
 
 export type PuckProps = {
-  Hero: { image: string; title: string; subtitle: string; button_text: string; button_link: string; text_color: string; overlay: number };
-  Banner: { image: string; link: string; alt: string };
-  ProductsGrid: { title: string; limit: number; columns: number };
-  CategoriesGrid: { title: string; items: { label: string; image: string; link: string }[] };
-  RichText: { html: string; align: "right" | "center" | "left" };
-  Video: { title: string; url: string };
-  Faq: { title: string; items: { q: string; a: string }[] };
-  Features: { title: string; items: { icon: string; title: string; desc: string }[] };
-  PromoBar: { text: string; bg: string; color: string };
-  Reviews: { title: string; items: { name: string; text: string; rating: number }[] };
+  Hero: StyleProps & { image: string; title: string; subtitle: string; button_text: string; button_link: string; text_color: string; overlay: number };
+  Banner: StyleProps & { image: string; link: string; alt: string };
+  ProductsGrid: StyleProps & { title: string; limit: number; columns: number };
+  CategoriesGrid: StyleProps & { title: string; items: { label: string; image: string; link: string }[] };
+  RichText: StyleProps & { html: string; align: "right" | "center" | "left" };
+  Video: StyleProps & { title: string; url: string };
+  Faq: StyleProps & { title: string; items: { q: string; a: string }[] };
+  Features: StyleProps & { title: string; items: { icon: string; title: string; desc: string }[] };
+  PromoBar: StyleProps & { text: string; bg: string; color: string };
+  Reviews: StyleProps & { title: string; items: { name: string; text: string; rating: number }[] };
   Spacer: { height: number };
 };
 
