@@ -1246,6 +1246,7 @@ const Products = () => {
                   products={products.map((p) => ({
                     id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
                   }))}
+                  templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
                 />
               </DialogContent>
             </Dialog>
@@ -1299,6 +1300,7 @@ const Products = () => {
               products={products.map((p) => ({
                 id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
               }))}
+              templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
             />
           </div>
         </DialogContent>
