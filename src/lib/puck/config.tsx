@@ -248,6 +248,15 @@ export type PuckProps = {
   Reviews: StyleProps & { title: string; items: { name: string; text: string; rating: number }[] };
   Spacer: { height: number };
   HtmlBlock: StyleProps & { html: string; css: string };
+  Heading: StyleProps & { text: string; tag: "h1"|"h2"|"h3"|"h4"; size: number; weight: number; color: string; letter_spacing: number; line_height: number };
+  ButtonBlock: StyleProps & { text: string; link: string; variant: "solid"|"outline"|"ghost"|"gradient"; size: "sm"|"md"|"lg"|"xl"; bg: string; color: string; rounded: number; full_width: boolean; new_tab: boolean };
+  ImageBlock: StyleProps & { src: string; alt: string; link: string; width: number; height: number; fit: "cover"|"contain"; rounded: number };
+  Columns: StyleProps & { count: 2|3|4; gap: number; col1: string; col2: string; col3: string; col4: string };
+  Divider: StyleProps & { thickness: number; color: string; style: "solid"|"dashed"|"dotted"; width_pct: number };
+  IconBox: StyleProps & { icon: string; title: string; desc: string; color: string; size: number };
+  Countdown: StyleProps & { title: string; target: string; color: string };
+  SocialIcons: StyleProps & { facebook: string; instagram: string; whatsapp: string; tiktok: string; youtube: string; email: string; size: number; color: string };
+  GoogleMap: StyleProps & { embed_url: string; height: number };
 };
 
 export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
