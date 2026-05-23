@@ -7,7 +7,7 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Eye, Loader2, ArrowLeft } from "lucide-react";
-import { buildPuckConfig, EMPTY_PUCK_DATA, type PuckContext } from "@/lib/puck/config";
+import { buildPuckConfig, EMPTY_PUCK_DATA, LANDING_PAGE_STARTER_PUCK_DATA, type PuckContext } from "@/lib/puck/config";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const PuckBuilder = () => {
@@ -46,9 +46,10 @@ const PuckBuilder = () => {
           if (row) {
             setRowId(row.id);
             setTemplateName(row.name || "");
-            setData(row.puck_data || EMPTY_PUCK_DATA);
+            const hasData = row.puck_data && Array.isArray(row.puck_data?.content) && row.puck_data.content.length > 0;
+            setData(hasData ? row.puck_data : LANDING_PAGE_STARTER_PUCK_DATA);
           } else {
-            setData(EMPTY_PUCK_DATA);
+            setData(LANDING_PAGE_STARTER_PUCK_DATA);
           }
           setLoading(false);
         });
