@@ -1533,6 +1533,14 @@ const Products = () => {
                       </Button>
                       <Button
                         size="sm"
+                        onClick={() => navigate(`/dashboard/page-builder?landing=${lp.id}`)}
+                        className="px-2 bg-violet-500 hover:bg-violet-600 text-white"
+                        title="تحرير بـ Puck"
+                      >
+                        <Wand2 className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
                         className="bg-red-500 hover:bg-red-600 text-white px-2"
                         onClick={() => setDeleteLpTarget(lp)}
                       >
