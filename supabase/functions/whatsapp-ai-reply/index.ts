@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     // Load conversation history (last 15 messages)
     const { data: messages } = await supabase
       .from("whatsapp_messages")
-      .select("direction, content, message_type, created_at")
+      .select("direction, content, message_type, media_url, media_mime, created_at")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: false })
       .limit(15);
@@ -100,6 +100,16 @@ Deno.serve(async (req) => {
         if (m.message_type === "image") text = text ? `📷 صورة: ${text}` : "📷 صورة";
         if (m.message_type === "audio") text = "🎤 رسالة صوتية";
         if (m.message_type === "file") text = "📎 ملف";
+        // If incoming image with downloadable URL, send as multimodal so the AI can see it
+        if (m.direction === "in" && m.message_type === "image" && m.media_url) {
+          return {
+            role,
+            content: [
+              { type: "text", text: text || "صورة من الزبون — حدد المنتج المطابق من القائمة إن أمكن." },
+              { type: "image_url", image_url: { url: m.media_url } },
+            ],
+          } as any;
+        }
         return { role, content: text };
       });
 
@@ -147,8 +157,19 @@ Deno.serve(async (req) => {
       .is("deleted_at", null)
       .limit(80);
     const products = catalog || [];
+    // Re-fetch including images for the send-images tool
+    const { data: catalogFull } = await supabase
+      .from("products")
+      .select("id, name, images")
+      .eq("owner_id", owner_id)
+      .eq("is_visible", true)
+      .is("deleted_at", null)
+      .limit(80);
+    const productImagesById = new Map<string, string[]>(
+      (catalogFull || []).map((p: any) => [p.id, Array.isArray(p.images) ? p.images : []])
+    );
     const catalogBrief = products.map((p: any) =>
-      `• ${p.name} — ${p.price} (id:${p.id.slice(0, 8)}${p.colors?.length ? " | ألوان:" + p.colors.join("،") : ""}${p.sizes?.length ? " | مقاسات:" + p.sizes.join("،") : ""})`
+      `• ${p.name} — ${p.price} (id:${p.id.slice(0, 8)}${p.colors?.length ? " | ألوان:" + p.colors.join("،") : ""}${p.sizes?.length ? " | مقاسات:" + p.sizes.join("،") : ""}${(productImagesById.get(p.id)?.length ?? 0) > 0 ? " | 🖼️ صور متاحة" : ""})`
     ).join("\n");
 
     // Currency
@@ -222,6 +243,8 @@ ${focused.colors?.length ? `- الألوان: ${focused.colors.join("، ")}\n` :
 9. إذا أراد إلغاء طلب: قل له "للإلغاء أرسل: 2 أو لا".
 10. إذا لم تفهم سؤاله، قل: "سأقوم بتحويلك لموظف متخصص للمساعدة."
 11. العملة: ${currency}.
+12. إذا طلب الزبون صور المنتج أو قال "ابعتلي صور / ورني صور / نبي نشوف"، استدعِ الأداة send_product_images فوراً بمعرف المنتج، ولا تقل أبداً "لا نقدر نبعت صور".
+13. إذا أرسل الزبون صورة، انظر إلى محتواها وحاول مطابقتها مع أحد منتجاتنا من القائمة، ثم أجبه بالاسم والسعر وألوان/مقاسات. إذا لم تجد تطابقاً قل ذلك بأدب.
 
 ${orderInfo}
 ${focusedProductInfo}
@@ -277,6 +300,21 @@ ${priceListText || "(لم تُعدّ بعد)"}
               selected_size: { type: "string" },
             },
             required: ["product_id", "quantity", "customer_name", "address", "city"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "send_product_images",
+          description: "أرسل صور منتج معين إلى الزبون عبر واتساب (حتى 5 صور).",
+          parameters: {
+            type: "object",
+            properties: {
+              product_id: { type: "string", description: "معرف المنتج من قائمة المنتجات (يكفي أول 8 محارف)" },
+              max: { type: "number", description: "أقصى عدد صور (افتراضي 4)", minimum: 1, maximum: 8 },
+            },
+            required: ["product_id"],
           },
         },
       },
@@ -364,6 +402,42 @@ ${priceListText || "(لم تُعدّ بعد)"}
             total: j?.price,
             currency,
           });
+        }
+        if (name === "send_product_images") {
+          const pid = String(args?.product_id || "");
+          const prod = products.find((p: any) => p.id === pid || p.id.startsWith(pid));
+          if (!prod) return JSON.stringify({ error: "invalid product_id" });
+          const imgs = (productImagesById.get(prod.id) || []).filter(Boolean).slice(0, Math.max(1, Math.min(8, Number(args?.max) || 4)));
+          if (imgs.length === 0) return JSON.stringify({ error: "لا توجد صور لهذا المنتج" });
+          const chatIdLocal = `${phone}@c.us`;
+          const baseUrl = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
+          let sent = 0;
+          for (let idx = 0; idx < imgs.length; idx++) {
+            const url = imgs[idx];
+            try {
+              const r = await fetch(`${baseUrl}/sendFileByUrl/${settings.api_token}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chatId: chatIdLocal,
+                  urlFile: url,
+                  fileName: `${prod.name}-${idx + 1}.jpg`,
+                  caption: idx === 0 ? `📷 ${prod.name}` : undefined,
+                }),
+              });
+              const jr = await r.json().catch(() => ({}));
+              if (jr?.idMessage) {
+                sent++;
+                await supabase.from("whatsapp_messages").insert({
+                  owner_id, conversation_id, order_id: conv?.order_id || null,
+                  direction: "out", message_type: "image",
+                  content: idx === 0 ? prod.name : "",
+                  media_url: url, status: "sent", green_message_id: jr.idMessage,
+                });
+              }
+            } catch (e) { console.error("sendFileByUrl failed", e); }
+          }
+          return JSON.stringify({ ok: sent > 0, sent, product: prod.name });
         }
         return JSON.stringify({ error: "unknown tool" });
       } catch (e) {
