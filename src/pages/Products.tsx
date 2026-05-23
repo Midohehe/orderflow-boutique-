@@ -1074,7 +1074,8 @@ const Products = () => {
     if (err) { toast({ title: "خطأ", description: err, variant: "destructive" }); return; }
     setIsSavingLp(true);
     try {
-      const { error } = await supabase.from("landing_pages").update({
+      const chosenTpl = editLp.templateId ? lpTemplates.find((t) => t.id === editLp.templateId) : null;
+      const updatePayload: any = {
         slug: editLp.slug.trim(),
         title: editLp.title.trim(),
         subtitle: editLp.subtitle.trim() || null,
@@ -1097,7 +1098,11 @@ const Products = () => {
         faqs: (editLp.faqs || [])
           .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
           .filter((f) => f.question && f.answer),
-      }).eq("id", editingLpId);
+        template_id: chosenTpl?.id || null,
+      };
+      if (chosenTpl) updatePayload.puck_data = chosenTpl.puck_data ?? null;
+      else updatePayload.puck_data = null;
+      const { error } = await supabase.from("landing_pages").update(updatePayload).eq("id", editingLpId);
       if (error) {
         if (error.code === "23505") {
           toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً", variant: "destructive" });
