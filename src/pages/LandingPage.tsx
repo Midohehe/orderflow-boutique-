@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
+import { PuckRender } from "@/components/PuckRender";
 
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
@@ -262,12 +263,13 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs")
+          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, puck_data")
           .eq("slug", slug)
           .maybeSingle();
 
         const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
+        if (landingPage && landingPage.puck_data) setPuckData(landingPage.puck_data);
         const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
         // إن وُجدت صفحة هبوط: نأخذ المنتج بمعرّفه. وإلا نرجع للسلوك القديم (slug في products).
@@ -517,6 +519,7 @@ const LandingPage = () => {
 
   // Track checkout start when user starts filling the form
   const [checkoutTracked, setCheckoutTracked] = useState(false);
+  const [puckData, setPuckData] = useState<any>(null);
 
   const handleInputChange = (fieldKey: string, value: string) => {
     let cleanedValue = value;
@@ -1034,6 +1037,21 @@ const LandingPage = () => {
 
       {/* ترويسة المتجر الفخمة والثابتة بالقمة */}
       <StoreHeader ownerId={product?.owner_id} />
+
+      {/* محتوى Puck المخصص (إن وُجد) — يُعرض أعلى الصفحة قبل قسم الاستقبال */}
+      {puckData && Array.isArray(puckData?.content) && puckData.content.length > 0 && (
+        <section className="w-full">
+          <PuckRender
+            data={puckData}
+            ctx={{
+              ownerId: product?.owner_id || ownerId || undefined,
+              storeId: storeId || undefined,
+              username,
+              currencySymbol: storeSettings.currency_symbol,
+            }}
+          />
+        </section>
+      )}
 
       {/* تنبيه منبثق بديل للتوست مصمم على الطراز الفاخر */}
       {toastMessage && (

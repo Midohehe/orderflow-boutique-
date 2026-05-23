@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save, Wand2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -1530,6 +1530,14 @@ const Products = () => {
                         className="px-2 bg-sky-500 hover:bg-sky-600 text-white"
                       >
                         <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => navigate(`/dashboard/page-builder?landing=${lp.id}`)}
+                        className="px-2 bg-violet-500 hover:bg-violet-600 text-white"
+                        title="تحرير بـ Puck"
+                      >
+                        <Wand2 className="w-3 h-3" />
                       </Button>
                       <Button
                         size="sm"

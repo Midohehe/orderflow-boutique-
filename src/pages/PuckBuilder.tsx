@@ -8,16 +8,20 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Eye, Loader2, ArrowLeft } from "lucide-react";
 import { buildPuckConfig, EMPTY_PUCK_DATA, type PuckContext } from "@/lib/puck/config";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const PuckBuilder = () => {
   const { activeStore } = useStoreContext();
   const { profile } = useUserContext();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const landingId = searchParams.get("landing");
+  const isLandingMode = !!landingId;
   const storeId = activeStore?.id;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [rowId, setRowId] = useState<string | null>(null);
+  const [landingMeta, setLandingMeta] = useState<{ slug: string; title: string } | null>(null);
 
   const ctx: PuckContext = useMemo(() => ({
     ownerId: activeStore?.owner_id || profile?.user_id,
@@ -29,8 +33,25 @@ const PuckBuilder = () => {
   const config = useMemo(() => buildPuckConfig(ctx), [ctx]);
 
   useEffect(() => {
-    if (!storeId) return;
     setLoading(true);
+    if (isLandingMode && landingId) {
+      supabase.from("landing_pages")
+        .select("id, slug, title, puck_data")
+        .eq("id", landingId)
+        .maybeSingle()
+        .then(({ data: row }: any) => {
+          if (row) {
+            setRowId(row.id);
+            setLandingMeta({ slug: row.slug, title: row.title || "" });
+            setData((row as any).puck_data || EMPTY_PUCK_DATA);
+          } else {
+            setData(EMPTY_PUCK_DATA);
+          }
+          setLoading(false);
+        });
+      return;
+    }
+    if (!storeId) return;
     supabase.from("store_page_layouts" as any)
       .select("*").eq("store_id", storeId).eq("page_key", "home").maybeSingle()
       .then(({ data: row }: any) => {
@@ -38,9 +59,18 @@ const PuckBuilder = () => {
         else { setData(EMPTY_PUCK_DATA); }
         setLoading(false);
       });
-  }, [storeId]);
+  }, [storeId, isLandingMode, landingId]);
 
   const save = async (puckData: any, publish: boolean) => {
+    if (isLandingMode) {
+      if (!rowId) { toast({ title: "خطأ", description: "صفحة الهبوط غير موجودة", variant: "destructive" }); return; }
+      const { error } = await supabase.from("landing_pages")
+        .update({ puck_data: puckData } as any)
+        .eq("id", rowId);
+      if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
+      toast({ title: publish ? "تم النشر ✓" : "تم الحفظ" });
+      return;
+    }
     if (!storeId) return;
     const payload: any = {
       store_id: storeId,
@@ -64,14 +94,21 @@ const PuckBuilder = () => {
     return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin" /></div>;
   }
 
+  const previewUrl = isLandingMode && landingMeta
+    ? `/p/${activeStore?.slug || ""}/${landingMeta.slug}`
+    : `/store/${activeStore?.slug || ""}`;
+  const headerTitle = isLandingMode
+    ? `محرر صفحة الهبوط — ${landingMeta?.title || landingMeta?.slug || ""}`
+    : `محرر الصفحة الرئيسية — ${activeStore?.name || ""}`;
+
   return (
     <div className="fixed inset-0 z-50 bg-background" dir="ltr">
       <div className="h-12 border-b bg-card flex items-center justify-between px-4" dir="rtl">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(isLandingMode ? "/dashboard/products" : "/dashboard")}>
           <ArrowLeft className="w-4 h-4 ml-1" /> رجوع
         </Button>
-        <span className="font-bold">محرر الصفحة الرئيسية — {activeStore?.name}</span>
-        <Button size="sm" variant="outline" onClick={() => window.open(`/store/${activeStore?.slug}`, "_blank")}>
+        <span className="font-bold">{headerTitle}</span>
+        <Button size="sm" variant="outline" onClick={() => window.open(previewUrl, "_blank")}>
           <Eye className="w-4 h-4 ml-1" /> معاينة
         </Button>
       </div>
