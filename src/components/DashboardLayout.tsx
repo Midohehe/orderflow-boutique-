@@ -63,6 +63,7 @@ const baseMenuGroups = [
       { icon: Heart, label: "صفحة الشكر", path: "/dashboard/thank-you", external: false, adminOnly: false, dynamicStore: false },
       { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
+      { icon: LayoutTemplate, label: "بناء الصفحة الرئيسية", path: "/dashboard/home-builder", external: false, adminOnly: false, dynamicStore: false },
       { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
       { icon: Crosshair, label: "إعلانات فيسبوك", path: "/dashboard/facebook-ads", external: false, adminOnly: false, dynamicStore: false },
       { icon: Crosshair, label: "أداء إعلانات فيسبوك", path: "/dashboard/facebook-performance", external: false, adminOnly: false, dynamicStore: false },
