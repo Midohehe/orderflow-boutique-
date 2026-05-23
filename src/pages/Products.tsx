@@ -861,6 +861,22 @@ const Products = () => {
     return () => { cancelled = true; };
   }, [userLoading, storeLoading, activeStoreId]);
 
+  // ===== Landing templates =====
+  useEffect(() => {
+    if (userLoading || storeLoading || !activeStoreId) { setLpTemplates([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("landing_page_templates")
+        .select("id, name, is_default, puck_data")
+        .eq("store_id", activeStoreId)
+        .order("is_default", { ascending: false })
+        .order("updated_at", { ascending: false });
+      if (!cancelled) setLpTemplates((data || []) as any);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading, storeLoading, activeStoreId]);
+
   // ===== Categories: load =====
   useEffect(() => {
     if (userLoading || storeLoading) return;
