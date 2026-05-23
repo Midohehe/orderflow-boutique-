@@ -1065,6 +1065,7 @@ const Products = () => {
             answer: String(f?.answer ?? ""),
           }))
         : [],
+      templateId: d.template_id || "",
     });
   };
 
