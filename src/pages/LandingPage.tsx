@@ -1030,7 +1030,6 @@ const LandingPage = () => {
 
   // -------- Section slots (used by both legacy layout and Puck templates) --------
   const heroSlot = (
-      {/* قسم الاستقبال الجذاب (Hero Section) مع تدرجات لونية ملكية دافئة */}
       <section className="relative overflow-hidden bg-gradient-to-l from-[#0f172a] via-[#111c30] to-[#0f172a] py-8 sm:py-16 px-4 text-center text-white w-full border-b border-amber-500/15">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none opacity-40" />
         <div className="max-w-3xl mx-auto relative z-10">
