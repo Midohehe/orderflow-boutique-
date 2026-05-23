@@ -373,6 +373,31 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
         </div>
       </SectionCard>
 
+      {/* قالب التصميم */}
+      {templates && templates.length > 0 && (
+        <SectionCard
+          icon={LayoutTemplate}
+          title="قالب التصميم (Puck)"
+          description="اختر قالبًا جاهزًا أنشأته من إعدادات المتجر — سيُطبَّق فوق محتوى الصفحة"
+          iconColor="bg-violet-500"
+        >
+          <SearchableSelect
+            value={data.templateId || "__none__"}
+            onChange={(v) => update("templateId", v === "__none__" ? "" : v)}
+            placeholder="اختر قالبًا..."
+            searchPlaceholder="ابحث..."
+            options={[
+              { value: "__none__", label: "— بدون قالب (التصميم الافتراضي) —" },
+              ...templates.map((t) => ({
+                value: t.id,
+                label: t.is_default ? `${t.name} (افتراضي)` : t.name,
+                keywords: t.name,
+              })),
+            ]}
+          />
+        </SectionCard>
+      )}
+
       {/* الإظهار */}
       <SectionCard icon={Eye} title="الإظهار" iconColor="bg-teal-500">
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
