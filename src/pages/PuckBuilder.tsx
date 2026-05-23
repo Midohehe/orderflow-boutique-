@@ -16,12 +16,15 @@ const PuckBuilder = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const landingId = searchParams.get("landing");
+  const templateId = searchParams.get("template");
   const isLandingMode = !!landingId;
+  const isTemplateMode = !!templateId;
   const storeId = activeStore?.id;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [rowId, setRowId] = useState<string | null>(null);
   const [landingMeta, setLandingMeta] = useState<{ slug: string; title: string } | null>(null);
+  const [templateName, setTemplateName] = useState<string>("");
 
   const ctx: PuckContext = useMemo(() => ({
     ownerId: activeStore?.owner_id || profile?.user_id,
@@ -34,6 +37,23 @@ const PuckBuilder = () => {
 
   useEffect(() => {
     setLoading(true);
+    if (isTemplateMode && templateId) {
+      (supabase as any).from("landing_page_templates")
+        .select("id, name, puck_data")
+        .eq("id", templateId)
+        .maybeSingle()
+        .then(({ data: row }: any) => {
+          if (row) {
+            setRowId(row.id);
+            setTemplateName(row.name || "");
+            setData(row.puck_data || EMPTY_PUCK_DATA);
+          } else {
+            setData(EMPTY_PUCK_DATA);
+          }
+          setLoading(false);
+        });
+      return;
+    }
     if (isLandingMode && landingId) {
       supabase.from("landing_pages")
         .select("id, slug, title, puck_data")
@@ -59,9 +79,18 @@ const PuckBuilder = () => {
         else { setData(EMPTY_PUCK_DATA); }
         setLoading(false);
       });
-  }, [storeId, isLandingMode, landingId]);
+  }, [storeId, isLandingMode, landingId, isTemplateMode, templateId]);
 
   const save = async (puckData: any, publish: boolean) => {
+    if (isTemplateMode) {
+      if (!rowId) { toast({ title: "خطأ", description: "القالب غير موجود", variant: "destructive" }); return; }
+      const { error } = await (supabase as any).from("landing_page_templates")
+        .update({ puck_data: puckData })
+        .eq("id", rowId);
+      if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
+      toast({ title: publish ? "تم الحفظ ✓" : "تم الحفظ" });
+      return;
+    }
     if (isLandingMode) {
       if (!rowId) { toast({ title: "خطأ", description: "صفحة الهبوط غير موجودة", variant: "destructive" }); return; }
       const { error } = await supabase.from("landing_pages")
@@ -97,18 +126,20 @@ const PuckBuilder = () => {
   const previewUrl = isLandingMode && landingMeta
     ? `/p/${activeStore?.slug || ""}/${landingMeta.slug}`
     : `/store/${activeStore?.slug || ""}`;
-  const headerTitle = isLandingMode
+  const headerTitle = isTemplateMode
+    ? `محرر القالب — ${templateName}`
+    : isLandingMode
     ? `محرر صفحة الهبوط — ${landingMeta?.title || landingMeta?.slug || ""}`
     : `محرر الصفحة الرئيسية — ${activeStore?.name || ""}`;
 
   return (
     <div className="fixed inset-0 z-50 bg-background" dir="ltr">
       <div className="h-12 border-b bg-card flex items-center justify-between px-4" dir="rtl">
-        <Button variant="ghost" size="sm" onClick={() => navigate(isLandingMode ? "/dashboard/products" : "/dashboard")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(isTemplateMode ? "/dashboard/landing-templates" : isLandingMode ? "/dashboard/products" : "/dashboard")}>
           <ArrowLeft className="w-4 h-4 ml-1" /> رجوع
         </Button>
         <span className="font-bold">{headerTitle}</span>
-        <Button size="sm" variant="outline" onClick={() => window.open(previewUrl, "_blank")}>
+        <Button size="sm" variant="outline" onClick={() => !isTemplateMode && window.open(previewUrl, "_blank")} disabled={isTemplateMode}>
           <Eye className="w-4 h-4 ml-1" /> معاينة
         </Button>
       </div>
