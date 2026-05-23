@@ -159,6 +159,7 @@ export type PuckProps = {
   PromoBar: StyleProps & { text: string; bg: string; color: string };
   Reviews: StyleProps & { title: string; items: { name: string; text: string; rating: number }[] };
   Spacer: { height: number };
+  HtmlBlock: StyleProps & { html: string; css: string };
 };
 
 export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
