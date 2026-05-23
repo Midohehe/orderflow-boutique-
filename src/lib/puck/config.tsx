@@ -264,7 +264,7 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
         overlay: { type: "number", label: "شفافية التظليل 0-1", min: 0, max: 1 },
         ...STYLE_FIELDS,
       },
-      defaultProps: { image: "", title: "أهلاً بك في متجرنا", subtitle: "أفضل المنتجات بأفضل الأسعار", button_text: "تسوّق الآن", button_link: "#products", text_color: "#ffffff", overlay: 0.4, ...STYLE_DEFAULTS, min_height: 420, max_width: "full", padding_y: 0 },
+      defaultProps: { image: "", title: "أهلاً بك في متجرنا", subtitle: "أفضل المنتجات بأفضل الأسعار", button_text: "تسوّق الآن", button_link: "#products", text_color: "#ffffff", overlay: 0.4, ...STYLE_DEFAULTS, min_height: 420, max_width: "full", padding_top: 0, padding_bottom: 0 },
       render: (p) => {
         const { image, title, subtitle, button_text, button_link, text_color, overlay } = p as any;
         return (
@@ -461,7 +461,7 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
         color: { type: "text", label: "لون النص (hex)" },
         ...STYLE_FIELDS,
       },
-      defaultProps: { text: "🎉 خصم 20% على كل المنتجات!", bg: "#7c3aed", color: "#ffffff", ...STYLE_DEFAULTS, padding_y: 0, max_width: "full" },
+      defaultProps: { text: "🎉 خصم 20% على كل المنتجات!", bg: "#7c3aed", color: "#ffffff", ...STYLE_DEFAULTS, padding_top: 0, padding_bottom: 0, max_width: "full" },
       render: (p) => {
         const { text, bg, color } = p as any;
         return (
