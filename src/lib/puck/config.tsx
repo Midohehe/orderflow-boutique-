@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Star, ShoppingBag, ChevronDown, Facebook, Instagram, Twitter, Youtube, Send, Phone, Mail } from "lucide-react";
+import { useLandingSlot, SlotPlaceholder } from "@/components/landing/LandingSlots";
 
 export type PuckContext = {
   ownerId?: string;
@@ -282,6 +283,11 @@ export type PuckProps = {
   Countdown: StyleProps & { title: string; target: string; color: string };
   SocialIcons: StyleProps & { facebook: string; instagram: string; whatsapp: string; tiktok: string; youtube: string; email: string; size: number; color: string };
   GoogleMap: StyleProps & { embed_url: string; height: number };
+  ProductImages: StyleProps & {};
+  OrderForm: StyleProps & {};
+  ProductDescription: StyleProps & {};
+  ProductReviews: StyleProps & {};
+  ProductFaq: StyleProps & {};
 };
 
 export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
