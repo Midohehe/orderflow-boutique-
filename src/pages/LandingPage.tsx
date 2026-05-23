@@ -1027,36 +1027,9 @@ const LandingPage = () => {
     );
   }
 
-  return (
-    <div
-      className="min-h-screen w-full bg-[#fdfdfd] text-slate-900 font-cairo overflow-x-hidden pb-[calc(7rem+env(safe-area-inset-bottom))]"
-      dir="rtl"
-    >
-      {/* خلفية تزيينية راقية من الإضاءات الخفيفة والناعمة */}
-      <div className="absolute top-0 right-0 left-0 h-[600px] bg-gradient-to-b from-amber-500/5 via-primary/5 to-transparent -z-10 pointer-events-none" />
 
-      {/* ترويسة المتجر الفخمة والثابتة بالقمة */}
-      <StoreHeader ownerId={product?.owner_id} />
-
-      {/* تنبيه منبثق بديل للتوست مصمم على الطراز الفاخر */}
-      {toastMessage && (
-        <div
-          className={`fixed top-20 left-4 right-4 z-50 p-4 rounded-2xl shadow-2xl transition-all duration-300 border backdrop-blur-md flex items-center gap-3 animate-pulse ${
-            toastMessage.type === "destructive"
-              ? "bg-rose-950/95 text-rose-200 border-rose-800"
-              : "bg-emerald-950/95 text-emerald-200 border-emerald-800"
-          }`}
-        >
-          <div className="p-1 rounded-full bg-white/10 shrink-0">
-            {toastMessage.type === "destructive" ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-          </div>
-          <div className="font-semibold text-sm flex-1 leading-snug">{toastMessage.msg}</div>
-          <button onClick={() => setToastMessage(null)} className="text-white/60 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      )}
-
+  // -------- Section slots (used by both legacy layout and Puck templates) --------
+  const heroSlot = (
       {/* قسم الاستقبال الجذاب (Hero Section) مع تدرجات لونية ملكية دافئة */}
       <section className="relative overflow-hidden bg-gradient-to-l from-[#0f172a] via-[#111c30] to-[#0f172a] py-8 sm:py-16 px-4 text-center text-white w-full border-b border-amber-500/15">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none opacity-40" />
@@ -1080,11 +1053,9 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
-
-      <main className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* معرض الصور التفاعلي - فخم وذو أبعاد أنيقة */}
-          <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
+  );
+  const productImagesSlot = (
+    <>
             <div className="aspect-[4/5] sm:aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.12)] mb-4 relative border border-slate-100 group gpu">
               <div className="absolute top-3 right-3 z-10 bg-[#0f172a]/80 backdrop-blur-md text-amber-400 text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full border border-amber-500/20">
                 ⭐ الأكثر مبيعاً في ليبيا
@@ -1129,10 +1100,10 @@ const LandingPage = () => {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* استمارة تسجيل الطلبات بتأثيرات بصرية راقية وفاخرة */}
-          <div className={`lg:sticky lg:top-24 h-fit ${product.order_form_on_top ? "order-1 lg:order-2" : ""}`}>
+    </>
+  );
+  const orderFormSlot = (
+    <>
             <div className="bg-white/80 backdrop-blur-md rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-100 relative overflow-hidden">
               {/* تزيين الاستمارة بشريط ذهبي جانبي ناعم */}
               <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600" />
@@ -1468,9 +1439,10 @@ const LandingPage = () => {
                 </p>
               </form>
             </div>
-          </div>
-        </div>
-
+    </>
+  );
+  const productDescriptionSlot = (
+    <>
         {/* وصف تفاصيل السلعة ومميزاتها */}
         {product.description && sanitizedDescription && (
           <section className="mt-12 sm:mt-20 overflow-hidden bg-white p-6 sm:p-10 rounded-3xl shadow-[0_15px_45px_rgba(0,0,0,0.03)] border border-slate-100/80">
@@ -1486,7 +1458,10 @@ const LandingPage = () => {
             />
           </section>
         )}
-
+    </>
+  );
+  const productReviewsSlot = (
+    <>
         {/* آراء وتقييمات العملاء الموثوقة */}
         {product.reviews && product.reviews.length > 0 && (
           <section className="mt-12 sm:mt-20">
@@ -1525,7 +1500,10 @@ const LandingPage = () => {
             </div>
           </section>
         )}
-
+    </>
+  );
+  const productFaqSlot = (
+    <>
         {/* الأسئلة المتكررة الشائعة حول الخدمة والمنتج */}
         {product.faqs && product.faqs.length > 0 && (
           <section className="mt-12 sm:mt-20">
@@ -1563,7 +1541,75 @@ const LandingPage = () => {
             </div>
           </section>
         )}
+    </>
+  );
+  const puckHasContent = !!(puckData && Array.isArray(puckData?.content) && puckData.content.length > 0);
+
+  return (
+    <div
+      className="min-h-screen w-full bg-[#fdfdfd] text-slate-900 font-cairo overflow-x-hidden pb-[calc(7rem+env(safe-area-inset-bottom))]"
+      dir="rtl"
+    >
+      {/* خلفية تزيينية راقية من الإضاءات الخفيفة والناعمة */}
+      <div className="absolute top-0 right-0 left-0 h-[600px] bg-gradient-to-b from-amber-500/5 via-primary/5 to-transparent -z-10 pointer-events-none" />
+
+      {/* ترويسة المتجر الفخمة والثابتة بالقمة */}
+      <StoreHeader ownerId={product?.owner_id} />
+
+      {/* تنبيه منبثق بديل للتوست مصمم على الطراز الفاخر */}
+      {toastMessage && (
+        <div
+          className={`fixed top-20 left-4 right-4 z-50 p-4 rounded-2xl shadow-2xl transition-all duration-300 border backdrop-blur-md flex items-center gap-3 animate-pulse ${
+            toastMessage.type === "destructive"
+              ? "bg-rose-950/95 text-rose-200 border-rose-800"
+              : "bg-emerald-950/95 text-emerald-200 border-emerald-800"
+          }`}
+        >
+          <div className="p-1 rounded-full bg-white/10 shrink-0">
+            {toastMessage.type === "destructive" ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+          </div>
+          <div className="font-semibold text-sm flex-1 leading-snug">{toastMessage.msg}</div>
+          <button onClick={() => setToastMessage(null)} className="text-white/60 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {!puckHasContent && heroSlot}
+
+      {puckHasContent ? (
+        <PuckRender
+          data={puckData}
+          ctx={{
+            ownerId: product?.owner_id || ownerId || undefined,
+            storeId: storeId || undefined,
+            username,
+            currencySymbol: storeSettings.currency_symbol,
+          }}
+          slots={{
+            hero: heroSlot,
+            productImages: productImagesSlot,
+            orderForm: orderFormSlot,
+            productDescription: productDescriptionSlot,
+            productReviews: productReviewsSlot,
+            productFaq: productFaqSlot,
+          }}
+        />
+      ) : (
+      <main className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+          <div className={product.order_form_on_top ? "order-2 lg:order-1" : ""}>
+              {productImagesSlot}
+          </div>
+          <div className={`lg:sticky lg:top-24 h-fit ${product.order_form_on_top ? "order-1 lg:order-2" : ""}`}>
+              {orderFormSlot}
+          </div>
+        </div>
+        {productDescriptionSlot}
+        {productReviewsSlot}
+        {productFaqSlot}
       </main>
+      )}
 
       {/* نافذة تكبير وتدقيق الصور (Lightbox) */}
       {lightboxOpen && product.images && product.images.length > 0 && (
