@@ -1,284 +1,22 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Check,
-  ShoppingBag,
-  Phone,
-  MapPin,
-  User,
-  Mail,
-  Ruler,
-  ZoomIn,
-  X,
-  Star,
-  ChevronDown,
-  ShieldCheck,
-  Sparkles,
-  Award,
-  Truck,
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
+import { isolateLatin } from "@/lib/bidi";
+import StoreHeader from "@/components/StoreHeader";
 
-// محاكاة مكتبة عزل النصوص ثنائية الاتجاه bidi
-const isolateLatin = (text: string) => text;
-
-// خطافات آمنة تمنع الانهيار في حال تشغيل المكون خارج بيئة <Router>
-const useNavigateSafe = () => {
-  try {
-    return useNavigate();
-  } catch (e) {
-    return (path: string, options?: any) => {
-      console.log("Mock Navigate to:", path, options);
-      window.location.hash = path;
-    };
-  }
-};
-
-const useParamsSafe = () => {
-  try {
-    return useParams();
-  } catch (e) {
-    return { slug: "premium-watch", username: "demo" };
-  }
-};
-
-const useSearchParamsSafe = () => {
-  try {
-    return useSearchParams();
-  } catch (e) {
-    return [new URLSearchParams(window.location.search), () => {}] as const;
-  }
-};
-
-// تحميل مكتبة DOMPurify بشكل كفء عند الحاجة فقط لعرض الوصف
+// Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
 const loadDOMPurify = async () => {
-  if (!DOMPurifyModule) {
-    try {
-      DOMPurifyModule = (await import("dompurify")).default as any;
-    } catch (e) {
-      DOMPurifyModule = {
-        sanitize: (html: string) => html,
-      } as any;
-    }
-  }
+  if (!DOMPurifyModule) DOMPurifyModule = (await import("dompurify")).default as any;
   return DOMPurifyModule!;
 };
-
-// تعريف المكونات الأساسية لواجهة المستخدم محلياً لضمان عدم حدوث أخطاء في مسارات الاستيراد
-const Button = ({ className, children, ...props }: any) => (
-  <button
-    {...props}
-    className={`inline-flex items-center justify-center rounded-xl text-sm font-semibold ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-12 px-6 active:scale-95 shadow-md ${className}`}
-  >
-    {children}
-  </button>
-);
-
-const Input = ({ className, ...props }: any) => (
-  <input
-    {...props}
-    className={`flex h-12 w-full rounded-xl border border-border/80 bg-background/50 backdrop-blur-sm px-4 py-2 text-sm transition-all duration-200 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 shadow-inner ${className}`}
-  />
-);
-
-const Label = ({ className, children, ...props }: any) => (
-  <label
-    {...props}
-    className={`text-sm font-semibold text-foreground/90 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-75 ${className}`}
-  >
-    {children}
-  </label>
-);
-
-const Textarea = ({ className, ...props }: any) => (
-  <textarea
-    {...props}
-    className={`flex min-h-[100px] w-full rounded-xl border border-border/80 bg-background/50 backdrop-blur-sm px-4 py-3 text-sm transition-all duration-200 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 shadow-inner ${className}`}
-  />
-);
-
-const Skeleton = ({ className, ...props }: any) => (
-  <div className={`animate-pulse rounded-2xl bg-muted/40 ${className}`} {...props} />
-);
-
-// ترويسة المتجر مدمجة ومصممة بأناقة فائقة وفخمة لتفادي مشاكل الاستيراد الخارجي
-const StoreHeader = ({ ownerId }: { ownerId?: string | null }) => {
-  return (
-    <header className="bg-background/85 border-b border-border/60 py-4 px-6 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="bg-primary/10 p-2 rounded-xl border border-primary/20">
-          <ShoppingBag className="w-5 h-5 text-primary animate-pulse" />
-        </div>
-        <span className="font-bold text-lg tracking-wider text-foreground bg-clip-text bg-gradient-to-r from-primary to-accent">
-          متجر النخبة الفاخر
-        </span>
-      </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/70 px-3 py-1.5 rounded-full border border-border/50">
-        <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
-        <span className="font-semibold text-[11px]">
-          رمز الموثوقية: {ownerId ? ownerId.slice(0, 8).toUpperCase() : "PREMIUM"}
-        </span>
-      </div>
-    </header>
-  );
-};
-
-// بيانات تجريبية افتراضية للمنتج عند تعذر الاتصال بقاعدة البيانات
-const fallbackProduct = {
-  id: "demo-prod-123",
-  name: "ساعة النخبة الأوتوماتيكية الكلاسيكية - تصميم فاخر ومقاوم للماء والمؤثرات",
-  slug: "premium-watch",
-  price: "150",
-  original_price: "250",
-  description: `<p>ارتقِ بأناقتك إلى آفاق غير مسبوقة مع ساعة النخبة الاستثنائية. تُجسد هذه القطعة التحفة الفنية مزيجاً ساحراً بين الدقة الهندسية السويسرية والجمال الخالد.</p>
-                <div style="margin: 20px 0; padding: 15px; background: rgba(245,158,11,0.05); border-right: 4px solid #f59e0b; border-radius: 8px;">
-                  <strong style="color: #d97706;">✨ مميزات ملكية خاصة:</strong>
-                  <ul style="margin-top: 8px; padding-right: 20px; list-style-type: square;">
-                    <li>زجاج مقاوم للخدش فائق النقاوة والصلابة.</li>
-                    <li>هيكل متين من الفولاذ المقاوم للصدأ المطلي بالذهب عيار 18.</li>
-                    <li>مقاومة تامة للماء حتى عمق 50 متراً تحت سطح البحر.</li>
-                  </ul>
-                </div>`,
-  images: [
-    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800",
-    "https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?auto=format&fit=crop&q=80&w=800",
-  ],
-  product_codes: ["W-100", "W-200"],
-  colors: ["الأسود الملكي الداكن", "الذهبي اللامع الفخم"],
-  sizes: ["مقاس قياسي مريح"],
-  upsell_enabled: true,
-  upsell_title: "🎁 عروض النخبة الحصرية والمخفضة",
-  upsell_offers: [
-    { quantity: 2, price: 260, label: "اقتن قطعتين (لك ولمن تحب) ووفر 40 دينار بالكامل" },
-    { quantity: 3, price: 350, label: "العرض العائلي الملكي: 3 قطع بخصم 100 دينار مع شحن مجاني" },
-  ],
-  order_form_on_top: false,
-  show_quantity: true,
-  stock: 6,
-  size_chart_url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800",
-  reviews: [
-    {
-      name: "سعد الدين المصراتي",
-      rating: 5,
-      comment: "ما شاء الله دقة في الصنع وسرعة خيالية في التوصيل لطرابلس. الساعة تبدو أفخم بكثير من الصور.",
-    },
-    {
-      name: "فاطمة عبد المولى",
-      rating: 5,
-      comment: "اشتريتها كهدية لزوجي وتفاجأ بجمال التعبئة والتغليف وجودة الخامات الفاخرة.",
-    },
-  ],
-  faqs: [
-    {
-      question: "كيف يمكنني التأكد من جودة الساعة ومعاينتها؟",
-      answer:
-        "نحن نضمن رضاك بالكامل. يمكنك فحص وتجربة الساعة بحضور مندوب الشحن قبل سداد أي مبلغ، ولديك ضمان استبدال مجاني فوري.",
-    },
-    {
-      question: "هل تتوفر خدمة التوصيل السريع لكافة مدن ليبيا؟",
-      answer:
-        "نعم بالتأكيد! لدينا شبكة توزيع حصرية تغطي طرابلس، بنغازي، مصراتة، الزاوية، سبها، وكافة المدن الليبية الكبرى خلال 48 ساعة فقط.",
-    },
-  ],
-};
-
-// محاكاة ذكية لـ Supabase لتجنب أخطاء الاتصال الخارجي وتشغيل التطبيق محلياً بكفاءة
-const supabaseMock = {
-  from: (table: string) => {
-    const chain = {
-      select: (query?: string) => chain,
-      eq: (column: string, value: any) => chain,
-      is: (column: string, value: any) => chain,
-      limit: (num: number) => chain,
-      order: (column: string, options?: any) => ({
-        then: (cb: any) =>
-          cb({
-            data:
-              table === "order_form_fields"
-                ? [
-                    {
-                      id: "1",
-                      field_key: "name",
-                      label: "الاسم الكامل للزبون",
-                      placeholder: "أدخل اسمك الثلاثي للتسجيل بالدفتر الملكي",
-                      field_type: "text",
-                      required: true,
-                    },
-                    {
-                      id: "2",
-                      field_key: "phone",
-                      label: "رقم الهاتف المباشر",
-                      placeholder: "رقم هاتف مفعل لتنسيق موعد التوصيل الفوري",
-                      field_type: "phone",
-                      required: true,
-                    },
-                    {
-                      id: "3",
-                      field_key: "city",
-                      label: "المدينة أو المنطقة السكنية",
-                      placeholder: "مثال: طرابلس، بنغازي، مصراتة، الزاوية...",
-                      field_type: "text",
-                      required: true,
-                    },
-                    {
-                      id: "4",
-                      field_key: "address",
-                      label: "تفاصيل عنوان التوصيل",
-                      placeholder: "الحي، الشارع، أو بالقرب من معلم معروف للسرعة",
-                      field_type: "textarea",
-                      required: false,
-                    },
-                  ]
-                : [],
-            error: null,
-          }),
-      }),
-      maybeSingle: async () => {
-        if (table === "landing_pages") {
-          return {
-            data: {
-              id: "lp-demo",
-              product_id: "demo-prod-123",
-              is_visible: true,
-              faqs: fallbackProduct.faqs,
-              upsell_enabled: true,
-              upsell_offers: fallbackProduct.upsell_offers,
-              title: fallbackProduct.name,
-            },
-            error: null,
-          };
-        }
-        if (table === "stores") {
-          return { data: { id: "store-demo", owner_id: "owner-123" }, error: null };
-        }
-        if (table === "store_settings") {
-          return {
-            data: {
-              currency_symbol: "د.ل",
-              currency_code: "LYD",
-              button_text: "امتلكها الآن - الدفع الآمن عند معاينة طلبك",
-            },
-            error: null,
-          };
-        }
-        return { data: null, error: null };
-      },
-      insert: async (data: any) => {
-        console.log("Mock analytics event tracked:", data);
-        return { data: null, error: null };
-      },
-    };
-    return chain;
-  },
-  functions: {
-    invoke: async (name: string, options: any) => {
-      console.log("Mock edge function invoked:", name, options);
-      return { data: { success: true }, error: null };
-    },
-  },
-};
-
-const supabase = supabaseMock;
 
 interface Product {
   id: string;
@@ -321,6 +59,8 @@ interface FormField {
   placeholder: string;
   field_type: string;
   required: boolean;
+  enabled: boolean;
+  sort_order: number;
 }
 
 interface StoreSettings {
@@ -329,6 +69,7 @@ interface StoreSettings {
   button_text?: string;
 }
 
+// Declare fbq for TypeScript
 declare global {
   interface Window {
     fbq: any;
@@ -340,66 +81,45 @@ declare global {
   }
 }
 
+// Map Arabic currency symbols / non-ISO codes to ISO 4217 codes required by Facebook/TikTok/GA
 const CURRENCY_ISO_MAP: Record<string, string> = {
-  "د.ل": "LYD",
-  "ل.د": "LYD",
-  دينار: "LYD",
-  LYD: "LYD",
-  "د.إ": "AED",
-  AED: "AED",
-  درهم: "AED",
-  "ر.س": "SAR",
-  SAR: "SAR",
-  ريال: "SAR",
-  "د.ك": "KWD",
-  KWD: "KWD",
-  "ج.م": "EGP",
-  EGP: "EGP",
-  جنيه: "EGP",
-  "د.أ": "JOD",
-  JOD: "JOD",
-  "د.ت": "TND",
-  TND: "TND",
-  "د.ج": "DZD",
-  DZD: "DZD",
-  "د.ب": "BHD",
-  BHD: "BHD",
-  "ر.ع": "OMR",
-  OMR: "OMR",
-  "ر.ق": "QAR",
-  QAR: "QAR",
-  "د.ع": "IQD",
-  IQD: "IQD",
-  "ل.س": "SYP",
-  SYP: "SYP",
-  "ل.ل": "LBP",
-  LBP: "LBP",
-  "د.م": "MAD",
-  MAD: "MAD",
-  $: "USD",
-  USD: "USD",
-  "€": "EUR",
-  EUR: "EUR",
-  "£": "GBP",
-  GBP: "GBP",
+  "د.ل": "LYD", "ل.د": "LYD", "دينار": "LYD", "LYD": "LYD",
+  "د.إ": "AED", "AED": "AED", "درهم": "AED",
+  "ر.س": "SAR", "SAR": "SAR", "ريال": "SAR",
+  "د.ك": "KWD", "KWD": "KWD",
+  "ج.م": "EGP", "EGP": "EGP", "جنيه": "EGP",
+  "د.أ": "JOD", "JOD": "JOD",
+  "د.ت": "TND", "TND": "TND",
+  "د.ج": "DZD", "DZD": "DZD",
+  "د.ب": "BHD", "BHD": "BHD",
+  "ر.ع": "OMR", "OMR": "OMR",
+  "ر.ق": "QAR", "QAR": "QAR",
+  "د.ع": "IQD", "IQD": "IQD",
+  "ل.س": "SYP", "SYP": "SYP",
+  "ل.ل": "LBP", "LBP": "LBP",
+  "د.م": "MAD", "MAD": "MAD",
+  "$": "USD", "USD": "USD",
+  "€": "EUR", "EUR": "EUR",
+  "£": "GBP", "GBP": "GBP",
 };
-
 function toISOCurrency(code?: string, symbol?: string): string {
   const c = (code || "").trim();
   if (/^[A-Z]{3}$/.test(c)) return c;
   if (c && CURRENCY_ISO_MAP[c]) return CURRENCY_ISO_MAP[c];
   const s = (symbol || "").trim();
   if (s && CURRENCY_ISO_MAP[s]) return CURRENCY_ISO_MAP[s];
-  return "LYD";
+  return "LYD"; // sensible default for this Libya-focused platform
 }
 
+// Cache keys
 const CACHE_KEYS = {
-  STORE_SETTINGS: "libya_store_settings",
-  PIXEL_SETTINGS: "libya_pixel_settings",
-  FORM_FIELDS: "libya_form_fields",
-  PRODUCT: "libya_product_",
+  STORE_SETTINGS: 'libya_store_settings',
+  PIXEL_SETTINGS: 'libya_pixel_settings',
+  FORM_FIELDS: 'libya_form_fields',
+  PRODUCT: 'libya_product_',
 };
 
+// Cache duration: 5 minutes
 const CACHE_DURATION = 5 * 60 * 1000;
 
 function getFromCache(key: string): any {
@@ -422,12 +142,18 @@ function setToCache(key: string, data: any) {
 }
 
 const LandingPage = () => {
-  const { slug, username } = useParamsSafe();
-  const navigate = useNavigateSafe();
-  const [searchParams] = useSearchParamsSafe();
+  const { slug, username } = useParams<{ slug: string; username?: string }>();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
+  const showToast = (title: string, description: string, variant: string = "success") => {
+    setToastMessage({ type: variant, msg: `${title}: ${description}` });
+    setTimeout(() => setToastMessage(null), 4000);
+    try { toast({ title, description, variant: variant === "destructive" ? "destructive" : undefined } as any); } catch {}
+  };
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -435,26 +161,17 @@ const LandingPage = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
-  const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
-  const [storeSettings, setStoreSettings] = useState<StoreSettings>({
-    currency_symbol: "د.ل",
-    currency_code: "LYD",
-    button_text: "اطلب الآن - الدفع عند الاستلام",
-  });
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.ل", currency_code: "LYD", button_text: "اطلب الآن - الدفع عند الاستلام" });
   const [formData, setFormData] = useState<Record<string, string>>({});
-
+  // Bot protection: honeypot field + form load time
   const [honeypot, setHoneypot] = useState("");
   const formLoadedAtRef = useRef<number>(Date.now());
+  const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
-  const [checkoutTracked, setCheckoutTracked] = useState(false);
-
-  const showToast = (title: string, description: string, variant = "success") => {
-    setToastMessage({ type: variant, msg: `${title}: ${description}` });
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
+  
+  // Force light mode — landing pages should always look the same regardless of dashboard theme
   useEffect(() => {
     const root = document.documentElement;
     const wasDark = root.classList.contains("dark");
@@ -463,18 +180,22 @@ const LandingPage = () => {
       if (wasDark) root.classList.add("dark");
     };
   }, []);
-
+  
+  // For multiple items with different variants
   interface ItemVariant {
     color: string;
     size: string;
     productCode: string;
   }
   const [itemVariants, setItemVariants] = useState<ItemVariant[]>([{ color: "", size: "", productCode: "" }]);
-
+  
+  
+  // Get UTM source from URL params
   const getUtmSource = () => {
     const utmSource = searchParams.get("utm_source");
     if (utmSource) return utmSource;
-
+    
+    // Try to detect from referrer
     const referrer = document.referrer;
     if (referrer.includes("facebook.com") || referrer.includes("fb.com")) return "facebook";
     if (referrer.includes("instagram.com")) return "instagram";
@@ -482,13 +203,14 @@ const LandingPage = () => {
     if (referrer.includes("google.com")) return "google";
     if (referrer.includes("twitter.com") || referrer.includes("x.com")) return "twitter";
     if (referrer.includes("snapchat.com")) return "snapchat";
-
+    
     return "direct";
   };
 
+  // Full UTM + FB attribution captured from URL
   const getAttribution = () => {
     const fbclid = searchParams.get("fbclid") || "";
-    const inferredSource = fbclid && !searchParams.get("utm_source") ? "facebook" : getUtmSource();
+    const inferredSource = (fbclid && !searchParams.get("utm_source")) ? "facebook" : getUtmSource();
     return {
       utm_source: inferredSource,
       utm_medium: searchParams.get("utm_medium") || (fbclid ? "paid" : null),
@@ -505,108 +227,249 @@ const LandingPage = () => {
   useEffect(() => {
     const ac = new AbortController();
     const loadData = async () => {
-      setProduct(fallbackProduct);
-      setOwnerId("owner-demo");
-      setStoreId("store-demo");
-      setLoading(false);
+      if (!slug) {
+        setLoading(false);
+        return;
+      }
 
       try {
-        let loadedCurrency = "LYD";
+        // Owner-scoped caches will be read after we resolve the product owner.
+        let loadedCurrency = "AED";
 
-        const productCacheKey = CACHE_KEYS.PRODUCT + (username || "_") + slug;
+        // Cached product for instant render
+        const productCacheKey = CACHE_KEYS.PRODUCT + (username || '_') + slug;
         const cachedProduct = getFromCache(productCacheKey);
         if (cachedProduct) {
           setProduct(cachedProduct.product);
           if (cachedProduct.ownerId) setOwnerId(cachedProduct.ownerId);
+          setLoading(false);
         }
 
+        // Run profile + product in parallel
         const profilePromise: any = username
-          ? (supabase as any).from("profiles").select("*").eq("username", username).maybeSingle()
+          ? (supabase as any).rpc("get_public_profile_by_username", { _username: username })
+              .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
           : Promise.resolve({ data: null, error: null } as any);
 
+        // Two-stage fetch: lightweight fields first (fast), heavy fields (description/images/reviews) second
+        const productLightSelect = "id, name, slug, price, original_price, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, size_chart_url";
+
+        // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
           ? supabase.from("stores").select("id, owner_id").eq("slug", username).maybeSingle()
           : Promise.resolve({ data: null } as any);
 
+        // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("*")
-          .eq("slug", slug || "premium-watch")
+          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs")
+          .eq("slug", slug)
           .maybeSingle();
 
-        const [profileRes, landingRes, storeBySlugRes] = await Promise.all([
-          profilePromise,
-          landingPromise,
-          storeBySlugPromise,
-        ]);
+        const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
         const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
+        // إن وُجدت صفحة هبوط: نأخذ المنتج بمعرّفه. وإلا نرجع للسلوك القديم (slug في products).
+        const productPromise = landingPage
+          ? supabase.from("products").select(productLightSelect).eq("id", landingPage.product_id).is("deleted_at", null)
+          : supabase
+              .from("products")
+              .select(productLightSelect)
+              .eq("slug", slug)
+              .eq("is_visible", true)
+              .is("deleted_at", null);
+
+        const productRes = await productPromise;
+
         if (ac.signal.aborted) return;
+        let resolvedOwnerId: string | null = null;
+        let resolvedStoreId: string | null = storeBySlug?.id || landingPage?.store_id || null;
+        if (storeBySlug) {
+          resolvedOwnerId = storeBySlug.owner_id;
+          setOwnerId(storeBySlug.owner_id);
+        } else if (username) {
+          const prof = (profileRes as any).data;
+          if (!prof || !prof.is_active) { setLoading(false); return; }
+          resolvedOwnerId = prof.user_id;
+          setOwnerId(prof.user_id);
+        }
+        if (resolvedStoreId) setStoreId(resolvedStoreId);
 
-        let resolvedOwnerId = storeBySlug?.owner_id || "owner-demo";
-        let resolvedStoreId = storeBySlug?.id || "store-demo";
+        if (productRes.error) throw productRes.error;
+        const rows = (productRes.data as any[]) || [];
+        const matched = resolvedOwnerId ? rows.find((r) => r.owner_id === resolvedOwnerId) : rows[0];
 
-        setOwnerId(resolvedOwnerId);
-        setStoreId(resolvedStoreId);
+        // إذا كانت الصفحة مخفية أو المنتج مخفي، أوقف
+        if (landingPage && landingPage.is_visible === false) { setLoading(false); return; }
+        if (matched && matched.is_visible === false && !landingPage) { setLoading(false); return; }
 
-        supabase
-          .from("order_form_fields")
-          .select("*")
-          .order("sort_order", { ascending: true })
-          .then((res: any) => {
-            if (res.data && res.data.length > 0) {
-              setFormFields(res.data);
-              const initialFormData: Record<string, string> = {};
-              res.data.forEach((field: FormField) => {
-                initialFormData[field.field_key] = "";
-              });
-              setFormData((prev) => ({ ...initialFormData, ...prev }));
-            } else {
-              const defaultFields = [
-                {
-                  id: "1",
-                  field_key: "name",
-                  label: "الاسم الكامل",
-                  placeholder: "الرجاء كتابة الاسم الثلاثي",
-                  field_type: "text",
-                  required: true,
-                },
-                {
-                  id: "2",
-                  field_key: "phone",
-                  label: "رقم الهاتف",
-                  placeholder: "رقم الهاتف لتأكيد الشحن الفوري",
-                  field_type: "phone",
-                  required: true,
-                },
-                {
-                  id: "3",
-                  field_key: "city",
-                  label: "المدينة / المنطقة السكنية",
-                  placeholder: "مثال: طرابلس، مصراتة، بنغازي...",
-                  field_type: "text",
-                  required: true,
-                },
-                {
-                  id: "4",
-                  field_key: "address",
-                  label: "العنوان بالتفصيل",
-                  placeholder: "الحي، الشارع أو علامة مميزة قريبة للتوصيل السريع",
-                  field_type: "textarea",
-                  required: false,
-                },
-              ];
-              setFormFields(defaultFields);
-              const initialFormData: Record<string, string> = {};
-              defaultFields.forEach((field) => {
-                initialFormData[field.field_key] = "";
-              });
-              setFormData((prev) => ({ ...initialFormData, ...prev }));
-            }
+        let loadedProduct: Product | null = null;
+        if (matched) {
+          // طبّق overrides من صفحة الهبوط إن وُجدت
+          const lp = landingPage;
+          // اضبط مالك المتجر (مهم لتتبع التحليلات وربط الأحداث بالمتجر الصحيح)
+          if (!resolvedOwnerId && matched.owner_id) {
+            resolvedOwnerId = matched.owner_id;
+            setOwnerId(matched.owner_id);
+          }
+          if (!resolvedStoreId && (matched as any).store_id) {
+            resolvedStoreId = (matched as any).store_id;
+            setStoreId((matched as any).store_id);
+          }
+          const lpImages: string[] = Array.isArray(lp?.images) ? lp.images : [];
+          const lpHasUpsell = lp ? lp.upsell_enabled : null;
+          loadedProduct = {
+            id: matched.id,
+            name: matched.name,
+            slug: lp?.slug || matched.slug,
+            price: String(lp?.price ?? matched.price),
+            original_price: (lp?.original_price ?? matched.original_price) ? String(lp?.original_price ?? matched.original_price) : undefined,
+            description: cachedProduct?.product?.description || "",
+            images: lpImages.length ? lpImages : (cachedProduct?.product?.images || []),
+            product_codes: matched.product_codes || [],
+            colors: matched.colors || [],
+            sizes: matched.sizes || [],
+            // Upsell is controlled exclusively by the landing page.
+            upsell_enabled: !!lp?.upsell_enabled,
+            upsell_title: (lp?.upsell_title || "🎁 عروض خاصة"),
+            upsell_offers: Array.isArray(lp?.upsell_offers) ? lp.upsell_offers : [],
+            order_form_on_top: lp?.order_form_on_top != null ? !!lp.order_form_on_top : !!(matched as any).order_form_on_top,
+            show_quantity: lp?.show_quantity != null ? !!lp.show_quantity : true,
+            // عنوان مخصص لصفحة الهبوط (إن وُجد)
+            ...(lp?.title ? { name: lp.title } : {}),
+            stock: typeof (matched as any).stock === "number" ? (matched as any).stock : undefined,
+            size_chart_url: (matched as any).size_chart_url || null,
+            reviews: cachedProduct?.product?.reviews || [],
+            faqs: Array.isArray(lp?.faqs) ? lp.faqs : [],
+          };
+          setProduct(loadedProduct);
+
+          // Fetch heavy fields (images/description/reviews) separately after first paint
+          const needProductHeavy = !lpImages.length;
+          const heavyProductPromise = needProductHeavy
+            ? supabase.from("products").select("images, description, reviews").eq("id", matched.id).maybeSingle()
+            : supabase.from("products").select("description, reviews").eq("id", matched.id).maybeSingle();
+          const heavyLandingPromise = lp
+            ? supabase.from("landing_pages").select("description").eq("id", lp.id).maybeSingle()
+            : Promise.resolve({ data: null } as any);
+
+          Promise.all([heavyProductPromise, heavyLandingPromise]).then(([prodHeavy, landingHeavy]: any[]) => {
+            const prodData = prodHeavy?.data || {};
+            const landingDesc = landingHeavy?.data?.description;
+            const finalDesc = (landingDesc ?? prodData.description) || "";
+            const finalReviews = Array.isArray(prodData.reviews) ? prodData.reviews : [];
+            const finalImages = needProductHeavy && Array.isArray(prodData.images) && prodData.images.length
+              ? prodData.images
+              : (loadedProduct as Product).images;
+            const merged: Product = { ...(loadedProduct as Product), description: finalDesc, reviews: finalReviews, images: finalImages };
+            setProduct(merged);
+            setToCache(productCacheKey, { product: merged, ownerId: resolvedOwnerId || matched.owner_id });
           });
+        }
+
+        setLoading(false);
+
+        // SECONDARY: fetch the rest in the background, prefer cache.
+        const ownerForSettings = resolvedOwnerId || matched?.owner_id;
+        const storeForSettings = resolvedStoreId || (matched as any)?.store_id || null;
+        const productResult = { data: matched } as any;
+
+        // Owner-scoped cache keys so different stores don't pollute each other's
+        // form fields, store currency, or pixel settings.
+        const ownerSuffix = (ownerForSettings || "_") + "_" + (storeForSettings || "_");
+        const storeKey = CACHE_KEYS.STORE_SETTINGS + "_" + ownerSuffix;
+        const pixelKey = CACHE_KEYS.PIXEL_SETTINGS + "_" + ownerSuffix;
+        const formKey = CACHE_KEYS.FORM_FIELDS + "_" + ownerSuffix;
+
+        const cachedStoreSettings = getFromCache(storeKey);
+        const cachedPixelSettings = getFromCache(pixelKey);
+        const cachedFormFields = getFromCache(formKey);
+
+        // Apply cache immediately for snappy paint.
+        if (cachedStoreSettings) {
+          setStoreSettings(cachedStoreSettings);
+          loadedCurrency = cachedStoreSettings.currency_code;
+        }
+        if (cachedFormFields) {
+          setFormFields(cachedFormFields);
+          const initialFormData: Record<string, string> = {};
+          (cachedFormFields as FormField[]).forEach((field) => {
+            initialFormData[field.field_key] = "";
+          });
+          setFormData((prev) => ({ ...initialFormData, ...prev }));
+        }
+
+        // Stale-while-revalidate: ALWAYS fetch fresh so admin edits show up.
+        const pixelPromise: any = ownerForSettings
+          ? (supabase as any)
+              .rpc("get_pixel_settings_public", { _owner_id: ownerForSettings, _store_id: storeForSettings || null })
+              .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
+          : Promise.resolve({ data: null, error: null } as any);
+
+        const formQ = supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true);
+        if (ownerForSettings) formQ.eq("owner_id", ownerForSettings);
+        if (storeForSettings) formQ.eq("store_id", storeForSettings);
+        const formFieldsPromise = formQ.order("sort_order", { ascending: true });
+
+        const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text");
+        if (ownerForSettings) storeQ.eq("owner_id", ownerForSettings);
+        const storePromise = storeQ.limit(1).maybeSingle();
+
+        const catalogPromise = supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true);
+
+        Promise.all([pixelPromise, formFieldsPromise, storePromise, catalogPromise]).then(([pixelResult, formFieldsResult, storeSettingsResult, catalogResult]) => {
+          if (formFieldsResult.data) {
+            const allowed = new Set((catalogResult.data || []).map((c: any) => c.field_key));
+            const filtered = (formFieldsResult.data as FormField[]).filter(f => allowed.size === 0 || allowed.has(f.field_key));
+            setFormFields(filtered);
+            setToCache(formKey, filtered);
+            const initialFormData: Record<string, string> = {};
+            filtered.forEach((field: FormField) => {
+              initialFormData[field.field_key] = "";
+            });
+            setFormData((prev) => ({ ...initialFormData, ...prev }));
+          }
+
+          if (storeSettingsResult.data) {
+            loadedCurrency = storeSettingsResult.data.currency_code;
+            setStoreSettings({
+              currency_symbol: storeSettingsResult.data.currency_symbol,
+              currency_code: storeSettingsResult.data.currency_code,
+              button_text: (storeSettingsResult.data as any).button_text || "اطلب الآن - الدفع عند الاستلام",
+            });
+            setToCache(storeKey, storeSettingsResult.data);
+          }
+
+          if (pixelResult.data) {
+            setToCache(pixelKey, pixelResult.data);
+          }
+
+          // Track page view in background (non-blocking)
+          if (loadedProduct) {
+            const attr = getAttribution();
+            supabase.from("analytics_events").insert({
+              event_type: "page_view",
+              product_slug: slug,
+              owner_id: ownerForSettings || null,
+              store_id: storeForSettings || null,
+              ...attr,
+            } as any).then(() => {});
+          }
+
+          // Initialize tracking pixels when browser is idle
+          if (pixelResult.data) {
+            const runPixels = () => initializePixels(pixelResult.data as PixelSettings, loadedProduct, loadedCurrency);
+            if (typeof (window as any).requestIdleCallback === "function") {
+              (window as any).requestIdleCallback(runPixels, { timeout: 2000 });
+            } else {
+              setTimeout(runPixels, 800);
+            }
+          }
+        });
       } catch (error) {
         console.error("Error loading data:", error);
+        setLoading(false);
       }
     };
 
@@ -614,6 +477,7 @@ const LandingPage = () => {
     return () => ac.abort();
   }, [slug]);
 
+  // Sanitize description in background, after main render
   useEffect(() => {
     if (!product?.description) {
       setSanitizedDescription("");
@@ -624,21 +488,23 @@ const LandingPage = () => {
       const dp = await loadDOMPurify();
       if (cancelled) return;
       let html = (dp as any).sanitize(product.description) as string;
-
+      // Force lazy-loading + async decoding on every embedded image/iframe
       html = html
         .replace(/<img\b(?![^>]*\bloading=)/gi, '<img loading="lazy" decoding="async"')
         .replace(/<iframe\b(?![^>]*\bloading=)/gi, '<iframe loading="lazy"');
-
-      html = html.replace(/\s(width|height)="[^"]*"/gi, "").replace(/style="([^"]*)"/gi, (_m, s) => {
-        const cleaned = s
-          .replace(
-            /(?:^|;)\s*(width|min-width|max-width|height|min-height|max-height|position|top|left|right|bottom|float|margin[^:]*|padding[^:]*|transform)\s*:[^;]*/gi,
-            "",
-          )
-          .replace(/^;+|;+$/g, "")
-          .trim();
-        return cleaned ? `style="${cleaned}"` : "";
-      });
+      // Neutralize pasted HTML from other sites that uses fixed widths,
+      // floats, absolute positioning, or huge margins that overflow mobile.
+      html = html
+        // Drop hard-coded width/height attributes on media + tables
+        .replace(/\s(width|height)="[^"]*"/gi, "")
+        // Strip problematic CSS declarations from inline styles
+        .replace(/style="([^"]*)"/gi, (_m, s) => {
+          const cleaned = s
+            .replace(/(?:^|;)\s*(width|min-width|max-width|height|min-height|max-height|position|top|left|right|bottom|float|margin[^:]*|padding[^:]*|transform)\s*:[^;]*/gi, "")
+            .replace(/^;+|;+$/g, "")
+            .trim();
+          return cleaned ? `style="${cleaned}"` : "";
+        });
       setSanitizedDescription(html);
     };
     if (typeof (window as any).requestIdleCallback === "function") {
@@ -646,14 +512,16 @@ const LandingPage = () => {
     } else {
       setTimeout(run, 300);
     }
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [product?.description]);
+
+  // Track checkout start when user starts filling the form
+  const [checkoutTracked, setCheckoutTracked] = useState(false);
 
   const handleInputChange = (fieldKey: string, value: string) => {
     let cleanedValue = value;
-    const isPhoneField = formFields.find((f) => f.field_key === fieldKey)?.field_type === "phone";
+    // Phone field: strip everything except digits and optional leading +
+    const isPhoneField = formFields.find(f => f.field_key === fieldKey)?.field_type === "phone";
     if (isPhoneField) {
       cleanedValue = value.replace(/[^0-9+]/g, "");
       if (cleanedValue.startsWith("+")) {
@@ -664,55 +532,397 @@ const LandingPage = () => {
     }
     setFormData({ ...formData, [fieldKey]: cleanedValue });
 
+    // Track checkout start on first input
     if (!checkoutTracked && value.length > 0) {
       setCheckoutTracked(true);
-
+      
+      // Track InitiateCheckout across all enabled pixels
       if (product) {
-        const val = parseFloat(product.price);
+        const value = parseFloat(product.price);
         const currency = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
-        console.log("Tracked Checkout Initiation", { val, currency });
+        if (window.fbq) {
+          window.fbq('track', 'InitiateCheckout', {
+            content_name: product.name,
+            content_ids: [product.id],
+            content_type: 'product',
+            value,
+            currency,
+            num_items: 1,
+          });
+        }
+        if (window.ttq && typeof window.ttq.track === 'function') {
+          window.ttq.track('InitiateCheckout', {
+            value,
+            currency,
+            contents: [{ content_id: product.id, content_name: product.name, quantity: 1 }],
+          });
+        }
+        if (window.gtag) {
+          window.gtag('event', 'begin_checkout', {
+            value,
+            currency,
+            items: [{ item_id: product.id, item_name: product.name, quantity: 1 }],
+          });
+        }
+        if (window.snaptr) {
+          window.snaptr('track', 'START_CHECKOUT', {
+            price: value,
+            currency,
+            item_ids: [product.id],
+          });
+        }
       }
+      
+      // Fire-and-forget so input stays buttery smooth
+      const attr = getAttribution();
+      supabase.from("analytics_events").insert({
+        event_type: "checkout_start",
+        product_slug: slug,
+          owner_id: ownerId || null,
+          store_id: storeId || null,
+        ...attr,
+      } as any).then(({ error }) => {
+        if (error) console.error("Error tracking checkout start:", error);
+      });
+    }
+  };
+
+  const initializePixels = (settings: PixelSettings, productData: Product | null, currencyCode: string) => {
+    // Facebook Pixel
+    if (settings.facebook_enabled && settings.facebook_pixel_id) {
+      initFacebookPixel(settings.facebook_pixel_id, productData, currencyCode);
+    }
+
+    // TikTok Pixel
+    if (settings.tiktok_enabled && settings.tiktok_pixel_id) {
+      initTikTokPixel(settings.tiktok_pixel_id);
+    }
+
+    // Google Analytics
+    if (settings.google_enabled && settings.google_analytics_id) {
+      initGoogleAnalytics(settings.google_analytics_id);
+    }
+
+    // Snapchat Pixel
+    if (settings.snapchat_enabled && settings.snapchat_pixel_id) {
+      initSnapchatPixel(settings.snapchat_pixel_id);
+    }
+  };
+
+  const initFacebookPixel = (pixelId: string, productData?: Product | null, currencyCode?: string) => {
+    // Check if already initialized to prevent duplicate activation
+    if (window.fbq && window.fbq.loaded) {
+      return;
+    }
+
+    // Check if script already exists
+    if (document.querySelector('script[src*="fbevents.js"]')) {
+      return;
+    }
+
+    (function(f: any, b: Document, e: string, v: string, n?: any, t?: any, s?: any) {
+      if (f.fbq) return;
+      n = f.fbq = function() {
+        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+      };
+      if (!f._fbq) f._fbq = n;
+      n.push = n;
+      n.loaded = !0;
+      n.version = '2.0';
+      n.queue = [];
+      t = b.createElement(e) as HTMLScriptElement;
+      t.async = !0;
+      t.src = v;
+      s = b.getElementsByTagName(e)[0];
+      s.parentNode?.insertBefore(t, s);
+    })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+
+    window.fbq('init', pixelId);
+    window.fbq('track', 'PageView');
+    
+    // Track ViewContent event for product page
+    if (productData) {
+      window.fbq('track', 'ViewContent', {
+        content_name: productData.name,
+        content_ids: [productData.id],
+        content_type: 'product',
+        value: parseFloat(productData.price),
+        currency: currencyCode || 'AED',
+      });
+    }
+  };
+
+  const initTikTokPixel = (pixelId: string) => {
+    // Check if already initialized
+    if (window.ttq && window.ttq._i) {
+      return;
+    }
+
+    // Check if script already exists
+    if (document.querySelector('script[src*="tiktok.com"]')) {
+      return;
+    }
+
+    (function(w: any, d: Document, t: string) {
+      w.TiktokAnalyticsObject = t;
+      var ttq = w[t] = w[t] || [];
+      ttq.methods = ["page", "track", "identify", "instances", "debug", "on", "off", "once", "ready", "alias", "group", "enableCookie", "disableCookie"];
+      ttq.setAndDefer = function(t: any, e: any) {
+        t[e] = function() {
+          t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+        };
+      };
+      for (var i = 0; i < ttq.methods.length; i++) ttq.setAndDefer(ttq, ttq.methods[i]);
+      ttq.instance = function(t: any) {
+        var e = ttq._i[t] || [];
+        for (var n = 0; n < ttq.methods.length; n++) ttq.setAndDefer(e, ttq.methods[n]);
+        return e;
+      };
+      ttq.load = function(e: any, n: any) {
+        var i = "https://analytics.tiktok.com/i18n/pixel/events.js";
+        ttq._i = ttq._i || {};
+        ttq._i[e] = [];
+        ttq._i[e]._u = i;
+        ttq._t = ttq._t || {};
+        ttq._t[e] = +new Date();
+        ttq._o = ttq._o || {};
+        ttq._o[e] = n || {};
+        var o = d.createElement("script") as HTMLScriptElement;
+        o.type = "text/javascript";
+        o.async = true;
+        o.src = i + "?sdkid=" + e + "&lib=" + t;
+        var a = d.getElementsByTagName("script")[0];
+        a.parentNode?.insertBefore(o, a);
+      };
+      ttq.load(pixelId);
+      ttq.page();
+    })(window, document, 'ttq');
+  };
+
+  const initGoogleAnalytics = (measurementId: string) => {
+    // Check if already initialized
+    if (document.querySelector(`script[src*="googletagmanager.com/gtag/js?id=${measurementId}"]`)) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
+    document.head.appendChild(script);
+
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function() {
+      window.dataLayer.push(arguments);
+    };
+    window.gtag('js', new Date());
+    window.gtag('config', measurementId);
+  };
+
+  const initSnapchatPixel = (pixelId: string) => {
+    // Check if already initialized
+    if (window.snaptr && window.snaptr.loaded) {
+      return;
+    }
+
+    // Check if script already exists
+    if (document.querySelector('script[src*="scevent.min.js"]')) {
+      return;
+    }
+
+    (function(e: any, t: Document, n: string) {
+      if (e.snaptr) return;
+      var a: any = e.snaptr = function() {
+        a.handleRequest ? a.handleRequest.apply(a, arguments) : a.queue.push(arguments);
+      };
+      a.queue = [];
+      a.loaded = true;
+      var s = 'script';
+      var r = t.createElement(s) as HTMLScriptElement;
+      r.async = true;
+      r.src = n;
+      var u = t.getElementsByTagName(s)[0];
+      u.parentNode?.insertBefore(r, u);
+    })(window, document, 'https://sc-static.net/scevent.min.js');
+
+    window.snaptr('init', pixelId, {});
+    window.snaptr('track', 'PAGE_VIEW');
+  };
+
+  const trackPurchaseEvent = () => {
+    const currencyCode = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
+    const productValue = parseFloat(product?.price || "0") * quantity;
+    const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // Persist for thank-you page fallback dedup
+    try {
+      sessionStorage.setItem('last_purchase_event', JSON.stringify({
+        eventID,
+        value: productValue,
+        currency: currencyCode,
+        content_name: product?.name,
+        content_ids: [product?.id || 'unknown'],
+        num_items: quantity,
+        ts: Date.now(),
+      }));
+    } catch {}
+    
+    // Facebook Purchase Event with full parameters
+    if (window.fbq) {
+      window.fbq('track', 'Purchase', {
+        value: productValue,
+        currency: currencyCode,
+        content_name: product?.name,
+        content_ids: [product?.id || 'unknown'],
+        content_type: 'product',
+        num_items: quantity,
+      }, { eventID });
+      console.log('Facebook Purchase event tracked:', {
+        value: productValue,
+        currency: currencyCode,
+        content_name: product?.name,
+        content_ids: [product?.id],
+        eventID,
+      });
+    }
+
+    // TikTok Purchase Event
+    if (window.ttq) {
+      window.ttq.track('PlaceAnOrder', {
+        value: productValue,
+        currency: currencyCode,
+        contents: [{ content_name: product?.name, quantity: quantity }],
+      });
+    }
+
+    // Google Analytics Purchase Event
+    if (window.gtag) {
+      window.gtag('event', 'purchase', {
+        value: productValue,
+        currency: currencyCode,
+        items: [{ name: product?.name, quantity: quantity }],
+      });
+    }
+
+    // Snapchat Purchase Event
+    if (window.snaptr) {
+      window.snaptr('track', 'PURCHASE', {
+        price: productValue,
+        currency: currencyCode,
+        item_ids: [product?.id],
+      });
     }
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Bot protection: honeypot field — real users never fill this.
+    // Silently pretend success to avoid telling the bot it was caught.
     if (honeypot.trim() !== "") {
       navigate("/thank-you", { state: { orderData: { productName: product?.name } } });
       return;
     }
 
+    // Bot protection: reject form submitted in less than 3 seconds.
     const elapsedMs = Date.now() - formLoadedAtRef.current;
     if (elapsedMs < 3000) {
-      showToast("تنبيه أمان", "يرجى التروي ومراجعة بياناتك قبل الإرسال لتفادي أي خطأ بالطلب", "destructive");
+      showToast("خطأ", "يرجى مراجعة بياناتك قبل الإرسال", "destructive");
       return;
     }
 
-    const missingFields = formFields.filter((f) => f.required && !formData[f.field_key]);
+    // Check required fields
+    const requiredFields = formFields.filter(f => f.required);
+    const missingFields = requiredFields.filter(f => !formData[f.field_key]);
+    
     if (missingFields.length > 0) {
-      showToast("خطأ بالبيانات", "يرجى ملء جميع الحقول التي تحتوي على علامة النجمة (*)", "destructive");
+      showToast("خطأ", "يرجى ملء جميع الحقول المطلوبة", "destructive");
       return;
     }
 
-    const phoneField = formFields.find((f) => f.field_type === "phone");
+    // Validate phone number: 9-10 digits only
+    const phoneField = formFields.find(f => f.field_type === "phone");
     if (phoneField) {
       const phoneValue = formData[phoneField.field_key] || "";
       const digitsOnly = phoneValue.replace(/\D/g, "");
       if (digitsOnly.length < 9 || digitsOnly.length > 10) {
-        showToast("خطأ في التحقق", "رقم الهاتف يجب أن يتكون من 9 أو 10 أرقام فقط (مثال: 091XXXXXXX)", "destructive");
+        showToast("خطأ", "رقم الهاتف يجب أن يكون بين 9 و 10 أرقام", "destructive");
         return;
+      }
+    }
+
+    // Validate per-piece variants: if product has variants, each piece must have its selections
+    const hasColors = !!(product?.colors && product.colors.length > 0);
+    const hasSizes = !!(product?.sizes && product.sizes.length > 0);
+    if (hasColors || hasSizes) {
+      for (let i = 0; i < itemVariants.length; i++) {
+        const v = itemVariants[i];
+        if ((hasColors && !v.color) || (hasSizes && !v.size)) {
+          toast({
+            title: "خطأ",
+            description: `يرجى اختيار ${[hasColors && "اللون", hasSizes && "المقاس"].filter(Boolean).join(" و ")} للقطعة ${i + 1}`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
     }
 
     setIsSubmitting(true);
 
     try {
-      const customer_name = formData.name || formData.customer_name || "زبون متميز";
-      const phone = formData.phone || "لا يوجد";
-      const city = formData.city || "عام";
-      const address = formData.address || "غير محدد";
+      // SKU is hidden from landing page; auto-use the first code if any exist
+      const singleCode = product?.product_codes && product.product_codes.length > 0
+        ? product.product_codes[0]
+        : null;
+      // Keep per-piece alignment: do NOT filter, so colors/sizes/codes pair by index
+      const colorsArray = itemVariants.map(v => v.color || "");
+      const sizesArray = itemVariants.map(v => v.size || "");
+      const codesArray = itemVariants.map(v => v.productCode || singleCode || "");
+      // Build items array for proper order_items rows on the server.
+      // Group consecutive pieces that share the same variant (color/size/code)
+      // into a single line with quantity = N instead of N separate rows.
+      const itemsPayload: Array<{
+        color: string | null;
+        size: string | null;
+        product_code: string | null;
+        quantity: number;
+      }> = [];
+      for (const v of itemVariants) {
+        const color = v.color || null;
+        const size = v.size || null;
+        const product_code = (v.productCode || singleCode) || null;
+        const last = itemsPayload[itemsPayload.length - 1];
+        if (
+          last &&
+          last.color === color &&
+          last.size === size &&
+          last.product_code === product_code
+        ) {
+          last.quantity += 1;
+        } else {
+          itemsPayload.push({ color, size, product_code, quantity: 1 });
+        }
+      }
 
+      // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
+      const findField = (...keywords: string[]) => {
+        const f = formFields.find((fld) => {
+          const hay = `${fld.label || ""} ${fld.field_key || ""}`.toLowerCase();
+          return keywords.some((k) => hay.includes(k.toLowerCase()));
+        });
+        return f ? (formData[f.field_key] || "") : "";
+      };
+      const customer_name =
+        formData.name || findField("name", "اسم");
+      const phone =
+        formData.phone || findField("phone", "tel", "هاتف", "رقم", "جوال", "موبايل");
+      const city =
+        formData.city ||
+        findField("city", "مدينة", "محافظة", "محافضة", "ولاية", "منطقة");
+      const address =
+        formData.address ||
+        findField("address", "منطقة", "عنوان", "حي", "شارع");
+
+      // Price is recomputed server-side to prevent client-side tampering
       const { error } = await supabase.functions.invoke("create-order", {
         body: {
           customer_name,
@@ -721,51 +931,57 @@ const LandingPage = () => {
           city,
           product_id: product?.id,
           quantity: quantity,
-          selected_color:
-            itemVariants
-              .map((v) => v.color)
-              .filter(Boolean)
-              .join(", ") || null,
-          selected_size:
-            itemVariants
-              .map((v) => v.size)
-              .filter(Boolean)
-              .join(", ") || null,
+          selected_color: colorsArray.filter(Boolean).join(", ") || null,
+          selected_size: sizesArray.filter(Boolean).join(", ") || null,
+          selected_product_code: codesArray.filter(Boolean).join(", ") || null,
+          items: itemsPayload,
           upsell_index: selectedUpsellIndex,
-          landing_slug: slug || "premium-watch",
+          landing_slug: slug,
           elapsed_ms: elapsedMs,
+          hp: honeypot,
           ...getAttribution(),
         },
       });
 
       if (error) throw error;
 
-      showToast("تم الحجز بنجاح", "تم تسجيل طلبك كطلب ممتاز! جاري تحويلك لصفحة الاستقبال", "success");
+      // Track purchase event
+      trackPurchaseEvent();
 
-      setTimeout(() => {
-        navigate("/thank-you", {
-          state: {
-            orderData: {
-              productName: product?.name,
-              price: product?.price,
-              currencySymbol: storeSettings.currency_symbol,
-              currencyCode: storeSettings.currency_code,
-              productId: product?.id,
-              quantity,
-              customerName: customer_name,
-              phone,
-              city,
-              address,
-              ownerId: product?.owner_id || ownerId || null,
-            },
+      // Navigate to thank you page with order data
+      navigate("/thank-you", {
+        state: {
+          orderData: {
+            productName: product?.name,
+            price: product?.price,
+            currencySymbol: storeSettings.currency_symbol,
+            currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
+            productId: product?.id,
+            quantity,
+            customerName: customer_name,
+            phone,
+            city,
+            address,
+            ownerId: product?.owner_id || ownerId || null,
           },
-        });
-      }, 1200);
+        },
+      });
     } catch (error) {
       console.error("Error submitting order:", error);
-      showToast("مشكلة في الإرسال", "لم نتمكن من إرسال الطلب، يرجى التحقق من الشبكة والمحاولة مرة أخرى", "destructive");
+      showToast("خطأ", "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى", "destructive");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const getFieldIcon = (fieldType: string) => {
+    switch (fieldType) {
+      case "phone":
+        return <Phone className="w-4 h-4" />;
+      case "email":
+        return <Mail className="w-4 h-4" />;
+      default:
+        return <User className="w-4 h-4" />;
     }
   };
 
