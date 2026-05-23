@@ -1055,6 +1055,39 @@ export type Database = {
           },
         ]
       }
+      landing_page_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          owner_id: string
+          puck_data: Json | null
+          store_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          owner_id: string
+          puck_data?: Json | null
+          store_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          owner_id?: string
+          puck_data?: Json | null
+          store_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       landing_pages: {
         Row: {
           created_at: string
@@ -1073,6 +1106,7 @@ export type Database = {
           slug: string
           store_id: string | null
           subtitle: string | null
+          template_id: string | null
           title: string
           updated_at: string
           upsell_enabled: boolean
@@ -1096,6 +1130,7 @@ export type Database = {
           slug: string
           store_id?: string | null
           subtitle?: string | null
+          template_id?: string | null
           title?: string
           updated_at?: string
           upsell_enabled?: boolean
@@ -1119,6 +1154,7 @@ export type Database = {
           slug?: string
           store_id?: string | null
           subtitle?: string | null
+          template_id?: string | null
           title?: string
           updated_at?: string
           upsell_enabled?: boolean

@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2 } from "lucide-react";
+import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
@@ -51,6 +51,7 @@ export interface LandingPageFormData {
   showQuantity?: boolean;
   isVisible: boolean;
   faqs?: Array<{ question: string; answer: string }>;
+  templateId?: string;
 }
 
 export const emptyLandingPageData: LandingPageFormData = {
@@ -69,6 +70,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   showQuantity: true,
   isVisible: true,
   faqs: [],
+  templateId: "",
 };
 
 interface ProductOption {
@@ -88,9 +90,10 @@ interface LandingPageFormProps {
   products: ProductOption[];
   /** عند التعديل: لا نسمح بتغيير المنتج المرتبط */
   lockProduct?: boolean;
+  templates?: Array<{ id: string; name: string; is_default?: boolean }>;
 }
 
-const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, products, lockProduct }: LandingPageFormProps) => {
+const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, products, lockProduct, templates }: LandingPageFormProps) => {
   const update = <K extends keyof LandingPageFormData>(field: K, value: LandingPageFormData[K]) => {
     onChange({ ...data, [field]: value });
   };
@@ -369,6 +372,31 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
           </Button>
         </div>
       </SectionCard>
+
+      {/* قالب التصميم */}
+      {templates && templates.length > 0 && (
+        <SectionCard
+          icon={LayoutTemplate}
+          title="قالب التصميم (Puck)"
+          description="اختر قالبًا جاهزًا أنشأته من إعدادات المتجر — سيُطبَّق فوق محتوى الصفحة"
+          iconColor="bg-violet-500"
+        >
+          <SearchableSelect
+            value={data.templateId || "__none__"}
+            onChange={(v) => update("templateId", v === "__none__" ? "" : v)}
+            placeholder="اختر قالبًا..."
+            searchPlaceholder="ابحث..."
+            options={[
+              { value: "__none__", label: "— بدون قالب (التصميم الافتراضي) —" },
+              ...templates.map((t) => ({
+                value: t.id,
+                label: t.is_default ? `${t.name} (افتراضي)` : t.name,
+                keywords: t.name,
+              })),
+            ]}
+          />
+        </SectionCard>
+      )}
 
       {/* الإظهار */}
       <SectionCard icon={Eye} title="الإظهار" iconColor="bg-teal-500">

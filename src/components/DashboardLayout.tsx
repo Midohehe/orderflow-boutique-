@@ -65,6 +65,7 @@ const baseMenuGroups = [
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "بناء الصفحة الرئيسية", path: "/dashboard/home-builder", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "محرر Puck (احترافي)", path: "/dashboard/page-builder", external: false, adminOnly: false, dynamicStore: false },
+      { icon: LayoutTemplate, label: "قوالب صفحات الهبوط", path: "/dashboard/landing-templates", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "قوالب التصميم (Themes)", path: "/dashboard/themes", external: false, adminOnly: false, dynamicStore: false },
       { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
       { icon: Crosshair, label: "إعلانات فيسبوك", path: "/dashboard/facebook-ads", external: false, adminOnly: false, dynamicStore: false },

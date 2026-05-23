@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save, Wand2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -127,6 +127,7 @@ const Products = () => {
   const [editLp, setEditLp] = useState<LandingPageFormData>(emptyLandingPageData);
   const [isSavingLp, setIsSavingLp] = useState(false);
   const [deleteLpTarget, setDeleteLpTarget] = useState<LandingPage | null>(null);
+  const [lpTemplates, setLpTemplates] = useState<Array<{ id: string; name: string; is_default: boolean; puck_data: any }>>([]);
 
   // عداد صفحات الهبوط لكل منتج
   const lpCountByProduct = landingPages.reduce<Record<string, number>>((acc, lp) => {
@@ -860,6 +861,22 @@ const Products = () => {
     return () => { cancelled = true; };
   }, [userLoading, storeLoading, activeStoreId]);
 
+  // ===== Landing templates =====
+  useEffect(() => {
+    if (userLoading || storeLoading || !activeStoreId) { setLpTemplates([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("landing_page_templates")
+        .select("id, name, is_default, puck_data")
+        .eq("store_id", activeStoreId)
+        .order("is_default", { ascending: false })
+        .order("updated_at", { ascending: false });
+      if (!cancelled) setLpTemplates((data || []) as any);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading, storeLoading, activeStoreId]);
+
   // ===== Categories: load =====
   useEffect(() => {
     if (userLoading || storeLoading) return;
@@ -959,6 +976,7 @@ const Products = () => {
     setIsSavingLp(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const chosenTpl = newLp.templateId ? lpTemplates.find((t) => t.id === newLp.templateId) : null;
       const { data, error } = await supabase.from("landing_pages").insert({
         owner_id: user!.id,
         store_id: activeStoreId,
@@ -985,7 +1003,9 @@ const Products = () => {
         faqs: (newLp.faqs || [])
           .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
           .filter((f) => f.question && f.answer),
-      }).select("id, product_id, slug, title, subtitle, is_visible").single();
+        template_id: chosenTpl?.id || null,
+        puck_data: chosenTpl?.puck_data ?? null,
+      } as any).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
         if (error.code === "23505") {
           toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً، اختر رابطًا آخر", variant: "destructive" });
@@ -1045,6 +1065,7 @@ const Products = () => {
             answer: String(f?.answer ?? ""),
           }))
         : [],
+      templateId: d.template_id || "",
     });
   };
 
@@ -1054,7 +1075,8 @@ const Products = () => {
     if (err) { toast({ title: "خطأ", description: err, variant: "destructive" }); return; }
     setIsSavingLp(true);
     try {
-      const { error } = await supabase.from("landing_pages").update({
+      const chosenTpl = editLp.templateId ? lpTemplates.find((t) => t.id === editLp.templateId) : null;
+      const updatePayload: any = {
         slug: editLp.slug.trim(),
         title: editLp.title.trim(),
         subtitle: editLp.subtitle.trim() || null,
@@ -1077,7 +1099,11 @@ const Products = () => {
         faqs: (editLp.faqs || [])
           .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
           .filter((f) => f.question && f.answer),
-      }).eq("id", editingLpId);
+        template_id: chosenTpl?.id || null,
+      };
+      if (chosenTpl) updatePayload.puck_data = chosenTpl.puck_data ?? null;
+      else updatePayload.puck_data = null;
+      const { error } = await supabase.from("landing_pages").update(updatePayload).eq("id", editingLpId);
       if (error) {
         if (error.code === "23505") {
           toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً", variant: "destructive" });
@@ -1209,7 +1235,15 @@ const Products = () => {
               </DialogContent>
             </Dialog>
           ) : (
-            <Dialog open={isLpAddOpen} onOpenChange={(o) => { setIsLpAddOpen(o); if (!o) setNewLp(emptyLandingPageData); }}>
+            <Dialog open={isLpAddOpen} onOpenChange={(o) => {
+              setIsLpAddOpen(o);
+              if (o) {
+                const def = lpTemplates.find((t) => t.is_default);
+                if (def && !newLp.templateId) setNewLp((prev) => ({ ...prev, templateId: def.id }));
+              } else {
+                setNewLp(emptyLandingPageData);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
                   <Plus className="w-4 h-4" />
@@ -1229,6 +1263,7 @@ const Products = () => {
                   products={products.map((p) => ({
                     id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
                   }))}
+                  templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
                 />
               </DialogContent>
             </Dialog>
@@ -1282,6 +1317,7 @@ const Products = () => {
               products={products.map((p) => ({
                 id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
               }))}
+              templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
             />
           </div>
         </DialogContent>
@@ -1530,14 +1566,6 @@ const Products = () => {
                         className="px-2 bg-sky-500 hover:bg-sky-600 text-white"
                       >
                         <Edit className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => navigate(`/dashboard/page-builder?landing=${lp.id}`)}
-                        className="px-2 bg-violet-500 hover:bg-violet-600 text-white"
-                        title="تحرير بـ Puck"
-                      >
-                        <Wand2 className="w-3 h-3" />
                       </Button>
                       <Button
                         size="sm"
