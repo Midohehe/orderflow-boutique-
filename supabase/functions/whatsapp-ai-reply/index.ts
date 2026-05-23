@@ -151,6 +151,11 @@ Deno.serve(async (req) => {
       `• ${p.name} — ${p.price} (id:${p.id.slice(0, 8)}${p.colors?.length ? " | ألوان:" + p.colors.join("،") : ""}${p.sizes?.length ? " | مقاسات:" + p.sizes.join("،") : ""})`
     ).join("\n");
 
+    // Currency
+    const { data: storeSettings } = await supabase
+      .from("store_settings").select("currency_symbol").eq("owner_id", owner_id).maybeSingle();
+    const currency = storeSettings?.currency_symbol || "د.ل";
+
     // Detect product slug from any URL the customer sent (e.g. landing page /p/<slug>)
     let focusedProductInfo = "";
     try {
@@ -183,11 +188,6 @@ ${focused.colors?.length ? `- الألوان: ${focused.colors.join("، ")}\n` :
     } catch (e) {
       console.error("focused product detect failed", e);
     }
-
-    // Currency
-    const { data: storeSettings } = await supabase
-      .from("store_settings").select("currency_symbol").eq("owner_id", owner_id).maybeSingle();
-    const currency = storeSettings?.currency_symbol || "د.ل";
 
     // Shipping creds (for tools)
     const { data: shipList } = await supabase
