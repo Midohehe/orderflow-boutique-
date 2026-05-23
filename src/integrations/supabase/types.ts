@@ -2918,6 +2918,51 @@ export type Database = {
         }
         Relationships: []
       }
+      store_themes: {
+        Row: {
+          created_at: string
+          custom_css: string | null
+          custom_html: string | null
+          description: string | null
+          id: string
+          is_template: boolean
+          name: string
+          owner_id: string
+          puck_data: Json
+          store_id: string | null
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_css?: string | null
+          custom_html?: string | null
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name: string
+          owner_id: string
+          puck_data?: Json
+          store_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_css?: string | null
+          custom_html?: string | null
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name?: string
+          owner_id?: string
+          puck_data?: Json
+          store_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stores: {
         Row: {
           created_at: string
