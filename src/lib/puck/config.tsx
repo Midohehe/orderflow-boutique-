@@ -432,11 +432,36 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
       defaultProps: { height: 32 },
       render: ({ height }) => <div style={{ height }} />,
     },
+    HtmlBlock: {
+      label: "كود HTML/CSS مخصص",
+      fields: {
+        html: { type: "textarea", label: "HTML" },
+        css: { type: "textarea", label: "CSS" },
+        ...STYLE_FIELDS,
+      },
+      defaultProps: { html: "<div>محتوى مخصص</div>", css: "", ...STYLE_DEFAULTS },
+      render: (p) => {
+        const { html, css } = p as any;
+        const id = "htmlblk-" + Math.random().toString(36).slice(2, 8);
+        const cleanHtml = DOMPurify.sanitize(html || "");
+        const scopedCss = (css || "").replace(/(^|\})\s*([^{}]+)\s*\{/g, (_m, br, sel) =>
+          `${br} ${sel.split(",").map((s: string) => `#${id} ${s.trim()}`).join(",")} {`);
+        return (
+          <StyleWrap s={pickStyle(p)}>
+            <div id={id}>
+              {css ? <style dangerouslySetInnerHTML={{ __html: scopedCss }} /> : null}
+              <div dangerouslySetInnerHTML={{ __html: cleanHtml }} />
+            </div>
+          </StyleWrap>
+        );
+      },
+    },
   },
   categories: {
     layout: { title: "تخطيط", components: ["Hero", "Banner", "PromoBar", "Spacer"] },
     content: { title: "محتوى", components: ["RichText", "Video", "Faq", "Features", "Reviews"] },
     commerce: { title: "متجر", components: ["ProductsGrid", "CategoriesGrid"] },
+    custom: { title: "مخصص", components: ["HtmlBlock"] },
   },
 });
 
