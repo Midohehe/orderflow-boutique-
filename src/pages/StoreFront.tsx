@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, ShoppingBag } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
 import { isolateLatin } from "@/lib/bidi";
+import { SectionRenderer } from "@/components/home-sections/SectionRenderer";
+import type { HomeSectionRow } from "@/lib/homeSections";
 
 interface Product {
   id: string;
@@ -27,6 +29,8 @@ const StoreFront = () => {
   const [notFound, setNotFound] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: 'د.ل' });
+  const [sections, setSections] = useState<HomeSectionRow[]>([]);
+  const [hasBuilder, setHasBuilder] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,9 +79,14 @@ const StoreFront = () => {
         .from('store_settings').select('currency_symbol').limit(1);
       if (resolvedOwnerId) settingsQuery.eq('owner_id', resolvedOwnerId);
 
-      const [productsRes, settingsRes] = await Promise.all([
+      const sectionsQuery = resolvedStoreId
+        ? supabase.from('home_page_sections').select('*').eq('store_id', resolvedStoreId).eq('is_visible', true).order('position')
+        : Promise.resolve({ data: [] as any[] });
+
+      const [productsRes, settingsRes, sectionsRes] = await Promise.all([
         productsQuery,
         settingsQuery.maybeSingle(),
+        sectionsQuery as any,
       ]);
       if (cancelled) return;
 
@@ -85,6 +94,9 @@ const StoreFront = () => {
         setProducts(productsRes.data.map((p: any) => ({ ...p, images: p.images || [] })));
       }
       if (settingsRes.data) setStoreSettings({ currency_symbol: settingsRes.data.currency_symbol });
+      const secs = (sectionsRes?.data || []) as HomeSectionRow[];
+      setSections(secs);
+      setHasBuilder(secs.length > 0);
       setLoading(false);
     };
 
@@ -112,12 +124,27 @@ const StoreFront = () => {
     <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6" dir="rtl">
       <StoreHeader ownerId={ownerId || undefined} />
 
-      {products.length === 0 ? (
+      {sections.length > 0 && ownerId && storeId && (
+        <div className="space-y-2">
+          {sections.map((s) => (
+            <SectionRenderer
+              key={s.id}
+              section={s}
+              ownerId={ownerId}
+              storeId={storeId}
+              username={username}
+              currencySymbol={storeSettings.currency_symbol}
+            />
+          ))}
+        </div>
+      )}
+
+      {!hasBuilder && products.length === 0 ? (
         <div className="text-center py-16">
           <ShoppingBag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
           <p className="text-muted-foreground text-lg">لا توجد منتجات حالياً</p>
         </div>
-      ) : (
+      ) : !hasBuilder ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.map((product) => (
             <Card
@@ -152,7 +179,7 @@ const StoreFront = () => {
             </Card>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

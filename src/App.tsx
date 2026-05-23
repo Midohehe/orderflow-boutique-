@@ -60,6 +60,7 @@ const ConfirmationSettings = lazy(() => import("./pages/ConfirmationSettings"));
 const ShippingErrorAliases = lazy(() => import("./pages/ShippingErrorAliases"));
 const ShippingZones = lazy(() => import("./pages/ShippingZones"));
 const MyStores = lazy(() => import("./pages/MyStores"));
+const HomeBuilder = lazy(() => import("./pages/HomeBuilder"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -131,6 +132,7 @@ const App = () => {
                 <Route path="thank-you" element={<ThankYouSettings />} />
                 <Route path="currency" element={<CurrencySettings />} />
                 <Route path="header" element={<HeaderSettings />} />
+                <Route path="home-builder" element={<HomeBuilder />} />
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
                 <Route path="shipping-zones" element={<ShippingZones />} />
