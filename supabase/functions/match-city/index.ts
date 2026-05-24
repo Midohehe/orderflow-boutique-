@@ -171,35 +171,53 @@ async function buildCatalog(admin: ReturnType<typeof createClient>): Promise<Cit
 // ============= Step 1: pick city =============
 interface CityPick { city: CityCatalog; score: number; via: string; }
 
-function pickCity(catalog: CityCatalog[], inputTokens: string[], inputNorm: string): CityPick | null {
-  let best: CityPick | null = null;
+// Junk city values where the city FIELD shouldn't be trusted — the real city
+// is usually inside the address field instead.
+const CITY_FIELD_JUNK_RE = /^(خارج|داخل|من\s|عن\s)/;
 
-  // (a) Direct match: city name appears in input.
+function pickCity(
+  catalog: CityCatalog[],
+  cityTokens: string[],
+  addrTokens: string[],
+  cityNorm: string,
+  addrNorm: string,
+): CityPick | null {
+  const cityFieldUntrustworthy = !cityNorm || CITY_FIELD_JUNK_RE.test(cityNorm);
+
+  let best: CityPick | null = null;
+  const consider = (city: CityCatalog, score: number, via: string) => {
+    if (score <= 0) return;
+    if (!best || score > best.score) best = { city, score, via };
+  };
+
+  // (a) Direct city-name match. Prefer ADDRESS over CITY field (address is
+  // usually richer and more reliable, especially when city field is junky).
   for (const c of catalog) {
-    let s = nameScore(c.canonical, inputTokens, inputNorm);
+    let addrS = nameScore(c.canonical, addrTokens, addrNorm);
+    let cityS = nameScore(c.canonical, cityTokens, cityNorm);
     for (const al of c.aliases) {
-      s = Math.max(s, nameScore(al, inputTokens, inputNorm));
+      addrS = Math.max(addrS, nameScore(al, addrTokens, addrNorm));
+      cityS = Math.max(cityS, nameScore(al, cityTokens, cityNorm));
     }
-    if (s > 0 && (!best || s > best.score)) {
-      best = { city: c, score: s, via: "direct" };
-    }
+    // Address hit gets +5 bonus to break ties in its favor; city-field hit is
+    // discounted when the field is junky.
+    if (addrS > 0) consider(c, addrS + 5, "addr");
+    if (cityS > 0) consider(c, cityFieldUntrustworthy ? cityS - 30 : cityS, "city-field");
   }
 
-  // (b) Neighborhood inference: an area name in the input → parent city.
-  // Only counts if we don't already have a strong direct match.
+  // (b) Neighborhood inference: area name in input → parent city. Discounted
+  // so a direct city match always wins.
   for (const c of catalog) {
     for (const a of c.areas) {
       if (isServiceArea(a.canonical)) continue;
-      const s = nameScore(a.canonical, inputTokens, inputNorm);
-      // Discount area-based inference slightly so a direct city match wins ties.
-      const effective = s > 0 ? s - 5 : 0;
-      if (effective > 0 && (!best || effective > best.score)) {
-        best = { city: c, score: effective, via: `area:${a.canonical}` };
-      }
+      const addrS = nameScore(a.canonical, addrTokens, addrNorm);
+      const cityS = nameScore(a.canonical, cityTokens, cityNorm);
+      const s = Math.max(addrS, cityS) - 10;
+      if (s > 0) consider(c, s, `area:${a.canonical}`);
     }
   }
 
-  return best && best.score >= 70 ? best : null;
+  return best && best.score >= 60 ? best : null;
 }
 
 // ============= Step 2: pick area within selected city =============
@@ -337,7 +355,11 @@ Deno.serve(async (req) => {
     }
 
     // ============ STEP 1: pick city ============
-    let cityPick = pickCity(catalog, inputTokens, inputNorm);
+    const cityTokens = tokenize(cityInput);
+    const addrTokens = tokenize(addrInput);
+    const cityNormStr = norm(cityInput);
+    const addrNormStr = norm(addrInput);
+    let cityPick = pickCity(catalog, cityTokens, addrTokens, cityNormStr, addrNormStr);
 
     if (!cityPick) {
       // AI fallback (city only)
