@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Receipt, Plus, Loader2, Trash2, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -56,21 +57,28 @@ const Expenses = () => {
     const amt = Number(amount);
     if (!amt || amt <= 0 || !safeId) return;
     setSaving(true);
-    const safe = safes.find((s) => s.id === safeId);
-    if (!safe) { setSaving(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("expenses").insert({
+    const { data: inserted, error } = await supabase.from("expenses").insert({
       amount: amt, safe_id: safeId, expense_type_id: typeId || null,
       notes: notes || null, owner_id: user!.id, store_id: activeStoreId,
-    });
-    if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
-    await supabase.from("safes").update({ balance: Number(safe.balance) - amt }).eq("id", safeId);
+    }).select("id").single();
+    if (error || !inserted) { toast({ title: "خطأ", description: error?.message, variant: "destructive" }); setSaving(false); return; }
+    // Safe balance is updated automatically by sync_safe_balance trigger
     await supabase.from("safe_movements").insert({
       safe_id: safeId, amount: -amt, movement_type: "expense",
+      reference_id: inserted.id,
       notes: notes || (typeId ? types.find(t => t.id === typeId)?.name : null), owner_id: user!.id, store_id: activeStoreId,
     });
     toast({ title: "تمت إضافة المصروف" });
     setAmount(""); setTypeId(""); setSafeId(""); setNotes(""); setAddOpen(false); setSaving(false);
+    load();
+  };
+
+  const removeExpense = async (id: string) => {
+    await supabase.from("safe_movements").delete().eq("reference_id", id).eq("movement_type", "expense");
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "تم حذف المصروف" });
     load();
   };
 
@@ -126,6 +134,7 @@ const Expenses = () => {
                       <TableHead className="text-right">الخزينة</TableHead>
                       <TableHead className="text-right">المبلغ</TableHead>
                       <TableHead className="text-right">ملاحظات</TableHead>
+                      <TableHead className="text-right">إجراء</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -136,6 +145,23 @@ const Expenses = () => {
                         <TableCell>{safeName(e.safe_id)}</TableCell>
                         <TableCell className="text-red-500 font-bold">{Number(e.amount).toFixed(2)}</TableCell>
                         <TableCell className="text-sm">{e.notes || "-"}</TableCell>
+                        <TableCell>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost"><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent dir="rtl">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>حذف المصروف؟</AlertDialogTitle>
+                                <AlertDialogDescription>سيتم استرجاع المبلغ إلى الخزينة وإزالة الحركة.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => removeExpense(e.id)}>حذف</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
