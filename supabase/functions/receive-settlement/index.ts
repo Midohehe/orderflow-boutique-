@@ -67,11 +67,17 @@ Deno.serve(async (req) => {
       .not("order_id", "is", null);
     const orderIds = Array.from(new Set((shipments || []).map((s: any) => s.order_id).filter(Boolean)));
     if (orderIds.length) {
-      await admin.from("orders").update({
+      const { error: updErr } = await admin.from("orders").update({
         settlement_received: received,
         settlement_received_at: ts,
         status: received ? "settled" : "delivered",
       }).in("id", orderIds).eq("owner_id", ownerId);
+      if (updErr) {
+        console.error("orders update failed", updErr);
+        return new Response(JSON.stringify({ error: updErr.message }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Safe deposit / reversal
