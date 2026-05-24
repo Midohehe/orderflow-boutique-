@@ -414,10 +414,10 @@ const FinancialAccounts = () => {
         </Card>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanDelivered.length > 0 ? `${deliveredCount} طلب (منها ${orphanDelivered.length} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
+        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanCount > 0 ? `${deliveredCount} طلب (+${orphanCount} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
         <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`من ${linkedDelivered.length} طلب مرتبط · هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
         <KPI icon={Receipt} label="المصروفات" value={fmt(totalExpenses)} sub={`${expenseRatio.toFixed(1)}% من المبيعات`} color="from-orange-500/10 to-orange-600/5 border-orange-500/20" />
-        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanDelivered.length > 0 ? `يستثني ${fmt(orphanRevenue)} طلبات غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
+        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanCount > 0 ? `يستثني ${fmt(orphanRevenue)} غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
