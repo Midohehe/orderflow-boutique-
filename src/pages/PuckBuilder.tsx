@@ -154,7 +154,6 @@ const PuckBuilder = () => {
             headerActions: ({ children }) => (
               <>
                 <Button size="sm" variant="outline" onClick={async () => {
-                  // Access current data via Puck's internal API isn't trivial; rely on onPublish.
                   toast({ title: "اضغط Publish للحفظ والنشر" });
                 }}>حفظ</Button>
                 {children}
