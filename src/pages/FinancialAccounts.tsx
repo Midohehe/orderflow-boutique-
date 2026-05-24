@@ -80,10 +80,10 @@ const FinancialAccounts = () => {
         // Unlinked shipments from RECEIVED settlements = orphan revenue (cash received, no product link)
         const { data: orphData } = await supabase
           .from("settlement_shipments")
-          .select("id, paid_amount, shipment_date, created_at, shipment_code, settlement_id, settlements!inner(received)")
-          .eq("store_id", activeStoreId)
+          .select("id, paid_amount, shipment_date, created_at, shipment_code, settlement_id, settlements!inner(received, store_id)")
           .is("order_id", null)
-          .eq("settlements.received", true);
+          .eq("settlements.received", true)
+          .eq("settlements.store_id", activeStoreId);
         setOrphanShipments(((orphData as any[]) || []).map(r => ({
           id: r.id, paid_amount: Number(r.paid_amount || 0),
           shipment_date: r.shipment_date, created_at: r.created_at, shipment_code: r.shipment_code,
