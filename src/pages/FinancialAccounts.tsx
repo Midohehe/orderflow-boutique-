@@ -321,12 +321,14 @@ const FinancialAccounts = () => {
       .map(([name, v]) => ({ name, ...v, profit: v.revenue - v.cost }))
       .sort((a, b) => b.revenue - a.revenue);
   }, [shippedOrders, productByName, itemsByOrder]);
-  const shippedTotals = useMemo(() => shippedByProduct.reduce((acc, p) => ({
-    revenue: acc.revenue + p.revenue,
-    cost: acc.cost + p.cost,
-    profit: acc.profit + p.profit,
-    count: acc.count + p.count,
-  }), { revenue: 0, cost: 0, profit: 0, count: 0 }), [shippedByProduct]);
+  const shippedTotals = useMemo(() => {
+    const agg = shippedByProduct.reduce((acc, p) => ({
+      revenue: acc.revenue + p.revenue,
+      cost: acc.cost + p.cost,
+      profit: acc.profit + p.profit,
+    }), { revenue: 0, cost: 0, profit: 0 });
+    return { ...agg, count: shippedOrders.length };
+  }, [shippedByProduct, shippedOrders]);
 
   // Dropdown shows only main products from products table (not order names)
   const uniqueProducts = useMemo(
