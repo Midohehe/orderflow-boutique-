@@ -397,13 +397,13 @@ const FinancialAccounts = () => {
       </Card>
 
       {/* Top KPIs */}
-      {orphanDelivered.length > 0 && (
+      {orphanCount > 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1 text-sm">
               <p className="font-semibold text-amber-700 dark:text-amber-400">
-                {orphanDelivered.length} طلب مسلّم غير مرتبط بمنتج محلي — قيمتها {fmt(orphanRevenue)}
+                {orphanCount} شحنة/طلب مسلّم غير مرتبط بمنتج محلي — قيمتها {fmt(orphanRevenue)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 هذه الطلبات تظهر ضمن إجمالي المبيعات والخزينة، لكنها <span className="font-medium">غير محسوبة في الربح الصافي</span> لعدم توفر تكلفة الشراء.
