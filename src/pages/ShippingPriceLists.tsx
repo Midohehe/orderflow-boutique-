@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Trash2, Plus, Save, Truck } from "lucide-react";
+import { Trash2, Plus, Save, Truck, FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PageHeader from "@/components/PageHeader";
+import * as XLSX from "xlsx";
 
 type Row = {
   id?: string;
@@ -24,6 +25,8 @@ export default function ShippingPriceLists() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -54,6 +57,64 @@ export default function ShippingPriceLists() {
     }
     setRows((prev) => prev.filter((_, idx) => idx !== i));
     toast({ title: "تم الحذف" });
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["المدينة", "السعر"],
+      ["طرابلس", 30],
+      ["بنغازي", 50],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "أسعار الشحن");
+    XLSX.writeFile(wb, "shipping-prices-template.xlsx");
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, blankrows: false });
+
+      const parsed: { city: string; price: number }[] = [];
+      for (let i = 0; i < raw.length; i++) {
+        const row = raw[i] || [];
+        const city = String(row[0] ?? "").trim();
+        const priceRaw = row[1];
+        if (!city) continue;
+        // Skip header row if it contains non-numeric price
+        const price = Number(priceRaw);
+        if (!Number.isFinite(price)) continue;
+        parsed.push({ city, price });
+      }
+
+      if (parsed.length === 0) {
+        toast({ title: "لم يتم العثور على بيانات صالحة", description: "تأكد أن العمود الأول للمدينة والثاني للسعر", variant: "destructive" });
+        return;
+      }
+
+      const maxSort = rows.reduce((m, r) => Math.max(m, r.sort_order), 0);
+      const newRows: Row[] = parsed.map((p, idx) => ({
+        region: "",
+        cities: p.city,
+        price: p.price,
+        duration: "",
+        sort_order: maxSort + (idx + 1) * 10,
+        _new: true,
+        _dirty: true,
+      }));
+      setRows((prev) => [...prev, ...newRows]);
+      toast({ title: `تم استيراد ${parsed.length} مدينة`, description: "اضغط حفظ التغييرات لتأكيد الإضافة" });
+    } catch (err: any) {
+      toast({ title: "خطأ في قراءة الملف", description: err.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const saveAll = async () => {
@@ -93,6 +154,19 @@ export default function ShippingPriceLists() {
       {isAdmin && (
         <div className="flex flex-wrap gap-2">
           <Button onClick={addRow} variant="outline"><Plus className="w-4 h-4 ml-1" /> إضافة مدينة</Button>
+          <Button onClick={() => fileInputRef.current?.click()} variant="outline" disabled={importing}>
+            <FileSpreadsheet className="w-4 h-4 ml-1" /> {importing ? "جاري الاستيراد..." : "استيراد من Excel"}
+          </Button>
+          <Button onClick={downloadTemplate} variant="ghost">
+            <Download className="w-4 h-4 ml-1" /> تنزيل قالب Excel
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <Button onClick={saveAll} disabled={saving || !rows.some((r) => r._dirty)}>
             <Save className="w-4 h-4 ml-1" /> حفظ التغييرات
           </Button>
