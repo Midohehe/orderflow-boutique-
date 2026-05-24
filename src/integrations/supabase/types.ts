@@ -2398,6 +2398,7 @@ export type Database = {
           created_at: string
           customer_name: string | null
           delivered_amount: number
+          deposit_ref_id: string | null
           due_fees: number
           external_id: number
           id: string
@@ -2408,6 +2409,7 @@ export type Database = {
           raw: Json | null
           received: boolean
           received_at: string | null
+          reversal_ref_id: string | null
           safe_id: string | null
           safe_name: string | null
           settlement_date: string | null
@@ -2423,6 +2425,7 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           delivered_amount?: number
+          deposit_ref_id?: string | null
           due_fees?: number
           external_id: number
           id?: string
@@ -2433,6 +2436,7 @@ export type Database = {
           raw?: Json | null
           received?: boolean
           received_at?: string | null
+          reversal_ref_id?: string | null
           safe_id?: string | null
           safe_name?: string | null
           settlement_date?: string | null
@@ -2448,6 +2452,7 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           delivered_amount?: number
+          deposit_ref_id?: string | null
           due_fees?: number
           external_id?: number
           id?: string
@@ -2458,6 +2463,7 @@ export type Database = {
           raw?: Json | null
           received?: boolean
           received_at?: string | null
+          reversal_ref_id?: string | null
           safe_id?: string | null
           safe_name?: string | null
           settlement_date?: string | null
