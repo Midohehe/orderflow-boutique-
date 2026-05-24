@@ -1,9 +1,16 @@
 // Marks a settlement as "received" and flags all linked orders as
 // settlement_received = true so they appear in the cashbox / financial flow.
-// If safe_id is provided, deposits payment_amount into the safe and creates a movement.
-// Balance updates on `safes` are handled automatically by the
-// `sync_safe_balance` trigger on `safe_movements`. We must NOT update
-// safes.balance manually here or it will double-apply.
+//
+// Accounting model:
+// - On CONFIRM: generate a NEW deposit_ref_id (UUID) and insert a positive
+//   `deposit` movement using it as reference_id. Movements are append-only.
+// - On REVERSAL: keep the original deposit, generate a NEW reversal_ref_id
+//   and insert a NEGATIVE `settlement_reversal` movement. This keeps a full
+//   audit trail and lets the same settlement be confirmed→reversed→confirmed
+//   multiple times without colliding with the unique index
+//   uniq_safe_movements_ref (safe_id, movement_type, reference_id).
+// - The `sync_safe_balance` trigger updates safes.balance automatically.
+//   Never update safes.balance manually here or it will double-apply.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -45,7 +52,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: settlement } = await admin
-      .from("settlements").select("id, owner_id, payment_amount, received, code, safe_id")
+      .from("settlements").select("id, owner_id, payment_amount, received, code, safe_id, deposit_ref_id, reversal_ref_id")
       .eq("id", body.settlement_id).maybeSingle();
     if (!settlement) {
       return new Response(JSON.stringify({ error: "Not found" }), {
@@ -106,8 +113,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Safe deposit. Trigger sync_safe_balance updates safes.balance automatically.
-    // Unique index uniq_safe_movements_ref prevents duplicate deposits.
+    // CONFIRM: append a new deposit movement with a fresh reference code.
     if (received && safeId) {
       const { data: safe } = await admin
         .from("safes").select("id").eq("id", safeId).eq("owner_id", ownerIdSettlement).maybeSingle();
@@ -117,26 +123,56 @@ Deno.serve(async (req) => {
         });
       }
       const amount = Number(settlement.payment_amount) || 0;
+      // New unique reference for this confirm attempt
+      const depositRef = crypto.randomUUID();
       const { error: movErr } = await admin.from("safe_movements").insert({
         safe_id: safeId, amount, movement_type: "deposit",
-        reference_id: settlement.id,
+        reference_id: depositRef,
         notes: `إيداع قيمة تسوية ${settlement.code || settlement.id}`,
         owner_id: ownerIdSettlement,
       });
-      if (movErr && !String(movErr.message || "").includes("uniq_safe_movements_ref")) {
+      if (movErr) {
         console.error("movement insert failed", movErr);
+        return new Response(JSON.stringify({ error: movErr.message }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+      await admin.from("settlements")
+        .update({ deposit_ref_id: depositRef })
+        .eq("id", settlement.id);
     }
 
-    // Reversal: delete the original deposit movement.
-    // The trigger sync_safe_balance reverses the balance automatically on DELETE.
+    // REVERSAL: append a negative settlement_reversal movement (do NOT delete
+    // the original deposit). This preserves the audit trail and lets the same
+    // settlement be re-confirmed later without unique-constraint collisions.
     if (!received) {
-      const { error: delErr } = await admin
+      // Find the active deposit movement to know which safe to debit and how much
+      const { data: lastDeposit } = await admin
         .from("safe_movements")
-        .delete()
-        .eq("reference_id", settlement.id)
-        .eq("movement_type", "deposit");
-      if (delErr) console.error("movement delete failed", delErr);
+        .select("id, safe_id, amount")
+        .eq("reference_id", settlement.deposit_ref_id ?? settlement.id)
+        .eq("movement_type", "deposit")
+        .maybeSingle();
+      if (lastDeposit) {
+        const reversalRef = crypto.randomUUID();
+        const { error: revErr } = await admin.from("safe_movements").insert({
+          safe_id: lastDeposit.safe_id,
+          amount: -Number(lastDeposit.amount),
+          movement_type: "settlement_reversal",
+          reference_id: reversalRef,
+          notes: `تراجع عن تسوية ${settlement.code || settlement.id}`,
+          owner_id: ownerIdSettlement,
+        });
+        if (revErr) {
+          console.error("reversal insert failed", revErr);
+          return new Response(JSON.stringify({ error: revErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        await admin.from("settlements")
+          .update({ reversal_ref_id: reversalRef, deposit_ref_id: null })
+          .eq("id", settlement.id);
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, updated_orders: orderIds.length }), {
