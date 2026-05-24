@@ -1,10 +1,11 @@
-// Matches a customer-entered city/address to canonical shipping zones.
-// Strategy: build the full (city|area) candidate list from defaults + the user's
-// corrections, then ALWAYS consult two AI models (Gemini 2.5 Pro + GPT-5-mini)
-// in parallel via structured tool calling. Local fuzzy matching is used only to
-// pre-rank candidates and as a final fallback when both AIs fail. The result is
-// validated against the master list so we never return a (city,area) pair that
-// doesn't exist together.
+// Matches a customer-entered city/address to a canonical (city, area) pair
+// from the shipping carrier. Two-step algorithm:
+//   1) Identify the CITY from the customer's text (token / fuzzy / neighborhood
+//      inference, then AI fallback).
+//   2) Within that city, identify the AREA (same techniques, restricted scope).
+// This avoids the previous "global fuzzy soup" that picked nonsense pairs like
+// {city:"الصين", area:"بنغازي"} just because "بنغازي" appeared as a sub-zone of
+// a China-shipping service zone.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { defaultCityAreas } from "../_shared/defaultCityAreas.ts";
 
@@ -14,6 +15,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Carrier zones that are NOT real Libyan delivery destinations (e.g. China
+// shipping service). Never use as a candidate city. Match case-insensitively
+// on the normalized name.
+const EXCLUDED_ZONE_NAMES = ["الصين", "china", "صين"];
+
 const norm = (s: string) => {
   let t = (s || "").toString().trim();
   t = t.replace(/[\u064B-\u0652\u0670]/g, "");
@@ -22,7 +28,12 @@ const norm = (s: string) => {
   t = t.replace(/^ال/, "");
   return t.trim();
 };
-const tokens = (s: string) => norm(s).split(/[\s,،\-\/]+/).filter(Boolean);
+const tokens = (s: string) => norm(s).split(/[\s,،\-\/\.()]+/).filter(Boolean);
+
+const isExcludedZone = (name: string) => {
+  const n = norm(name);
+  return EXCLUDED_ZONE_NAMES.some((ex) => n === norm(ex) || n.includes(norm(ex)));
+};
 
 interface Z { external_id: number; parent_external_id: number | null; name: string; kind: string; }
 interface Pair { city: string; area: string; }
