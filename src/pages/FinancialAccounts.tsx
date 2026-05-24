@@ -39,6 +39,7 @@ interface PurchaseRow { id: string; amount: number; created_at: string; }
 interface SafeRow { id: string; name: string; balance: number; }
 interface ExpenseTypeRow { id: string; name: string; }
 interface AdSpendRow { id: string; product_id: string | null; campaign_name: string | null; amount_local: number; spend_date: string; }
+interface OrphanShipmentRow { id: string; paid_amount: number; shipment_date: string | null; created_at: string; shipment_code: string; }
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,6 +55,7 @@ const FinancialAccounts = () => {
   const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
   const [safes, setSafes] = useState<SafeRow[]>([]);
   const [adSpends, setAdSpends] = useState<AdSpendRow[]>([]);
+  const [orphanShipments, setOrphanShipments] = useState<OrphanShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -75,6 +77,17 @@ const FinancialAccounts = () => {
           supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId),
           supabase.from("ad_spends").select("id, product_id, campaign_name, amount_local, spend_date").eq("store_id", activeStoreId),
         ]);
+        // Unlinked shipments from RECEIVED settlements = orphan revenue (cash received, no product link)
+        const { data: orphData } = await supabase
+          .from("settlement_shipments")
+          .select("id, paid_amount, shipment_date, created_at, shipment_code, settlement_id, settlements!inner(received)")
+          .eq("store_id", activeStoreId)
+          .is("order_id", null)
+          .eq("settlements.received", true);
+        setOrphanShipments(((orphData as any[]) || []).map(r => ({
+          id: r.id, paid_amount: Number(r.paid_amount || 0),
+          shipment_date: r.shipment_date, created_at: r.created_at, shipment_code: r.shipment_code,
+        })));
         setOrders((o.data as Order[]) || []);
         // Fetch sensitive purchase_price via secure RPC and merge
         const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
@@ -152,7 +165,15 @@ const FinancialAccounts = () => {
   // Orphan delivered orders: counted in revenue display but EXCLUDED from profit calc
   const linkedDelivered = useMemo(() => deliveredOrders.filter(orderIsLinked), [deliveredOrders, products, itemsByOrder]);
   const orphanDelivered = useMemo(() => deliveredOrders.filter(o => !orderIsLinked(o)), [deliveredOrders, products, itemsByOrder]);
-  const orphanRevenue = orphanDelivered.reduce((s, o) => s + Number(o.price), 0);
+  // Orphan settlement shipments (no matching order at all) — in selected date range
+  const filteredOrphanShipments = useMemo(
+    () => orphanShipments.filter(s => inDateRange(s.shipment_date || s.created_at)),
+    [orphanShipments, dateFrom, dateTo]
+  );
+  const orphanRevenue =
+    orphanDelivered.reduce((s, o) => s + Number(o.price), 0) +
+    (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
+  const orphanCount = orphanDelivered.length + (selectedProduct === "all" ? filteredOrphanShipments.length : 0);
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
@@ -164,7 +185,8 @@ const FinancialAccounts = () => {
   }), [adSpends, dateFrom, dateTo, selectedProduct, products]);
 
   // Core financials
-  const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
+  const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0)
+    + (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
   // Profit calculations use ONLY linked orders (we know their actual cost)
   const profitRevenue = linkedDelivered.reduce((s, o) => s + Number(o.price), 0);
   const totalCOGS = linkedDelivered.reduce((s, o) => s + orderCost(o), 0);
