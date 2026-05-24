@@ -2,9 +2,9 @@
 // from the shipping carrier. Two-step algorithm:
 //   1) Identify the CITY from the customer's text (token / fuzzy / neighborhood
 //      inference, then AI fallback).
-//   2) Within that city, identify the AREA (same techniques, restricted scope).
-// This avoids the previous "global fuzzy soup" that picked nonsense pairs like
-// {city:"الصين", area:"بنغازي"} just because "بنغازي" appeared as a sub-zone of
+//   2) Within that city, identify the AREA from the available areas only.
+// This avoids global fuzzy soup that picks nonsense pairs like
+// {city:"الصين", area:"بنغازي"} just because "بنغازي" exists as a sub-zone of
 // a China-shipping service zone.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { defaultCityAreas } from "../_shared/defaultCityAreas.ts";
@@ -15,10 +15,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Carrier zones that are NOT real Libyan delivery destinations (e.g. China
-// shipping service). Never use as a candidate city. Match case-insensitively
-// on the normalized name.
+// Carrier zones that are NOT real Libyan delivery destinations.
 const EXCLUDED_ZONE_NAMES = ["الصين", "china", "صين"];
+
+// Service-area keywords: never auto-select unless customer's text contains them.
+const SERVICE_KEYWORDS = ["نسائي", "vip", "في اي بي", "express", "اكسبرس", "اكسبريس", "سريع", "شركات", "مكتب"];
 
 const norm = (s: string) => {
   let t = (s || "").toString().trim();
@@ -28,145 +29,18 @@ const norm = (s: string) => {
   t = t.replace(/^ال/, "");
   return t.trim();
 };
-const tokens = (s: string) => norm(s).split(/[\s,،\-\/\.()]+/).filter(Boolean);
+const tokenize = (s: string) => norm(s).split(/[\s,،\-\/\.()]+/).filter(Boolean);
 
-const isExcludedZone = (name: string) => {
+const isExcluded = (name: string) => {
   const n = norm(name);
-  return EXCLUDED_ZONE_NAMES.some((ex) => n === norm(ex) || n.includes(norm(ex)));
+  return EXCLUDED_ZONE_NAMES.some((ex) => n === norm(ex));
+};
+const isServiceArea = (name: string) => {
+  const n = norm(name);
+  return SERVICE_KEYWORDS.some((k) => n.includes(norm(k)));
 };
 
 interface Z { external_id: number; parent_external_id: number | null; name: string; kind: string; }
-interface Pair { city: string; area: string; }
-
-// Service-type "areas" that carriers add as logistics options (not real
-// geographic places). Examples: "توصيل نسائي", "VIP", "اكسبرس". These should
-// NEVER be auto-selected unless the customer's own text explicitly contains
-// the same keyword (e.g. the customer asked for ladies-only delivery).
-const SERVICE_KEYWORDS = [
-  "نسائي",
-  "توصيل نسائي",
-  "vip",
-  "في اي بي",
-  "express",
-  "اكسبرس",
-  "اكسبريس",
-  "سريع",
-  "خاص",
-  "شركات",
-  "مكتب",
-];
-function areaServiceKeywords(areaName: string): string[] {
-  const a = norm(areaName);
-  return SERVICE_KEYWORDS.filter((k) => a.includes(norm(k)));
-}
-function isServiceArea(areaName: string): boolean {
-  return areaServiceKeywords(areaName).length > 0;
-}
-function inputAllowsServiceArea(inputNorm: string, areaName: string): boolean {
-  const kws = areaServiceKeywords(areaName);
-  if (kws.length === 0) return true;
-  // every service keyword in the area's name must be present in the input
-  return kws.every((k) => inputNorm.includes(norm(k)));
-}
-
-// Validate that an area name has REAL evidence in the customer's input.
-// Used to reject low-quality fuzzy picks like "الصين" appearing in طرابلس
-// when the customer never mentioned it. Returns true if any meaningful token
-// of the area name actually appears (as a token / substring / ≤1 edit) in
-// the input, OR if the area equals the city (placeholder row).
-function areaHasInputEvidence(areaName: string, cityName: string, inputNorm: string, inputToks: string[]): boolean {
-  const aN = norm(areaName);
-  const cN = norm(cityName);
-  if (!aN || aN === cN) return true; // city==area placeholder
-  // STRICT rule for short area names (≤ 4 chars after normalization, e.g. "صين"):
-  // require an EXACT token match in the input. Short names produce too many
-  // false positives via fuzzy/substring matching.
-  if (aN.length <= 4) {
-    return inputToks.includes(aN);
-  }
-  // Split into significant words (skip very short ones like "ال", "بن").
-  const words = aN.split(/\s+/).filter((w) => w.length >= 3);
-  if (words.length === 0) return true;
-  for (const w of words) {
-    if (inputNorm.includes(w)) return true;
-    if (inputToks.includes(w)) return true;
-    if (w.length >= 5) {
-      // tolerate 1 edit for longer words only
-      for (const t of inputToks) {
-        if (Math.abs(t.length - w.length) <= 1 && lev(t, w) <= 1) return true;
-      }
-    }
-  }
-  return false;
-}
-
-// Find the best area inside a given city by fuzzy matching every token of the
-// customer input against every area name. Uses combinedScore (Lev + similar_text)
-// and also rewards substring/prefix overlap so partial words like "بوعط" match
-// "بوعطني" or "بوهديمة" by closest similarity.
-function findBestAreaInCity(
-  list: Pair[],
-  cityName: string,
-  inputTokens: string[],
-): { area: string; score: number } | null {
-  const areas = list.filter((r) => r.city === cityName).map((r) => r.area);
-  const cityNorm = norm(cityName);
-  let best: { area: string; score: number } | null = null;
-  for (const a of areas) {
-    const aN = norm(a);
-    if (!aN || aN === cityNorm) continue;
-    let topScore = 0;
-    for (const tk of inputTokens) {
-      if (!tk || tk === cityNorm || tk.length < 3) continue;
-      let s = combinedScore(tk, aN);
-      // Bonus when token is a prefix/substring of area or vice-versa.
-      if (aN.startsWith(tk) || tk.startsWith(aN)) s = Math.max(s, 0.85);
-      else if (aN.includes(tk) || tk.includes(aN)) s = Math.max(s, 0.8);
-      if (s > topScore) topScore = s;
-    }
-    if (topScore > 0 && (!best || topScore > best.score)) {
-      best = { area: a, score: topScore };
-    }
-  }
-  return best;
-}
-
-// STRONG signal: find an area whose normalized name appears as an exact token
-// (or near-exact, ≤1 edit) inside the customer's input. Example: input
-// "الرياضية، طرابلس" → area "الرياضية" under "طرابلس". This is way more reliable
-// than fuzzy partial overlap because it requires a full word boundary match.
-function findExactTokenArea(
-  list: Pair[],
-  inputTokens: string[],
-): { pair: Pair; score: number } | null {
-  if (inputTokens.length === 0) return null;
-  const tokSet = new Set(inputTokens.filter((t) => t && t.length >= 3));
-  let best: { pair: Pair; score: number } | null = null;
-  for (const r of list) {
-    const aN = norm(r.area);
-    const cN = norm(r.city);
-    if (!aN || aN === cN) continue; // skip city==area placeholder rows
-    let score = 0;
-    if (tokSet.has(aN)) score = 1;
-    else if (aN.length >= 4) {
-      // multi-word area name: all words present as tokens
-      const aWords = aN.split(/\s+/).filter(Boolean);
-      if (aWords.length > 1 && aWords.every((w) => tokSet.has(w))) score = 0.95;
-      else {
-        // tolerate 1 edit for areas length ≥ 5
-        for (const t of tokSet) {
-          if (Math.abs(t.length - aN.length) <= 1 && lev(t, aN) <= 1) { score = 0.9; break; }
-        }
-      }
-    }
-    if (score > 0) {
-      // small bonus if the city is also mentioned in input tokens
-      if (cN && tokSet.has(cN)) score += 0.2;
-      if (!best || score > best.score) best = { pair: r, score };
-    }
-  }
-  return best;
-}
 
 function lev(a: string, b: string): number {
   if (a === b) return 0;
@@ -183,249 +57,218 @@ function lev(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
-// PHP-like similar_text: returns the number of matching characters via
-// longest common substring recursion. Used to compute a similarity percent.
-function similarText(a: string, b: string): number {
-  if (!a.length || !b.length) return 0;
-  let max = 0, posA = 0, posB = 0;
-  for (let i = 0; i < a.length; i++) {
-    for (let j = 0; j < b.length; j++) {
-      let k = 0;
-      while (i + k < a.length && j + k < b.length && a[i + k] === b[j + k]) k++;
-      if (k > max) { max = k; posA = i; posB = j; }
+// Score how strongly `name` (a city or area) is referenced in the customer's
+// `inputTokens` + raw normalized input. Returns 0..100.
+function nameScore(name: string, inputTokens: string[], inputNorm: string): number {
+  const n = norm(name);
+  if (!n) return 0;
+  // Skip pure-numeric or 1-char names.
+  if (n.length < 2) return 0;
+  const tokSet = new Set(inputTokens);
+
+  // 1) Exact token match (whole-word) — strongest.
+  if (tokSet.has(n)) return 100;
+  // Multi-word name: all words present as tokens.
+  if (n.includes(" ")) {
+    const parts = n.split(/\s+/).filter((w) => w.length >= 2);
+    if (parts.length >= 2 && parts.every((p) => tokSet.has(p))) return 95;
+  }
+  // 2) Substring match (only if name is reasonably long to avoid noise).
+  if (n.length >= 4 && inputNorm.includes(n)) return 88;
+  // 3) Fuzzy: levenshtein tolerance grows with length.
+  const tol = n.length >= 7 ? 2 : n.length >= 5 ? 1 : 0;
+  if (tol > 0) {
+    for (const t of inputTokens) {
+      if (t.length < 3) continue;
+      if (Math.abs(t.length - n.length) <= tol && lev(t, n) <= tol) {
+        return 80 - tol * 5; // 75 or 70
+      }
     }
   }
-  if (max === 0) return 0;
-  let sum = max;
-  if (posA > 0 && posB > 0) sum += similarText(a.slice(0, posA), b.slice(0, posB));
-  if (posA + max < a.length && posB + max < b.length) {
-    sum += similarText(a.slice(posA + max), b.slice(posB + max));
-  }
-  return sum;
-}
-
-// Combined similarity score in [0,1] — average of normalized Levenshtein and
-// PHP-style similar_text percent. Mirrors the user's PHP findBestCity logic.
-function combinedScore(a: string, b: string): number {
-  const A = norm(a), B = norm(b);
-  if (!A || !B) return 0;
-  if (A === B) return 1;
-  const maxLen = Math.max(A.length, B.length);
-  const levScore = 1 - lev(A, B) / maxLen;
-  const sim = similarText(A, B);
-  const simScore = (sim * 2) / (A.length + B.length);
-  return levScore * 0.5 + simScore * 0.5;
-}
-
-// Pick the best matching city name from a list using combinedScore.
-function findBestCity(input: string, cities: string[]): { city: string; score: number } | null {
-  if (!input) return null;
-  let best: { city: string; score: number } | null = null;
-  for (const c of cities) {
-    const s = combinedScore(input, c);
-    if (!best || s > best.score) best = { city: c, score: s };
-  }
-  return best;
-}
-
-function fuzzyContains(haystack: string, needle: string): boolean {
-  if (!needle || !haystack) return false;
-  if (haystack.includes(needle)) return true;
-  if (needle.length < 4) return false;
-  const win = needle.length;
-  const tol = needle.length >= 6 ? 2 : 1;
-  for (let i = 0; i <= haystack.length - win + tol; i++) {
-    const sub1 = haystack.slice(i, i + win + 1);
-    if (lev(sub1, needle) <= tol) return true;
-    const sub2 = haystack.slice(i, i + win);
-    if (lev(sub2, needle) <= tol) return true;
-  }
-  return false;
-}
-
-// Score every (city|area) pair against the customer input. Returns a sorted list.
-function scoreCandidates(list: Pair[], city: string, address: string) {
-  const qCity = norm(city || "");
-  const qAddr = norm(address || "");
-  const qAll = (qCity + " " + qAddr).trim();
-
-  const scored: Array<{ row: Pair; score: number }> = [];
-  for (const r of list) {
-    const a = norm(r.area);
-    const c = norm(r.city);
-    const sameAsCity = a === c;
-    let score = 0;
-    if (a) {
-      if (a === qAddr) score = Math.max(score, 1000 + a.length);
-      else if (a === qCity) score = Math.max(score, sameAsCity ? 200 + a.length : 900 + a.length);
-      else if (fuzzyContains(qAddr, a)) score = Math.max(score, 700 + a.length);
-      else if (fuzzyContains(qAll, a)) score = Math.max(score, 500 + a.length);
+  // 4) Substring of a long token (e.g. "بنغازى" inside "بنغازىا").
+  if (n.length >= 5) {
+    for (const t of inputTokens) {
+      if (t.length >= n.length && t.includes(n)) return 70;
     }
-    if (c) {
-      if (c === qCity) score = Math.max(score, sameAsCity ? 200 : 300);
-      else if (fuzzyContains(qAll, c)) score = Math.max(score, sameAsCity ? 150 : 250);
-    }
-    if (score > 0) scored.push({ row: r, score });
   }
-  scored.sort((a, b) => b.score - a.score);
-  return scored;
+  return 0;
 }
 
-const AI_TOOL = {
-  type: "function",
-  function: {
-    name: "pick_city_area",
-    description: "اختر زوج المدينة/المنطقة الأنسب من القائمة المتاحة.",
-    parameters: {
-      type: "object",
-      properties: {
-        city: { type: "string", description: "اسم المدينة بالضبط كما في القائمة، أو NONE." },
-        area: { type: "string", description: "اسم المنطقة بالضبط كما في القائمة، أو NONE." },
-        confidence: { type: "number", description: "ثقة من 0 إلى 1." },
-        reasoning: { type: "string", description: "شرح موجز جدًا (سطر واحد)." },
-      },
-      required: ["city", "area", "confidence"],
-      additionalProperties: false,
-    },
-  },
-};
-
-// Verification tool: ask a stronger model to pick the BEST of a short list of
-// already-ranked candidates (or reject all of them). This is the second-pass
-// "judge" that catches cases where the first-pass picks an area that happens
-// to fuzzy-match but is geographically/contextually wrong.
-const VERIFY_TOOL = {
-  type: "function",
-  function: {
-    name: "verify_best_candidate",
-    description: "اختر أفضل مرشح صحيح من القائمة المختصرة، أو ارفضها جميعًا.",
-    parameters: {
-      type: "object",
-      properties: {
-        index: { type: "integer", description: "رقم المرشح الأفضل (يبدأ من 1)، أو 0 لرفض الجميع." },
-        confidence: { type: "number", description: "ثقة من 0 إلى 1." },
-        reasoning: { type: "string", description: "شرح موجز جدًا (سطر واحد)." },
-      },
-      required: ["index", "confidence"],
-      additionalProperties: false,
-    },
-  },
-};
-
-function buildPrompt(list: Pair[], city: string, address: string): string {
-  // Group pairs by city for compactness.
-  const byCity: Record<string, string[]> = {};
-  for (const r of list) {
-    (byCity[r.city] ||= []).push(r.area);
-  }
-  const catalog = Object.entries(byCity)
-    .map(([c, areas]) => `${c}: ${[...new Set(areas)].join("، ")}`)
-    .join("\n");
-
-  return `أنت خبير بجغرافيا ليبيا وأحياء مدنها وأسمائها الشعبية.
-لديك قائمة شركة الشحن (مدينة → مناطق متاحة):
-
-${catalog}
-
-مدخل العميل:
-- مدينة: "${city || ""}"
-- عنوان: "${address || ""}"
-
-قواعد صارمة:
-1) يجب أن تختار زوجًا (مدينة|منطقة) موجودًا حرفيًا في القائمة أعلاه.
-2) إذا كتب العميل اسم حي شعبي (مثل "خلة الفرناج" أو "الخلة" قرب طرابلس) اربطه بأقرب منطقة في نفس المدينة (الفرناج في طرابلس).
-3) "غوط الشغال" = "غوط الشعال" في طرابلس.
-4) إن لم يكن اسم المدينة واضحًا في المدخل، استنتجها من اسم الحي/المنطقة (مثلًا "تاجوراء" → طرابلس).
-5) إذا تعذّر الاستنتاج بثقة، أعد city="NONE" area="NONE".
-استدعِ الأداة pick_city_area فقط.`;
+// ============= City + area catalog =============
+interface CityCatalog {
+  /** Canonical name (preferring carrier spelling if available) */
+  canonical: string;
+  /** Normalized form used for matching */
+  norm: string;
+  /** External zone_id if from carrier */
+  zoneId: number | null;
+  /** Alternate spellings (from defaults + carrier) */
+  aliases: string[];
+  /** Areas in this city: canonical area name + zoneAreaId if from carrier */
+  areas: Array<{ canonical: string; norm: string; areaId: number | null }>;
 }
 
-// Build a tight verification prompt that shows ONLY the top candidates and
-// asks a stronger model to pick the single best one (or reject all).
-function buildVerifyPrompt(
-  candidates: Array<{ pair: Pair; weight: number; src: string }>,
-  city: string,
-  address: string,
-): string {
-  const lines = candidates
-    .map((c, i) => `${i + 1}) المدينة: "${c.pair.city}" — المنطقة: "${c.pair.area}"`)
-    .join("\n");
-  return `أنت مدقّق خبير بجغرافيا ليبيا وأحياء مدنها.
-مدخل العميل:
-- مدينة: "${city || ""}"
-- عنوان: "${address || ""}"
+async function buildCatalog(admin: ReturnType<typeof createClient>): Promise<CityCatalog[]> {
+  // Carrier live zones
+  const { data: zonesData } = await admin
+    .from("shipping_zones")
+    .select("external_id,parent_external_id,name,kind");
+  const zall = (zonesData || []) as Z[];
+  const carrierZones = zall.filter((z) => z.kind === "zone" && !isExcluded(z.name));
+  const carrierAreas = zall.filter((z) => z.kind === "area");
 
-لدينا المرشحون التالون (مرتّبون مبدئيًا):
-${lines}
+  // Hidden defaults
+  const { data: hiddenData } = await admin.from("hidden_default_cities").select("city,area");
+  const hidden = new Set((hiddenData || []).map((r: any) => `${norm(r.city)}||${norm(r.area)}`));
 
-المطلوب: اختر رقم المرشّح الأنسب جغرافيًا ومنطقيًا لمدخل العميل.
-قواعد:
-- لا تخترع مرشحًا غير موجود في القائمة.
-- لا تختر منطقة لم تُذكر بأي شكل في مدخل العميل ولا يمكن استنتاجها منطقيًا منه.
-- إذا كان مدخل العميل لا يطابق أي مرشح فعليًا (مثلًا يذكر حيًا غير موجود ضمنهم)، أعد index=0.
-- لو كان المدخل عامًا (مدينة فقط بدون حي)، فضّل المرشح الذي تكون فيه المنطقة = المدينة نفسها.
-استدعِ الأداة verify_best_candidate فقط.`;
-}
+  // Build map by normalized city name
+  const map = new Map<string, CityCatalog>();
 
-async function verifyWithModel(
-  model: string,
-  candidates: Array<{ pair: Pair; weight: number; src: string }>,
-  city: string,
-  address: string,
-  apiKey: string,
-  timeoutMs = 10000,
-): Promise<{ index: number; confidence: number } | null> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: buildVerifyPrompt(candidates, city, address) }],
-        tools: [VERIFY_TOOL],
-        tool_choice: { type: "function", function: { name: "verify_best_candidate" } },
-      }),
-      signal: ctrl.signal,
+  // Seed from carrier zones (preferred canonical = carrier spelling)
+  for (const z of carrierZones) {
+    const key = norm(z.name);
+    if (!key) continue;
+    const subAreas = carrierAreas.filter((a) => a.parent_external_id === z.external_id);
+    const areas = subAreas
+      .filter((a) => !hidden.has(`${z.name}||${a.name}`))
+      .map((a) => ({ canonical: a.name, norm: norm(a.name), areaId: a.external_id }));
+    map.set(key, {
+      canonical: z.name,
+      norm: key,
+      zoneId: z.external_id,
+      aliases: [z.name],
+      areas,
     });
-    if (!res.ok) {
-      console.error("verify AI", model, "status", res.status, await res.text().catch(() => ""));
-      return null;
-    }
-    const j = await res.json();
-    const call = j?.choices?.[0]?.message?.tool_calls?.[0];
-    const argsStr = call?.function?.arguments;
-    if (!argsStr) return null;
-    const args = typeof argsStr === "string" ? JSON.parse(argsStr) : argsStr;
-    const idx = Number(args.index);
-    if (!Number.isFinite(idx)) return null;
-    return { index: idx, confidence: Number(args.confidence) || 0 };
-  } catch (e) {
-    console.error("verify AI", model, "error", (e as Error).message);
-    return null;
-  } finally {
-    clearTimeout(t);
   }
+
+  // Merge defaults
+  for (const [city, areas] of Object.entries(defaultCityAreas)) {
+    const key = norm(city);
+    if (!key) continue;
+    if (!map.has(key)) {
+      map.set(key, {
+        canonical: city,
+        norm: key,
+        zoneId: null,
+        aliases: [city],
+        areas: [],
+      });
+    }
+    const entry = map.get(key)!;
+    if (!entry.aliases.includes(city)) entry.aliases.push(city);
+    for (const a of areas) {
+      if (hidden.has(`${city}||${a}`)) continue;
+      const aN = norm(a);
+      if (!entry.areas.some((x) => x.norm === aN)) {
+        entry.areas.push({ canonical: a, norm: aN, areaId: null });
+      }
+    }
+  }
+
+  return Array.from(map.values());
 }
 
-async function askModel(model: string, prompt: string, apiKey: string, timeoutMs = 12000): Promise<{ city: string; area: string; confidence: number } | null> {
+// ============= Step 1: pick city =============
+interface CityPick { city: CityCatalog; score: number; via: string; }
+
+function pickCity(catalog: CityCatalog[], inputTokens: string[], inputNorm: string): CityPick | null {
+  let best: CityPick | null = null;
+
+  // (a) Direct match: city name appears in input.
+  for (const c of catalog) {
+    let s = nameScore(c.canonical, inputTokens, inputNorm);
+    for (const al of c.aliases) {
+      s = Math.max(s, nameScore(al, inputTokens, inputNorm));
+    }
+    if (s > 0 && (!best || s > best.score)) {
+      best = { city: c, score: s, via: "direct" };
+    }
+  }
+
+  // (b) Neighborhood inference: an area name in the input → parent city.
+  // Only counts if we don't already have a strong direct match.
+  for (const c of catalog) {
+    for (const a of c.areas) {
+      if (isServiceArea(a.canonical)) continue;
+      const s = nameScore(a.canonical, inputTokens, inputNorm);
+      // Discount area-based inference slightly so a direct city match wins ties.
+      const effective = s > 0 ? s - 5 : 0;
+      if (effective > 0 && (!best || effective > best.score)) {
+        best = { city: c, score: effective, via: `area:${a.canonical}` };
+      }
+    }
+  }
+
+  return best && best.score >= 70 ? best : null;
+}
+
+// ============= Step 2: pick area within selected city =============
+function pickArea(city: CityCatalog, inputTokens: string[], inputNorm: string): { area: string; areaId: number | null; score: number } | null {
+  let best: { area: string; areaId: number | null; score: number } | null = null;
+  for (const a of city.areas) {
+    if (isServiceArea(a.canonical)) {
+      // Only allow if customer's text contains the service keyword
+      const aN = norm(a.canonical);
+      const hasKw = SERVICE_KEYWORDS.some((k) => inputNorm.includes(norm(k)) && aN.includes(norm(k)));
+      if (!hasKw) continue;
+    }
+    const s = nameScore(a.canonical, inputTokens, inputNorm);
+    if (s > 0 && (!best || s > best.score)) {
+      best = { area: a.canonical, areaId: a.areaId, score: s };
+    }
+  }
+  return best && best.score >= 70 ? best : null;
+}
+
+// ============= AI fallback: city only =============
+async function aiPickCity(catalog: CityCatalog[], city: string, address: string, apiKey: string): Promise<string | null> {
+  const cityList = catalog.map((c) => c.canonical).join("، ");
+  const prompt = `أنت خبير بجغرافيا ليبيا. لديك القائمة التالية من المدن المتاحة للشحن:
+
+${cityList}
+
+مدخل العميل:
+- مدينة مكتوبة: "${city || ""}"
+- عنوان مكتوب: "${address || ""}"
+
+اختر اسم المدينة الأنسب من القائمة فقط (يجب أن يكون اسمًا موجودًا حرفيًا في القائمة).
+- إذا ذكر العميل اسم حي (مثل تاجوراء، عين زارة، الفرناج) استنتج المدينة الأم (طرابلس).
+- إذا تعذر التحديد بثقة، أعد "NONE".
+استدع الأداة pick_city فقط.`;
+
+  const tool = {
+    type: "function",
+    function: {
+      name: "pick_city",
+      description: "اختر اسم المدينة من القائمة.",
+      parameters: {
+        type: "object",
+        properties: {
+          city: { type: "string" },
+          confidence: { type: "number" },
+        },
+        required: ["city", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  };
+
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t = setTimeout(() => ctrl.abort(), 8000);
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model,
+        model: "google/gemini-2.5-flash",
         messages: [{ role: "user", content: prompt }],
-        tools: [AI_TOOL],
-        tool_choice: { type: "function", function: { name: "pick_city_area" } },
+        tools: [tool],
+        tool_choice: { type: "function", function: { name: "pick_city" } },
       }),
       signal: ctrl.signal,
     });
     if (!res.ok) {
-      console.error("AI", model, "status", res.status, await res.text().catch(() => ""));
+      console.error("aiPickCity status", res.status, await res.text().catch(() => ""));
       return null;
     }
     const j = await res.json();
@@ -433,343 +276,122 @@ async function askModel(model: string, prompt: string, apiKey: string, timeoutMs
     const argsStr = call?.function?.arguments;
     if (!argsStr) return null;
     const args = typeof argsStr === "string" ? JSON.parse(argsStr) : argsStr;
-    return {
-      city: String(args.city || "").trim(),
-      area: String(args.area || "").trim(),
-      confidence: Number(args.confidence) || 0,
-    };
+    const picked = String(args.city || "").trim();
+    const conf = Number(args.confidence) || 0;
+    if (!picked || picked.toUpperCase() === "NONE" || conf < 0.5) return null;
+    return picked;
   } catch (e) {
-    console.error("AI", model, "error", (e as Error).message);
+    console.error("aiPickCity error", (e as Error).message);
     return null;
   } finally {
     clearTimeout(t);
   }
 }
 
-function findPair(list: Pair[], city: string, area: string): Pair | undefined {
-  if (!city || !area || city.toUpperCase() === "NONE" || area.toUpperCase() === "NONE") return undefined;
-  let pick = list.find((r) => r.city === city && r.area === area);
-  if (pick) return pick;
-  pick = list.find((r) => norm(r.city) === norm(city) && norm(r.area) === norm(area));
-  if (pick) return pick;
-  // city matches but area mismatch → try area within that city
-  pick = list.find((r) => norm(r.city) === norm(city) && fuzzyContains(norm(r.area), norm(area)));
-  return pick;
-}
-
+// ============= main =============
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { city, address, owner_id } = await req.json() as { city?: string; address?: string; owner_id?: string };
+    const { city, address } = await req.json() as { city?: string; address?: string; owner_id?: string };
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Build full (city|area) candidate list from defaults (minus hidden) + corrections.
-    // Hidden defaults & corrections are managed globally by superadmin.
-    let hidden = new Set<string>();
-    {
-      const { data: hiddenRows } = await admin
-        .from("hidden_default_cities")
-        .select("city,area");
-      hidden = new Set((hiddenRows || []).map((r: any) => `${r.city}||${r.area}`));
-    }
-    const list: Pair[] = [];
-    for (const [c, areas] of Object.entries(defaultCityAreas)) {
-      for (const a of areas) {
-        if (!hidden.has(`${c}||${a}`)) list.push({ city: c, area: a });
-      }
-    }
-    // Merge the carrier's LIVE shipping_zones cache so areas the carrier
-    // actually supports (e.g. "الرياضية" under "طرابلس") become first-class
-    // candidates — not just a last-resort fallback.
-    {
-      const { data: liveZones } = await admin
-        .from("shipping_zones")
-        .select("external_id,parent_external_id,name,kind");
-      const zall = (liveZones || []) as Z[];
-      const zoneRows = zall.filter((x) => x.kind === "zone");
-      const areaRows = zall.filter((x) => x.kind === "area");
-      const seen = new Set(list.map((r) => `${norm(r.city)}||${norm(r.area)}`));
-      for (const z of zoneRows) {
-        const zAreas = areaRows.filter((a) => a.parent_external_id === z.external_id);
-        const rows = zAreas.length === 0
-          ? [{ city: z.name, area: z.name }]
-          : zAreas.map((a) => ({ city: z.name, area: a.name }));
-        for (const r of rows) {
-          const key = `${norm(r.city)}||${norm(r.area)}`;
-          if (!seen.has(key) && !hidden.has(`${r.city}||${r.area}`)) {
-            list.push(r);
-            seen.add(key);
-          }
-        }
-      }
-    }
-    let overrides: Array<{ city: string; area: string; input_text: string | null }> = [];
-    {
-      const { data: corrections } = await admin
-        .from("city_corrections")
-        .select("city,area,input_text");
-      for (const r of (corrections || []) as Array<{ city: string; area: string; input_text: string | null }>) {
-        list.push({ city: r.city, area: r.area });
-        overrides.push(r);
-      }
-    }
+    const catalog = await buildCatalog(admin);
+    const cityInput = city || "";
+    const addrInput = address || "";
+    const inputTokens = [...tokenize(cityInput), ...tokenize(addrInput)];
+    const inputNorm = norm(cityInput + " " + addrInput);
 
-    // Hard override: if the user previously corrected the same input text, use it directly.
-    const inputKey = norm((city || "") + " " + (address || ""));
-    if (overrides.length > 0 && inputKey) {
-      const exact = overrides.find((o) => o.input_text && norm(o.input_text) === inputKey);
+    // Hard override: user-saved correction with matching input text.
+    const { data: corrections } = await admin
+      .from("city_corrections")
+      .select("city,area,input_text");
+    if (corrections && inputNorm) {
+      const exact = (corrections as any[]).find(
+        (o) => o.input_text && norm(o.input_text) === inputNorm,
+      );
       if (exact) {
+        console.log("match-city: correction override", exact);
         return new Response(JSON.stringify({
           zone_id: null, area_id: null,
           zone_name: exact.city, area_name: exact.area,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
-
-    if (list.length > 0) {
-      // Local pre-ranking (used as evidence for AI + final fallback).
-      const scored = scoreCandidates(list, city || "", address || "");
-      const topLocal = scored[0];
-
-      // FAST PATH: if local matching is already very confident (exact area-level
-      // hit), return immediately and skip the AI round-trip entirely.
-      if (topLocal && topLocal.score >= 1000) {
-        return new Response(JSON.stringify({
-          zone_id: null, area_id: null,
-          zone_name: topLocal.row.city, area_name: topLocal.row.area,
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Add corrections as extra cities to the catalog (in case user added a new one).
+    for (const r of (corrections || []) as any[]) {
+      const key = norm(r.city);
+      if (!key || isExcluded(r.city)) continue;
+      let entry = catalog.find((c) => c.norm === key);
+      if (!entry) {
+        entry = { canonical: r.city, norm: key, zoneId: null, aliases: [r.city], areas: [] };
+        catalog.push(entry);
       }
+      const aN = norm(r.area);
+      if (aN && !entry.areas.some((a) => a.norm === aN)) {
+        entry.areas.push({ canonical: r.area, norm: aN, areaId: null });
+      }
+    }
 
-      // Otherwise consult fast AI models in parallel (shorter timeout).
+    // ============ STEP 1: pick city ============
+    let cityPick = pickCity(catalog, inputTokens, inputNorm);
+
+    if (!cityPick) {
+      // AI fallback (city only)
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
-      const prompt = buildPrompt(list, city || "", address || "");
-      let geminiPick: { city: string; area: string; confidence: number } | null = null;
-      let gptPick: { city: string; area: string; confidence: number } | null = null;
       if (apiKey) {
-        const [a, b] = await Promise.all([
-          askModel("google/gemini-3-flash-preview", prompt, apiKey, 6000),
-          askModel("openai/gpt-5-nano", prompt, apiKey, 6000),
-        ]);
-        geminiPick = a;
-        gptPick = b;
-      }
-
-      const candidates: Array<{ pair: Pair; weight: number; src: string }> = [];
-      const push = (p: Pair | undefined, weight: number, src: string) => {
-        if (!p) return;
-        const existing = candidates.find((x) => x.pair.city === p.city && x.pair.area === p.area);
-        if (existing) existing.weight += weight;
-        else candidates.push({ pair: p, weight, src });
-      };
-
-      if (geminiPick) {
-        const p = findPair(list, geminiPick.city, geminiPick.area);
-        push(p, 2 + geminiPick.confidence, "gemini");
-      }
-      if (gptPick) {
-        const p = findPair(list, gptPick.city, gptPick.area);
-        push(p, 2 + gptPick.confidence, "gpt");
-      }
-      // Local hint: only contributes weight if it's a strong area-level match.
-      if (topLocal && topLocal.score >= 700) {
-        push(topLocal.row, 1.5, "local-strong");
-      } else if (topLocal && topLocal.score >= 300) {
-        push(topLocal.row, 0.5, "local-weak");
-      }
-
-      // Extra signal: PHP-style findBestCity (Levenshtein + similar_text) over
-      // unique city names — catches typos like "ترابلس" → "طرابلس".
-      const uniqueCities = [...new Set(list.map((r) => r.city))];
-      const bestCityByText = findBestCity(((city || "") + " " + (address || "")).trim(), uniqueCities);
-      if (bestCityByText && bestCityByText.score >= 0.7) {
-        const sameCity = list.filter((r) => r.city === bestCityByText.city);
-        let bestArea: Pair | undefined;
-        let bestAreaScore = 0;
-        for (const r of sameCity) {
-          const s = combinedScore(address || city || "", r.area);
-          if (s > bestAreaScore) { bestAreaScore = s; bestArea = r; }
+        const aiCity = await aiPickCity(catalog, cityInput, addrInput, apiKey);
+        if (aiCity) {
+          const key = norm(aiCity);
+          const found = catalog.find((c) => c.norm === key);
+          if (found) cityPick = { city: found, score: 60, via: "ai" };
         }
-        if (bestArea) push(bestArea, 1 + bestCityByText.score, "best-city");
-      }
-
-      // NEW: For each "candidate city" (top local match + best-by-text + exact
-      // city tokens in input), find the closest area inside it by token-level
-      // fuzzy matching. Lets "بنغازي بوعطني" map to the closest Benghazi area.
-      const candidateCities = new Set<string>();
-      if (topLocal) candidateCities.add(topLocal.row.city);
-      if (bestCityByText && bestCityByText.score >= 0.6) candidateCities.add(bestCityByText.city);
-      const inputToks = [...tokens(city || ""), ...tokens(address || "")];
-      for (const uc of uniqueCities) {
-        const ucN = norm(uc);
-        if (inputToks.some((t) => t === ucN || (ucN.length >= 4 && (t.includes(ucN) || ucN.includes(t) && t.length >= 4)))) {
-          candidateCities.add(uc);
-        }
-      }
-      for (const cc of candidateCities) {
-        const ba = findBestAreaInCity(list, cc, inputToks);
-        if (ba && ba.score >= 0.6) {
-          const pair = list.find((r) => r.city === cc && r.area === ba.area);
-          if (pair) push(pair, 1.5 + ba.score, "fuzzy-area");
-        }
-      }
-
-      // STRONGEST local signal: an area whose name appears as an exact token in
-      // the input. Weighted higher than the AI picks so the carrier's own area
-      // names always win over geographic guesses.
-      const exactArea = findExactTokenArea(list, inputToks);
-      if (exactArea) {
-        push(exactArea.pair, 4 + exactArea.score, "exact-token-area");
-      }
-
-      candidates.sort((a, b) => b.weight - a.weight);
-      console.log("match-city candidates", { city, address, candidates: candidates.slice(0, 5).map((c) => ({ ...c.pair, w: c.weight, s: c.src })) });
-
-      // GUARD: drop candidates that are service areas (e.g. "توصيل نسائي")
-      // unless the customer's input actually contains those service keywords.
-      // Also drop candidates with no real textual evidence in the input
-      // (prevents fuzzy noise like "الصين" sneaking into طرابلس).
-      const inputNormAll = norm((city || "") + " " + (address || ""));
-      const filtered = candidates.filter((c) => {
-        if (!inputAllowsServiceArea(inputNormAll, c.pair.area)) {
-          console.log("match-city dropped (service area without keyword)", c.pair);
-          return false;
-        }
-        if (!areaHasInputEvidence(c.pair.area, c.pair.city, inputNormAll, inputToks)) {
-          console.log("match-city dropped (no input evidence)", c.pair, "w=", c.weight);
-          return false;
-        }
-        return true;
-      });
-
-      let final: Pair | undefined = filtered[0]?.pair;
-
-      // ============ EXTRA VERIFICATION LAYER ============
-      // Two strong models judge the top-3 filtered candidates. We require
-      // consensus (both agree on same candidate) OR very high single-model
-      // confidence to override the first-pass pick. If they unanimously
-      // reject all top candidates (index=0), we drop to the city-only row.
-      const topForVerify = filtered.slice(0, 3);
-      if (apiKey && topForVerify.length >= 2) {
-        const [v1, v2] = await Promise.all([
-          verifyWithModel("google/gemini-2.5-pro", topForVerify, city || "", address || "", apiKey, 10000),
-          verifyWithModel("openai/gpt-5-mini", topForVerify, city || "", address || "", apiKey, 10000),
-        ]);
-        const valid = (v: { index: number; confidence: number } | null) =>
-          v && Number.isInteger(v.index) && v.index >= 0 && v.index <= topForVerify.length;
-        const ok1 = valid(v1) ? v1! : null;
-        const ok2 = valid(v2) ? v2! : null;
-        console.log("match-city verify votes", { v1: ok1, v2: ok2, topForVerify: topForVerify.map((c) => c.pair) });
-
-        // Both reject → fall back to city-only row of the top filtered candidate.
-        if (ok1?.index === 0 && ok2?.index === 0) {
-          const topCityName = topForVerify[0]?.pair.city;
-          if (topCityName) {
-            const cityOnly = list.find((r) => r.city === topCityName && norm(r.city) === norm(r.area));
-            if (cityOnly) {
-              console.log("match-city verify: both rejected, using city-only", cityOnly);
-              final = cityOnly;
-            }
-          }
-        } else if (ok1 && ok2 && ok1.index > 0 && ok1.index === ok2.index) {
-          // Consensus on a specific candidate.
-          final = topForVerify[ok1.index - 1].pair;
-          console.log("match-city verify consensus", final);
-        } else {
-          // No consensus: prefer the verifier with highest confidence ≥ 0.75.
-          const best = [ok1, ok2]
-            .filter((v): v is { index: number; confidence: number } => !!v && v.index > 0)
-            .sort((a, b) => b.confidence - a.confidence)[0];
-          if (best && best.confidence >= 0.75) {
-            final = topForVerify[best.index - 1].pair;
-            console.log("match-city verify single-high-conf", final, "conf=", best.confidence);
-          }
-        }
-      }
-      // ===================================================
-
-      // Final fallback: weak local hit if AIs gave nothing usable — but still
-      // respect the service-area guard.
-      if (!final && topLocal && inputAllowsServiceArea(inputNormAll, topLocal.row.area)) {
-        final = topLocal.row;
-      }
-
-      // If we filtered everything out but we DID identify a city confidently,
-      // fall back to the city-only row (city==area) so we don't return junk.
-      if (!final) {
-        const cityOnly = candidates.find((c) =>
-          norm(c.pair.city) === norm(c.pair.area) &&
-          inputAllowsServiceArea(inputNormAll, c.pair.area)
-        );
-        if (cityOnly) final = cityOnly.pair;
-      }
-
-      if (final) {
-        return new Response(JSON.stringify({
-          zone_id: null, area_id: null,
-          zone_name: final.city, area_name: final.area,
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
-    // ===== Fallback: query the live shipping_zones cache (Turbo Express) =====
-    const { data: all } = await admin.from("shipping_zones").select("external_id,parent_external_id,name,kind");
-    const zlist = (all || []) as Z[];
-    if (zlist.length === 0) {
-      return new Response(JSON.stringify({ error: "no zones cached" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const zones = zlist.filter((x) => x.kind === "zone");
-    const areas = zlist.filter((x) => x.kind === "area");
-
-    // Build pair list from live zones for AI.
-    const pairList: Pair[] = [];
-    for (const z of zones) {
-      const zAreas = areas.filter((a) => a.parent_external_id === z.external_id);
-      if (zAreas.length === 0) pairList.push({ city: z.name, area: z.name });
-      for (const a of zAreas) pairList.push({ city: z.name, area: a.name });
+    if (!cityPick) {
+      console.log("match-city: no city found", { city: cityInput, address: addrInput });
+      return new Response(JSON.stringify({
+        zone_id: null, area_id: null,
+        zone_name: null, area_name: null,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    let zone: Z | undefined;
-    let area: Z | undefined;
+    console.log("match-city: city picked", { city: cityPick.city.canonical, score: cityPick.score, via: cityPick.via });
 
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (apiKey && pairList.length > 0) {
-      const prompt = buildPrompt(pairList, city || "", address || "");
-      const [a, b] = await Promise.all([
-        askModel("google/gemini-3-flash-preview", prompt, apiKey, 6000),
-        askModel("openai/gpt-5-nano", prompt, apiKey, 6000),
-      ]);
-      const picks = [a, b].filter(Boolean) as Array<{ city: string; area: string; confidence: number }>;
-      // Pick by majority then highest confidence
-      let chosen: Pair | undefined;
-      if (picks.length === 2 && picks[0].city === picks[1].city && picks[0].area === picks[1].area) {
-        chosen = findPair(pairList, picks[0].city, picks[0].area);
+    // ============ STEP 2: pick area within city ============
+    const areaPick = pickArea(cityPick.city, inputTokens, inputNorm);
+
+    // Fallback: area == city (placeholder), preferring carrier's own placeholder area if any.
+    let finalAreaName: string;
+    let finalAreaId: number | null = null;
+    if (areaPick) {
+      finalAreaName = areaPick.area;
+      finalAreaId = areaPick.areaId;
+      console.log("match-city: area picked", { area: areaPick.area, score: areaPick.score });
+    } else {
+      // Look for a city-as-area placeholder among carrier areas.
+      const placeholder = cityPick.city.areas.find((a) => a.norm === cityPick!.city.norm);
+      if (placeholder) {
+        finalAreaName = placeholder.canonical;
+        finalAreaId = placeholder.areaId;
       } else {
-        picks.sort((x, y) => y.confidence - x.confidence);
-        for (const p of picks) {
-          const f = findPair(pairList, p.city, p.area);
-          if (f) { chosen = f; break; }
-        }
+        finalAreaName = cityPick.city.canonical;
       }
-      if (chosen) {
-        zone = zones.find((z) => z.name === chosen!.city);
-        area = areas.find((ar) => ar.name === chosen!.area && ar.parent_external_id === zone?.external_id);
-      }
+      console.log("match-city: no area, using city-as-area", finalAreaName);
     }
 
     return new Response(JSON.stringify({
-      zone_id: zone?.external_id ?? null,
-      zone_name: zone?.name ?? null,
-      area_id: area?.external_id ?? null,
-      area_name: area?.name ?? null,
+      zone_id: cityPick.city.zoneId,
+      area_id: finalAreaId,
+      zone_name: cityPick.city.canonical,
+      area_name: finalAreaName,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
-    console.error(e);
+    console.error("match-city error", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
