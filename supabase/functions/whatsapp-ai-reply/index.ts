@@ -180,17 +180,57 @@ Deno.serve(async (req) => {
     // Detect product slug from any URL the customer sent (e.g. landing page /p/<slug>)
     let focusedProductInfo = "";
     try {
-      const slugRegex = /\/p\/([a-zA-Z0-9_-]+)/g;
-      const slugs: string[] = [];
+      // Collect all URLs from incoming messages, then decode FB wrappers (l.facebook.com/l.php?u=...)
+      const urlRegex = /https?:\/\/[^\s]+/gi;
+      const rawUrls: string[] = [];
       for (const m of (messages || [])) {
         if (m.direction !== "in" || !m.content) continue;
-        let match: RegExpExecArray | null;
-        const re = new RegExp(slugRegex.source, "g");
-        while ((match = re.exec(m.content)) !== null) {
-          if (match[1]) slugs.push(match[1]);
-        }
+        const found = m.content.match(urlRegex) || [];
+        rawUrls.push(...found);
       }
-      const lastSlug = slugs[slugs.length - 1];
+      const decodedUrls: string[] = [];
+      for (const u of rawUrls) {
+        try {
+          const parsed = new URL(u);
+          // Facebook wraps outbound links: l.facebook.com/l.php?u=<encoded>
+          if (/facebook\.com$/i.test(parsed.hostname) || parsed.hostname.includes("facebook")) {
+            const inner = parsed.searchParams.get("u");
+            if (inner) { decodedUrls.push(decodeURIComponent(inner)); continue; }
+          }
+          decodedUrls.push(u);
+        } catch { decodedUrls.push(u); }
+      }
+      // Extract slugs and FB ad identifiers
+      const slugs: string[] = [];
+      let fbAdId: string | null = null;
+      let utmContent: string | null = null;
+      let fbclid: string | null = null;
+      for (const u of decodedUrls) {
+        const sm = u.match(/\/p\/([a-zA-Z0-9_-]+)/);
+        if (sm?.[1]) slugs.push(sm[1]);
+        try {
+          const pu = new URL(u);
+          fbAdId = pu.searchParams.get("fb_ad_id") || fbAdId;
+          utmContent = pu.searchParams.get("utm_content") || utmContent;
+          fbclid = pu.searchParams.get("fbclid") || fbclid;
+        } catch {}
+      }
+      let lastSlug = slugs[slugs.length - 1];
+
+      // If we still don't have a slug but we have an FB ad id, look it up in fb_ads
+      if (!lastSlug && (fbAdId || utmContent)) {
+        const adId = fbAdId || utmContent || "";
+        const { data: ad } = await supabase
+          .from("fb_ads")
+          .select("landing_url, name")
+          .eq("owner_id", owner_id)
+          .eq("fb_ad_id", String(adId))
+          .maybeSingle();
+        const landing = ad?.landing_url || "";
+        const m2 = landing.match(/\/p\/([a-zA-Z0-9_-]+)/);
+        if (m2?.[1]) lastSlug = m2[1];
+      }
+
       if (lastSlug) {
         const focused = products.find((p: any) => p.slug === lastSlug)
           || (await supabase.from("products")
@@ -198,12 +238,12 @@ Deno.serve(async (req) => {
             .eq("owner_id", owner_id).eq("slug", lastSlug).maybeSingle()).data;
         if (focused) {
           focusedProductInfo = `
-⭐ المنتج الذي دخل منه الزبون (من رابط صفحة الهبوط):
+⭐ المنتج الذي دخل منه الزبون (من رابط الإعلان/صفحة الهبوط)${fbAdId || fbclid ? " — قادم من إعلان فيسبوك" : ""}:
 - الاسم: ${focused.name}
 - المعرف: ${focused.id.slice(0, 8)}
 - السعر: ${focused.price} ${currency}
 ${focused.colors?.length ? `- الألوان: ${focused.colors.join("، ")}\n` : ""}${focused.sizes?.length ? `- المقاسات: ${focused.sizes.join("، ")}\n` : ""}${focused.description ? `- الوصف: ${String(focused.description).replace(/<[^>]+>/g, "").slice(0, 300)}\n` : ""}
-اعتبر هذا المنتج هو محور الحديث ما لم يطلب الزبون منتجاً آخر صراحةً.`;
+اعتبر هذا المنتج هو محور الحديث وافتح الحوار مباشرةً بالترحيب بالزبون وذكر اسم المنتج والسعر باختصار، ثم اسأله عن اللون/المقاس أو إن كان يريد الطلب — ما لم يطلب الزبون منتجاً آخر صراحةً.`;
         }
       }
     } catch (e) {
