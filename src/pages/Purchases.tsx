@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShoppingBag, Plus, Loader2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { ShoppingBag, Plus, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
@@ -44,20 +45,28 @@ const Purchases = () => {
     const amt = Number(amount);
     if (!amt || amt <= 0 || !safeId) return;
     setSaving(true);
-    const safe = safes.find(s => s.id === safeId);
-    if (!safe) { setSaving(false); return; }
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("purchases").insert({
+    const { data: inserted, error } = await supabase.from("purchases").insert({
       amount: amt, safe_id: safeId, notes: notes || null, owner_id: user!.id, store_id: activeStoreId,
-    });
-    if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
-    await supabase.from("safes").update({ balance: Number(safe.balance) - amt }).eq("id", safeId);
+    }).select("id").single();
+    if (error || !inserted) { toast({ title: "خطأ", description: error?.message, variant: "destructive" }); setSaving(false); return; }
+    // Safe balance is updated automatically by sync_safe_balance trigger on safe_movements
     await supabase.from("safe_movements").insert({
       safe_id: safeId, amount: -amt, movement_type: "purchase",
+      reference_id: inserted.id,
       notes: notes || "مشتريات", owner_id: user!.id, store_id: activeStoreId,
     });
     toast({ title: "تمت إضافة عملية الشراء" });
     setAmount(""); setSafeId(""); setNotes(""); setOpen(false); setSaving(false);
+    load();
+  };
+
+  const removePurchase = async (id: string) => {
+    // Trigger sync_safe_balance auto-restores balance on movement DELETE
+    await supabase.from("safe_movements").delete().eq("reference_id", id).eq("movement_type", "purchase");
+    const { error } = await supabase.from("purchases").delete().eq("id", id);
+    if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "تم حذف عملية الشراء" });
     load();
   };
 
@@ -90,6 +99,7 @@ const Purchases = () => {
                   <TableHead className="text-right">الخزينة</TableHead>
                   <TableHead className="text-right">المبلغ</TableHead>
                   <TableHead className="text-right">ملاحظات</TableHead>
+                  <TableHead className="text-right">إجراء</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -99,6 +109,23 @@ const Purchases = () => {
                     <TableCell>{safeName(p.safe_id)}</TableCell>
                     <TableCell className="text-orange-500 font-bold">{Number(p.amount).toFixed(2)}</TableCell>
                     <TableCell className="text-sm">{p.notes || "-"}</TableCell>
+                    <TableCell>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost"><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent dir="rtl">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>حذف عملية الشراء؟</AlertDialogTitle>
+                            <AlertDialogDescription>سيتم استرجاع المبلغ إلى الخزينة وإزالة الحركة المالية.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => removePurchase(p.id)}>حذف</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
