@@ -61,6 +61,7 @@ const ShippingErrorAliases = lazy(() => import("./pages/ShippingErrorAliases"));
 const ShippingZones = lazy(() => import("./pages/ShippingZones"));
 const ShippingPriceLists = lazy(() => import("./pages/ShippingPriceLists"));
 const MyStores = lazy(() => import("./pages/MyStores"));
+const PuckBuilder = lazy(() => import("./pages/PuckBuilder"));
 const LandingTemplates = lazy(() => import("./pages/LandingTemplates"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -134,6 +135,7 @@ const App = () => {
                 <Route path="currency" element={<CurrencySettings />} />
                 <Route path="header" element={<HeaderSettings />} />
                 <Route path="landing-templates" element={<LandingTemplates />} />
+                <Route path="page-builder" element={<PuckBuilder />} />
                 <Route path="shipping" element={<ShippingSettings />} />
                 <Route path="shipping-error-aliases" element={<ShippingErrorAliases />} />
                 <Route path="shipping-zones" element={<ShippingZones />} />
