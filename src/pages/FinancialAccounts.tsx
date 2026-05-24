@@ -39,6 +39,7 @@ interface PurchaseRow { id: string; amount: number; created_at: string; }
 interface SafeRow { id: string; name: string; balance: number; }
 interface ExpenseTypeRow { id: string; name: string; }
 interface AdSpendRow { id: string; product_id: string | null; campaign_name: string | null; amount_local: number; spend_date: string; }
+interface OrphanShipmentRow { id: string; paid_amount: number; shipment_date: string | null; created_at: string; shipment_code: string; }
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,6 +55,7 @@ const FinancialAccounts = () => {
   const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
   const [safes, setSafes] = useState<SafeRow[]>([]);
   const [adSpends, setAdSpends] = useState<AdSpendRow[]>([]);
+  const [orphanShipments, setOrphanShipments] = useState<OrphanShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -75,6 +77,17 @@ const FinancialAccounts = () => {
           supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId),
           supabase.from("ad_spends").select("id, product_id, campaign_name, amount_local, spend_date").eq("store_id", activeStoreId),
         ]);
+        // Unlinked shipments from RECEIVED settlements = orphan revenue (cash received, no product link)
+        const { data: orphData } = await supabase
+          .from("settlement_shipments")
+          .select("id, paid_amount, shipment_date, created_at, shipment_code, settlement_id, settlements!inner(received)")
+          .eq("store_id", activeStoreId)
+          .is("order_id", null)
+          .eq("settlements.received", true);
+        setOrphanShipments(((orphData as any[]) || []).map(r => ({
+          id: r.id, paid_amount: Number(r.paid_amount || 0),
+          shipment_date: r.shipment_date, created_at: r.created_at, shipment_code: r.shipment_code,
+        })));
         setOrders((o.data as Order[]) || []);
         // Fetch sensitive purchase_price via secure RPC and merge
         const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
@@ -152,7 +165,15 @@ const FinancialAccounts = () => {
   // Orphan delivered orders: counted in revenue display but EXCLUDED from profit calc
   const linkedDelivered = useMemo(() => deliveredOrders.filter(orderIsLinked), [deliveredOrders, products, itemsByOrder]);
   const orphanDelivered = useMemo(() => deliveredOrders.filter(o => !orderIsLinked(o)), [deliveredOrders, products, itemsByOrder]);
-  const orphanRevenue = orphanDelivered.reduce((s, o) => s + Number(o.price), 0);
+  // Orphan settlement shipments (no matching order at all) — in selected date range
+  const filteredOrphanShipments = useMemo(
+    () => orphanShipments.filter(s => inDateRange(s.shipment_date || s.created_at)),
+    [orphanShipments, dateFrom, dateTo]
+  );
+  const orphanRevenue =
+    orphanDelivered.reduce((s, o) => s + Number(o.price), 0) +
+    (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
+  const orphanCount = orphanDelivered.length + (selectedProduct === "all" ? filteredOrphanShipments.length : 0);
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
@@ -164,7 +185,8 @@ const FinancialAccounts = () => {
   }), [adSpends, dateFrom, dateTo, selectedProduct, products]);
 
   // Core financials
-  const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
+  const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0)
+    + (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
   // Profit calculations use ONLY linked orders (we know their actual cost)
   const profitRevenue = linkedDelivered.reduce((s, o) => s + Number(o.price), 0);
   const totalCOGS = linkedDelivered.reduce((s, o) => s + orderCost(o), 0);
@@ -375,13 +397,13 @@ const FinancialAccounts = () => {
       </Card>
 
       {/* Top KPIs */}
-      {orphanDelivered.length > 0 && (
+      {orphanCount > 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1 text-sm">
               <p className="font-semibold text-amber-700 dark:text-amber-400">
-                {orphanDelivered.length} طلب مسلّم غير مرتبط بمنتج محلي — قيمتها {fmt(orphanRevenue)}
+                {orphanCount} شحنة/طلب مسلّم غير مرتبط بمنتج محلي — قيمتها {fmt(orphanRevenue)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 هذه الطلبات تظهر ضمن إجمالي المبيعات والخزينة، لكنها <span className="font-medium">غير محسوبة في الربح الصافي</span> لعدم توفر تكلفة الشراء.
@@ -392,10 +414,10 @@ const FinancialAccounts = () => {
         </Card>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanDelivered.length > 0 ? `${deliveredCount} طلب (منها ${orphanDelivered.length} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
+        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanCount > 0 ? `${deliveredCount} طلب (+${orphanCount} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
         <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`من ${linkedDelivered.length} طلب مرتبط · هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
         <KPI icon={Receipt} label="المصروفات" value={fmt(totalExpenses)} sub={`${expenseRatio.toFixed(1)}% من المبيعات`} color="from-orange-500/10 to-orange-600/5 border-orange-500/20" />
-        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanDelivered.length > 0 ? `يستثني ${fmt(orphanRevenue)} طلبات غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
+        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanCount > 0 ? `يستثني ${fmt(orphanRevenue)} غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
