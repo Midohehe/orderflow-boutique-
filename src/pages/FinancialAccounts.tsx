@@ -11,7 +11,7 @@ import {
 import {
   TrendingUp, DollarSign, CheckCircle, Filter, Wallet, Receipt, ShoppingBag,
   Package, ArrowUpRight, ArrowDownRight, Percent, BarChart3, PieChart as PieIcon,
-  CircleDollarSign, ShoppingCart, Hourglass,
+  CircleDollarSign, ShoppingCart, Hourglass, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -120,6 +120,14 @@ const FinancialAccounts = () => {
     const pr = (item.product_id && productById.get(item.product_id)) || productByName.get(item.product_name);
     return pr ? Number(pr.purchase_price) : 0;
   };
+  // An order is "linked" if at least one of its items/product maps to a local product
+  const orderIsLinked = (o: Order): boolean => {
+    const items = itemsByOrder.get(o.id);
+    if (items && items.length > 0) {
+      return items.some(it => (it.product_id && productById.has(it.product_id)) || productByName.has(it.product_name));
+    }
+    return productByName.has(o.product_name);
+  };
   // Cost (COGS) for a single order — uses order_items if present, else fallback
   const orderCost = (o: Order): number => {
     const items = itemsByOrder.get(o.id);
@@ -141,6 +149,10 @@ const FinancialAccounts = () => {
     [orders, dateFrom, dateTo, selectedProduct, itemsByOrder]
   );
   const deliveredOrders = useMemo(() => filteredOrders.filter(o => o.status === "delivered" || o.status === "settled"), [filteredOrders]);
+  // Orphan delivered orders: counted in revenue display but EXCLUDED from profit calc
+  const linkedDelivered = useMemo(() => deliveredOrders.filter(orderIsLinked), [deliveredOrders, products, itemsByOrder]);
+  const orphanDelivered = useMemo(() => deliveredOrders.filter(o => !orderIsLinked(o)), [deliveredOrders, products, itemsByOrder]);
+  const orphanRevenue = orphanDelivered.reduce((s, o) => s + Number(o.price), 0);
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
@@ -153,16 +165,18 @@ const FinancialAccounts = () => {
 
   // Core financials
   const totalRevenue = deliveredOrders.reduce((s, o) => s + Number(o.price), 0);
-  const totalCOGS = deliveredOrders.reduce((s, o) => s + orderCost(o), 0);
-  const grossProfit = totalRevenue - totalCOGS;
+  // Profit calculations use ONLY linked orders (we know their actual cost)
+  const profitRevenue = linkedDelivered.reduce((s, o) => s + Number(o.price), 0);
+  const totalCOGS = linkedDelivered.reduce((s, o) => s + orderCost(o), 0);
+  const grossProfit = profitRevenue - totalCOGS;
   const totalRegularExpenses = selectedProduct === "all" ? filteredExpenses.reduce((s, e) => s + Number(e.amount), 0) : 0;
   const totalAdSpend = filteredAdSpends.reduce((s, a) => s + Number(a.amount_local), 0);
   const totalExpenses = totalRegularExpenses + totalAdSpend;
   const totalPurchases = selectedProduct === "all" ? filteredPurchases.reduce((s, p) => s + Number(p.amount), 0) : 0;
   const netProfit = grossProfit - totalExpenses;
 
-  const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
-  const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+  const grossMargin = profitRevenue > 0 ? (grossProfit / profitRevenue) * 100 : 0;
+  const netMargin = profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
   const roi = totalCOGS > 0 ? (grossProfit / totalCOGS) * 100 : 0;
   const expenseRatio = totalRevenue > 0 ? (totalExpenses / totalRevenue) * 100 : 0;
 
@@ -189,6 +203,7 @@ const FinancialAccounts = () => {
       months[monthKey(d)] = { month: d.toLocaleDateString("ar-LY", { month: "short", year: "2-digit" }), revenue: 0, profit: 0, expenses: 0, purchases: 0 };
     }
     deliveredOrders.forEach(o => {
+      if (!orderIsLinked(o)) return; // skip orphans from profit chart
       const k = monthKey(new Date(o.created_at));
       if (months[k]) {
         const cost = orderCost(o);
@@ -360,11 +375,27 @@ const FinancialAccounts = () => {
       </Card>
 
       {/* Top KPIs */}
+      {orphanDelivered.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-amber-700 dark:text-amber-400">
+                {orphanDelivered.length} طلب مسلّم غير مرتبط بمنتج محلي — قيمتها {fmt(orphanRevenue)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                هذه الطلبات تظهر ضمن إجمالي المبيعات والخزينة، لكنها <span className="font-medium">غير محسوبة في الربح الصافي</span> لعدم توفر تكلفة الشراء.
+                لاحتسابها قم بربط الشحنة بطلب/منتج في النظام أو سجّل تكلفتها كمصروف يدوي.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={`${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
-        <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
+        <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanDelivered.length > 0 ? `${deliveredCount} طلب (منها ${orphanDelivered.length} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
+        <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`من ${linkedDelivered.length} طلب مرتبط · هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
         <KPI icon={Receipt} label="المصروفات" value={fmt(totalExpenses)} sub={`${expenseRatio.toFixed(1)}% من المبيعات`} color="from-orange-500/10 to-orange-600/5 border-orange-500/20" />
-        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={`هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
+        <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanDelivered.length > 0 ? `يستثني ${fmt(orphanRevenue)} طلبات غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
