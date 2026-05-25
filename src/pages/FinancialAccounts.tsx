@@ -50,6 +50,8 @@ const FinancialAccounts = () => {
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [, startTabTransition] = useTransition();
   const deferredTab = useDeferredValue(activeTab);
+  // Keep visited tabs mounted so re-clicking is instant (avoids re-mounting heavy tables/charts).
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["overview"]));
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
@@ -443,7 +445,10 @@ const FinancialAccounts = () => {
 
       <Tabs
         value={activeTab}
-        onValueChange={(v) => startTabTransition(() => setActiveTab(v))}
+        onValueChange={(v) => {
+          setVisitedTabs((prev) => (prev.has(v) ? prev : new Set(prev).add(v)));
+          startTabTransition(() => setActiveTab(v));
+        }}
       >
         <div className="-mx-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="inline-flex w-max min-w-full gap-1 px-1">
@@ -595,13 +600,13 @@ const FinancialAccounts = () => {
         </TabsContent>
 
         {/* Expenses analysis */}
-        {/* In-delivery (shipped) */}
-        <TabsContent value="shipped" className="space-y-4">
-          {deferredTab !== "shipped" ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : (<>
+        {/* In-delivery (shipped) — keep mounted after first visit for instant re-entry */}
+        {visitedTabs.has("shipped") && (
+        <TabsContent
+          value="shipped"
+          forceMount
+          className="space-y-4 data-[state=inactive]:hidden"
+        >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KPI icon={ShoppingCart} label="عدد الطلبات قيد التوصيل" value={shippedTotals.count} sub={selectedProduct === "all" ? "كل المنتجات" : selectedProduct} color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
             <KPI icon={Package} label="إجمالي رأس المال" value={fmt(shippedTotals.cost)} sub="سعر شراء البضاعة" color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
@@ -652,8 +657,8 @@ const FinancialAccounts = () => {
               )}
             </CardContent>
           </Card>
-          </>)}
         </TabsContent>
+        )}
 
         {/* Expenses analysis */}
         <TabsContent value="expenses" className="space-y-4">
