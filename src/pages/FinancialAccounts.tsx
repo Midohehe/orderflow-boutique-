@@ -69,6 +69,11 @@ const FinancialAccounts = () => {
   const [dateTo, setDateTo] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
 
+  // Shipped tab independent filters (by carrier status update date + carrier status)
+  const [shippedDateFrom, setShippedDateFrom] = useState<string>("");
+  const [shippedDateTo, setShippedDateTo] = useState<string>("");
+  const [shippedCarrierStatus, setShippedCarrierStatus] = useState<string>("all");
+
   useEffect(() => {
     if (ctxLoading || !effectiveOwnerId || !activeStoreId) return;
     (async () => {
@@ -182,6 +187,32 @@ const FinancialAccounts = () => {
     (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
   const orphanCount = orphanDelivered.length + (selectedProduct === "all" ? filteredOrphanShipments.length : 0);
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
+  const shippedFiltered = useMemo(() => {
+    const inRange = (iso?: string | null) => {
+      if (!shippedDateFrom && !shippedDateTo) return true;
+      if (!iso) return false;
+      const t = new Date(iso).getTime();
+      if (shippedDateFrom) {
+        const f = new Date(shippedDateFrom); f.setHours(0,0,0,0);
+        if (t < f.getTime()) return false;
+      }
+      if (shippedDateTo) {
+        const td = new Date(shippedDateTo); td.setHours(23,59,59,999);
+        if (t > td.getTime()) return false;
+      }
+      return true;
+    };
+    return shippedOrders.filter(o => {
+      if (shippedCarrierStatus !== "all" && (o.carrier_status || "") !== shippedCarrierStatus) return false;
+      if (!inRange(o.carrier_status_updated_at)) return false;
+      return true;
+    });
+  }, [shippedOrders, shippedDateFrom, shippedDateTo, shippedCarrierStatus]);
+  const shippedCarrierStatuses = useMemo(() => {
+    const set = new Set<string>();
+    shippedOrders.forEach(o => { if (o.carrier_status) set.add(o.carrier_status); });
+    return Array.from(set).sort();
+  }, [shippedOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
   const filteredAdSpends = useMemo(() => adSpends.filter(a => {
