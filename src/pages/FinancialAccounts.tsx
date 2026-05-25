@@ -642,6 +642,33 @@ const FinancialAccounts = () => {
           forceMount
           className="space-y-4 data-[state=inactive]:hidden"
         >
+          <Card className="card-shadow">
+            <CardContent className="p-3 sm:p-4 grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-3">
+              <div className="col-span-2 flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">فلترة حسب حالة شركة التوصيل</span></div>
+              <div className="min-w-0">
+                <Label className="text-xs mb-1 block">من تاريخ تحديث الحالة</Label>
+                <Input type="date" value={shippedDateFrom} onChange={(e) => setShippedDateFrom(e.target.value)} className="h-9 w-full sm:w-40" />
+              </div>
+              <div className="min-w-0">
+                <Label className="text-xs mb-1 block">إلى تاريخ تحديث الحالة</Label>
+                <Input type="date" value={shippedDateTo} onChange={(e) => setShippedDateTo(e.target.value)} className="h-9 w-full sm:w-40" />
+              </div>
+              <div className="col-span-2 min-w-0">
+                <Label className="text-xs mb-1 block">حالة شركة التوصيل</Label>
+                <Select value={shippedCarrierStatus} onValueChange={setShippedCarrierStatus}>
+                  <SelectTrigger className="h-9 w-full sm:w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع الحالات</SelectItem>
+                    {shippedCarrierStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(shippedDateFrom || shippedDateTo || shippedCarrierStatus !== "all") && (
+                <Button variant="outline" size="sm" className="h-9 col-span-2 sm:col-span-1 w-full sm:w-auto" onClick={() => { setShippedDateFrom(""); setShippedDateTo(""); setShippedCarrierStatus("all"); }}>إلغاء</Button>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KPI icon={ShoppingCart} label="عدد الطلبات قيد التوصيل" value={shippedTotals.count} sub={selectedProduct === "all" ? "كل المنتجات" : selectedProduct} color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
             <KPI icon={Package} label="إجمالي رأس المال" value={fmt(shippedTotals.cost)} sub="سعر شراء البضاعة" color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
