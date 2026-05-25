@@ -338,6 +338,32 @@ Deno.serve(async (req) => {
           zone_name: exact.city, area_name: exact.area,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
+
+      // Fuzzy correction override: pick the correction whose input_text tokens
+      // have the highest overlap with the customer's text. Requires that ALL
+      // meaningful tokens (length >= 2) of the saved input_text are present in
+      // the customer's input (subset match), so we don't apply unrelated rules.
+      const inputTokSet = new Set([...tokenize(cityInput), ...tokenize(addrInput)]);
+      let bestFuzzy: { rule: any; overlap: number } | null = null;
+      for (const o of corrections as any[]) {
+        if (!o.input_text) continue;
+        const savedToks = tokenize(o.input_text).filter((t) => t.length >= 2);
+        if (savedToks.length === 0) continue;
+        const matched = savedToks.filter((t) => inputTokSet.has(t));
+        // Require full subset match (every saved token present in input).
+        if (matched.length !== savedToks.length) continue;
+        // Prefer the most specific rule (most tokens matched).
+        if (!bestFuzzy || savedToks.length > bestFuzzy.overlap) {
+          bestFuzzy = { rule: o, overlap: savedToks.length };
+        }
+      }
+      if (bestFuzzy) {
+        console.log("match-city: correction fuzzy override", bestFuzzy.rule, "matched tokens:", bestFuzzy.overlap);
+        return new Response(JSON.stringify({
+          zone_id: null, area_id: null,
+          zone_name: bestFuzzy.rule.city, area_name: bestFuzzy.rule.area,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
     // Add corrections as extra cities to the catalog (in case user added a new one).
     for (const r of (corrections || []) as any[]) {
