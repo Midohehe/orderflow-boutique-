@@ -657,8 +657,8 @@ const FinancialAccounts = () => {
               )}
             </CardContent>
           </Card>
-          </>)}
         </TabsContent>
+        )}
 
         {/* Expenses analysis */}
         <TabsContent value="expenses" className="space-y-4">
