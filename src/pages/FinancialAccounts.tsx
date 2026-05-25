@@ -441,15 +441,20 @@ const FinancialAccounts = () => {
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">نسبة المصروفات</p><p className="text-lg font-bold">{expenseRatio.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
-          <TabsTrigger value="trends">الاتجاهات الشهرية</TabsTrigger>
-          <TabsTrigger value="products">أداء المنتجات</TabsTrigger>
-          <TabsTrigger value="shipped">جاري التوصيل</TabsTrigger>
-          <TabsTrigger value="expenses">تحليل المصروفات</TabsTrigger>
-          <TabsTrigger value="orders">تفاصيل الطلبات</TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => startTabTransition(() => setActiveTab(v))}
+      >
+        <div className="-mx-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="inline-flex w-max min-w-full gap-1 px-1">
+            <TabsTrigger value="overview" className="shrink-0">نظرة عامة</TabsTrigger>
+            <TabsTrigger value="trends" className="shrink-0">الاتجاهات الشهرية</TabsTrigger>
+            <TabsTrigger value="products" className="shrink-0">أداء المنتجات</TabsTrigger>
+            <TabsTrigger value="shipped" className="shrink-0">جاري التوصيل</TabsTrigger>
+            <TabsTrigger value="expenses" className="shrink-0">تحليل المصروفات</TabsTrigger>
+            <TabsTrigger value="orders" className="shrink-0">تفاصيل الطلبات</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Overview */}
         <TabsContent value="overview" className="space-y-4">
