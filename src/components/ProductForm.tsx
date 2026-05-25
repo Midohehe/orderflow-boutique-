@@ -861,7 +861,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       )}
 
       {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
-      <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
+      {eoEnabled && <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
         <SearchableSelect
           value={product.easyOrdersProductId || "__none__"}
           onChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
@@ -884,7 +884,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
           <p className="text-xs text-muted-foreground">يمكنك ربط متغيرات EasyOrders تلقائياً من قسم المخزون أدناه.</p>
         )}
-      </SectionCard>
+      </SectionCard>}
 
       {/* Size Chart */}
       <SectionCard icon={Ruler} title="جدول المقاسات" description="رابط صورة جدول المقاسات (يظهر كزر في صفحة الهبوط)" iconColor="bg-violet-500">
