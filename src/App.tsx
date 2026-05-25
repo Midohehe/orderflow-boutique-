@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AuthProvider } from "@/hooks/useAuth";
 import { StoreProvider } from "@/hooks/useStoreContext";
+import { EasyOrdersEnabledProvider } from "@/hooks/useEasyOrdersEnabled";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import Login from "./pages/Login";
@@ -84,6 +85,7 @@ const App = () => {
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <StoreProvider>
+        <EasyOrdersEnabledProvider>
         <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -160,6 +162,7 @@ const App = () => {
           </Suspense>
         </BrowserRouter>
         </TooltipProvider>
+        </EasyOrdersEnabledProvider>
       </StoreProvider>
     </AuthProvider>
   </QueryClientProvider>
