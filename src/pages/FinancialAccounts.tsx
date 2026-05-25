@@ -652,6 +652,7 @@ const FinancialAccounts = () => {
               )}
             </CardContent>
           </Card>
+          </>)}
         </TabsContent>
 
         {/* Expenses analysis */}
