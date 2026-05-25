@@ -75,7 +75,7 @@ const FinancialAccounts = () => {
       setLoading(true);
       try {
         const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
-          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity, is_deleted").eq("store_id", activeStoreId).eq("is_deleted", false).order("created_at", { ascending: false }),
+          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity, is_deleted, carrier_status, carrier_status_updated_at").eq("store_id", activeStoreId).eq("is_deleted", false).order("created_at", { ascending: false }),
           supabase.from("products").select("id, name").eq("store_id", activeStoreId).is("deleted_at", null),
           supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
           supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("store_id", activeStoreId),
