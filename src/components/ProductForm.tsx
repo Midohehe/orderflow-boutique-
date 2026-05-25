@@ -1163,7 +1163,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       </SectionCard>
 
       {/* قائمة متغيرات EasyOrders للمنتج المختار */}
-      {product.easyOrdersProductId && eoVariants.length > 0 && (
+      {eoEnabled && product.easyOrdersProductId && eoVariants.length > 0 && (
         <SectionCard icon={Link2} title={`متغيرات EasyOrders (${eoVariants.length})`} description="حالة الربط لكل متغير" iconColor="bg-violet-500">
           <div className="border rounded-lg overflow-hidden">
             <div className="divide-y">
