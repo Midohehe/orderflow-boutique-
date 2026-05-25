@@ -1,51 +1,36 @@
 ## الهدف
-بدل تعديل كل صفحة هبوط بشكل منفصل، نضيف **محرر قوالب صفحات الهبوط** في إعدادات المتجر. يمكن إنشاء عدة قوالب بـ Puck، ثم اختيار القالب عند إنشاء صفحة هبوط جديدة.
+إضافة مفتاح (Switch) في تبويب "منتجات EasyOrders" يسمح لكل مستخدم بتفعيل/إيقاف تكامل EasyOrders. عند الإيقاف، يختفي كل ما يخص EasyOrders من واجهة المستخدم.
 
 ## التغييرات
 
 ### 1. قاعدة البيانات
-إنشاء جدول جديد `landing_page_templates`:
-- `id`, `owner_id`, `store_id`
-- `name` (اسم القالب)
-- `puck_data` (JSONB - تصميم Puck)
-- `is_default` (boolean - القالب الافتراضي)
-- `created_at`, `updated_at`
-- RLS: owner كامل، public read
+إضافة عمود جديد على جدول `profiles`:
+- `easyorders_enabled` (boolean, افتراضي `false`)
+- ترحيل: تفعيله تلقائياً لكل مستخدم لديه `easyorders_api_key` محفوظ مسبقاً (حفاظاً على عدم كسر السلوك الحالي).
 
-إزالة الحاجة لزر "Edit with Puck" من كل صفحة هبوط (سيُحذف من Products.tsx).
-الإبقاء على `puck_data` في `landing_pages` للتوافق العكسي، لكن سيتم تعبئتها من القالب المختار.
+### 2. Hook مشترك جديد
+إنشاء `src/hooks/useEasyOrdersEnabled.ts` يقرأ القيمة من `profiles` للمستخدم الفعلي (`get_effective_owner_id`) ويوفرها كـ context بسيط مع `loading`.
 
-إضافة عمود `template_id` (uuid) في `landing_pages` يشير للقالب المستخدم.
+### 3. صفحة `EasyOrdersProducts.tsx`
+- في أعلى الصفحة (داخل `PageHeader` أو أسفله مباشرة) إضافة بطاقة بها:
+  - `Switch` كبير: "تفعيل تكامل EasyOrders"
+  - وصف قصير يوضح أن الإيقاف يخفي كل ما يتعلق بالتكامل.
+- عند الإيقاف: إخفاء بقية محتوى الصفحة (المنتجات، المقارنة، `IntegrationsPanel`) وعرض رسالة "التكامل معطّل".
+- التحديث يتم على `profiles.easyorders_enabled` للمستخدم الحالي.
 
-### 2. صفحة جديدة: إدارة قوالب صفحات الهبوط
-`src/pages/LandingTemplates.tsx`:
-- قائمة بكل القوالب
-- زر "إنشاء قالب جديد"
-- لكل قالب: تعديل (يفتح Puck)، حذف، تعيين كافتراضي، معاينة
+### 4. إخفاء العناصر في باقي النظام عند الإيقاف
 
-### 3. تعديل PuckBuilder
-`src/pages/PuckBuilder.tsx`:
-- إضافة وضع جديد `?template=<id>` للتعديل على قالب
-- حفظ `puck_data` في `landing_page_templates`
-- إزالة وضع `?landing=<id>` (لم يعد مستخدم)
+| الملف | ما يُخفى |
+|---|---|
+| `src/components/DashboardLayout.tsx` | عنصر القائمة "منتجات ايزي اوردرز" |
+| `src/components/ProductForm.tsx` | قسم "المنتج الرئيسي في EasyOrders" + عمود "متغير EasyOrders" في جدول المتغيرات + قسم "متغيرات EasyOrders" |
+| `src/components/OrderDetailsDialog.tsx` | عرض/تحرير `easyorders_product_id` و `easyorders_variant_id` وزر "retryLinking" |
+| `src/components/IntegrationsPanel.tsx` | بطاقة "تكامل EasyOrders API" بالكامل (تبقى بطاقة Webhook) |
+| `src/App.tsx` | حماية المسار `easyorders-products`: إذا معطّل، توجيه لصفحة الإعدادات أو السماح بالدخول لإعادة التفعيل (سنُبقي الدخول مسموحاً ليرى المستخدم المفتاح). |
 
-### 4. تعديل إنشاء/تعديل صفحة الهبوط
-`src/pages/LandingPageEditor.tsx` (أو الملف الموجود لإنشاء صفحات الهبوط):
-- إضافة قائمة منسدلة لاختيار "قالب التصميم"
-- عند الحفظ، نسخ `puck_data` من القالب المختار إلى الصفحة، وحفظ `template_id`
+### 5. منطق الحفظ في الخلفية
+لا حاجة لتغيير دوال EasyOrders (sync/webhook). فقط نخفي الواجهة. القيم المحفوظة سابقاً (روابط المنتجات والمتغيرات) تبقى في DB حتى لو أعاد التفعيل لاحقاً.
 
-### 5. تعديل LandingPage.tsx
-- استخدام `puck_data` كما هو الآن (لا تغيير في العرض)
-
-### 6. تعديل Products.tsx
-- حذف زر "Edit with Puck" من بطاقات صفحات الهبوط
-- (التعديل يتم الآن عبر القوالب في الإعدادات)
-
-### 7. إضافة الرابط في القائمة الجانبية / الإعدادات
-- إضافة "قوالب صفحات الهبوط" في Settings أو Dashboard sidebar
-- رابط `/dashboard/landing-templates`
-
-## الملاحظات
-- القوالب قابلة للمشاركة بين كل صفحات الهبوط
-- تعديل قالب لا يؤثر على الصفحات المنشأة سابقاً (لأن puck_data منسوخ)
-- يمكن لاحقاً إضافة خيار "تحديث الصفحات من القالب"
+## ملاحظات
+- المفتاح لكل مستخدم (owner) عبر `profiles`، ويُطبَّق على جميع أعضاء المتجر تلقائياً عبر `get_effective_owner_id`.
+- الافتراضي = معطّل للمستخدمين الجدد لتقليل التشويش، ومفعّل تلقائياً لمن سبق ووضع API Key.

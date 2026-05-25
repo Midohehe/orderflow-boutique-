@@ -1850,6 +1850,7 @@ export type Database = {
         Row: {
           created_at: string
           easyorders_api_key: string | null
+          easyorders_enabled: boolean
           full_name: string | null
           id: string
           is_active: boolean
@@ -1864,6 +1865,7 @@ export type Database = {
         Insert: {
           created_at?: string
           easyorders_api_key?: string | null
+          easyorders_enabled?: boolean
           full_name?: string | null
           id?: string
           is_active?: boolean
@@ -1878,6 +1880,7 @@ export type Database = {
         Update: {
           created_at?: string
           easyorders_api_key?: string | null
+          easyorders_enabled?: boolean
           full_name?: string | null
           id?: string
           is_active?: boolean
