@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/table";
 import IntegrationsPanel from "@/components/IntegrationsPanel";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface EoVariant {
   id?: string;
@@ -39,6 +43,9 @@ interface EoProduct {
 
 const EasyOrdersProducts = () => {
   const { activeStoreId } = useStoreContext();
+  const { user } = useAuth();
+  const { enabled: eoEnabled, loading: eoLoading, refresh: refreshEo } = useEasyOrdersEnabled();
+  const [togglingEo, setTogglingEo] = useState(false);
   const [products, setProducts] = useState<EoProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
