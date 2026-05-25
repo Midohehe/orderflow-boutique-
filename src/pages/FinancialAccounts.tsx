@@ -31,6 +31,8 @@ interface Order {
   customer_name: string;
   created_at: string;
   quantity: number;
+  carrier_status?: string | null;
+  carrier_status_updated_at?: string | null;
 }
 interface ProductRow { id: string; name: string; purchase_price: number; }
 interface OrderItemRow { id: string; order_id: string; product_id: string | null; product_name: string; price: number; quantity: number; }
