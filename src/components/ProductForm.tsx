@@ -198,6 +198,7 @@ const TagsField = ({
 const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
   const { activeStoreId } = useStoreContext();
+  const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
   };
