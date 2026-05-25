@@ -445,7 +445,10 @@ const FinancialAccounts = () => {
 
       <Tabs
         value={activeTab}
-        onValueChange={(v) => startTabTransition(() => setActiveTab(v))}
+        onValueChange={(v) => {
+          setVisitedTabs((prev) => (prev.has(v) ? prev : new Set(prev).add(v)));
+          startTabTransition(() => setActiveTab(v));
+        }}
       >
         <div className="-mx-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="inline-flex w-max min-w-full gap-1 px-1">
