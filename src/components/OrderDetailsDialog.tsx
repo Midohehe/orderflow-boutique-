@@ -9,6 +9,7 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { Loader2, Plus, Trash2, Link2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { isolateLatin } from "@/lib/bidi";
 
 interface Props {
@@ -56,6 +57,7 @@ interface ItemRow {
 }
 
 export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Props) => {
+  const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<any>(null);
@@ -576,9 +578,9 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={retryLinking} title="يحاول ربط المنتجات والمتغيرات بناءً على معرفات EasyOrders">
+                  {eoEnabled && <Button type="button" size="sm" variant="outline" onClick={retryLinking} title="يحاول ربط المنتجات والمتغيرات بناءً على معرفات EasyOrders">
                     <Link2 className="w-4 h-4 ml-1" /> إعادة محاولة الربط
-                  </Button>
+                  </Button>}
                   <Button type="button" size="sm" variant="outline" onClick={addItem}>
                     <Plus className="w-4 h-4 ml-1" /> إضافة منتج
                   </Button>
@@ -602,6 +604,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                         </Button>
                       </div>
                       <div className="rounded border bg-muted/30 p-2 text-xs space-y-1">
+                        {eoEnabled && <>
                         <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">الاسم المجلوب من ايزي اوردرز:</span>
                           <span className="font-medium text-foreground truncate">{isolateLatin(it.product_name) || "—"}</span>
@@ -610,16 +613,17 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                           <span className="text-muted-foreground">معرف منتج ايزي اوردرز:</span>
                           <span className="font-mono text-foreground truncate" title={it.easyorders_product_id || ""}>{it.easyorders_product_id || "—"}</span>
                         </div>
+                        </>}
                         <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">اسم المتغير:</span>
                           <span className="font-medium text-foreground truncate">
                             {isolateLatin([it.selected_color, it.selected_size, it.selected_product_code].filter(Boolean).join(" - ")) || "—"}
                           </span>
                         </div>
-                        <div className="flex justify-between gap-2">
+                        {eoEnabled && <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">معرف متغير ايزي اوردرز:</span>
                           <span className="font-mono text-foreground truncate" title={resolvedEoVar || ""}>{resolvedEoVar || "—"}</span>
-                        </div>
+                        </div>}
                         <div className="flex justify-between gap-2">
                           <span className="text-muted-foreground">المنتج المختار محلياً:</span>
                           <span className="font-medium text-foreground truncate">{prod?.name || "غير مختار"}</span>

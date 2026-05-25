@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { toast } from "@/hooks/use-toast";
 import {
   ImageIcon,
@@ -197,6 +198,7 @@ const TagsField = ({
 const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
   const { activeStoreId } = useStoreContext();
+  const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
   };
@@ -859,7 +861,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       )}
 
       {/* EasyOrders linking — يظهر قبل قسم المخزون لاختيار المنتج الرئيسي أولاً */}
-      <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
+      {eoEnabled && <SectionCard icon={Link2} title="المنتج الرئيسي في EasyOrders" description="اختر منتج EasyOrders لربط متغيراته" iconColor="bg-cyan-500">
         <SearchableSelect
           value={product.easyOrdersProductId || "__none__"}
           onChange={(v) => updateField("easyOrdersProductId", v === "__none__" ? "" : v)}
@@ -882,7 +884,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         {product.easyOrdersProductId && eoVariants.length > 0 && hasVariants && (
           <p className="text-xs text-muted-foreground">يمكنك ربط متغيرات EasyOrders تلقائياً من قسم المخزون أدناه.</p>
         )}
-      </SectionCard>
+      </SectionCard>}
 
       {/* Size Chart */}
       <SectionCard icon={Ruler} title="جدول المقاسات" description="رابط صورة جدول المقاسات (يظهر كزر في صفحة الهبوط)" iconColor="bg-violet-500">
@@ -1038,16 +1040,24 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               أدخل الكود (SKU) وعدد القطع لكل توليفة. كل توليفة تعتبر وحدة مستقلة في المخزون.
             </p>
             {/* Column headers (visible on md+) */}
-            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
+            <div className={`hidden md:grid ${
+              product.warehouseLinked !== false
+                ? (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_16rem]")
+                : (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem]")
+            } gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
               <div>المتغير المحلي</div>
               <div>كود (SKU)</div>
               <div>الكمية</div>
               {product.warehouseLinked !== false && <div>منتج المخزن (شركة الشحن)</div>}
-              <div>متغير EasyOrders</div>
+              {eoEnabled && <div>متغير EasyOrders</div>}
             </div>
             <div className="grid grid-cols-1 gap-3">
               {variantKeys.map((key) => (
-                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
+                <div key={key} className={`flex flex-col md:grid ${
+                  product.warehouseLinked !== false
+                    ? (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_16rem]")
+                    : (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem]")
+                } md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
                   <div className="min-w-0">
                     <div className="text-[10px] text-muted-foreground md:hidden">المتغير المحلي</div>
                     <Label className="block truncate">{key}</Label>
@@ -1103,7 +1113,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                     })()}
                   </div>
                   )}
-                  <div>
+                  {eoEnabled && <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">متغير EasyOrders</div>
                     {eoVariants.length > 0 ? (
                       <div className="flex flex-col gap-1">
@@ -1136,7 +1146,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                     ) : (
                       <span className="text-[10px] text-muted-foreground">لا توجد متغيرات EasyOrders</span>
                     )}
-                  </div>
+                  </div>}
                 </div>
               ))}
             </div>
@@ -1161,7 +1171,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       </SectionCard>
 
       {/* قائمة متغيرات EasyOrders للمنتج المختار */}
-      {product.easyOrdersProductId && eoVariants.length > 0 && (
+      {eoEnabled && product.easyOrdersProductId && eoVariants.length > 0 && (
         <SectionCard icon={Link2} title={`متغيرات EasyOrders (${eoVariants.length})`} description="حالة الربط لكل متغير" iconColor="bg-violet-500">
           <div className="border rounded-lg overflow-hidden">
             <div className="divide-y">

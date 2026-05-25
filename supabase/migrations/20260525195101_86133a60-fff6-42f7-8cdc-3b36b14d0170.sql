@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS easyorders_enabled boolean NOT NULL DEFAULT false;
+UPDATE public.profiles SET easyorders_enabled = true WHERE easyorders_api_key IS NOT NULL AND easyorders_api_key <> '';

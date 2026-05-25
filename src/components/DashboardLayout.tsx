@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import StoreSwitcher from "@/components/StoreSwitcher";
 import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,6 +104,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { signOut } = useAuth();
   const { isAdmin, isSubUser, profile } = useUserContext();
+  const { enabled: easyOrdersEnabled } = useEasyOrdersEnabled();
   const { theme, toggleTheme } = useTheme();
   const [storeName, setStoreName] = useState("لوحة التحكم");
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>(() => {
@@ -140,6 +142,7 @@ const DashboardLayout = () => {
     items: group.items
       .filter((item) => !item.adminOnly || isAdmin)
       .filter((item: any) => !item.ownerOnly || !isSubUser)
+      .filter((item: any) => item.path !== "/dashboard/easyorders-products" || easyOrdersEnabled)
       .map((item) => {
         if (item.dynamicStore && profile?.username) {
           return { ...item, path: `/store/${profile.username}` };
