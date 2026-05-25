@@ -598,22 +598,22 @@ const FinancialAccounts = () => {
                         const m = p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0;
                         return (
                           <TableRow key={p.name}>
-                            <TableCell className="font-medium">{p.name}</TableCell>
-                            <TableCell>{p.count}</TableCell>
-                            <TableCell className="text-blue-600 font-medium">{fmt(p.cost)}</TableCell>
-                            <TableCell className="text-green-600 font-medium">{fmt(p.revenue)}</TableCell>
-                            <TableCell className={p.profit >= 0 ? "text-emerald-600 font-bold" : "text-red-500 font-bold"}>{fmt(p.profit)}</TableCell>
-                            <TableCell>{m.toFixed(1)}%</TableCell>
+                            <TableCell className="text-right font-medium">{p.name}</TableCell>
+                            <TableCell className="text-right">{p.count}</TableCell>
+                            <TableCell className="text-right text-blue-600 font-medium">{fmt(p.cost)}</TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">{fmt(p.revenue)}</TableCell>
+                            <TableCell className={`text-right ${p.profit >= 0 ? "text-emerald-600 font-bold" : "text-red-500 font-bold"}`}>{fmt(p.profit)}</TableCell>
+                            <TableCell className="text-right">{m.toFixed(1)}%</TableCell>
                           </TableRow>
                         );
                       })}
                       <TableRow className="bg-muted/40 font-bold">
-                        <TableCell>الإجمالي</TableCell>
-                        <TableCell>{shippedTotals.count}</TableCell>
-                        <TableCell className="text-blue-600">{fmt(shippedTotals.cost)}</TableCell>
-                        <TableCell className="text-green-600">{fmt(shippedTotals.revenue)}</TableCell>
-                        <TableCell className={shippedTotals.profit >= 0 ? "text-emerald-600" : "text-red-500"}>{fmt(shippedTotals.profit)}</TableCell>
-                        <TableCell>{shippedTotals.revenue > 0 ? ((shippedTotals.profit/shippedTotals.revenue)*100).toFixed(1) : "0.0"}%</TableCell>
+                        <TableCell className="text-right">الإجمالي</TableCell>
+                        <TableCell className="text-right">{shippedTotals.count}</TableCell>
+                        <TableCell className="text-right text-blue-600">{fmt(shippedTotals.cost)}</TableCell>
+                        <TableCell className="text-right text-green-600">{fmt(shippedTotals.revenue)}</TableCell>
+                        <TableCell className={`text-right ${shippedTotals.profit >= 0 ? "text-emerald-600" : "text-red-500"}`}>{fmt(shippedTotals.profit)}</TableCell>
+                        <TableCell className="text-right">{shippedTotals.revenue > 0 ? ((shippedTotals.profit/shippedTotals.revenue)*100).toFixed(1) : "0.0"}%</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
