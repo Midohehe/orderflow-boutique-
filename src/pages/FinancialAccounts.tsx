@@ -31,6 +31,8 @@ interface Order {
   customer_name: string;
   created_at: string;
   quantity: number;
+  carrier_status?: string | null;
+  carrier_status_updated_at?: string | null;
 }
 interface ProductRow { id: string; name: string; purchase_price: number; }
 interface OrderItemRow { id: string; order_id: string; product_id: string | null; product_name: string; price: number; quantity: number; }
@@ -67,13 +69,18 @@ const FinancialAccounts = () => {
   const [dateTo, setDateTo] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
 
+  // Shipped tab independent filters (by carrier status update date + carrier status)
+  const [shippedDateFrom, setShippedDateFrom] = useState<string>("");
+  const [shippedDateTo, setShippedDateTo] = useState<string>("");
+  const [shippedCarrierStatus, setShippedCarrierStatus] = useState<string>("all");
+
   useEffect(() => {
     if (ctxLoading || !effectiveOwnerId || !activeStoreId) return;
     (async () => {
       setLoading(true);
       try {
         const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
-          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity, is_deleted").eq("store_id", activeStoreId).eq("is_deleted", false).order("created_at", { ascending: false }),
+          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity, is_deleted, carrier_status, carrier_status_updated_at").eq("store_id", activeStoreId).eq("is_deleted", false).order("created_at", { ascending: false }),
           supabase.from("products").select("id, name").eq("store_id", activeStoreId).is("deleted_at", null),
           supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
           supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("store_id", activeStoreId),
@@ -180,6 +187,32 @@ const FinancialAccounts = () => {
     (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
   const orphanCount = orphanDelivered.length + (selectedProduct === "all" ? filteredOrphanShipments.length : 0);
   const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
+  const shippedFiltered = useMemo(() => {
+    const inRange = (iso?: string | null) => {
+      if (!shippedDateFrom && !shippedDateTo) return true;
+      if (!iso) return false;
+      const t = new Date(iso).getTime();
+      if (shippedDateFrom) {
+        const f = new Date(shippedDateFrom); f.setHours(0,0,0,0);
+        if (t < f.getTime()) return false;
+      }
+      if (shippedDateTo) {
+        const td = new Date(shippedDateTo); td.setHours(23,59,59,999);
+        if (t > td.getTime()) return false;
+      }
+      return true;
+    };
+    return shippedOrders.filter(o => {
+      if (shippedCarrierStatus !== "all" && (o.carrier_status || "") !== shippedCarrierStatus) return false;
+      if (!inRange(o.carrier_status_updated_at)) return false;
+      return true;
+    });
+  }, [shippedOrders, shippedDateFrom, shippedDateTo, shippedCarrierStatus]);
+  const shippedCarrierStatuses = useMemo(() => {
+    const set = new Set<string>();
+    shippedOrders.forEach(o => { if (o.carrier_status) set.add(o.carrier_status); });
+    return Array.from(set).sort();
+  }, [shippedOrders]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
   const filteredAdSpends = useMemo(() => adSpends.filter(a => {
@@ -301,7 +334,7 @@ const FinancialAccounts = () => {
   // In-delivery aggregation by product
   const shippedByProduct = useMemo(() => {
     const map: Record<string, { revenue: number; cost: number; count: number }> = {};
-    shippedOrders.forEach(o => {
+    shippedFiltered.forEach(o => {
       const items = itemsByOrder.get(o.id);
       if (items && items.length > 0) {
         items.forEach(it => {
@@ -325,15 +358,15 @@ const FinancialAccounts = () => {
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v, profit: v.revenue - v.cost }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [shippedOrders, productByName, itemsByOrder]);
+  }, [shippedFiltered, productByName, itemsByOrder]);
   const shippedTotals = useMemo(() => {
     const agg = shippedByProduct.reduce((acc, p) => ({
       revenue: acc.revenue + p.revenue,
       cost: acc.cost + p.cost,
       profit: acc.profit + p.profit,
     }), { revenue: 0, cost: 0, profit: 0 });
-    return { ...agg, count: shippedOrders.length };
-  }, [shippedByProduct, shippedOrders]);
+    return { ...agg, count: shippedFiltered.length };
+  }, [shippedByProduct, shippedFiltered]);
 
   // Dropdown shows only main products from products table (not order names)
   const uniqueProducts = useMemo(
@@ -609,6 +642,33 @@ const FinancialAccounts = () => {
           forceMount
           className="space-y-4 data-[state=inactive]:hidden"
         >
+          <Card className="card-shadow">
+            <CardContent className="p-3 sm:p-4 grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-3">
+              <div className="col-span-2 flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">فلترة حسب حالة شركة التوصيل</span></div>
+              <div className="min-w-0">
+                <Label className="text-xs mb-1 block">من تاريخ تحديث الحالة</Label>
+                <Input type="date" value={shippedDateFrom} onChange={(e) => setShippedDateFrom(e.target.value)} className="h-9 w-full sm:w-40" />
+              </div>
+              <div className="min-w-0">
+                <Label className="text-xs mb-1 block">إلى تاريخ تحديث الحالة</Label>
+                <Input type="date" value={shippedDateTo} onChange={(e) => setShippedDateTo(e.target.value)} className="h-9 w-full sm:w-40" />
+              </div>
+              <div className="col-span-2 min-w-0">
+                <Label className="text-xs mb-1 block">حالة شركة التوصيل</Label>
+                <Select value={shippedCarrierStatus} onValueChange={setShippedCarrierStatus}>
+                  <SelectTrigger className="h-9 w-full sm:w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع الحالات</SelectItem>
+                    {shippedCarrierStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(shippedDateFrom || shippedDateTo || shippedCarrierStatus !== "all") && (
+                <Button variant="outline" size="sm" className="h-9 col-span-2 sm:col-span-1 w-full sm:w-auto" onClick={() => { setShippedDateFrom(""); setShippedDateTo(""); setShippedCarrierStatus("all"); }}>إلغاء</Button>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KPI icon={ShoppingCart} label="عدد الطلبات قيد التوصيل" value={shippedTotals.count} sub={selectedProduct === "all" ? "كل المنتجات" : selectedProduct} color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
             <KPI icon={Package} label="إجمالي رأس المال" value={fmt(shippedTotals.cost)} sub="سعر شراء البضاعة" color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
