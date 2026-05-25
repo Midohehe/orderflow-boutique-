@@ -334,7 +334,7 @@ const FinancialAccounts = () => {
   // In-delivery aggregation by product
   const shippedByProduct = useMemo(() => {
     const map: Record<string, { revenue: number; cost: number; count: number }> = {};
-    shippedOrders.forEach(o => {
+    shippedFiltered.forEach(o => {
       const items = itemsByOrder.get(o.id);
       if (items && items.length > 0) {
         items.forEach(it => {
@@ -358,15 +358,15 @@ const FinancialAccounts = () => {
     return Object.entries(map)
       .map(([name, v]) => ({ name, ...v, profit: v.revenue - v.cost }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [shippedOrders, productByName, itemsByOrder]);
+  }, [shippedFiltered, productByName, itemsByOrder]);
   const shippedTotals = useMemo(() => {
     const agg = shippedByProduct.reduce((acc, p) => ({
       revenue: acc.revenue + p.revenue,
       cost: acc.cost + p.cost,
       profit: acc.profit + p.profit,
     }), { revenue: 0, cost: 0, profit: 0 });
-    return { ...agg, count: shippedOrders.length };
-  }, [shippedByProduct, shippedOrders]);
+    return { ...agg, count: shippedFiltered.length };
+  }, [shippedByProduct, shippedFiltered]);
 
   // Dropdown shows only main products from products table (not order names)
   const uniqueProducts = useMemo(
