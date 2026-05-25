@@ -9,6 +9,7 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { Loader2, Plus, Trash2, Link2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { isolateLatin } from "@/lib/bidi";
 
 interface Props {
@@ -56,6 +57,7 @@ interface ItemRow {
 }
 
 export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Props) => {
+  const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<any>(null);
