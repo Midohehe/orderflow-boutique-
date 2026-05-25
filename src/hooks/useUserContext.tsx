@@ -46,7 +46,8 @@ export const useUserContext = () => {
         setIsSubUser(true);
         setEffectiveOwnerId(member.owner_id);
         const { data: parentProf } = await supabase
-          .from("profiles").select("*").eq("user_id", member.owner_id).maybeSingle();
+          .rpc("get_owner_profile_safe", { _owner_id: member.owner_id })
+          .maybeSingle();
         setProfile(parentProf as UserProfile | null);
 
         const perms = new Set<string>();
