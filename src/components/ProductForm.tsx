@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { toast } from "@/hooks/use-toast";
 import {
   ImageIcon,
