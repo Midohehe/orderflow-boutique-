@@ -1040,16 +1040,24 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
               أدخل الكود (SKU) وعدد القطع لكل توليفة. كل توليفة تعتبر وحدة مستقلة في المخزون.
             </p>
             {/* Column headers (visible on md+) */}
-            <div className={`hidden md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
+            <div className={`hidden md:grid ${
+              product.warehouseLinked !== false
+                ? (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_16rem]")
+                : (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem]")
+            } gap-2 px-3 text-xs font-semibold text-muted-foreground`}>
               <div>المتغير المحلي</div>
               <div>كود (SKU)</div>
               <div>الكمية</div>
               {product.warehouseLinked !== false && <div>منتج المخزن (شركة الشحن)</div>}
-              <div>متغير EasyOrders</div>
+              {eoEnabled && <div>متغير EasyOrders</div>}
             </div>
             <div className="grid grid-cols-1 gap-3">
               {variantKeys.map((key) => (
-                <div key={key} className={`flex flex-col md:grid ${product.warehouseLinked !== false ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_18rem]"} md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
+                <div key={key} className={`flex flex-col md:grid ${
+                  product.warehouseLinked !== false
+                    ? (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_16rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem_16rem]")
+                    : (eoEnabled ? "md:grid-cols-[1fr_8rem_6rem_18rem]" : "md:grid-cols-[1fr_8rem_6rem]")
+                } md:items-start gap-2 p-3 border rounded-lg bg-muted/30`}>
                   <div className="min-w-0">
                     <div className="text-[10px] text-muted-foreground md:hidden">المتغير المحلي</div>
                     <Label className="block truncate">{key}</Label>
