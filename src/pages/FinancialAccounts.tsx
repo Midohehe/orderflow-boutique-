@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useDeferredValue, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,9 @@ const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFract
 const FinancialAccounts = () => {
   const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
   const { activeStoreId } = useStoreContext();
+  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [, startTabTransition] = useTransition();
+  const deferredTab = useDeferredValue(activeTab);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
@@ -438,15 +441,20 @@ const FinancialAccounts = () => {
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">نسبة المصروفات</p><p className="text-lg font-bold">{expenseRatio.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="overview">نظرة عامة</TabsTrigger>
-          <TabsTrigger value="trends">الاتجاهات الشهرية</TabsTrigger>
-          <TabsTrigger value="products">أداء المنتجات</TabsTrigger>
-          <TabsTrigger value="shipped">جاري التوصيل</TabsTrigger>
-          <TabsTrigger value="expenses">تحليل المصروفات</TabsTrigger>
-          <TabsTrigger value="orders">تفاصيل الطلبات</TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => startTabTransition(() => setActiveTab(v))}
+      >
+        <div className="-mx-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="inline-flex w-max min-w-full gap-1 px-1">
+            <TabsTrigger value="overview" className="shrink-0">نظرة عامة</TabsTrigger>
+            <TabsTrigger value="trends" className="shrink-0">الاتجاهات الشهرية</TabsTrigger>
+            <TabsTrigger value="products" className="shrink-0">أداء المنتجات</TabsTrigger>
+            <TabsTrigger value="shipped" className="shrink-0">جاري التوصيل</TabsTrigger>
+            <TabsTrigger value="expenses" className="shrink-0">تحليل المصروفات</TabsTrigger>
+            <TabsTrigger value="orders" className="shrink-0">تفاصيل الطلبات</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Overview */}
         <TabsContent value="overview" className="space-y-4">
@@ -589,6 +597,11 @@ const FinancialAccounts = () => {
         {/* Expenses analysis */}
         {/* In-delivery (shipped) */}
         <TabsContent value="shipped" className="space-y-4">
+          {deferredTab !== "shipped" ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (<>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KPI icon={ShoppingCart} label="عدد الطلبات قيد التوصيل" value={shippedTotals.count} sub={selectedProduct === "all" ? "كل المنتجات" : selectedProduct} color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
             <KPI icon={Package} label="إجمالي رأس المال" value={fmt(shippedTotals.cost)} sub="سعر شراء البضاعة" color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
@@ -639,6 +652,7 @@ const FinancialAccounts = () => {
               )}
             </CardContent>
           </Card>
+          </>)}
         </TabsContent>
 
         {/* Expenses analysis */}
