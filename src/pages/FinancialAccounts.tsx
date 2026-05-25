@@ -624,55 +624,6 @@ const FinancialAccounts = () => {
         </TabsContent>
         )}
 
-        {/* Expenses analysis */}
-        <TabsContent value="expenses" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><PieIcon className="w-4 h-4" />توزيع المصروفات حسب النوع</CardTitle></CardHeader>
-              <CardContent className="h-72">
-                {expensesByType.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={expensesByType} dataKey="value" nameKey="name" outerRadius={90} label={(e: any) => `${e.name}: ${fmt(e.value)}`}>
-                        {expensesByType.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">تفاصيل أنواع المصروفات</CardTitle></CardHeader>
-              <CardContent>
-                {expensesByType.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow><TableHead className="text-right">النوع</TableHead><TableHead className="text-right">المبلغ</TableHead><TableHead className="text-right">النسبة</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {expensesByType.sort((a, b) => b.value - a.value).map(et => {
-                        const pct = totalExpenses > 0 ? (et.value / totalExpenses) * 100 : 0;
-                        return (
-                          <TableRow key={et.name}>
-                            <TableCell>{et.name}</TableCell>
-                            <TableCell className="font-bold text-red-500">{fmt(et.value)}</TableCell>
-                            <TableCell>{pct.toFixed(1)}%</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
         {/* Orders detail */}
         <TabsContent value="orders" className="space-y-4">
           <Card className="border-green-500/30">
