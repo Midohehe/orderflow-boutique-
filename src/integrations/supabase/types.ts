@@ -3402,6 +3402,18 @@ export type Database = {
           purchase_price: number
         }[]
       }
+      get_owner_profile_safe: {
+        Args: { _owner_id: string }
+        Returns: {
+          full_name: string
+          id: string
+          is_active: boolean
+          subscription_ends_at: string
+          subscription_starts_at: string
+          user_id: string
+          username: string
+        }[]
+      }
       get_pixel_settings_public: {
         Args: { _owner_id: string; _store_id?: string }
         Returns: {
