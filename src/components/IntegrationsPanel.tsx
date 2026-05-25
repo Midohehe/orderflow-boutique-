@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { Loader2, Save, Webhook, Copy, RefreshCw } from "lucide-react";
 
 const IntegrationsPanel = () => {
   const { user } = useAuth();
+  const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const [loading, setLoading] = useState(true);
   const [webhookToken, setWebhookToken] = useState("");
   const [rotating, setRotating] = useState(false);
@@ -175,7 +177,7 @@ const IntegrationsPanel = () => {
         </CardContent>
       </Card>
 
-      <Card>
+      {eoEnabled && <Card>
         <CardHeader>
           <CardTitle>تكامل EasyOrders API</CardTitle>
         </CardHeader>
@@ -235,7 +237,7 @@ const IntegrationsPanel = () => {
             </p>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 };
