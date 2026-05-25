@@ -201,13 +201,12 @@ const EasyOrdersProducts = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <IntegrationsPanel />
       <PageHeader
         icon={Package}
         title="منتجات ايزي اوردرز"
         description="عرض المنتجات والمتغيرات المجلوبة من EasyOrders"
         iconGradient="from-fuchsia-500 to-purple-600"
-        action={
+        action={eoEnabled ? (
           <div className="relative w-full sm:w-72">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -217,8 +216,49 @@ const EasyOrdersProducts = () => {
               className="pr-9"
             />
           </div>
-        }
+        ) : null}
       />
+
+      <Card>
+        <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
+          <div className="space-y-1">
+            <Label className="text-base font-bold">تفعيل تكامل EasyOrders</Label>
+            <p className="text-xs text-muted-foreground">
+              عند الإيقاف يختفي كل ما يتعلق بـ EasyOrders من النظام (الربط في المنتجات، الطلبات، وقائمة الجانب). تبقى البيانات المحفوظة سليمة عند إعادة التفعيل.
+            </p>
+          </div>
+          <Switch
+            checked={eoEnabled}
+            disabled={eoLoading || togglingEo || !user}
+            onCheckedChange={async (val) => {
+              if (!user) return;
+              setTogglingEo(true);
+              const { error } = await supabase
+                .from("profiles")
+                .update({ easyorders_enabled: val } as any)
+                .eq("user_id", user.id);
+              if (error) {
+                toast.error(error.message);
+              } else {
+                await refreshEo();
+                toast.success(val ? "تم تفعيل تكامل EasyOrders" : "تم إيقاف تكامل EasyOrders");
+              }
+              setTogglingEo(false);
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {!eoEnabled ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-2">
+            <Package className="w-12 h-12 text-muted-foreground" />
+            <p className="text-muted-foreground">تكامل EasyOrders معطّل حالياً. فعّله من الأعلى لعرض المنتجات والإعدادات.</p>
+          </CardContent>
+        </Card>
+      ) : (
+      <>
+      <IntegrationsPanel />
 
       <Card>
         <CardHeader>
