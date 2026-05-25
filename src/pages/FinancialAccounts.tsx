@@ -566,6 +566,7 @@ const FinancialAccounts = () => {
               {topProducts.length === 0 ? (
                 <p className="text-center text-muted-foreground py-6">لا توجد بيانات</p>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead className="text-right">المنتج</TableHead>
@@ -594,6 +595,7 @@ const FinancialAccounts = () => {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
