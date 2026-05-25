@@ -49,11 +49,11 @@ const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFract
 const FinancialAccounts = () => {
   const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
   const { activeStoreId } = useStoreContext();
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useState<string>("advanced");
   const [, startTabTransition] = useTransition();
   const deferredTab = useDeferredValue(activeTab);
   // Keep visited tabs mounted so re-clicking is instant (avoids re-mounting heavy tables/charts).
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["overview"]));
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["advanced"]));
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
@@ -455,25 +455,8 @@ const FinancialAccounts = () => {
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanCount > 0 ? `${deliveredCount} طلب (+${orphanCount} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
-        <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`من ${linkedDelivered.length} طلب مرتبط · هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
         <KPI icon={Receipt} label="المصروفات" value={fmt(totalExpenses)} sub={`${expenseRatio.toFixed(1)}% من المبيعات`} color="from-orange-500/10 to-orange-600/5 border-orange-500/20" />
         <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanCount > 0 ? `يستثني ${fmt(orphanRevenue)} غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPI icon={ShoppingBag} label="المشتريات (مخزون)" value={fmt(totalPurchases)} sub="لا تؤثر على الأرباح" color="from-amber-500/10 to-amber-600/5 border-amber-500/20" />
-        <KPI icon={Wallet} label="رصيد الخزائن" value={fmt(totalSafesBalance)} sub={`${safes.length} خزينة`} color="from-violet-500/10 to-violet-600/5 border-violet-500/20" />
-        <KPI icon={Receipt} label="مصروف الإعلانات المستهلك" value={fmt(totalAdSpend)} sub="مدرج ضمن المصروفات" color="from-fuchsia-500/10 to-fuchsia-600/5 border-fuchsia-500/20" />
-        <KPI icon={Hourglass} label="بانتظار التسوية" value={fmt(pendingSettlement)} sub="مسلّم وغير مستلم مالياً" color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
-        <KPI icon={ShoppingCart} label="متوسط قيمة الطلب" value={fmt(avgOrderValue)} sub={`نسبة التسليم ${conversionRate.toFixed(1)}%`} color="from-pink-500/10 to-pink-600/5 border-pink-500/20" />
-      </div>
-
-      {/* Ratios */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الإجمالي</p><p className="text-lg font-bold">{grossMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الصافي</p><p className={`text-lg font-bold ${netMargin >= 0 ? "text-green-600" : "text-red-500"}`}>{netMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">العائد على التكلفة (ROI)</p><p className="text-lg font-bold">{roi.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">نسبة المصروفات</p><p className="text-lg font-bold">{expenseRatio.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
       </div>
 
       <Tabs
@@ -485,110 +468,29 @@ const FinancialAccounts = () => {
       >
         <div className="-mx-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="inline-flex w-max min-w-full gap-1 px-1">
-            <TabsTrigger value="overview" className="shrink-0">نظرة عامة</TabsTrigger>
-            <TabsTrigger value="trends" className="shrink-0">الاتجاهات الشهرية</TabsTrigger>
+            <TabsTrigger value="advanced" className="shrink-0">حسابات مالية متقدم</TabsTrigger>
             <TabsTrigger value="products" className="shrink-0">أداء المنتجات</TabsTrigger>
             <TabsTrigger value="shipped" className="shrink-0">جاري التوصيل</TabsTrigger>
-            <TabsTrigger value="expenses" className="shrink-0">تحليل المصروفات</TabsTrigger>
             <TabsTrigger value="orders" className="shrink-0">تفاصيل الطلبات</TabsTrigger>
           </TabsList>
         </div>
 
-        {/* Overview */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="w-4 h-4" />ملخص الإيرادات والمصروفات</CardTitle></CardHeader>
-              <CardContent className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[
-                    { name: "المبيعات", value: totalRevenue, fill: "#10b981" },
-                    { name: "تكلفة البضاعة", value: totalCOGS, fill: "#3b82f6" },
-                    { name: "المصروفات", value: totalExpenses, fill: "#f59e0b" },
-                    { name: "صافي الربح", value: netProfit, fill: netProfit >= 0 ? "#22c55e" : "#ef4444" },
-                  ]}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v: any) => fmt(Number(v))} />
-                    <Bar dataKey="value" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><PieIcon className="w-4 h-4" />حالات الطلبات</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {Object.entries(statusCounts).length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">لا توجد بيانات</p>
-                  ) : (
-                    Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => {
-                      const pct = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
-                      return (
-                        <div key={status}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>{status}</span>
-                            <span className="font-medium">{count} ({pct.toFixed(1)}%)</span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+        {/* Advanced financial — moved KPIs and ratios */}
+        <TabsContent value="advanced" className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`من ${linkedDelivered.length} طلب مرتبط · هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
+            <KPI icon={ShoppingBag} label="المشتريات (مخزون)" value={fmt(totalPurchases)} sub="لا تؤثر على الأرباح" color="from-amber-500/10 to-amber-600/5 border-amber-500/20" />
+            <KPI icon={Wallet} label="رصيد الخزائن" value={fmt(totalSafesBalance)} sub={`${safes.length} خزينة`} color="from-violet-500/10 to-violet-600/5 border-violet-500/20" />
+            <KPI icon={Receipt} label="مصروف الإعلانات المستهلك" value={fmt(totalAdSpend)} sub="مدرج ضمن المصروفات" color="from-fuchsia-500/10 to-fuchsia-600/5 border-fuchsia-500/20" />
+            <KPI icon={Hourglass} label="بانتظار التسوية" value={fmt(pendingSettlement)} sub="مسلّم وغير مستلم مالياً" color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
+            <KPI icon={ShoppingCart} label="متوسط قيمة الطلب" value={fmt(avgOrderValue)} sub={`نسبة التسليم ${conversionRate.toFixed(1)}%`} color="from-pink-500/10 to-pink-600/5 border-pink-500/20" />
           </div>
-
-          <Card>
-            <CardHeader><CardTitle className="text-base">أرصدة الخزائن</CardTitle></CardHeader>
-            <CardContent>
-              {safes.length === 0 ? (
-                <p className="text-center text-muted-foreground py-6">لا توجد خزائن</p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {safes.map(s => (
-                    <div key={s.id} className="p-3 rounded-lg border bg-muted/30">
-                      <p className="text-xs text-muted-foreground">{s.name}</p>
-                      <p className={`text-lg font-bold ${Number(s.balance) >= 0 ? "text-green-600" : "text-red-500"}`}>{fmt(s.balance)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Monthly trends */}
-        <TabsContent value="trends" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">المبيعات والأرباح خلال 12 شهر</CardTitle></CardHeader>
-            <CardContent className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" /><YAxis /><Tooltip formatter={(v: any) => fmt(Number(v))} /><Legend />
-                  <Line type="monotone" dataKey="revenue" name="المبيعات" stroke="#10b981" strokeWidth={2} />
-                  <Line type="monotone" dataKey="profit" name="الربح" stroke="#3b82f6" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle className="text-base">المصروفات والمشتريات شهرياً</CardTitle></CardHeader>
-            <CardContent className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" /><YAxis /><Tooltip formatter={(v: any) => fmt(Number(v))} /><Legend />
-                  <Bar dataKey="expenses" name="المصروفات" fill="#f59e0b" />
-                  <Bar dataKey="purchases" name="المشتريات" fill="#8b5cf6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الإجمالي</p><p className="text-lg font-bold">{grossMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الصافي</p><p className={`text-lg font-bold ${netMargin >= 0 ? "text-green-600" : "text-red-500"}`}>{netMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">العائد على التكلفة (ROI)</p><p className="text-lg font-bold">{roi.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">نسبة المصروفات</p><p className="text-lg font-bold">{expenseRatio.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
+          </div>
         </TabsContent>
 
         {/* Top products */}
@@ -721,55 +623,6 @@ const FinancialAccounts = () => {
           </Card>
         </TabsContent>
         )}
-
-        {/* Expenses analysis */}
-        <TabsContent value="expenses" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><PieIcon className="w-4 h-4" />توزيع المصروفات حسب النوع</CardTitle></CardHeader>
-              <CardContent className="h-72">
-                {expensesByType.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={expensesByType} dataKey="value" nameKey="name" outerRadius={90} label={(e: any) => `${e.name}: ${fmt(e.value)}`}>
-                        {expensesByType.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-base">تفاصيل أنواع المصروفات</CardTitle></CardHeader>
-              <CardContent>
-                {expensesByType.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow><TableHead className="text-right">النوع</TableHead><TableHead className="text-right">المبلغ</TableHead><TableHead className="text-right">النسبة</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {expensesByType.sort((a, b) => b.value - a.value).map(et => {
-                        const pct = totalExpenses > 0 ? (et.value / totalExpenses) * 100 : 0;
-                        return (
-                          <TableRow key={et.name}>
-                            <TableCell>{et.name}</TableCell>
-                            <TableCell className="font-bold text-red-500">{fmt(et.value)}</TableCell>
-                            <TableCell>{pct.toFixed(1)}%</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
         {/* Orders detail */}
         <TabsContent value="orders" className="space-y-4">
