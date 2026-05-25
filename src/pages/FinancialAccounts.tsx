@@ -597,6 +597,11 @@ const FinancialAccounts = () => {
         {/* Expenses analysis */}
         {/* In-delivery (shipped) */}
         <TabsContent value="shipped" className="space-y-4">
+          {deferredTab !== "shipped" ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (<>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KPI icon={ShoppingCart} label="عدد الطلبات قيد التوصيل" value={shippedTotals.count} sub={selectedProduct === "all" ? "كل المنتجات" : selectedProduct} color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
             <KPI icon={Package} label="إجمالي رأس المال" value={fmt(shippedTotals.cost)} sub="سعر شراء البضاعة" color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
