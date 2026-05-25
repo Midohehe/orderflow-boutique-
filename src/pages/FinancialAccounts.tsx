@@ -377,20 +377,20 @@ const FinancialAccounts = () => {
 
       {/* Filters */}
       <Card className="card-shadow">
-        <CardContent className="p-4 flex flex-wrap items-end gap-3">
-          <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">الفلاتر</span></div>
-          <div>
+        <CardContent className="p-3 sm:p-4 grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-3">
+          <div className="col-span-2 flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">الفلاتر</span></div>
+          <div className="min-w-0">
             <Label className="text-xs mb-1 block">من تاريخ</Label>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-40" />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-full sm:w-40" />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label className="text-xs mb-1 block">إلى تاريخ</Label>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-40" />
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-full sm:w-40" />
           </div>
-          <div>
+          <div className="col-span-2 min-w-0">
             <Label className="text-xs mb-1 block">المنتج</Label>
             <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full sm:w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">جميع المنتجات</SelectItem>
                 {uniqueProducts.filter(p => p && p.trim() !== "").map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -398,7 +398,7 @@ const FinancialAccounts = () => {
             </Select>
           </div>
           {(dateFrom || dateTo || selectedProduct !== "all") && (
-            <Button variant="outline" size="sm" className="h-9" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedProduct("all"); }}>إلغاء الفلترة</Button>
+            <Button variant="outline" size="sm" className="h-9 col-span-2 sm:col-span-1 w-full sm:w-auto" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedProduct("all"); }}>إلغاء الفلترة</Button>
           )}
         </CardContent>
       </Card>
