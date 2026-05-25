@@ -455,25 +455,8 @@ const FinancialAccounts = () => {
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPI icon={DollarSign} label="إجمالي المبيعات" value={fmt(totalRevenue)} sub={orphanCount > 0 ? `${deliveredCount} طلب (+${orphanCount} غير مرتبط)` : `${deliveredCount} طلب مسلم`} color="from-green-500/10 to-green-600/5 border-green-500/20" />
-        <KPI icon={Package} label="تكلفة البضاعة المباعة" value={fmt(totalCOGS)} sub={`من ${linkedDelivered.length} طلب مرتبط · هامش ${grossMargin.toFixed(1)}%`} color="from-blue-500/10 to-blue-600/5 border-blue-500/20" />
         <KPI icon={Receipt} label="المصروفات" value={fmt(totalExpenses)} sub={`${expenseRatio.toFixed(1)}% من المبيعات`} color="from-orange-500/10 to-orange-600/5 border-orange-500/20" />
         <KPI icon={TrendingUp} label="صافي الربح" value={fmt(netProfit)} sub={orphanCount > 0 ? `يستثني ${fmt(orphanRevenue)} غير مرتبطة` : `هامش صافي ${netMargin.toFixed(1)}%`} color={netProfit >= 0 ? "from-emerald-500/10 to-emerald-600/5 border-emerald-500/20" : "from-red-500/10 to-red-600/5 border-red-500/20"} />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPI icon={ShoppingBag} label="المشتريات (مخزون)" value={fmt(totalPurchases)} sub="لا تؤثر على الأرباح" color="from-amber-500/10 to-amber-600/5 border-amber-500/20" />
-        <KPI icon={Wallet} label="رصيد الخزائن" value={fmt(totalSafesBalance)} sub={`${safes.length} خزينة`} color="from-violet-500/10 to-violet-600/5 border-violet-500/20" />
-        <KPI icon={Receipt} label="مصروف الإعلانات المستهلك" value={fmt(totalAdSpend)} sub="مدرج ضمن المصروفات" color="from-fuchsia-500/10 to-fuchsia-600/5 border-fuchsia-500/20" />
-        <KPI icon={Hourglass} label="بانتظار التسوية" value={fmt(pendingSettlement)} sub="مسلّم وغير مستلم مالياً" color="from-cyan-500/10 to-cyan-600/5 border-cyan-500/20" />
-        <KPI icon={ShoppingCart} label="متوسط قيمة الطلب" value={fmt(avgOrderValue)} sub={`نسبة التسليم ${conversionRate.toFixed(1)}%`} color="from-pink-500/10 to-pink-600/5 border-pink-500/20" />
-      </div>
-
-      {/* Ratios */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الإجمالي</p><p className="text-lg font-bold">{grossMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">هامش الربح الصافي</p><p className={`text-lg font-bold ${netMargin >= 0 ? "text-green-600" : "text-red-500"}`}>{netMargin.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">العائد على التكلفة (ROI)</p><p className="text-lg font-bold">{roi.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">نسبة المصروفات</p><p className="text-lg font-bold">{expenseRatio.toFixed(1)}%</p></div><Percent className="w-5 h-5 text-muted-foreground" /></div></CardContent></Card>
       </div>
 
       <Tabs
