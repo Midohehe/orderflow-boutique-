@@ -347,14 +347,14 @@ const FinancialAccounts = () => {
 
   const KPI = ({ icon: Icon, label, value, sub, color, trend }: any) => (
     <Card className={`bg-gradient-to-br ${color}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">{label}</p>
-            <p className="text-xl font-bold">{value}</p>
-            {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{label}</p>
+            <p className="text-base sm:text-xl font-bold break-words leading-tight">{value}</p>
+            {sub && <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1 break-words">{sub}</p>}
           </div>
-          <div className="p-2 rounded-lg bg-background/40 backdrop-blur"><Icon className="w-5 h-5" /></div>
+          <div className="p-1.5 sm:p-2 rounded-lg bg-background/40 backdrop-blur flex-shrink-0"><Icon className="w-4 h-4 sm:w-5 sm:h-5" /></div>
         </div>
         {typeof trend === "number" && (
           <div className={`flex items-center gap-1 text-xs mt-2 ${trend >= 0 ? "text-green-600" : "text-red-500"}`}>
