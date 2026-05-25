@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useDeferredValue, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,9 @@ const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFract
 const FinancialAccounts = () => {
   const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
   const { activeStoreId } = useStoreContext();
+  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [, startTabTransition] = useTransition();
+  const deferredTab = useDeferredValue(activeTab);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
