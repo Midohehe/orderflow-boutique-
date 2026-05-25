@@ -347,14 +347,14 @@ const FinancialAccounts = () => {
 
   const KPI = ({ icon: Icon, label, value, sub, color, trend }: any) => (
     <Card className={`bg-gradient-to-br ${color}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">{label}</p>
-            <p className="text-xl font-bold">{value}</p>
-            {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{label}</p>
+            <p className="text-base sm:text-xl font-bold break-words leading-tight">{value}</p>
+            {sub && <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-1 break-words">{sub}</p>}
           </div>
-          <div className="p-2 rounded-lg bg-background/40 backdrop-blur"><Icon className="w-5 h-5" /></div>
+          <div className="p-1.5 sm:p-2 rounded-lg bg-background/40 backdrop-blur flex-shrink-0"><Icon className="w-4 h-4 sm:w-5 sm:h-5" /></div>
         </div>
         {typeof trend === "number" && (
           <div className={`flex items-center gap-1 text-xs mt-2 ${trend >= 0 ? "text-green-600" : "text-red-500"}`}>
@@ -377,20 +377,20 @@ const FinancialAccounts = () => {
 
       {/* Filters */}
       <Card className="card-shadow">
-        <CardContent className="p-4 flex flex-wrap items-end gap-3">
-          <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">الفلاتر</span></div>
-          <div>
+        <CardContent className="p-3 sm:p-4 grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-3">
+          <div className="col-span-2 flex items-center gap-2"><Filter className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">الفلاتر</span></div>
+          <div className="min-w-0">
             <Label className="text-xs mb-1 block">من تاريخ</Label>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-40" />
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-full sm:w-40" />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label className="text-xs mb-1 block">إلى تاريخ</Label>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-40" />
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-full sm:w-40" />
           </div>
-          <div>
+          <div className="col-span-2 min-w-0">
             <Label className="text-xs mb-1 block">المنتج</Label>
             <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full sm:w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">جميع المنتجات</SelectItem>
                 {uniqueProducts.filter(p => p && p.trim() !== "").map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -398,7 +398,7 @@ const FinancialAccounts = () => {
             </Select>
           </div>
           {(dateFrom || dateTo || selectedProduct !== "all") && (
-            <Button variant="outline" size="sm" className="h-9" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedProduct("all"); }}>إلغاء الفلترة</Button>
+            <Button variant="outline" size="sm" className="h-9 col-span-2 sm:col-span-1 w-full sm:w-auto" onClick={() => { setDateFrom(""); setDateTo(""); setSelectedProduct("all"); }}>إلغاء الفلترة</Button>
           )}
         </CardContent>
       </Card>
@@ -566,6 +566,7 @@ const FinancialAccounts = () => {
               {topProducts.length === 0 ? (
                 <p className="text-center text-muted-foreground py-6">لا توجد بيانات</p>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead className="text-right">المنتج</TableHead>
@@ -594,6 +595,7 @@ const FinancialAccounts = () => {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -686,6 +688,7 @@ const FinancialAccounts = () => {
                 {expensesByType.length === 0 ? (
                   <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow><TableHead className="text-right">النوع</TableHead><TableHead className="text-right">المبلغ</TableHead><TableHead className="text-right">النسبة</TableHead></TableRow></TableHeader>
                     <TableBody>
@@ -701,6 +704,7 @@ const FinancialAccounts = () => {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
