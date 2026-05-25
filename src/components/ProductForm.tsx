@@ -1113,7 +1113,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                     })()}
                   </div>
                   )}
-                  <div>
+                  {eoEnabled && <div>
                     <div className="text-[10px] text-muted-foreground md:hidden">متغير EasyOrders</div>
                     {eoVariants.length > 0 ? (
                       <div className="flex flex-col gap-1">
@@ -1146,7 +1146,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                     ) : (
                       <span className="text-[10px] text-muted-foreground">لا توجد متغيرات EasyOrders</span>
                     )}
-                  </div>
+                  </div>}
                 </div>
               ))}
             </div>
