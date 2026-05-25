@@ -688,6 +688,7 @@ const FinancialAccounts = () => {
                 {expensesByType.length === 0 ? (
                   <p className="text-center text-muted-foreground py-12">لا توجد مصروفات</p>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow><TableHead className="text-right">النوع</TableHead><TableHead className="text-right">المبلغ</TableHead><TableHead className="text-right">النسبة</TableHead></TableRow></TableHeader>
                     <TableBody>
@@ -703,6 +704,7 @@ const FinancialAccounts = () => {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
