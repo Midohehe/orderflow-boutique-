@@ -578,9 +578,9 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={retryLinking} title="يحاول ربط المنتجات والمتغيرات بناءً على معرفات EasyOrders">
+                  {eoEnabled && <Button type="button" size="sm" variant="outline" onClick={retryLinking} title="يحاول ربط المنتجات والمتغيرات بناءً على معرفات EasyOrders">
                     <Link2 className="w-4 h-4 ml-1" /> إعادة محاولة الربط
-                  </Button>
+                  </Button>}
                   <Button type="button" size="sm" variant="outline" onClick={addItem}>
                     <Plus className="w-4 h-4 ml-1" /> إضافة منتج
                   </Button>
