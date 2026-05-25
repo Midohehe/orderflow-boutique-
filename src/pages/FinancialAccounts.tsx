@@ -50,6 +50,8 @@ const FinancialAccounts = () => {
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [, startTabTransition] = useTransition();
   const deferredTab = useDeferredValue(activeTab);
+  // Keep visited tabs mounted so re-clicking is instant (avoids re-mounting heavy tables/charts).
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["overview"]));
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
