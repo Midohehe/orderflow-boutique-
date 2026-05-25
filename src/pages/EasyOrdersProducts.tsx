@@ -444,6 +444,8 @@ const EasyOrdersProducts = () => {
           </CardContent>
         </Card>
       )}
+      </>
+      )}
     </div>
   );
 };
