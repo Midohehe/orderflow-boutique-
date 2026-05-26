@@ -23,6 +23,10 @@ interface Body {
   order_ids: string[];
   shipping_included?: boolean;
   openable?: boolean;
+  type_code?: string;
+  price_type_code?: string;
+  payment_type_code?: string;
+  openable_code?: string;
 }
 
 Deno.serve(async (req) => {
@@ -613,10 +617,10 @@ Deno.serve(async (req) => {
               o.selected_size ? `المقاس: ${isolateLatin(o.selected_size)}` : null,
               o.selected_product_code ? `الكود: ${isolateLatin(o.selected_product_code)}` : null,
             ].filter(Boolean).join(" - "),
-        typeCode: "FDP",
-        priceTypeCode: body.shipping_included ? "INCLD" : "EXCLD",
-        paymentTypeCode: "COLC",
-        openableCode: body.openable ? "Y" : "N",
+        typeCode: body.type_code || "FDP",
+        priceTypeCode: body.price_type_code || (body.shipping_included ? "INCLD" : "EXCLD"),
+        paymentTypeCode: body.payment_type_code || "COLC",
+        openableCode: body.openable_code || (body.openable ? "Y" : "N"),
         banknoteCode: "ANY",
         refNumber: o.id.slice(0, 12).toUpperCase(),
         notes: (() => {
