@@ -29,6 +29,7 @@ import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { ShippingOptionsDialog, getShippingOptionsDefaults, type ShippingOptionsValue } from "@/components/ShippingOptionsDialog";
 
 interface Order {
   id: string;
@@ -136,6 +137,7 @@ const Orders = () => {
   const [productFilter, setProductFilter] = useState<string>("all");
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [openableMode, setOpenableMode] = useState<"yes" | "no">("yes");
+  const [shippingOptionsOpen, setShippingOptionsOpen] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
@@ -341,7 +343,7 @@ const Orders = () => {
     }
   };
 
-  const handleShipToCompany = async () => {
+  const handleShipToCompany = async (opts: ShippingOptionsValue) => {
     if (selectedOrders.length === 0) {
       toast({ title: "تنبيه", description: "حدد طلبات أولاً", variant: "destructive" });
       return;
@@ -360,7 +362,15 @@ const Orders = () => {
       for (let i = 0; i < ids.length; i++) {
         try {
           const { data, error } = await supabase.functions.invoke("ship-orders", {
-            body: { order_ids: [ids[i]], shipping_included: shippingMode === "included", openable: openableMode === "yes" },
+            body: {
+              order_ids: [ids[i]],
+              shipping_included: opts.price_type_code === "INCLD",
+              openable: opts.openable_code === "Y",
+              type_code: opts.type_code,
+              price_type_code: opts.price_type_code,
+              payment_type_code: opts.payment_type_code,
+              openable_code: opts.openable_code,
+            },
           });
           if (error) throw error;
           sent += (data as any)?.sent ?? 0;
@@ -1776,26 +1786,14 @@ const Orders = () => {
                         </Button>
                       )}
                     </div>
-                    <Select value={shippingMode} onValueChange={(v) => setShippingMode(v as any)}>
-                      <SelectTrigger className="w-full sm:w-44">
-                        <SelectValue placeholder="نوع الشحن" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="excluded">غير شامل الشحن</SelectItem>
-                        <SelectItem value="included">شامل الشحن</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={openableMode} onValueChange={(v) => setOpenableMode(v as any)}>
-                      <SelectTrigger className="w-full sm:w-44">
-                        <SelectValue placeholder="فتح الطرد" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="no">غير مسموح بفتح الطرد</SelectItem>
-                        <SelectItem value="yes">مسموح بفتح الطرد</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <Button
-                      onClick={handleShipToCompany}
+                      onClick={() => {
+                        if (selectedOrders.length === 0) {
+                          toast({ title: "تنبيه", description: "حدد طلبات أولاً", variant: "destructive" });
+                          return;
+                        }
+                        setShippingOptionsOpen(true);
+                      }}
                       disabled={selectedOrders.length === 0 || shipping}
                       className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 bg-lime-700 py-[8px]"
                     >
@@ -2330,6 +2328,17 @@ const Orders = () => {
         open={!!detailsId}
         onOpenChange={(o) => !o && setDetailsId(null)}
         onSaved={(u) => setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p))}
+      />
+
+      <ShippingOptionsDialog
+        open={shippingOptionsOpen}
+        onOpenChange={setShippingOptionsOpen}
+        count={selectedOrders.filter((id) => !orders.find((o) => o.id === id)?.locked_insufficient_balance).length}
+        onConfirm={(opts) => {
+          setShippingMode(opts.price_type_code === "INCLD" ? "included" : "excluded");
+          setOpenableMode(opts.openable_code === "Y" ? "yes" : "no");
+          handleShipToCompany(opts);
+        }}
       />
 
       <AlertDialog open={!!confirmNoteOpen} onOpenChange={(o) => { if (!o) { setConfirmNoteOpen(null); setConfirmNoteValue(""); } }}>
