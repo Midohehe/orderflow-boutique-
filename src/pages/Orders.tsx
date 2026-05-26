@@ -29,6 +29,7 @@ import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { ShippingOptionsDialog, getShippingOptionsDefaults, type ShippingOptionsValue } from "@/components/ShippingOptionsDialog";
 
 interface Order {
   id: string;
@@ -136,6 +137,7 @@ const Orders = () => {
   const [productFilter, setProductFilter] = useState<string>("all");
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [openableMode, setOpenableMode] = useState<"yes" | "no">("yes");
+  const [shippingOptionsOpen, setShippingOptionsOpen] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
