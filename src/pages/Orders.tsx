@@ -343,7 +343,7 @@ const Orders = () => {
     }
   };
 
-  const handleShipToCompany = async () => {
+  const handleShipToCompany = async (opts: ShippingOptionsValue) => {
     if (selectedOrders.length === 0) {
       toast({ title: "تنبيه", description: "حدد طلبات أولاً", variant: "destructive" });
       return;
@@ -362,7 +362,15 @@ const Orders = () => {
       for (let i = 0; i < ids.length; i++) {
         try {
           const { data, error } = await supabase.functions.invoke("ship-orders", {
-            body: { order_ids: [ids[i]], shipping_included: shippingMode === "included", openable: openableMode === "yes" },
+            body: {
+              order_ids: [ids[i]],
+              shipping_included: opts.price_type_code === "INCLD",
+              openable: opts.openable_code === "Y",
+              type_code: opts.type_code,
+              price_type_code: opts.price_type_code,
+              payment_type_code: opts.payment_type_code,
+              openable_code: opts.openable_code,
+            },
           });
           if (error) throw error;
           sent += (data as any)?.sent ?? 0;
