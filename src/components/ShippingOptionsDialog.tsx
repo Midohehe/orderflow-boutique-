@@ -42,8 +42,9 @@ const PRICE_TYPE_OPTIONS = [
 ];
 
 const PAYMENT_TYPE_OPTIONS = [
-  { value: "COLC", label: "الدفع عند الاستلام (COD)" },
-  { value: "PREP", label: "مدفوع مسبقًا" },
+  { value: "COLC", label: "كاش" },
+  { value: "CASH", label: "مسددة نقدًا" },
+  { value: "VISA", label: "دفع إلكتروني" },
 ];
 
 const OPENABLE_OPTIONS = [
