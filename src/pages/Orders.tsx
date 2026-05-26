@@ -1786,26 +1786,14 @@ const Orders = () => {
                         </Button>
                       )}
                     </div>
-                    <Select value={shippingMode} onValueChange={(v) => setShippingMode(v as any)}>
-                      <SelectTrigger className="w-full sm:w-44">
-                        <SelectValue placeholder="نوع الشحن" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="excluded">غير شامل الشحن</SelectItem>
-                        <SelectItem value="included">شامل الشحن</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={openableMode} onValueChange={(v) => setOpenableMode(v as any)}>
-                      <SelectTrigger className="w-full sm:w-44">
-                        <SelectValue placeholder="فتح الطرد" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="no">غير مسموح بفتح الطرد</SelectItem>
-                        <SelectItem value="yes">مسموح بفتح الطرد</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <Button
-                      onClick={handleShipToCompany}
+                      onClick={() => {
+                        if (selectedOrders.length === 0) {
+                          toast({ title: "تنبيه", description: "حدد طلبات أولاً", variant: "destructive" });
+                          return;
+                        }
+                        setShippingOptionsOpen(true);
+                      }}
                       disabled={selectedOrders.length === 0 || shipping}
                       className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent/90 bg-lime-700 py-[8px]"
                     >
