@@ -2330,6 +2330,17 @@ const Orders = () => {
         onSaved={(u) => setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p))}
       />
 
+      <ShippingOptionsDialog
+        open={shippingOptionsOpen}
+        onOpenChange={setShippingOptionsOpen}
+        count={selectedOrders.filter((id) => !orders.find((o) => o.id === id)?.locked_insufficient_balance).length}
+        onConfirm={(opts) => {
+          setShippingMode(opts.price_type_code === "INCLD" ? "included" : "excluded");
+          setOpenableMode(opts.openable_code === "Y" ? "yes" : "no");
+          handleShipToCompany(opts);
+        }}
+      />
+
       <AlertDialog open={!!confirmNoteOpen} onOpenChange={(o) => { if (!o) { setConfirmNoteOpen(null); setConfirmNoteValue(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
