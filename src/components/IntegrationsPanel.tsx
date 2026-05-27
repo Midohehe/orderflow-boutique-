@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Webhook, Copy, RefreshCw } from "lucide-react";
 
 const IntegrationsPanel = () => {
   const { user } = useAuth();
-  const { enabled: eoEnabled } = useEasyOrdersEnabled();
+  const { enabled: eoEnabled, refresh: refreshEo } = useEasyOrdersEnabled();
+  const [togglingEo, setTogglingEo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [webhookToken, setWebhookToken] = useState("");
   const [rotating, setRotating] = useState(false);
@@ -177,11 +179,34 @@ const IntegrationsPanel = () => {
         </CardContent>
       </Card>
 
-      {eoEnabled && <Card>
+      <Card>
         <CardHeader>
-          <CardTitle>تكامل EasyOrders API</CardTitle>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span>تكامل EasyOrders API</span>
+            <div className="flex items-center gap-2 text-sm font-normal">
+              <span className="text-muted-foreground">{eoEnabled ? "مفعّل" : "معطّل"}</span>
+              <Switch
+                checked={eoEnabled}
+                disabled={togglingEo || !user}
+                onCheckedChange={async (val) => {
+                  if (!user) return;
+                  setTogglingEo(true);
+                  const { error } = await supabase
+                    .from("profiles")
+                    .update({ easyorders_enabled: val } as any)
+                    .eq("user_id", user.id);
+                  if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+                  else {
+                    toast({ title: val ? "تم التفعيل" : "تم التعطيل" });
+                    await refreshEo();
+                  }
+                  setTogglingEo(false);
+                }}
+              />
+            </div>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {eoEnabled && <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             عند تفعيل هذا المفتاح، سيقوم النظام تلقائياً بجلب التفاصيل الكاملة لأي طلب وارد من EasyOrders عبر Webhook (المنتجات، الكميات، المتغيرات).
             احصل على المفتاح من EasyOrders ← Public API ← Create New API Key (مع صلاحية orders:read).
@@ -236,8 +261,8 @@ const IntegrationsPanel = () => {
               تجلب جميع المنتجات والمتغيرات من EasyOrders. ثم اربط كل متغير محلي بمتغير EasyOrders من شاشة المنتج.
             </p>
           </div>
-        </CardContent>
-      </Card>}
+        </CardContent>}
+      </Card>
     </div>
   );
 };
