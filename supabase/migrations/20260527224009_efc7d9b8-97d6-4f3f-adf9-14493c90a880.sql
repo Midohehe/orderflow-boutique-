@@ -1,0 +1,1 @@
+ALTER TABLE public.landing_pages ADD COLUMN IF NOT EXISTS size_chart jsonb NOT NULL DEFAULT '{"enabled":false,"title":"","description":"","columns":[],"rows":[]}'::jsonb;

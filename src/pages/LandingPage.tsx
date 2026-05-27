@@ -42,6 +42,14 @@ interface Product {
   faqs?: Array<{ question: string; answer: string }>;
 }
 
+interface SizeChartData {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+  columns: string[];
+  rows: Array<{ enabled: boolean; values: string[]; note?: string }>;
+}
+
 interface PixelSettings {
   facebook_pixel_id: string | null;
   facebook_enabled: boolean;
@@ -147,6 +155,7 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
+  const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
@@ -263,7 +272,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, puck_data")
+          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart, puck_data")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -346,6 +355,26 @@ const LandingPage = () => {
             faqs: Array.isArray(lp?.faqs) ? lp.faqs : [],
           };
           setProduct(loadedProduct);
+
+          // جدول المقاسات الخاص بصفحة الهبوط
+          const sc = lp?.size_chart;
+          if (sc && typeof sc === "object" && sc.enabled && Array.isArray(sc.rows) && sc.rows.length > 0) {
+            setSizeChartData({
+              enabled: true,
+              title: String(sc.title ?? "جدول المقاسات"),
+              description: String(sc.description ?? ""),
+              columns: Array.isArray(sc.columns) ? sc.columns.map((c: any) => String(c ?? "")) : [],
+              rows: sc.rows
+                .filter((r: any) => r?.enabled !== false)
+                .map((r: any) => ({
+                  enabled: true,
+                  values: Array.isArray(r?.values) ? r.values.map((v: any) => String(v ?? "")) : [],
+                  note: String(r?.note ?? ""),
+                })),
+            });
+          } else {
+            setSizeChartData(null);
+          }
 
           // Fetch heavy fields (images/description/reviews) separately after first paint
           const needProductHeavy = !lpImages.length;
@@ -1134,7 +1163,7 @@ const LandingPage = () => {
                   </div>
                 )}
 
-                {product.size_chart_url && product.sizes && product.sizes.length > 0 && (
+                {(sizeChartData || (product.size_chart_url && product.sizes && product.sizes.length > 0)) && (
                   <button
                     type="button"
                     onClick={() => setShowSizeChart(true)}
@@ -1633,7 +1662,7 @@ const LandingPage = () => {
       )}
 
       {/* دليل المقاسات ومودال العرض */}
-      {showSizeChart && product.size_chart_url && (
+      {showSizeChart && (sizeChartData || product.size_chart_url) && (
         <div
           className="fixed inset-0 z-[100] bg-[#0f172a]/90 backdrop-blur-md flex items-center justify-center p-4"
           onClick={() => setShowSizeChart(false)}
@@ -1645,12 +1674,60 @@ const LandingPage = () => {
           >
             <X className="w-6 h-6" />
           </button>
-          <img
-            src={product.size_chart_url}
-            alt="جدول المقاسات ودليل العميل"
-            className="max-w-full max-h-full object-contain bg-white rounded-2xl p-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+
+          {sizeChartData ? (
+            <div
+              className="max-w-2xl w-full max-h-[85vh] overflow-auto bg-white rounded-2xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              dir="rtl"
+            >
+              <div className="px-5 py-4 border-b bg-gradient-to-l from-amber-50 to-white">
+                <h3 className="text-lg font-black text-slate-900">{sizeChartData.title || "جدول المقاسات"}</h3>
+                {sizeChartData.description && (
+                  <p className="text-xs text-slate-500 mt-1">{sizeChartData.description}</p>
+                )}
+              </div>
+              <div className="p-4 overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      {sizeChartData.columns.map((col, i) => (
+                        <th key={i} className="px-3 py-2 text-right font-bold text-slate-700 border border-slate-200">
+                          {col || `عمود ${i + 1}`}
+                        </th>
+                      ))}
+                      {sizeChartData.rows.some((r) => r.note) && (
+                        <th className="px-3 py-2 text-right font-bold text-slate-700 border border-slate-200">ملاحظة</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sizeChartData.rows.map((row, ri) => (
+                      <tr key={ri} className="even:bg-slate-50/50">
+                        {sizeChartData.columns.map((_, ci) => (
+                          <td key={ci} className="px-3 py-2 text-right text-slate-800 border border-slate-200">
+                            {row.values[ci] ?? ""}
+                          </td>
+                        ))}
+                        {sizeChartData.rows.some((r) => r.note) && (
+                          <td className="px-3 py-2 text-right text-slate-600 text-xs border border-slate-200">
+                            {row.note ?? ""}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <img
+              src={product.size_chart_url!}
+              alt="جدول المقاسات ودليل العميل"
+              className="max-w-full max-h-full object-contain bg-white rounded-2xl p-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>
       )}
 

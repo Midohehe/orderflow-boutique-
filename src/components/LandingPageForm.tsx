@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate } from "lucide-react";
+import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate, Ruler, Plus, ArrowUp, ArrowDown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
@@ -52,6 +52,13 @@ export interface LandingPageFormData {
   isVisible: boolean;
   faqs?: Array<{ question: string; answer: string }>;
   templateId?: string;
+  sizeChart?: {
+    enabled: boolean;
+    title?: string;
+    description?: string;
+    columns: string[];
+    rows: Array<{ enabled: boolean; values: string[]; note?: string }>;
+  };
 }
 
 export const emptyLandingPageData: LandingPageFormData = {
@@ -71,6 +78,13 @@ export const emptyLandingPageData: LandingPageFormData = {
   isVisible: true,
   faqs: [],
   templateId: "",
+  sizeChart: {
+    enabled: false,
+    title: "جدول المقاسات",
+    description: "",
+    columns: ["المقاس", "الطول (سم)", "العرض (سم)"],
+    rows: [],
+  },
 };
 
 interface ProductOption {
@@ -313,6 +327,225 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
             >
               + إضافة عرض
             </Button>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* جدول المقاسات */}
+      <SectionCard
+        icon={Ruler}
+        title="جدول المقاسات"
+        description="جدول احترافي بأعمدة وصفوف قابلة للتفعيل والتحرير"
+        iconColor="bg-fuchsia-500"
+      >
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border-2 border-dashed bg-muted/40">
+          <div className="flex-1 min-w-0">
+            <Label className="block font-semibold">تفعيل جدول المقاسات</Label>
+            <p className="text-xs text-muted-foreground mt-1">عند الإيقاف لن يظهر الجدول في صفحة الهبوط</p>
+          </div>
+          <Switch
+            checked={!!data.sizeChart?.enabled}
+            onCheckedChange={(v) =>
+              update("sizeChart", {
+                enabled: v,
+                title: data.sizeChart?.title ?? "جدول المقاسات",
+                description: data.sizeChart?.description ?? "",
+                columns: data.sizeChart?.columns?.length ? data.sizeChart.columns : ["المقاس", "الطول (سم)", "العرض (سم)"],
+                rows: data.sizeChart?.rows ?? [],
+              })
+            }
+          />
+        </div>
+
+        {data.sizeChart?.enabled && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">عنوان الجدول</Label>
+                <Input
+                  value={data.sizeChart.title ?? ""}
+                  onChange={(e) => update("sizeChart", { ...data.sizeChart!, title: e.target.value })}
+                  placeholder="جدول المقاسات"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">وصف مختصر (اختياري)</Label>
+                <Input
+                  value={data.sizeChart.description ?? ""}
+                  onChange={(e) => update("sizeChart", { ...data.sizeChart!, description: e.target.value })}
+                  placeholder="اختر المقاس المناسب وفقًا للجدول"
+                />
+              </div>
+            </div>
+
+            {/* الأعمدة */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold">الأعمدة</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const sc = data.sizeChart!;
+                    const columns = [...sc.columns, ""];
+                    const rows = sc.rows.map((r) => ({ ...r, values: [...r.values, ""] }));
+                    update("sizeChart", { ...sc, columns, rows });
+                  }}
+                >
+                  <Plus className="w-4 h-4" /> عمود
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {data.sizeChart.columns.map((col, ci) => (
+                  <div key={ci} className="flex items-center gap-1">
+                    <Input
+                      value={col}
+                      onChange={(e) => {
+                        const sc = data.sizeChart!;
+                        const columns = [...sc.columns];
+                        columns[ci] = e.target.value;
+                        update("sizeChart", { ...sc, columns });
+                      }}
+                      placeholder={`عمود ${ci + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 shrink-0 text-red-500"
+                      onClick={() => {
+                        const sc = data.sizeChart!;
+                        const columns = sc.columns.filter((_, i) => i !== ci);
+                        const rows = sc.rows.map((r) => ({ ...r, values: r.values.filter((_, i) => i !== ci) }));
+                        update("sizeChart", { ...sc, columns, rows });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* الصفوف */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold">الصفوف (المقاسات)</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  onClick={() => {
+                    const sc = data.sizeChart!;
+                    update("sizeChart", {
+                      ...sc,
+                      rows: [...sc.rows, { enabled: true, values: sc.columns.map(() => ""), note: "" }],
+                    });
+                  }}
+                >
+                  <Plus className="w-4 h-4" /> إضافة مقاس
+                </Button>
+              </div>
+
+              {data.sizeChart.rows.length === 0 && (
+                <div className="text-xs text-muted-foreground p-4 text-center border rounded-lg border-dashed">
+                  لا توجد مقاسات بعد — اضغط "إضافة مقاس"
+                </div>
+              )}
+
+              {data.sizeChart.rows.map((row, ri) => (
+                <div key={ri} className="p-3 border rounded-lg bg-muted/20 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="flex items-center gap-2 text-xs font-semibold">
+                      <Switch
+                        checked={row.enabled}
+                        onCheckedChange={(v) => {
+                          const sc = data.sizeChart!;
+                          const rows = [...sc.rows];
+                          rows[ri] = { ...row, enabled: v };
+                          update("sizeChart", { ...sc, rows });
+                        }}
+                      />
+                      {row.enabled ? "ظاهر" : "مخفي"}
+                    </label>
+                    <div className="flex-1" />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7"
+                      disabled={ri === 0}
+                      onClick={() => {
+                        const sc = data.sizeChart!;
+                        const rows = [...sc.rows];
+                        [rows[ri - 1], rows[ri]] = [rows[ri], rows[ri - 1]];
+                        update("sizeChart", { ...sc, rows });
+                      }}
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7"
+                      disabled={ri === data.sizeChart!.rows.length - 1}
+                      onClick={() => {
+                        const sc = data.sizeChart!;
+                        const rows = [...sc.rows];
+                        [rows[ri + 1], rows[ri]] = [rows[ri], rows[ri + 1]];
+                        update("sizeChart", { ...sc, rows });
+                      }}
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        const sc = data.sizeChart!;
+                        update("sizeChart", { ...sc, rows: sc.rows.filter((_, i) => i !== ri) });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {data.sizeChart!.columns.map((col, ci) => (
+                      <div key={ci} className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">{col || `عمود ${ci + 1}`}</Label>
+                        <Input
+                          value={row.values[ci] ?? ""}
+                          onChange={(e) => {
+                            const sc = data.sizeChart!;
+                            const rows = [...sc.rows];
+                            const values = [...row.values];
+                            values[ci] = e.target.value;
+                            rows[ri] = { ...row, values };
+                            update("sizeChart", { ...sc, rows });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">ملاحظة/وصف (اختياري)</Label>
+                    <Input
+                      value={row.note ?? ""}
+                      onChange={(e) => {
+                        const sc = data.sizeChart!;
+                        const rows = [...sc.rows];
+                        rows[ri] = { ...row, note: e.target.value };
+                        update("sizeChart", { ...sc, rows });
+                      }}
+                      placeholder="مناسب للأطفال من 6-8 سنوات"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </SectionCard>

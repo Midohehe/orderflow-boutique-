@@ -1003,6 +1003,19 @@ const Products = () => {
         faqs: (newLp.faqs || [])
           .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
           .filter((f) => f.question && f.answer),
+        size_chart: newLp.sizeChart
+          ? {
+              enabled: !!newLp.sizeChart.enabled,
+              title: (newLp.sizeChart.title || "").trim(),
+              description: (newLp.sizeChart.description || "").trim(),
+              columns: (newLp.sizeChart.columns || []).map((c) => (c || "").trim()),
+              rows: (newLp.sizeChart.rows || []).map((r) => ({
+                enabled: r.enabled !== false,
+                values: (r.values || []).map((v) => (v || "").trim()),
+                note: (r.note || "").trim(),
+              })),
+            }
+          : { enabled: false, title: "", description: "", columns: [], rows: [] },
         template_id: chosenTpl?.id || null,
         puck_data: chosenTpl?.puck_data ?? null,
       } as any).select("id, product_id, slug, title, subtitle, is_visible").single();
@@ -1065,6 +1078,21 @@ const Products = () => {
             answer: String(f?.answer ?? ""),
           }))
         : [],
+      sizeChart: d.size_chart && typeof d.size_chart === "object"
+        ? {
+            enabled: !!d.size_chart.enabled,
+            title: String(d.size_chart.title ?? "جدول المقاسات"),
+            description: String(d.size_chart.description ?? ""),
+            columns: Array.isArray(d.size_chart.columns) ? d.size_chart.columns.map((c: any) => String(c ?? "")) : [],
+            rows: Array.isArray(d.size_chart.rows)
+              ? d.size_chart.rows.map((r: any) => ({
+                  enabled: r?.enabled !== false,
+                  values: Array.isArray(r?.values) ? r.values.map((v: any) => String(v ?? "")) : [],
+                  note: String(r?.note ?? ""),
+                }))
+              : [],
+          }
+        : { enabled: false, title: "جدول المقاسات", description: "", columns: ["المقاس", "الطول (سم)", "العرض (سم)"], rows: [] },
       templateId: d.template_id || "",
     });
   };
@@ -1099,6 +1127,19 @@ const Products = () => {
         faqs: (editLp.faqs || [])
           .map((f) => ({ question: (f.question || "").trim(), answer: (f.answer || "").trim() }))
           .filter((f) => f.question && f.answer),
+        size_chart: editLp.sizeChart
+          ? {
+              enabled: !!editLp.sizeChart.enabled,
+              title: (editLp.sizeChart.title || "").trim(),
+              description: (editLp.sizeChart.description || "").trim(),
+              columns: (editLp.sizeChart.columns || []).map((c) => (c || "").trim()),
+              rows: (editLp.sizeChart.rows || []).map((r) => ({
+                enabled: r.enabled !== false,
+                values: (r.values || []).map((v) => (v || "").trim()),
+                note: (r.note || "").trim(),
+              })),
+            }
+          : { enabled: false, title: "", description: "", columns: [], rows: [] },
         template_id: chosenTpl?.id || null,
       };
       if (chosenTpl) updatePayload.puck_data = chosenTpl.puck_data ?? null;
