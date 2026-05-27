@@ -1163,7 +1163,7 @@ const LandingPage = () => {
                   </div>
                 )}
 
-                {product.size_chart_url && product.sizes && product.sizes.length > 0 && (
+                {(sizeChartData || (product.size_chart_url && product.sizes && product.sizes.length > 0)) && (
                   <button
                     type="button"
                     onClick={() => setShowSizeChart(true)}
