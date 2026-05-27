@@ -155,6 +155,7 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
+  const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
