@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search, Link2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -145,9 +146,13 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const { error } = await supabase.from("whatsapp_settings").update({
       enabled: settings.enabled,
+      provider: settings.provider || "green_api",
       instance_id: settings.instance_id,
       api_token: settings.api_token,
       api_url: settings.api_url,
+      whatchimp_api_key: settings.whatchimp_api_key || "",
+      whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
+      whatchimp_api_url: settings.whatchimp_api_url || "https://app.whatchimp.com",
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
