@@ -42,6 +42,14 @@ interface Product {
   faqs?: Array<{ question: string; answer: string }>;
 }
 
+interface SizeChartData {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+  columns: string[];
+  rows: Array<{ enabled: boolean; values: string[]; note?: string }>;
+}
+
 interface PixelSettings {
   facebook_pixel_id: string | null;
   facebook_enabled: boolean;
@@ -263,7 +271,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, puck_data")
+          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart, puck_data")
           .eq("slug", slug)
           .maybeSingle();
 
