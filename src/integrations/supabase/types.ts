@@ -3342,9 +3342,13 @@ export type Database = {
           id: string
           instance_id: string
           owner_id: string
+          provider: string
           updated_at: string
           webhook_token: string | null
           welcome_template: string
+          whatchimp_api_key: string
+          whatchimp_api_url: string
+          whatchimp_phone_number_id: string
         }
         Insert: {
           ai_auto_reply_enabled?: boolean
@@ -3357,9 +3361,13 @@ export type Database = {
           id?: string
           instance_id?: string
           owner_id: string
+          provider?: string
           updated_at?: string
           webhook_token?: string | null
           welcome_template?: string
+          whatchimp_api_key?: string
+          whatchimp_api_url?: string
+          whatchimp_phone_number_id?: string
         }
         Update: {
           ai_auto_reply_enabled?: boolean
@@ -3372,9 +3380,13 @@ export type Database = {
           id?: string
           instance_id?: string
           owner_id?: string
+          provider?: string
           updated_at?: string
           webhook_token?: string | null
           welcome_template?: string
+          whatchimp_api_key?: string
+          whatchimp_api_url?: string
+          whatchimp_phone_number_id?: string
         }
         Relationships: []
       }

@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search, Link2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -145,9 +146,13 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const { error } = await supabase.from("whatsapp_settings").update({
       enabled: settings.enabled,
+      provider: settings.provider || "green_api",
       instance_id: settings.instance_id,
       api_token: settings.api_token,
       api_url: settings.api_url,
+      whatchimp_api_key: settings.whatchimp_api_key || "",
+      whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
+      whatchimp_api_url: settings.whatchimp_api_url || "https://app.whatchimp.com",
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
@@ -202,7 +207,7 @@ export default function WhatsAppPage() {
               </Button>
             </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>إعدادات WhatsApp (Green API)</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>إعدادات WhatsApp</DialogTitle></DialogHeader>
             {settings && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 border rounded-md">
@@ -210,17 +215,53 @@ export default function WhatsAppPage() {
                   <Switch id="wa-enabled" checked={!!settings.enabled} onCheckedChange={(v) => setSettings({ ...settings, enabled: v })} />
                 </div>
                 <div>
-                  <Label>Instance ID</Label>
-                  <Input value={settings.instance_id || ""} onChange={(e) => setSettings({ ...settings, instance_id: e.target.value })} placeholder="1101xxxxxx" />
+                  <Label>مزوّد الخدمة</Label>
+                  <Select
+                    value={settings.provider || "green_api"}
+                    onValueChange={(v) => setSettings({ ...settings, provider: v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="green_api">Green API</SelectItem>
+                      <SelectItem value="whatchimp">WhatChimp</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div>
-                  <Label>API Token</Label>
-                  <Input type="password" value={settings.api_token || ""} onChange={(e) => setSettings({ ...settings, api_token: e.target.value })} />
-                </div>
-                <div>
-                  <Label>API URL</Label>
-                  <Input value={settings.api_url || ""} onChange={(e) => setSettings({ ...settings, api_url: e.target.value })} />
-                </div>
+
+                {(settings.provider || "green_api") === "green_api" ? (
+                  <div className="space-y-4 p-3 border rounded-md bg-muted/20">
+                    <div className="text-sm font-semibold">إعدادات Green API</div>
+                    <div>
+                      <Label>Instance ID</Label>
+                      <Input value={settings.instance_id || ""} onChange={(e) => setSettings({ ...settings, instance_id: e.target.value })} placeholder="1101xxxxxx" />
+                    </div>
+                    <div>
+                      <Label>API Token</Label>
+                      <Input type="password" value={settings.api_token || ""} onChange={(e) => setSettings({ ...settings, api_token: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>API URL</Label>
+                      <Input value={settings.api_url || ""} onChange={(e) => setSettings({ ...settings, api_url: e.target.value })} placeholder="https://api.green-api.com" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 p-3 border rounded-md bg-muted/20">
+                    <div className="text-sm font-semibold">إعدادات WhatChimp</div>
+                    <div>
+                      <Label>API Key</Label>
+                      <Input type="password" value={settings.whatchimp_api_key || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_key: e.target.value })} placeholder="WhatChimp API Key" />
+                    </div>
+                    <div>
+                      <Label>Phone Number ID</Label>
+                      <Input value={settings.whatchimp_phone_number_id || ""} onChange={(e) => setSettings({ ...settings, whatchimp_phone_number_id: e.target.value })} placeholder="مثال: 1234567890" />
+                    </div>
+                    <div>
+                      <Label>API URL</Label>
+                      <Input value={settings.whatchimp_api_url || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_url: e.target.value })} placeholder="https://app.whatchimp.com" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">احصل على المفتاح من لوحة WhatChimp ← Developer API.</p>
+                  </div>
+                )}
                 <div className="p-3 bg-muted/40 rounded-md space-y-2">
                   <Label className="text-sm">Webhook URL (انسخه إلى لوحة Green API):</Label>
                   <div className="flex gap-2">
