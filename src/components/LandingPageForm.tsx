@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate } from "lucide-react";
+import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate, Ruler, Plus, ArrowUp, ArrowDown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
@@ -52,6 +52,13 @@ export interface LandingPageFormData {
   isVisible: boolean;
   faqs?: Array<{ question: string; answer: string }>;
   templateId?: string;
+  sizeChart?: {
+    enabled: boolean;
+    title?: string;
+    description?: string;
+    columns: string[];
+    rows: Array<{ enabled: boolean; values: string[]; note?: string }>;
+  };
 }
 
 export const emptyLandingPageData: LandingPageFormData = {
@@ -71,6 +78,13 @@ export const emptyLandingPageData: LandingPageFormData = {
   isVisible: true,
   faqs: [],
   templateId: "",
+  sizeChart: {
+    enabled: false,
+    title: "جدول المقاسات",
+    description: "",
+    columns: ["المقاس", "الطول (سم)", "العرض (سم)"],
+    rows: [],
+  },
 };
 
 interface ProductOption {
