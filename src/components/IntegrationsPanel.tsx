@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Webhook, Copy, RefreshCw } from "lucide-react";
 
 const IntegrationsPanel = () => {
   const { user } = useAuth();
-  const { enabled: eoEnabled } = useEasyOrdersEnabled();
+  const { enabled: eoEnabled, refresh: refreshEo } = useEasyOrdersEnabled();
+  const [togglingEo, setTogglingEo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [webhookToken, setWebhookToken] = useState("");
   const [rotating, setRotating] = useState(false);
