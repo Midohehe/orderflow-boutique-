@@ -1,5 +1,6 @@
 import { UserCircle } from "lucide-react";
 import CityCorrections from "@/components/CityCorrections";
+import IntegrationsPanel from "@/components/IntegrationsPanel";
 import { useUserContext } from "@/hooks/useUserContext";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -15,6 +16,7 @@ const AccountSettings = () => {
         iconGradient="from-sky-500 to-blue-600"
       />
 
+      <IntegrationsPanel />
       {isAdmin && <CityCorrections />}
     </div>
   );
