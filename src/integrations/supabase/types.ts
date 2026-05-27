@@ -1103,6 +1103,7 @@ export type Database = {
           product_id: string
           puck_data: Json | null
           show_quantity: boolean
+          size_chart: Json
           slug: string
           store_id: string | null
           subtitle: string | null
@@ -1127,6 +1128,7 @@ export type Database = {
           product_id: string
           puck_data?: Json | null
           show_quantity?: boolean
+          size_chart?: Json
           slug: string
           store_id?: string | null
           subtitle?: string | null
@@ -1151,6 +1153,7 @@ export type Database = {
           product_id?: string
           puck_data?: Json | null
           show_quantity?: boolean
+          size_chart?: Json
           slug?: string
           store_id?: string | null
           subtitle?: string | null
