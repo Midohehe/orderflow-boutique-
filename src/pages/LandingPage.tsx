@@ -356,6 +356,26 @@ const LandingPage = () => {
           };
           setProduct(loadedProduct);
 
+          // جدول المقاسات الخاص بصفحة الهبوط
+          const sc = lp?.size_chart;
+          if (sc && typeof sc === "object" && sc.enabled && Array.isArray(sc.rows) && sc.rows.length > 0) {
+            setSizeChartData({
+              enabled: true,
+              title: String(sc.title ?? "جدول المقاسات"),
+              description: String(sc.description ?? ""),
+              columns: Array.isArray(sc.columns) ? sc.columns.map((c: any) => String(c ?? "")) : [],
+              rows: sc.rows
+                .filter((r: any) => r?.enabled !== false)
+                .map((r: any) => ({
+                  enabled: true,
+                  values: Array.isArray(r?.values) ? r.values.map((v: any) => String(v ?? "")) : [],
+                  note: String(r?.note ?? ""),
+                })),
+            });
+          } else {
+            setSizeChartData(null);
+          }
+
           // Fetch heavy fields (images/description/reviews) separately after first paint
           const needProductHeavy = !lpImages.length;
           const heavyProductPromise = needProductHeavy
