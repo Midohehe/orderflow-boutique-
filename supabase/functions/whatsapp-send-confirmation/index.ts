@@ -105,14 +105,36 @@ Deno.serve(async (req) => {
         });
       }
       const base = `${(settings.api_url || "https://api.green-api.com").replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-      const res = await fetch(`${base}/sendMessage/${settings.api_token}`, {
+      // Send interactive Quick Reply buttons so customer can confirm/cancel in one tap
+      const buttonsBody = {
+        chatId: `${phone}@c.us`,
+        message: text,
+        footer: "اختر أحد الخيارات أدناه",
+        buttons: [
+          { buttonId: "confirm_order", buttonText: "✅ تأكيد الطلب" },
+          { buttonId: "cancel_order", buttonText: "❌ إلغاء الطلب" },
+        ],
+      };
+      let res = await fetch(`${base}/sendButtons/${settings.api_token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: `${phone}@c.us`, message: text }),
+        body: JSON.stringify(buttonsBody),
       });
       providerData = await res.json().catch(() => ({}));
       providerOk = res.ok && !!providerData?.idMessage;
       providerMessageId = providerData?.idMessage || null;
+      // Fallback to plain text (with manual instructions) if buttons endpoint fails
+      if (!providerOk) {
+        const fallbackText = `${text}\n\nللتأكيد أرسل: تأكيد\nللإلغاء أرسل: إلغاء`;
+        res = await fetch(`${base}/sendMessage/${settings.api_token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chatId: `${phone}@c.us`, message: fallbackText }),
+        });
+        providerData = await res.json().catch(() => ({}));
+        providerOk = res.ok && !!providerData?.idMessage;
+        providerMessageId = providerData?.idMessage || null;
+      }
     } else if (provider === "whatchimp") {
       if (!settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
         return new Response(JSON.stringify({ skipped: true, reason: "whatchimp_not_configured" }), {
@@ -154,6 +176,7 @@ Deno.serve(async (req) => {
     if (providerOk) {
       await supabase.from("whatsapp_messages").update({
         status: "sent", green_message_id: providerMessageId,
+        raw: { kind: "confirmation_prompt", provider },
       }).eq("id", msg!.id);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
