@@ -21,6 +21,9 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
   if (!t) return null;
   if (t === "1") return "confirm";
   if (t === "2") return "cancel";
+  // Button IDs from interactive Quick Reply
+  if (t === "confirm_order" || t === "✅ تأكيد الطلب".toLowerCase() || t === "تأكيد الطلب" || t === "تاكيد الطلب") return "confirm";
+  if (t === "cancel_order" || t === "❌ إلغاء الطلب".toLowerCase() || t === "إلغاء الطلب" || t === "الغاء الطلب") return "cancel";
   const yes = ["نعم","تاكيد","تأكيد","موافق","ايوه","اوكي","ok","yes","y","اي","أكيد"];
   const no = ["لا","الغاء","إلغاء","لاء","cancel","no","n","مش","ماني"];
   if (yes.some((w) => t === w || t.includes(w))) return "confirm";
@@ -106,6 +109,20 @@ Deno.serve(async (req) => {
           || messageData.extendedTextMessageData?.stanzaId
           || messageData.textMessageData?.textMessage
           || "";
+      } else if (
+        messageData.typeMessage === "buttonsResponseMessage" ||
+        messageData.typeMessage === "templateButtonReplyMessage" ||
+        messageData.typeMessage === "listResponseMessage" ||
+        messageData.typeMessage === "interactiveButtons"
+      ) {
+        // Interactive Quick Reply tap → use buttonId (stable) when available, else displayed text
+        const br = messageData.buttonsResponseMessage
+          || messageData.templateButtonReplyMessage
+          || messageData.listResponseMessage
+          || messageData.interactiveButtons
+          || {};
+        content = br.selectedButtonId || br.selectedId || br.stanzaId || br.selectedDisplayText || br.selectedRowId || "";
+        msgType = "text";
       } else if (messageData.typeMessage === "imageMessage") {
         msgType = "image";
         const fm = messageData.fileMessageData || {};
@@ -201,7 +218,7 @@ Deno.serve(async (req) => {
         const intent = parseConfirmIntent(content);
         const { data: lastOutgoing } = await supabase
           .from("whatsapp_messages")
-          .select("content, created_at, order_id")
+          .select("content, created_at, order_id, raw")
           .eq("conversation_id", conversationId)
           .eq("direction", "out")
           .order("created_at", { ascending: false })
@@ -211,7 +228,7 @@ Deno.serve(async (req) => {
         const canUseAutoConfirm = !!(
           intent &&
           lastOutgoing?.order_id === convOrderId &&
-          isStructuredConfirmationPrompt(lastOutgoing?.content) &&
+          (isStructuredConfirmationPrompt(lastOutgoing?.content) || (lastOutgoing as any)?.raw?.kind === "confirmation_prompt") &&
           isRecentEnough(lastOutgoing?.created_at, 1000 * 60 * 60 * 24)
         );
 
