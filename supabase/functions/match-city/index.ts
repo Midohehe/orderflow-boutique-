@@ -21,13 +21,35 @@ const EXCLUDED_ZONE_NAMES = ["الصين", "china", "صين"];
 // Service-area keywords: never auto-select unless customer's text contains them.
 const SERVICE_KEYWORDS = ["نسائي", "vip", "في اي بي", "express", "اكسبرس", "اكسبريس", "سريع", "شركات", "مكتب"];
 
+// Common Arabic typos / spelling variants for Libyan cities & neighborhoods.
+// Applied AFTER the base normalization (lowercase, diacritics stripped,
+// alef/ya/ta-marbuta unified, leading "ال" removed). Keys & values are in
+// normalized form.
+const TYPO_FIXES: Record<string, string> = {
+  "طرلس": "طرابلس",
+  "طرابس": "طرابلس",
+  "طربلس": "طرابلس",
+  "تاجورا": "تاجوراء",
+  "بنغازى": "بنغازي",
+  "بنغاري": "بنغازي",
+  "مصراته": "مصراته",
+  "زليتن": "زليتن",
+};
+
 const norm = (s: string) => {
   let t = (s || "").toString().trim();
   t = t.replace(/[\u064B-\u0652\u0670]/g, "");
   t = t.replace(/[إأآا]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ة/g, "ه");
   t = t.replace(/\s+/g, " ").toLowerCase();
   t = t.replace(/^ال/, "");
-  return t.trim();
+  t = t.trim();
+  // Apply typo fixes on whole-word boundaries (Arabic-friendly).
+  for (const [wrong, right] of Object.entries(TYPO_FIXES)) {
+    if (!t.includes(wrong)) continue;
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}])${wrong}(?=$|[^\\p{L}\\p{N}])`, "gu");
+    t = t.replace(re, (_m, pre) => `${pre}${right}`);
+  }
+  return t;
 };
 const tokenize = (s: string) => norm(s).split(/[\s,،\-\/\.()]+/).filter(Boolean);
 
