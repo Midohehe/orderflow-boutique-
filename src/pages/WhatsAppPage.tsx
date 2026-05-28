@@ -266,6 +266,25 @@ export default function WhatsAppPage() {
                       <Input value={settings.whatchimp_api_url || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_url: e.target.value })} placeholder="https://app.whatchimp.com" />
                     </div>
                     <p className="text-xs text-muted-foreground">احصل على المفتاح من لوحة WhatChimp ← Developer API.</p>
+                    <div className="flex items-center justify-between p-2 border rounded-md bg-background">
+                      <Label htmlFor="wc-tpl" className="text-sm">استخدام قالب (Template) معتمد</Label>
+                      <Switch id="wc-tpl" checked={!!settings.whatchimp_use_template} onCheckedChange={(v) => setSettings({ ...settings, whatchimp_use_template: v })} />
+                    </div>
+                    {settings.whatchimp_use_template && (
+                      <>
+                        <div>
+                          <Label>اسم القالب (Template Name)</Label>
+                          <Input value={settings.whatchimp_template_name || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_name: e.target.value })} placeholder="order_confirmation" />
+                        </div>
+                        <div>
+                          <Label>لغة القالب</Label>
+                          <Input value={settings.whatchimp_template_language || "ar"} onChange={(e) => setSettings({ ...settings, whatchimp_template_language: e.target.value })} placeholder="ar" />
+                        </div>
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          مهم: واتساب يسمح بإرسال رسائل عادية للعميل خلال 24 ساعة فقط من آخر رسالة منه. للعملاء الجدد يجب استخدام قالب معتمد من واتساب Business. سيتم تمرير المتغيرات: اسم العميل، رقم الطلب، المنتجات، الإجمالي.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
                 <div className="p-3 bg-muted/40 rounded-md space-y-2">
