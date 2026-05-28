@@ -93,26 +93,61 @@ Deno.serve(async (req) => {
       status: "pending",
     }).select("id").single();
 
-    const base = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-    const greenRes = await fetch(`${base}/sendMessage/${settings.api_token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId: `${phone}@c.us`, message: text }),
-    });
-    const greenData = await greenRes.json().catch(() => ({}));
+    const provider = settings.provider || "green_api";
+    let providerOk = false;
+    let providerMessageId: string | null = null;
+    let providerData: any = {};
 
-    if (greenData?.idMessage) {
+    if (provider === "green_api") {
+      if (!settings.instance_id || !settings.api_token) {
+        return new Response(JSON.stringify({ skipped: true, reason: "green_api_not_configured" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const base = `${(settings.api_url || "https://api.green-api.com").replace(/\/$/, "")}/waInstance${settings.instance_id}`;
+      const res = await fetch(`${base}/sendMessage/${settings.api_token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: `${phone}@c.us`, message: text }),
+      });
+      providerData = await res.json().catch(() => ({}));
+      providerOk = res.ok && !!providerData?.idMessage;
+      providerMessageId = providerData?.idMessage || null;
+    } else if (provider === "whatchimp") {
+      if (!settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
+        return new Response(JSON.stringify({ skipped: true, reason: "whatchimp_not_configured" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
+      const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          apiToken: settings.whatchimp_api_key,
+          phone_number_id: settings.whatchimp_phone_number_id,
+          to_number: phone,
+          message_type: "text",
+          message_body: text,
+        }),
+      });
+      providerData = await res.json().catch(() => ({}));
+      providerOk = res.ok && (providerData?.status === "success" || providerData?.success === true || !!providerData?.message_id);
+      providerMessageId = providerData?.message_id || providerData?.data?.message_id || null;
+    }
+
+    if (providerOk) {
       await supabase.from("whatsapp_messages").update({
-        status: "sent", green_message_id: greenData.idMessage,
+        status: "sent", green_message_id: providerMessageId,
       }).eq("id", msg!.id);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } else {
       await supabase.from("whatsapp_messages").update({
-        status: "failed", error: JSON.stringify(greenData).slice(0, 500),
+        status: "failed", error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg!.id);
-      return new Response(JSON.stringify({ error: "green api failed", details: greenData }), {
+      return new Response(JSON.stringify({ error: `${provider} failed`, details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
