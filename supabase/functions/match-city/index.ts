@@ -231,7 +231,18 @@ function pickArea(city: CityCatalog, inputTokens: string[], inputNorm: string): 
       if (!hasKw) continue;
     }
     const s = nameScore(a.canonical, inputTokens, inputNorm);
-    if (s > 0 && (!best || s > best.score)) {
+    if (s <= 0) continue;
+    // Placeholder area = same name as the city (e.g. area "طرابلس" inside city "طرابلس").
+    // Always prefer a real neighborhood over the placeholder when scores tie.
+    const isPlaceholder = norm(a.canonical) === city.norm;
+    if (!best) {
+      best = { area: a.canonical, areaId: a.areaId, score: s };
+      continue;
+    }
+    const bestIsPlaceholder = norm(best.area) === city.norm;
+    if (s > best.score) {
+      best = { area: a.canonical, areaId: a.areaId, score: s };
+    } else if (s === best.score && bestIsPlaceholder && !isPlaceholder) {
       best = { area: a.canonical, areaId: a.areaId, score: s };
     }
   }
