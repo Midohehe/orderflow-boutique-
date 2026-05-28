@@ -20,7 +20,7 @@ import {
   ShieldCheck, PhoneCall, PhoneOff, CalendarClock, ShieldAlert,
   MessageCircle, Search, Loader2, ListChecks, Clock, History,
   RefreshCcw, Settings as SettingsIcon, ChevronLeft, ChevronRight,
-  AlertTriangle, Repeat, UserCheck,
+  AlertTriangle, Repeat, UserCheck, Send, CheckCheck, Check, XCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,6 +58,27 @@ interface CancellationReason { id: string; label: string }
 interface Attempt {
   id: string; result: string; notes: string | null; created_at: string;
 }
+
+type WaStatus = "pending" | "sent" | "delivered" | "read" | "failed";
+interface WaMsgInfo { status: WaStatus; created_at: string }
+
+const WA_LABEL: Record<WaStatus, string> = {
+  pending: "قيد الإرسال",
+  sent: "تم الإرسال",
+  delivered: "وصلت للعميل",
+  read: "قُرئت",
+  failed: "فشلت",
+};
+const WA_BADGE: Record<WaStatus, string> = {
+  pending: "bg-muted text-muted-foreground border-muted-foreground/30",
+  sent: "bg-primary/10 text-primary border-primary/30",
+  delivered: "bg-success/10 text-success border-success/40",
+  read: "bg-success text-success-foreground",
+  failed: "bg-destructive/10 text-destructive border-destructive/40",
+};
+const WA_ICON: Record<WaStatus, any> = {
+  pending: Clock, sent: Check, delivered: CheckCheck, read: CheckCheck, failed: XCircle,
+};
 
 const LABEL: Record<Status, string> = {
   unconfirmed: "بانتظار التأكيد",
@@ -115,6 +136,11 @@ export default function ConfirmationCenter() {
   // global activity log
   const [allAttempts, setAllAttempts] = useState<(Attempt & { order_id: string })[]>([]);
 
+  // confirmation whatsapp message status per order_id (latest outgoing msg)
+  const [waByOrder, setWaByOrder] = useState<Record<string, WaMsgInfo>>({});
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     const { data: u } = await supabase.auth.getUser();
@@ -139,14 +165,111 @@ export default function ConfirmationCenter() {
       (supabase as any).from("cancellation_reasons").select("id,label").eq("store_id", sid).order("sort_order"),
       (supabase as any).from("order_confirmation_attempts").select("id,order_id,result,notes,created_at").eq("store_id", sid).order("created_at", { ascending: false }).limit(300),
     ]);
-    setOrders((oRes.data as Order[]) || []);
+    const ordersList = (oRes.data as Order[]) || [];
+    setOrders(ordersList);
     setTemplates((tRes.data as Template[]) || []);
     setReasons((rRes.data as CancellationReason[]) || []);
     setAllAttempts((aRes.data as any) || []);
+
+    // Load latest outgoing whatsapp message per order (for confirmation status badge)
+    const orderIds = ordersList.map(o => o.id);
+    if (orderIds.length > 0) {
+      const { data: msgs } = await supabase
+        .from("whatsapp_messages")
+        .select("order_id,status,created_at")
+        .in("order_id", orderIds)
+        .eq("direction", "out")
+        .order("created_at", { ascending: false });
+      const map: Record<string, WaMsgInfo> = {};
+      for (const m of (msgs as any[]) || []) {
+        if (m.order_id && !map[m.order_id]) {
+          map[m.order_id] = { status: m.status as WaStatus, created_at: m.created_at };
+        }
+      }
+      setWaByOrder(map);
+    } else {
+      setWaByOrder({});
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Realtime: live-update confirmation message status
+  useEffect(() => {
+    if (!ownerId) return;
+    const ch = supabase
+      .channel(`wa-msg-status-${ownerId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "whatsapp_messages",
+        filter: `owner_id=eq.${ownerId}`,
+      }, (payload: any) => {
+        const row = payload.new || payload.old;
+        if (!row || row.direction !== "out" || !row.order_id) return;
+        setWaByOrder(prev => {
+          const cur = prev[row.order_id];
+          if (cur && new Date(cur.created_at) > new Date(row.created_at)) return prev;
+          return { ...prev, [row.order_id]: { status: row.status, created_at: row.created_at } };
+        });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [ownerId]);
+
+  // Send confirmation WhatsApp for a single order (uses server template + provider)
+  const sendConfirmMessage = useCallback(async (orderId: string): Promise<boolean> => {
+    try {
+      // optimistic pending
+      setWaByOrder(prev => ({ ...prev, [orderId]: { status: "pending", created_at: new Date().toISOString() } }));
+      const { data, error } = await supabase.functions.invoke("whatsapp-send-confirmation", {
+        body: { order_id: orderId },
+      });
+      if (error) throw error;
+      if ((data as any)?.skipped) {
+        toast({ title: "تعذر الإرسال", description: "إعدادات الواتساب غير مفعّلة", variant: "destructive" });
+        setWaByOrder(prev => { const c = { ...prev }; delete c[orderId]; return c; });
+        return false;
+      }
+      if ((data as any)?.ok) {
+        setWaByOrder(prev => ({ ...prev, [orderId]: { status: "sent", created_at: new Date().toISOString() } }));
+        return true;
+      }
+      throw new Error((data as any)?.error || "فشل الإرسال");
+    } catch (e: any) {
+      setWaByOrder(prev => ({ ...prev, [orderId]: { status: "failed", created_at: new Date().toISOString() } }));
+      toast({ title: "فشل الإرسال", description: e?.message || "خطأ", variant: "destructive" });
+      return false;
+    }
+  }, []);
+
+  const sendOneConfirm = async (order: Order) => {
+    setBusyId(order.id);
+    const ok = await sendConfirmMessage(order.id);
+    if (ok) toast({ title: "تم", description: `تم إرسال رسالة التأكيد لـ ${order.customer_name}` });
+    setBusyId(null);
+  };
+
+  const sendBulkConfirm = async () => {
+    const targets = orders.filter(o => o.confirmation_status === "unconfirmed");
+    if (targets.length === 0) {
+      toast({ title: "لا يوجد", description: "لا توجد طلبات بانتظار التأكيد" });
+      return;
+    }
+    setBulkSending(true);
+    setBulkProgress({ done: 0, total: targets.length });
+    let success = 0, fail = 0;
+    // Sequential to avoid provider rate limits
+    for (let i = 0; i < targets.length; i++) {
+      const ok = await sendConfirmMessage(targets[i].id);
+      ok ? success++ : fail++;
+      setBulkProgress({ done: i + 1, total: targets.length });
+      // small delay
+      await new Promise(r => setTimeout(r, 350));
+    }
+    setBulkSending(false);
+    setBulkProgress(null);
+    toast({ title: "اكتمل الإرسال", description: `نجح: ${success} · فشل: ${fail}` });
+  };
 
   // postponed callbacks reminder (every 60s)
   useEffect(() => {
@@ -314,6 +437,8 @@ export default function ConfirmationCenter() {
   const renderRow = (o: Order) => {
     const repeat = phoneFreq.get((o.phone || "").replace(/\D/g, "")) || 0;
     const isDue = o.postponed_until && new Date(o.postponed_until) <= new Date();
+    const wa = waByOrder[o.id];
+    const WaI = wa ? WA_ICON[wa.status] : null;
     return (
       <Card key={o.id} className={`card-shadow ${isDue ? "ring-2 ring-destructive" : ""}`}>
         <CardContent className="p-3 sm:p-4">
@@ -325,6 +450,16 @@ export default function ConfirmationCenter() {
                 {repeat > 1 && (
                   <Badge className="bg-primary/10 text-primary border-primary/30" variant="outline">
                     <Repeat className="w-3 h-3 ml-1" /> عميل متكرر ×{repeat}
+                  </Badge>
+                )}
+                {wa && WaI && (
+                  <Badge variant="outline" className={WA_BADGE[wa.status]} title={`رسالة التأكيد: ${WA_LABEL[wa.status]} · ${arabicTime(wa.created_at)}`}>
+                    <WaI className="w-3 h-3 ml-1" /> {WA_LABEL[wa.status]}
+                  </Badge>
+                )}
+                {!wa && o.confirmation_status === "unconfirmed" && (
+                  <Badge variant="outline" className="bg-muted/40 text-muted-foreground border-dashed">
+                    لم تُرسل رسالة التأكيد
                   </Badge>
                 )}
                 <span className="text-xs text-muted-foreground">{sinceText(o.created_at)}</span>
@@ -405,6 +540,14 @@ export default function ConfirmationCenter() {
                   <History className="w-3.5 h-3.5" /> تفاصيل
                 </Button>
               </div>
+              {o.confirmation_status === "unconfirmed" && (
+                <Button size="sm" variant="outline" className="h-8 w-full gap-1 border-success text-success hover:bg-success hover:text-success-foreground"
+                  disabled={busyId === o.id || wa?.status === "pending"}
+                  onClick={() => sendOneConfirm(o)}>
+                  {busyId === o.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  {wa ? "إعادة إرسال التأكيد" : "إرسال رسالة التأكيد"}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -421,6 +564,13 @@ export default function ConfirmationCenter() {
         iconGradient="from-emerald-500 to-teal-600"
         action={
           <div className="flex gap-2">
+            <Button variant="default" size="sm" onClick={sendBulkConfirm} disabled={bulkSending || counts.unconfirmed === 0}
+              className="bg-success hover:bg-success/90 text-success-foreground">
+              {bulkSending ? <Loader2 className="w-4 h-4 ml-1 animate-spin" /> : <Send className="w-4 h-4 ml-1" />}
+              {bulkSending && bulkProgress
+                ? `جاري الإرسال ${bulkProgress.done}/${bulkProgress.total}`
+                : `إرسال التأكيد للكل (${counts.unconfirmed})`}
+            </Button>
             <Button variant="outline" size="sm" onClick={loadAll} disabled={loading}>
               <RefreshCcw className={`w-4 h-4 ml-1 ${loading ? "animate-spin" : ""}`} /> تحديث
             </Button>
