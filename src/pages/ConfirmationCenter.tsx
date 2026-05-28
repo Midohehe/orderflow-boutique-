@@ -109,6 +109,7 @@ const sinceText = (d: string) => {
 };
 
 export default function ConfirmationCenter() {
+  const { activeStoreId, loading: storeLoading } = useStoreContext();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Status | "log">("unconfirmed");
@@ -149,9 +150,10 @@ export default function ConfirmationCenter() {
     const { data: ownerRow } = await (supabase as any).rpc("get_effective_owner_id", { _uid: u.user.id });
     const oid = (ownerRow as string) || u.user.id;
     setOwnerId(oid);
-    const sid = (typeof window !== "undefined" && u.user.id)
-      ? localStorage.getItem(`active_store_id:${u.user.id}`)
-      : null;
+    const sid = activeStoreId
+      || (typeof window !== "undefined" && u.user.id
+          ? localStorage.getItem(`active_store_id:${u.user.id}`)
+          : null);
     if (!sid) { setLoading(false); setOrders([]); setTemplates([]); setReasons([]); setAllAttempts([]); return; }
 
     const [oRes, tRes, rRes, aRes] = await Promise.all([
@@ -192,9 +194,9 @@ export default function ConfirmationCenter() {
       setWaByOrder({});
     }
     setLoading(false);
-  }, []);
+  }, [activeStoreId]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { if (!storeLoading) loadAll(); }, [loadAll, storeLoading]);
 
   // Realtime: live-update confirmation message status
   useEffect(() => {
