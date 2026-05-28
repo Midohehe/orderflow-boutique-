@@ -347,14 +347,22 @@ Deno.serve(async (req) => {
       let bestFuzzy: { rule: any; overlap: number } | null = null;
       for (const o of corrections as any[]) {
         if (!o.input_text) continue;
-        const savedToks = tokenize(o.input_text).filter((t) => t.length >= 2);
-        if (savedToks.length === 0) continue;
-        const matched = savedToks.filter((t) => inputTokSet.has(t));
+        // Use UNIQUE tokens — duplicates like "طرابلس طرابلس" must not count
+        // as two distinct signals.
+        const savedToksUnique = Array.from(
+          new Set(tokenize(o.input_text).filter((t) => t.length >= 2)),
+        );
+        // Require at least 2 unique meaningful tokens so a saved rule with
+        // only the city name (e.g. "طرابلس") can't hijack every order in
+        // that city — the customer's address must provide a specific
+        // landmark that matches a saved correction.
+        if (savedToksUnique.length < 2) continue;
+        const matched = savedToksUnique.filter((t) => inputTokSet.has(t));
         // Require full subset match (every saved token present in input).
-        if (matched.length !== savedToks.length) continue;
+        if (matched.length !== savedToksUnique.length) continue;
         // Prefer the most specific rule (most tokens matched).
-        if (!bestFuzzy || savedToks.length > bestFuzzy.overlap) {
-          bestFuzzy = { rule: o, overlap: savedToks.length };
+        if (!bestFuzzy || savedToksUnique.length > bestFuzzy.overlap) {
+          bestFuzzy = { rule: o, overlap: savedToksUnique.length };
         }
       }
       if (bestFuzzy) {
