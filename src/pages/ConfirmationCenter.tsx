@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { isolateLatin } from "@/lib/bidi";
 import { renderTemplate } from "@/lib/confirmationTemplates";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 type Status = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
 
