@@ -3349,6 +3349,9 @@ export type Database = {
           whatchimp_api_key: string
           whatchimp_api_url: string
           whatchimp_phone_number_id: string
+          whatchimp_template_language: string
+          whatchimp_template_name: string
+          whatchimp_use_template: boolean
         }
         Insert: {
           ai_auto_reply_enabled?: boolean
@@ -3368,6 +3371,9 @@ export type Database = {
           whatchimp_api_key?: string
           whatchimp_api_url?: string
           whatchimp_phone_number_id?: string
+          whatchimp_template_language?: string
+          whatchimp_template_name?: string
+          whatchimp_use_template?: boolean
         }
         Update: {
           ai_auto_reply_enabled?: boolean
@@ -3387,6 +3393,9 @@ export type Database = {
           whatchimp_api_key?: string
           whatchimp_api_url?: string
           whatchimp_phone_number_id?: string
+          whatchimp_template_language?: string
+          whatchimp_template_name?: string
+          whatchimp_use_template?: boolean
         }
         Relationships: []
       }

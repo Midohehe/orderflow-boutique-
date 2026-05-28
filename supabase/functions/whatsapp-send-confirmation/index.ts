@@ -120,16 +120,31 @@ Deno.serve(async (req) => {
         });
       }
       const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
+      const useTemplate = !!settings.whatchimp_use_template && !!settings.whatchimp_template_name;
+      const body: any = {
+        apiToken: settings.whatchimp_api_key,
+        phone_number_id: settings.whatchimp_phone_number_id,
+        to_number: phone,
+      };
+      if (useTemplate) {
+        body.message_type = "template";
+        body.template_name = settings.whatchimp_template_name;
+        body.language_code = settings.whatchimp_template_language || "ar";
+        // Template body variables in order: customer name, order code, products, total+currency
+        body.body_field = {
+          "1": order.customer_name || "عميلنا",
+          "2": String(order.order_code || order.id).slice(0, 8),
+          "3": productsLine,
+          "4": `${order.price} ${store?.currency_symbol || ""}`.trim(),
+        };
+      } else {
+        body.message_type = "text";
+        body.message_body = text;
+      }
       const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({
-          apiToken: settings.whatchimp_api_key,
-          phone_number_id: settings.whatchimp_phone_number_id,
-          to_number: phone,
-          message_type: "text",
-          message_body: text,
-        }),
+        body: JSON.stringify(body),
       });
       providerData = await res.json().catch(() => ({}));
       providerOk = res.ok && (providerData?.status === "success" || providerData?.success === true || !!providerData?.message_id);
