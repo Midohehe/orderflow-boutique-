@@ -200,7 +200,7 @@ export default function WhatsAppPage() {
         description="إدارة المحادثات وتأكيد الطلبات تلقائياً"
         iconGradient="from-green-500 to-emerald-500"
         action={
-          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <Dialog open={settingsOpen} onOpenChange={(o) => { setSettingsOpen(o); if (o && !settings) loadSettings(); }}>
             <DialogTrigger asChild>
               <Button className="bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all gap-2">
                 <SettingsIcon className="w-4 h-4" /> الإعدادات
@@ -208,6 +208,9 @@ export default function WhatsAppPage() {
             </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>إعدادات WhatsApp</DialogTitle></DialogHeader>
+            {!settings && (
+              <div className="py-10 text-center text-sm text-muted-foreground">جاري تحميل الإعدادات…</div>
+            )}
             {settings && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 border rounded-md">
