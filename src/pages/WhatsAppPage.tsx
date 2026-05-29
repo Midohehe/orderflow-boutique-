@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
+import { Copy, Plus, Trash2 } from "lucide-react";
 
 type Conversation = {
   id: string;
@@ -60,6 +61,11 @@ export default function WhatsAppPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [tokens, setTokens] = useState<any[]>([]);
+  const [newTokenLabel, setNewTokenLabel] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [stores, setStores] = useState<any[]>([]);
+  const [tokenStores, setTokenStores] = useState<Record<string, any[]>>({});
 
   const active = useMemo(() => conversations.find((c) => c.id === activeId) || null, [conversations, activeId]);
 
@@ -67,6 +73,8 @@ export default function WhatsAppPage() {
     if (!ownerId) return;
     loadConversations();
     loadSettings();
+    loadTokens();
+    checkAdmin();
 
     const ch = supabase
       .channel("wa-rt")
@@ -80,6 +88,76 @@ export default function WhatsAppPage() {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [ownerId]);
+
+  async function checkAdmin() {
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", ownerId).eq("role", "admin").maybeSingle();
+    setIsAdmin(!!data);
+    if (data) {
+      const { data: ss } = await supabase.from("stores").select("id, name");
+      setStores(ss || []);
+    }
+  }
+
+  async function loadTokens() {
+    const { data } = await supabase
+      .from("whatsapp_webhook_tokens")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setTokens((data as any) || []);
+    // Fetch store mappings per token
+    const ids = (data || []).map((t: any) => t.id);
+    if (ids.length > 0) {
+      const { data: maps } = await supabase
+        .from("whatsapp_token_stores")
+        .select("token_id, store_id, stores!inner(id, name)")
+        .in("token_id", ids);
+      const grouped: Record<string, any[]> = {};
+      (maps || []).forEach((m: any) => {
+        if (!grouped[m.token_id]) grouped[m.token_id] = [];
+        grouped[m.token_id].push(m);
+      });
+      setTokenStores(grouped);
+    } else {
+      setTokenStores({});
+    }
+  }
+
+  async function createToken() {
+    if (!ownerId) return;
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map((b) => b.toString(16).padStart(2, "0")).join("");
+    const { error } = await supabase.from("whatsapp_webhook_tokens").insert({
+      owner_id: ownerId,
+      token,
+      label: newTokenLabel.trim() || null,
+      provider: "whatchimp",
+    });
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { setNewTokenLabel(""); toast({ title: "تم إنشاء التوكن" }); loadTokens(); }
+  }
+
+  async function deleteToken(id: string) {
+    if (!confirm("حذف هذا التوكن نهائياً؟ سيتوقف الـwebhook المرتبط به.")) return;
+    const { error } = await supabase.from("whatsapp_webhook_tokens").delete().eq("id", id);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { toast({ title: "تم الحذف" }); loadTokens(); }
+  }
+
+  async function attachStore(tokenId: string, storeId: string) {
+    const { error } = await supabase.from("whatsapp_token_stores").insert({ token_id: tokenId, store_id: storeId });
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { toast({ title: "تم الربط" }); loadTokens(); }
+  }
+
+  async function detachStore(tokenId: string, storeId: string) {
+    const { error } = await supabase.from("whatsapp_token_stores")
+      .delete().eq("token_id", tokenId).eq("store_id", storeId);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else loadTokens();
+  }
+
+  const buildWebhookUrl = (token: string) =>
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook?provider=whatchimp&token=${token}`;
 
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
@@ -297,6 +375,77 @@ export default function WhatsAppPage() {
                   </div>
                   <p className="text-xs text-muted-foreground">في Green API: Settings → Notifications → فعّل incomingMessageReceived و outgoingMessageStatus</p>
                 </div>
+
+                {/* WhatChimp webhook tokens */}
+                <div className="p-3 border rounded-md space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">روابط Webhook لـ WhatChimp</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    أنشئ توكناً، انسخ الرابط، ثم الصقه في WhatChimp ← Webhook Settings (Incoming Messages + Message Status).
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="اسم اختياري (مثلاً: متجري الرئيسي)"
+                      value={newTokenLabel}
+                      onChange={(e) => setNewTokenLabel(e.target.value)}
+                    />
+                    <Button type="button" onClick={createToken} className="gap-1">
+                      <Plus className="w-4 h-4" /> إنشاء توكن
+                    </Button>
+                  </div>
+                  {tokens.length === 0 && (
+                    <div className="text-xs text-muted-foreground text-center py-2">لا توجد توكنات بعد</div>
+                  )}
+                  {tokens.map((t) => {
+                    const url = buildWebhookUrl(t.token);
+                    const mappedStores = tokenStores[t.id] || [];
+                    return (
+                      <div key={t.id} className="border rounded-md p-2 bg-background space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium">{t.label || "بدون اسم"}</div>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => deleteToken(t.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input readOnly value={url} className="font-mono text-xs" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(url); toast({ title: "تم النسخ" }); }}>
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          آخر استخدام: {t.last_used_at ? new Date(t.last_used_at).toLocaleString("ar") : "لم يُستخدم بعد"}
+                        </div>
+                        {isAdmin && (
+                          <div className="border-t pt-2 space-y-2">
+                            <Label className="text-xs">متاجر مرتبطة (للأدمن):</Label>
+                            <div className="flex flex-wrap gap-1">
+                              {mappedStores.length === 0 && <span className="text-xs text-muted-foreground">لا يوجد</span>}
+                              {mappedStores.map((m: any) => (
+                                <Badge key={m.store_id} variant="secondary" className="gap-1">
+                                  {m.stores?.name}
+                                  <button onClick={() => detachStore(t.id, m.store_id)} className="text-destructive hover:opacity-80">×</button>
+                                </Badge>
+                              ))}
+                            </div>
+                            <Select onValueChange={(v) => attachStore(t.id, v)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="إضافة متجر…" /></SelectTrigger>
+                              <SelectContent>
+                                {stores
+                                  .filter((s) => !mappedStores.find((m: any) => m.store_id === s.id))
+                                  .map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <div className="flex items-center justify-between p-3 border rounded-md">
                   <Label htmlFor="wa-auto">تأكيد تلقائي للطلبات</Label>
                   <Switch id="wa-auto" checked={!!settings.auto_confirm_enabled} onCheckedChange={(v) => setSettings({ ...settings, auto_confirm_enabled: v })} />
