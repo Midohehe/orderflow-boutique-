@@ -375,6 +375,77 @@ export default function WhatsAppPage() {
                   </div>
                   <p className="text-xs text-muted-foreground">في Green API: Settings → Notifications → فعّل incomingMessageReceived و outgoingMessageStatus</p>
                 </div>
+
+                {/* WhatChimp webhook tokens */}
+                <div className="p-3 border rounded-md space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">روابط Webhook لـ WhatChimp</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    أنشئ توكناً، انسخ الرابط، ثم الصقه في WhatChimp ← Webhook Settings (Incoming Messages + Message Status).
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="اسم اختياري (مثلاً: متجري الرئيسي)"
+                      value={newTokenLabel}
+                      onChange={(e) => setNewTokenLabel(e.target.value)}
+                    />
+                    <Button type="button" onClick={createToken} className="gap-1">
+                      <Plus className="w-4 h-4" /> إنشاء توكن
+                    </Button>
+                  </div>
+                  {tokens.length === 0 && (
+                    <div className="text-xs text-muted-foreground text-center py-2">لا توجد توكنات بعد</div>
+                  )}
+                  {tokens.map((t) => {
+                    const url = buildWebhookUrl(t.token);
+                    const mappedStores = tokenStores[t.id] || [];
+                    return (
+                      <div key={t.id} className="border rounded-md p-2 bg-background space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium">{t.label || "بدون اسم"}</div>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => deleteToken(t.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input readOnly value={url} className="font-mono text-xs" />
+                          <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(url); toast({ title: "تم النسخ" }); }}>
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          آخر استخدام: {t.last_used_at ? new Date(t.last_used_at).toLocaleString("ar") : "لم يُستخدم بعد"}
+                        </div>
+                        {isAdmin && (
+                          <div className="border-t pt-2 space-y-2">
+                            <Label className="text-xs">متاجر مرتبطة (للأدمن):</Label>
+                            <div className="flex flex-wrap gap-1">
+                              {mappedStores.length === 0 && <span className="text-xs text-muted-foreground">لا يوجد</span>}
+                              {mappedStores.map((m: any) => (
+                                <Badge key={m.store_id} variant="secondary" className="gap-1">
+                                  {m.stores?.name}
+                                  <button onClick={() => detachStore(t.id, m.store_id)} className="text-destructive hover:opacity-80">×</button>
+                                </Badge>
+                              ))}
+                            </div>
+                            <Select onValueChange={(v) => attachStore(t.id, v)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="إضافة متجر…" /></SelectTrigger>
+                              <SelectContent>
+                                {stores
+                                  .filter((s) => !mappedStores.find((m: any) => m.store_id === s.id))
+                                  .map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <div className="flex items-center justify-between p-3 border rounded-md">
                   <Label htmlFor="wa-auto">تأكيد تلقائي للطلبات</Label>
                   <Switch id="wa-auto" checked={!!settings.auto_confirm_enabled} onCheckedChange={(v) => setSettings({ ...settings, auto_confirm_enabled: v })} />
