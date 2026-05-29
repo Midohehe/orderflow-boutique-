@@ -153,7 +153,10 @@ Deno.serve(async (req) => {
       };
       if (useTemplate) {
         body.message_type = "template";
-        body.template_name = settings.whatchimp_template_name;
+        // Strip any UI-added suffix like " (Custom)" — WhatChimp expects raw template name.
+        body.template_name = String(settings.whatchimp_template_name)
+          .replace(/\s*\(.*?\)\s*$/, "")
+          .trim();
         body.language_code = settings.whatchimp_template_language || "ar";
         // Template body variables in order: customer name, order code, products, total+currency
         body.body_field = {
