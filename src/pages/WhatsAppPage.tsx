@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
+import { Copy, Plus, Trash2 } from "lucide-react";
 
 type Conversation = {
   id: string;
@@ -60,6 +61,11 @@ export default function WhatsAppPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [tokens, setTokens] = useState<any[]>([]);
+  const [newTokenLabel, setNewTokenLabel] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [stores, setStores] = useState<any[]>([]);
+  const [tokenStores, setTokenStores] = useState<Record<string, any[]>>({});
 
   const active = useMemo(() => conversations.find((c) => c.id === activeId) || null, [conversations, activeId]);
 
@@ -67,6 +73,8 @@ export default function WhatsAppPage() {
     if (!ownerId) return;
     loadConversations();
     loadSettings();
+    loadTokens();
+    checkAdmin();
 
     const ch = supabase
       .channel("wa-rt")
@@ -80,6 +88,76 @@ export default function WhatsAppPage() {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [ownerId]);
+
+  async function checkAdmin() {
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", ownerId).eq("role", "admin").maybeSingle();
+    setIsAdmin(!!data);
+    if (data) {
+      const { data: ss } = await supabase.from("stores").select("id, name");
+      setStores(ss || []);
+    }
+  }
+
+  async function loadTokens() {
+    const { data } = await supabase
+      .from("whatsapp_webhook_tokens")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setTokens((data as any) || []);
+    // Fetch store mappings per token
+    const ids = (data || []).map((t: any) => t.id);
+    if (ids.length > 0) {
+      const { data: maps } = await supabase
+        .from("whatsapp_token_stores")
+        .select("token_id, store_id, stores!inner(id, name)")
+        .in("token_id", ids);
+      const grouped: Record<string, any[]> = {};
+      (maps || []).forEach((m: any) => {
+        if (!grouped[m.token_id]) grouped[m.token_id] = [];
+        grouped[m.token_id].push(m);
+      });
+      setTokenStores(grouped);
+    } else {
+      setTokenStores({});
+    }
+  }
+
+  async function createToken() {
+    if (!ownerId) return;
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map((b) => b.toString(16).padStart(2, "0")).join("");
+    const { error } = await supabase.from("whatsapp_webhook_tokens").insert({
+      owner_id: ownerId,
+      token,
+      label: newTokenLabel.trim() || null,
+      provider: "whatchimp",
+    });
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { setNewTokenLabel(""); toast({ title: "تم إنشاء التوكن" }); loadTokens(); }
+  }
+
+  async function deleteToken(id: string) {
+    if (!confirm("حذف هذا التوكن نهائياً؟ سيتوقف الـwebhook المرتبط به.")) return;
+    const { error } = await supabase.from("whatsapp_webhook_tokens").delete().eq("id", id);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { toast({ title: "تم الحذف" }); loadTokens(); }
+  }
+
+  async function attachStore(tokenId: string, storeId: string) {
+    const { error } = await supabase.from("whatsapp_token_stores").insert({ token_id: tokenId, store_id: storeId });
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { toast({ title: "تم الربط" }); loadTokens(); }
+  }
+
+  async function detachStore(tokenId: string, storeId: string) {
+    const { error } = await supabase.from("whatsapp_token_stores")
+      .delete().eq("token_id", tokenId).eq("store_id", storeId);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else loadTokens();
+  }
+
+  const buildWebhookUrl = (token: string) =>
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook?provider=whatchimp&token=${token}`;
 
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
