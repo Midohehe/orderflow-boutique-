@@ -3399,6 +3399,65 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_token_stores: {
+        Row: {
+          created_at: string
+          id: string
+          store_id: string
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          store_id: string
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          store_id?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_token_stores_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_webhook_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_webhook_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          last_used_at: string | null
+          owner_id: string
+          provider: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          owner_id: string
+          provider?: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_used_at?: string | null
+          owner_id?: string
+          provider?: string
+          token?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
