@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
+  const providerParam = (url.searchParams.get("provider") || "").toLowerCase();
   if (!token) return new Response("missing token", { status: 401 });
 
   const supabase = createClient(
@@ -55,20 +56,63 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const { data: settings } = await supabase
-    .from("whatsapp_settings")
-    .select("*")
-    .eq("webhook_token", token)
+  // Resolve token: first check dedicated tokens table (per-user WhatChimp tokens),
+  // then fall back to legacy whatsapp_settings.webhook_token (Green API).
+  let ownerId: string | null = null;
+  let provider: string = providerParam || "green_api";
+  let settings: any = null;
+
+  const { data: tokenRow } = await supabase
+    .from("whatsapp_webhook_tokens")
+    .select("id, owner_id, provider")
+    .eq("token", token)
     .maybeSingle();
 
-  if (!settings) return new Response("invalid token", { status: 401 });
-  const ownerId = settings.owner_id;
+  if (tokenRow) {
+    ownerId = tokenRow.owner_id;
+    provider = providerParam || tokenRow.provider || "whatchimp";
+    await supabase
+      .from("whatsapp_webhook_tokens")
+      .update({ last_used_at: new Date().toISOString() })
+      .eq("id", tokenRow.id);
+    const { data: s } = await supabase
+      .from("whatsapp_settings")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    settings = s;
+  } else {
+    const { data: s } = await supabase
+      .from("whatsapp_settings")
+      .select("*")
+      .eq("webhook_token", token)
+      .maybeSingle();
+    if (!s) return new Response("invalid token", { status: 401 });
+    settings = s;
+    ownerId = s.owner_id;
+    provider = providerParam || s.provider || "green_api";
+  }
+
+  if (!ownerId) return new Response("invalid token", { status: 401 });
 
   let payload: any;
   try { payload = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
 
+  console.log("WA webhook", provider, JSON.stringify(payload).slice(0, 500));
+
+  // === WhatChimp branch ============================================
+  if (provider === "whatchimp") {
+    try {
+      const result = await handleWhatChimp(supabase, ownerId!, settings, payload);
+      return new Response(result || "ok");
+    } catch (e) {
+      console.error("whatchimp webhook error", e);
+      return new Response("error", { status: 500 });
+    }
+  }
+
+  // === Green API branch (existing logic) ===========================
   const type = payload?.typeWebhook;
-  console.log("WA webhook", type, JSON.stringify(payload).slice(0, 500));
 
   try {
     // Status updates
