@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
@@ -48,6 +49,8 @@ const fmt = (n: number) => Number(n || 0).toLocaleString("ar-LY", { minimumFract
 
 const FinancialAccounts = () => {
   const { effectiveOwnerId, loading: ctxLoading } = useUserContext();
+  const shippingAliases = useShippingErrorAliases();
+  const labelCarrier = (s: string | null | undefined) => (s ? (matchShippingError(s, shippingAliases) || s) : "");
   const { activeStoreId } = useStoreContext();
   const [activeTab, setActiveTab] = useState<string>("advanced");
   const [, startTabTransition] = useTransition();
