@@ -677,6 +677,8 @@ Deno.serve(async (req) => {
               shipping_id: created.id ? String(created.id) : null,
               status: "shipped",
               shipping_error: null,
+              carrier_status: "طلب شحن",
+              carrier_status_updated_at: new Date().toISOString(),
             })
             .eq("id", o.id);
         } else {
