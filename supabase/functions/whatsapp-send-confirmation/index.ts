@@ -145,26 +145,23 @@ Deno.serve(async (req) => {
       // Confirmation messages are almost always sent outside the 24h window,
       // so WhatsApp Business API only allows approved templates. Force template
       // mode whenever a template name is configured.
-      const useTemplate = !!settings.whatchimp_template_name;
+      const normalizedTemplateName = String(settings.whatchimp_template_name || "")
+        .replace(/\s*\(Custom\)\s*$/i, "")
+        .trim();
+      const useTemplate = !!settings.whatchimp_use_template && !!normalizedTemplateName;
       const body: any = {
         apiToken: settings.whatchimp_api_key,
         phone_number_id: settings.whatchimp_phone_number_id,
-        to_number: phone,
+        phone_number: phone,
       };
       if (useTemplate) {
-        body.message_type = "template";
-        // Strip any UI-added suffix like " (Custom)" — WhatChimp expects raw template name.
-        body.template_name = String(settings.whatchimp_template_name)
-          .replace(/\s*\(.*?\)\s*$/, "")
-          .trim();
+        body.template_name = normalizedTemplateName;
         body.language_code = settings.whatchimp_template_language || "ar";
-        // Template body variables in order: customer name, order code, products, total+currency
-        body.body_field = {
-          "1": order.customer_name || "عميلنا",
-          "2": String(order.order_code || order.id).slice(0, 8),
-          "3": productsLine,
-          "4": `${order.price} ${store?.currency_symbol || ""}`.trim(),
-        };
+        // WhatChimp template API expects flat variableN fields.
+        body.variable1 = order.customer_name || "عميلنا";
+        body.variable2 = String(order.order_code || order.id).slice(0, 8);
+        body.variable3 = productsLine;
+        body.variable4 = `${order.price} ${store?.currency_symbol || ""}`.trim();
       } else {
         body.message_type = "text";
         body.message_body = text;
@@ -191,6 +188,20 @@ Deno.serve(async (req) => {
       await supabase.from("whatsapp_messages").update({
         status: "failed", error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg!.id);
+      const providerMessage = String(providerData?.message || "");
+      const templateWindowError =
+        provider === "whatchimp" &&
+        providerMessage.toLowerCase().includes("outside 24 hour window");
+      if (templateWindowError) {
+        return new Response(JSON.stringify({
+          skipped: true,
+          reason: "template_required",
+          error: "whatsapp_template_required",
+          details: providerData,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ error: `${provider} failed`, details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
