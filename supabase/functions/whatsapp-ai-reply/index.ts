@@ -530,14 +530,38 @@ ${priceListText || "(لم تُعدّ بعد)"}
     }
 
     // Send via Green API
-    const chatId = `${phone}@c.us`;
-    const base = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-    const greenRes = await fetch(`${base}/sendMessage/${settings.api_token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, message: replyText }),
-    });
-    const greenData = await greenRes.json().catch(() => ({}));
+    const provider = (settings.provider || "green_api").toLowerCase();
+    let providerMsgId: string | null = null;
+    let providerOk = false;
+
+    if (provider === "whatchimp") {
+      const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
+      const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          apiToken: settings.whatchimp_api_key,
+          phone_number_id: settings.whatchimp_phone_number_id,
+          to_number: phone,
+          message_type: "text",
+          message_body: replyText,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      providerOk = res.ok && (data?.status === "success" || data?.success === true || !!data?.message_id);
+      providerMsgId = data?.message_id || data?.data?.message_id || null;
+    } else {
+      const chatId = `${phone}@c.us`;
+      const base = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
+      const greenRes = await fetch(`${base}/sendMessage/${settings.api_token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId, message: replyText }),
+      });
+      const greenData = await greenRes.json().catch(() => ({}));
+      providerOk = !!greenData?.idMessage;
+      providerMsgId = greenData?.idMessage || null;
+    }
 
     // Store outgoing message
     await supabase.from("whatsapp_messages").insert({
@@ -547,8 +571,8 @@ ${priceListText || "(لم تُعدّ بعد)"}
       direction: "out",
       message_type: "text",
       content: replyText,
-      status: greenData?.idMessage ? "sent" : "failed",
-      green_message_id: greenData?.idMessage || null,
+      status: providerOk ? "sent" : "failed",
+      green_message_id: providerMsgId,
     });
 
     await supabase.from("whatsapp_conversations").update({
