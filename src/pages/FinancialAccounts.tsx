@@ -564,7 +564,7 @@ const FinancialAccounts = () => {
                   <SelectTrigger className="h-9 w-full sm:w-56"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">جميع الحالات</SelectItem>
-                    {shippedCarrierStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {shippedCarrierStatuses.map(s => <SelectItem key={s} value={s}>{labelCarrier(s)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
