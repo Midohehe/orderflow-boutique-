@@ -35,8 +35,6 @@ const TEXT_FIELDS: { key: string; label: string; type?: string; textarea?: boole
   { key: "customer_name", label: "اسم العميل" },
   { key: "phone", label: "رقم الهاتف" },
   { key: "address", label: "العنوان", textarea: true },
-  { key: "quantity", label: "الكمية", type: "number" },
-  { key: "price", label: "السعر", type: "number" },
   { key: "shipping_reference", label: "كود الشحن" },
 ];
 
@@ -576,7 +574,14 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
 
             <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
+                  <span className="text-xs text-muted-foreground">
+                    إجمالي القطع: <span className="font-semibold text-foreground">{items.reduce((s, it) => s + (Number(it.quantity) || 0), 0)}</span>
+                    {" · "}
+                    السعر الإجمالي: <span className="font-semibold text-foreground">{items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0)}</span>
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   {eoEnabled && <Button type="button" size="sm" variant="outline" onClick={retryLinking} title="يحاول ربط المنتجات والمتغيرات بناءً على معرفات EasyOrders">
                     <Link2 className="w-4 h-4 ml-1" /> إعادة محاولة الربط
