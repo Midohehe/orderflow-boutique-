@@ -24,7 +24,10 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to="/" replace />;
   }
 
-  if (!isAdmin && (!profile || !subscriptionActive)) {
+  // Only block when we explicitly know the account is deactivated.
+  // A missing profile (transient fetch error / sub-user edge case) should NOT
+  // trigger the "subscription expired" screen, since we use per-order billing.
+  if (!isAdmin && profile && profile.is_active === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6" dir="rtl">
         <div className="max-w-md w-full bg-card border rounded-lg p-8 text-center space-y-4">
