@@ -107,7 +107,9 @@ Deno.serve(async (req) => {
       .from("orders")
       .select("id, shipping_id, shipping_reference, status, carrier_status")
       .eq("owner_id", ownerId)
-      .not("shipping_id", "is", null);
+      .not("shipping_id", "is", null)
+      // Skip orders already in a terminal carrier state to avoid re-polling them every run.
+      .not("status", "in", "(delivered,returned,cancelled,refunded)");
     if (oErr) {
       return new Response(JSON.stringify({ error: oErr.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -137,23 +139,18 @@ Deno.serve(async (req) => {
       }
     }`;
 
-    for (const o of orders || []) {
+    const processOne = async (o: any) => {
       const shipId = Number(o.shipping_id);
-      if (!Number.isFinite(shipId)) continue;
+      if (!Number.isFinite(shipId)) return;
       const res = await gql(SHIPMENT_QUERY, { id: shipId });
       const sh = res?.data?.shipment;
       if (!sh) {
         failed++;
         if (res?.errors?.[0]?.message && errors.length < 5) errors.push(res.errors[0].message);
-        continue;
+        return;
       }
-      const statusCode = sh.status?.code ?? null;
-      const composite = buildComposite(
-        statusCode,
-        sh.deliveryType?.code,
-        sh.returnType?.code,
-      );
-      if (!composite) { failed++; continue; }
+      const composite = buildComposite(sh.status?.code ?? null, sh.deliveryType?.code, sh.returnType?.code);
+      if (!composite) { failed++; return; }
 
       const customLabel = mappingMap.get(composite);
       const label = customLabel
@@ -175,8 +172,6 @@ Deno.serve(async (req) => {
         carrier_status_updated_at: new Date().toISOString(),
         carrier_status_raw: sh,
       };
-      // Prefer the human-readable name over the numeric ID so the UI shows
-      // an actual reason instead of just a code.
       const crName = sh.cancellationReason?.name ?? sh.cancellationReason?.id ?? null;
       if (crName != null && String(crName).trim() !== "") {
         updatePayload.carrier_cancellation_reason_id = String(crName);
@@ -187,12 +182,10 @@ Deno.serve(async (req) => {
       if (composite === "UPKBD" || composite === "UKDB" || composite === "UPKBL") {
         updatePayload.status = "unpacked";
       }
-      const { error: uErr } = await admin
-        .from("orders").update(updatePayload).eq("id", o.id);
-      if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); }
-      else updated++;
+      const { error: uErr } = await admin.from("orders").update(updatePayload).eq("id", o.id);
+      if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); return; }
+      updated++;
 
-      // Auto-restore stock when carrier marks shipment as ready/unpacked back at our warehouse
       if (composite === "UPKBD" || composite === "UKDB" || composite === "UPKBL") {
         try {
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
@@ -205,6 +198,14 @@ Deno.serve(async (req) => {
           });
         } catch (e) { console.error("apply-order-stock UPKBD failed", e); }
       }
+    };
+
+    // Process in parallel batches to stay well under the 150s idle timeout.
+    const CONCURRENCY = 10;
+    const list = orders || [];
+    for (let i = 0; i < list.length; i += CONCURRENCY) {
+      const batch = list.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map((o) => processOne(o).catch(() => { failed++; })));
     }
 
     const codes = Array.from(codeStats.entries())
