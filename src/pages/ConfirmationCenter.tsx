@@ -229,7 +229,11 @@ export default function ConfirmationCenter() {
       });
       if (error) throw error;
       if ((data as any)?.skipped) {
-        toast({ title: "تعذر الإرسال", description: "إعدادات الواتساب غير مفعّلة", variant: "destructive" });
+        const reason = (data as any)?.reason;
+        const description = reason === "template_required"
+          ? "WhatChimp رفض الإرسال لأن هذه المحادثة خارج نافذة 24 ساعة، والقالب المعتمد أو اسم القالب في الإعدادات غير صحيح."
+          : "إعدادات الواتساب غير مفعّلة";
+        toast({ title: "تعذر الإرسال", description, variant: "destructive" });
         setWaByOrder(prev => { const c = { ...prev }; delete c[orderId]; return c; });
         return false;
       }
