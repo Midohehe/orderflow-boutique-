@@ -166,6 +166,10 @@ Deno.serve(async (req) => {
         body.message_type = "text";
         body.message_body = text;
       }
+      console.log("whatchimp confirmation payload", JSON.stringify({
+        ...body,
+        apiToken: "[redacted]",
+      }));
       const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
