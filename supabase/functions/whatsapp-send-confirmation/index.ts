@@ -145,17 +145,17 @@ Deno.serve(async (req) => {
       // Confirmation messages are almost always sent outside the 24h window,
       // so WhatsApp Business API only allows approved templates. Force template
       // mode whenever a template name is configured.
-      const useTemplate = !!settings.whatchimp_template_name;
+      const normalizedTemplateName = String(settings.whatchimp_template_name || "")
+        .replace(/\s*\(Custom\)\s*$/i, "")
+        .trim();
+      const useTemplate = !!settings.whatchimp_use_template && !!normalizedTemplateName;
       const body: any = {
         apiToken: settings.whatchimp_api_key,
         phone_number_id: settings.whatchimp_phone_number_id,
         phone_number: phone,
       };
       if (useTemplate) {
-        // Strip any UI-added suffix like " (Custom)" — WhatChimp expects raw template name.
-        body.template_name = String(settings.whatchimp_template_name)
-          .replace(/\s*\(.*?\)\s*$/, "")
-          .trim();
+        body.template_name = normalizedTemplateName;
         body.language_code = settings.whatchimp_template_language || "ar";
         // WhatChimp template API expects flat variableN fields.
         body.variable1 = order.customer_name || "عميلنا";
@@ -166,10 +166,6 @@ Deno.serve(async (req) => {
         body.message_type = "text";
         body.message_body = text;
       }
-      console.log("whatchimp confirmation payload", JSON.stringify({
-        ...body,
-        apiToken: "[redacted]",
-      }));
       const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
