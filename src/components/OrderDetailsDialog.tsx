@@ -35,8 +35,6 @@ const TEXT_FIELDS: { key: string; label: string; type?: string; textarea?: boole
   { key: "customer_name", label: "اسم العميل" },
   { key: "phone", label: "رقم الهاتف" },
   { key: "address", label: "العنوان", textarea: true },
-  { key: "quantity", label: "الكمية", type: "number" },
-  { key: "price", label: "السعر", type: "number" },
   { key: "shipping_reference", label: "كود الشحن" },
 ];
 
