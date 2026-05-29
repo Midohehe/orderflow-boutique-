@@ -188,6 +188,20 @@ Deno.serve(async (req) => {
       await supabase.from("whatsapp_messages").update({
         status: "failed", error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg!.id);
+      const providerMessage = String(providerData?.message || "");
+      const templateWindowError =
+        provider === "whatchimp" &&
+        providerMessage.toLowerCase().includes("outside 24 hour window");
+      if (templateWindowError) {
+        return new Response(JSON.stringify({
+          skipped: true,
+          reason: "template_required",
+          error: "whatsapp_template_required",
+          details: providerData,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ error: `${provider} failed`, details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
