@@ -142,7 +142,10 @@ Deno.serve(async (req) => {
         });
       }
       const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
-      const useTemplate = !!settings.whatchimp_use_template && !!settings.whatchimp_template_name;
+      // Confirmation messages are almost always sent outside the 24h window,
+      // so WhatsApp Business API only allows approved templates. Force template
+      // mode whenever a template name is configured.
+      const useTemplate = !!settings.whatchimp_template_name;
       const body: any = {
         apiToken: settings.whatchimp_api_key,
         phone_number_id: settings.whatchimp_phone_number_id,
