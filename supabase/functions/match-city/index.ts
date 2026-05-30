@@ -79,6 +79,56 @@ function lev(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
+// Cache for similarity computations (key: "a||b" with a<=b lexicographically).
+const SIM_CACHE = new Map<string, number>();
+const LEV_CACHE = new Map<string, number>();
+
+function levCached(a: string, b: string): number {
+  if (a === b) return 0;
+  const key = a < b ? `${a}||${b}` : `${b}||${a}`;
+  const hit = LEV_CACHE.get(key);
+  if (hit !== undefined) return hit;
+  const v = lev(a, b);
+  if (LEV_CACHE.size < 5000) LEV_CACHE.set(key, v);
+  return v;
+}
+
+/** Similarity 0..100 between two strings AFTER norm() is applied by caller. */
+function similarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 100;
+  const key = a < b ? `${a}||${b}` : `${b}||${a}`;
+  const hit = SIM_CACHE.get(key);
+  if (hit !== undefined) return hit;
+  const maxLen = Math.max(a.length, b.length);
+  const d = levCached(a, b);
+  const sim = Math.round((1 - d / maxLen) * 100);
+  if (SIM_CACHE.size < 5000) SIM_CACHE.set(key, sim);
+  return sim;
+}
+
+/** Best fuzzy similarity of `name` against any token in input, or whole input. */
+function fuzzyScore(name: string, inputTokens: string[], inputNorm: string): number {
+  const n = norm(name);
+  if (!n || n.length < 3) return 0;
+  let best = similarity(n, inputNorm);
+  for (const t of inputTokens) {
+    if (t.length < 3) continue;
+    const s = similarity(n, t);
+    if (s > best) best = s;
+  }
+  // Sliding window over input tokens for multi-word names.
+  if (n.includes(" ")) {
+    const parts = n.split(/\s+/).length;
+    for (let i = 0; i + parts <= inputTokens.length; i++) {
+      const window = inputTokens.slice(i, i + parts).join(" ");
+      const s = similarity(n, window);
+      if (s > best) best = s;
+    }
+  }
+  return best;
+}
+
 // Score how strongly `name` (a city or area) is referenced in the customer's
 // `inputTokens` + raw normalized input. Returns 0..100.
 function nameScore(name: string, inputTokens: string[], inputNorm: string): number {
@@ -113,6 +163,10 @@ function nameScore(name: string, inputTokens: string[], inputNorm: string): numb
       if (t.length >= n.length && t.includes(n)) return 70;
     }
   }
+  // 5) Similarity-ratio fuzzy (handles single-char insert/delete/substitute,
+  // typos like طرلس→طرابلس, بنغازى→بنغازي, سوق الجمعه→سوق الجمعة).
+  const sim = fuzzyScore(n, inputTokens, inputNorm);
+  if (sim >= 85) return sim; // 85..99
   return 0;
 }
 
@@ -207,9 +261,18 @@ function pickCity(
   const cityFieldUntrustworthy = !cityNorm || CITY_FIELD_JUNK_RE.test(cityNorm);
 
   let best: CityPick | null = null;
+  let runnerUp: CityPick | null = null;
   const consider = (city: CityCatalog, score: number, via: string) => {
     if (score <= 0) return;
-    if (!best || score > best.score) best = { city, score, via };
+    if (!best || score > best.score) {
+      if (best && best.city.norm !== city.norm) runnerUp = best;
+      best = { city, score, via };
+    } else if (
+      score > (runnerUp?.score ?? 0) &&
+      city.norm !== best.city.norm
+    ) {
+      runnerUp = { city, score, via };
+    }
   };
 
   // (a) Direct city-name match. Prefer ADDRESS over CITY field (address is
@@ -218,8 +281,9 @@ function pickCity(
     let addrS = nameScore(c.canonical, addrTokens, addrNorm);
     let cityS = nameScore(c.canonical, cityTokens, cityNorm);
     for (const al of c.aliases) {
-      addrS = Math.max(addrS, nameScore(al, addrTokens, addrNorm));
-      cityS = Math.max(cityS, nameScore(al, cityTokens, cityNorm));
+      // Aliases are slightly discounted vs canonical (max 95).
+      addrS = Math.max(addrS, Math.min(95, nameScore(al, addrTokens, addrNorm)));
+      cityS = Math.max(cityS, Math.min(95, nameScore(al, cityTokens, cityNorm)));
     }
     // Address hit gets +5 bonus to break ties in its favor; city-field hit is
     // discounted when the field is junky.
@@ -227,19 +291,27 @@ function pickCity(
     if (cityS > 0) consider(c, cityFieldUntrustworthy ? cityS - 30 : cityS, "city-field");
   }
 
-  // (b) Neighborhood inference: area name in input → parent city. Discounted
-  // so a direct city match always wins.
+  // (b) Libyan Landmark Detection: area/neighborhood name in input → parent
+  // city. Works even when city field is empty.
   for (const c of catalog) {
     for (const a of c.areas) {
       if (isServiceArea(a.canonical)) continue;
       const addrS = nameScore(a.canonical, addrTokens, addrNorm);
       const cityS = nameScore(a.canonical, cityTokens, cityNorm);
-      const s = Math.max(addrS, cityS) - 10;
-      if (s > 0) consider(c, s, `area:${a.canonical}`);
+      const raw = Math.max(addrS, cityS);
+      if (raw <= 0) continue;
+      // Strong landmark hit (exact/multi-word) → 95. Otherwise slight discount.
+      const s = raw >= 95 ? 95 : Math.max(60, raw - 10);
+      consider(c, s, `landmark:${a.canonical}`);
     }
   }
 
-  return best && best.score >= 60 ? best : null;
+  if (!best || best.score < 60) return null;
+  // If runner-up is within 5 points, mark as uncertain so caller can ask AI.
+  if (runnerUp && best.score - runnerUp.score < 5 && best.score < 95) {
+    (best as any).uncertain = true;
+  }
+  return best;
 }
 
 // ============= Step 2: pick area within selected city =============
@@ -428,7 +500,11 @@ Deno.serve(async (req) => {
     const addrNormStr = norm(addrInput);
     let cityPick = pickCity(catalog, cityTokens, addrTokens, cityNormStr, addrNormStr);
 
-    if (!cityPick) {
+    // Skip AI if we have a strong, unambiguous fuzzy/landmark match (>90).
+    const needsAi = !cityPick
+      || ((cityPick as any).uncertain && cityPick.score <= 90);
+
+    if (needsAi) {
       // AI fallback (city only)
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (apiKey) {
@@ -436,7 +512,9 @@ Deno.serve(async (req) => {
         if (aiCity) {
           const key = norm(aiCity);
           const found = catalog.find((c) => c.norm === key);
-          if (found) cityPick = { city: found, score: 60, via: "ai" };
+          if (found && (!cityPick || cityPick.score < 90)) {
+            cityPick = { city: found, score: 60, via: "ai" };
+          }
         }
       }
     }
