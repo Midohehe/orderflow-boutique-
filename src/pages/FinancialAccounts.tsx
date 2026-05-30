@@ -367,7 +367,8 @@ const FinancialAccounts = () => {
       revenue: acc.revenue + p.revenue,
       cost: acc.cost + p.cost,
       profit: acc.profit + p.profit,
-    }), { revenue: 0, cost: 0, profit: 0 });
+      pieces: acc.pieces + p.count,
+    }), { revenue: 0, cost: 0, profit: 0, pieces: 0 });
     return { ...agg, count: shippedFiltered.length };
   }, [shippedByProduct, shippedFiltered]);
 
@@ -612,7 +613,7 @@ const FinancialAccounts = () => {
                       })}
                       <TableRow className="bg-muted/40 font-bold">
                         <TableCell className="text-right">الإجمالي</TableCell>
-                        <TableCell className="text-right">{shippedTotals.count}</TableCell>
+                        <TableCell className="text-right">{shippedTotals.pieces}</TableCell>
                         <TableCell className="text-right text-blue-600">{fmt(shippedTotals.cost)}</TableCell>
                         <TableCell className="text-right text-green-600">{fmt(shippedTotals.revenue)}</TableCell>
                         <TableCell className={`text-right ${shippedTotals.profit >= 0 ? "text-emerald-600" : "text-red-500"}`}>{fmt(shippedTotals.profit)}</TableCell>
