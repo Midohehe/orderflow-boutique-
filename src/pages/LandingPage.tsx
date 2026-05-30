@@ -1074,10 +1074,6 @@ const LandingPage = () => {
               <Award className="w-4 h-4 text-amber-400" />
               ضمان الجودة الفائقة
             </span>
-            <span className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
-              <Truck className="w-4 h-4 text-amber-400" />
-              توصيل مجاني فوري
-            </span>
           </div>
         </div>
       </section>
