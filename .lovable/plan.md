@@ -1,63 +1,40 @@
-# خطة إكمال ربط WhatChimp
+## التشخيص
 
-## 1. قاعدة البيانات (migration واحدة)
+اختبرت الطلب فعلياً على `https://www.was-la.com/p/katro` ورصدت في الكونسول والشبكة:
 
-**جدول `whatsapp_webhook_tokens`:**
-- `id`, `owner_id` (المالك الأساسي)
-- `token` (فريد، يُولَّد تلقائياً)
-- `label` (وصف اختياري للتمييز)
-- `created_at`, `last_used_at`
+```
+POST /rest/v1/analytics_events  →  400
+PGRST204: Could not find the 'fb_adset_id' column of 'analytics_events' in the schema cache
+```
 
-**جدول `whatsapp_token_stores`** (ربط توكن بأكثر من متجر — للأدمن):
-- `id`, `token_id` (FK)، `store_id` (FK)
-- يسمح للأدمن بإضافة متاجر إضافية لنفس التوكن
+### السبب الجذري
+الكود في `LandingPage.tsx` (داخل `getAttribution()` و `trackCheckoutStart`) يحاول إدراج عمود `fb_adset_id` في جدول `analytics_events` — **لكن هذا العمود غير موجود في الجدول**. الأعمدة الموجودة فعلياً:
+`fb_campaign_id`, `fb_ad_id`, `fbclid` فقط (بدون `fb_adset_id`).
 
-**RLS:**
-- المستخدم العادي: يدير توكناته فقط (`owner_id = auth.uid()`).
-- الأدمن (`has_role admin`): يدير أي توكن + يضيف/يحذف ربط متاجر.
+نفس الكود يُستخدم في تتبع `page_view` و `checkout_start` ولإرسال الطلب — أي محاولة تتبع تفشل بـ 400 وتظهر للمستخدم رسالة خطأ.
 
-**GRANT:** authenticated (CRUD محدود بـRLS) + service_role (للـwebhook).
+ملاحظة جانبية: جدول `orders` يحتوي `fb_adset_id` بشكل سليم، لذا إدراج الطلب نفسه ليس فيه مشكلة على مستوى قاعدة البيانات.
 
-## 2. تعديل `whatsapp-webhook`
-- يقبل `?provider=whatchimp&token=XXX`.
-- يبحث عن التوكن → يحدد `owner_id` + قائمة المتاجر المرتبطة.
-- يفك تشفير payload WhatChimp:
-  - **الرسائل الواردة**: يحفظ في `whatsapp_messages` (direction=in) ويحدّث/ينشئ `whatsapp_conversations`.
-  - **تحديثات الحالة** (sent/delivered/read/failed): يحدّث `whatsapp_messages.status` عبر `green_message_id`.
-- يستدعي `whatsapp-ai-reply` للرسائل الواردة.
+## خطة الإصلاح
 
-## 3. تعديل `whatsapp-ai-reply`
-- يقرأ `provider` من `whatsapp_settings` (whatchimp أو green_api).
-- يرسل الرد عبر WhatChimp API عند الحاجة.
-- **معالجة كلمات مفتاحية** للرسائل الواردة على طلب:
-  - "تأكيد" / "نعم" → تحديث حالة الطلب إلى `confirmed`.
-  - "إلغاء" / "لا" → تحديث إلى `cancelled`.
+### 1. إضافة العمود الناقص في `analytics_events`
+هجرة SQL تضيف `fb_adset_id TEXT` للجدول (متوافق مع باقي الأعمدة الإعلانية).
 
-## 4. واجهة المستخدم (`WhatsAppPage.tsx`)
-قسم جديد **"رابط Webhook لـ WhatChimp"**:
-- زر "توليد توكن جديد" (مع label اختياري).
-- جدول التوكنات الحالية: التوكن، الرابط الكامل، زر نسخ، آخر استخدام، حذف.
-- الرابط يكون:
-  ```
-  https://iyqooryhmshlajuhabmc.supabase.co/functions/v1/whatsapp-webhook?provider=whatchimp&token=<token>
-  ```
-- تعليمات قصيرة: انسخ الرابط → WhatChimp ← Webhook Settings.
+```sql
+ALTER TABLE public.analytics_events
+  ADD COLUMN IF NOT EXISTS fb_adset_id text;
+```
 
-## 5. واجهة الأدمن
-في صفحة `AdminStoreDetail` أو قسم جديد ضمن إعدادات WhatsApp للأدمن فقط:
-- اختيار توكن موجود + إضافة متجر/متاجر إضافية مرتبطة به.
-- عرض المتاجر المرتبطة بكل توكن مع زر إزالة.
+لا حاجة لتعديل الـ GRANTs أو الـ RLS لأن الجدول موجود مسبقاً وسياساته قائمة.
 
-## 6. الاختبار
-1. توليد توكن من الواجهة ولصقه في WhatChimp.
-2. إرسال رسالة من رقم خارجي → تظهر في صفحة المحادثات.
-3. كتابة "تأكيد" على رسالة طلب → تتغير حالة الطلب.
+### 2. التحقق بعد التطبيق
+- إعادة تجربة طلب فعلي على نفس صفحة `/p/katro`.
+- التأكد من اختفاء الخطأ من الكونسول.
+- التأكد من وصول الطلب لقائمة الطلبات وانتقال المستخدم لصفحة الشكر.
 
-## ملفات ستتغير
-- migration جديدة (جدولان + RLS + GRANT)
-- `supabase/functions/whatsapp-webhook/index.ts`
-- `supabase/functions/whatsapp-ai-reply/index.ts`
-- `src/pages/WhatsAppPage.tsx`
-- `src/pages/AdminStoreDetail.tsx` (قسم ربط متاجر بتوكن)
+## ملاحظة إضافية (لاحقة، ليست ضمن هذا الإصلاح)
+في لوغات `ship-orders` رصدت خطأين متكررين مع شركة الشحن لا علاقة لهما بهذه المشكلة:
+- `Validation failed: input.shipmentProducts.0.quantity` (كميات غير صالحة)
+- `Selected region doesn't exists in customer price list` (منطقة الشحن غير مُسعَّرة)
 
-اضغط **Implement plan** للبدء.
+أقدر أعالجهم في طلب منفصل لو رغبت.

@@ -170,6 +170,7 @@ export type Database = {
           created_at: string
           event_type: string
           fb_ad_id: string | null
+          fb_adset_id: string | null
           fb_campaign_id: string | null
           fbclid: string | null
           id: string
@@ -186,6 +187,7 @@ export type Database = {
           created_at?: string
           event_type: string
           fb_ad_id?: string | null
+          fb_adset_id?: string | null
           fb_campaign_id?: string | null
           fbclid?: string | null
           id?: string
@@ -202,6 +204,7 @@ export type Database = {
           created_at?: string
           event_type?: string
           fb_ad_id?: string | null
+          fb_adset_id?: string | null
           fb_campaign_id?: string | null
           fbclid?: string | null
           id?: string
