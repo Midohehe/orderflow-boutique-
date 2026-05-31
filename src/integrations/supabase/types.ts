@@ -3341,6 +3341,14 @@ export type Database = {
           created_at: string
           enabled: boolean
           id: string
+          mazbot_api_key: string
+          mazbot_base_url: string
+          mazbot_email: string
+          mazbot_jwt_expires_at: string | null
+          mazbot_jwt_token: string | null
+          mazbot_password: string
+          mazbot_template_id: string
+          mazbot_use_template: boolean
           owner_id: string
           provider: string
           updated_at: string
@@ -3369,6 +3377,14 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          mazbot_api_key?: string
+          mazbot_base_url?: string
+          mazbot_email?: string
+          mazbot_jwt_expires_at?: string | null
+          mazbot_jwt_token?: string | null
+          mazbot_password?: string
+          mazbot_template_id?: string
+          mazbot_use_template?: boolean
           owner_id: string
           provider?: string
           updated_at?: string
@@ -3397,6 +3413,14 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          mazbot_api_key?: string
+          mazbot_base_url?: string
+          mazbot_email?: string
+          mazbot_jwt_expires_at?: string | null
+          mazbot_jwt_token?: string | null
+          mazbot_password?: string
+          mazbot_template_id?: string
+          mazbot_use_template?: boolean
           owner_id?: string
           provider?: string
           updated_at?: string
