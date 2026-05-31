@@ -247,7 +247,7 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const payload: any = {
       enabled: settings.enabled,
-      provider: "whatchimp",
+      provider: settings.provider === "wati" ? "wati" : "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
       whatchimp_api_url: normalizeEndpoint(settings.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
@@ -259,6 +259,11 @@ export default function WhatsAppPage() {
       whatchimp_template_language: settings.whatchimp_template_language || "ar",
       whatchimp_template_id: settings.whatchimp_template_id || "",
       whatchimp_template_buttons: settings.whatchimp_template_buttons || "",
+      wati_api_endpoint: (settings.wati_api_endpoint || "").trim().replace(/\/$/, ""),
+      wati_access_token: settings.wati_access_token || "",
+      wati_template_name: settings.wati_template_name || "",
+      wati_broadcast_name: settings.wati_broadcast_name || "order_confirmation",
+      wati_use_template: settings.wati_use_template !== false,
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
