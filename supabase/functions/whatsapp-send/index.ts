@@ -24,6 +24,21 @@ function previewOf(text: string | null | undefined, t: string): string {
   return "";
 }
 
+function resolveEndpoint(raw: string | null | undefined, fallback: string): string {
+  const value = String(raw || "").trim();
+  if (!value) return fallback;
+  if (/^https?:\/\//i.test(value)) return value.replace(/\/$/, "");
+  return `${fallback.replace(/\/$/, "")}/${value.replace(/^\/+/, "")}`;
+}
+
+function isProviderSuccess(data: any): boolean {
+  return data?.status === "1" || data?.status === 1 || data?.status === "success" || data?.success === true || !!data?.wa_message_id || !!data?.message_id;
+}
+
+function getProviderMessageId(data: any): string | null {
+  return data?.wa_message_id || data?.message_id || data?.data?.wa_message_id || data?.data?.message_id || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -147,24 +162,33 @@ Deno.serve(async (req) => {
     let providerData: any = {};
 
     {
-      const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
-      const endpoint = `${apiUrl}/api/v1/whatsapp/send`;
-      const payload: Record<string, unknown> = {
-        apiToken: settings.whatchimp_api_key,
-        phone_number_id: settings.whatchimp_phone_number_id,
-        to_number: phone,
-        message_type: mediaUrl ? (mediaType === "image" ? "image" : "document") : "text",
-        message_body: text || "",
-        ...(mediaUrl ? { media_url: mediaUrl, caption: text || "" } : {}),
-      };
+      const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
+      const endpoint = resolveEndpoint(settings.whatchimp_send_endpoint, `${baseUrl}/api/v1/whatsapp/send`);
+      const body = new URLSearchParams();
+      body.set("apiToken", settings.whatchimp_api_key);
+      body.set("phone_number_id", settings.whatchimp_phone_number_id);
+      body.set("phone_number", phone);
+
+      if (mediaUrl) {
+        body.set("media_url", mediaUrl);
+        if (mediaType === "image") {
+          body.set("message_type", "image");
+        } else {
+          body.set("message_type", "document");
+        }
+        if (text) body.set("caption", text);
+      } else {
+        body.set("message", text || "");
+      }
+
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+        body: body.toString(),
       });
       providerData = await res.json().catch(() => ({}));
-      providerOk = res.ok && (providerData?.status === "success" || providerData?.success === true || !!providerData?.message_id);
-      providerMessageId = providerData?.message_id || providerData?.data?.message_id || null;
+      providerOk = res.ok && isProviderSuccess(providerData);
+      providerMessageId = getProviderMessageId(providerData);
     }
 
     if (!providerOk) {
