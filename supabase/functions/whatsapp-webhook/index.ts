@@ -146,7 +146,7 @@ async function handleWhatChimp(supabase: any, ownerId: string, settings: any, pa
   }
 
   const incomingMsgId = pickFirst(payload, [
-    "message_id", "id", "wamid", "data.message_id", "data.id", "data.wamid",
+    "message_id", "id", "wamid", "wa_message_id", "data.message_id", "data.id", "data.wamid", "data.wa_message_id",
   ]) || null;
 
   // Upsert conversation
