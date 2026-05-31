@@ -36,6 +36,12 @@ function s(v: unknown, max = 200): string {
   return v.trim().slice(0, max);
 }
 
+function generateFallbackOrderCode(): string {
+  const epochPart = Date.now().toString().slice(-7);
+  const randomPart = Math.floor(Math.random() * 900 + 100).toString();
+  return `${epochPart}${randomPart}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -230,6 +236,8 @@ Deno.serve(async (req) => {
     // Insert the order immediately with no city match. City matching (AI) and
     // stock/WhatsApp side-effects run in the background so the client can
     // navigate to the thank-you page without waiting on slow AI calls.
+    const orderCode = generateFallbackOrderCode();
+
     const { data: insertedOrder, error: iErr } = await supabase.from("orders").insert({
       owner_id: (product as any).owner_id,
       store_id: (product as any).store_id ?? null,
@@ -259,6 +267,7 @@ Deno.serve(async (req) => {
       fb_ad_id: s(body.fb_ad_id ?? body.utm_content ?? "", 64) || null,
       fbclid: s(body.fbclid ?? "", 500) || null,
       landing_slug: s(body.landing_slug ?? landingSlug ?? "", 200) || null,
+      order_code: orderCode,
     }).select("id").single();
 
     if (iErr) {
