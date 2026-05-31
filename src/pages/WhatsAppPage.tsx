@@ -247,7 +247,7 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const payload: any = {
       enabled: settings.enabled,
-      provider: settings.provider === "wati" ? "wati" : "whatchimp",
+      provider: settings.provider === "wati" ? "wati" : settings.provider === "mazbot" ? "mazbot" : "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
       whatchimp_api_url: normalizeEndpoint(settings.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
@@ -264,6 +264,12 @@ export default function WhatsAppPage() {
       wati_template_name: settings.wati_template_name || "",
       wati_broadcast_name: settings.wati_broadcast_name || "order_confirmation",
       wati_use_template: settings.wati_use_template !== false,
+      mazbot_base_url: (settings.mazbot_base_url || "https://mazbot.net/api").trim().replace(/\/$/, ""),
+      mazbot_api_key: settings.mazbot_api_key || "",
+      mazbot_email: settings.mazbot_email || "",
+      mazbot_password: settings.mazbot_password || "",
+      mazbot_template_id: settings.mazbot_template_id || "",
+      mazbot_use_template: settings.mazbot_use_template !== false,
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
@@ -333,13 +339,14 @@ export default function WhatsAppPage() {
                 <div className="flex items-center justify-between p-3 border rounded-md gap-3">
                   <Label>المزوّد</Label>
                   <Select
-                    value={settings.provider === "wati" ? "wati" : "whatchimp"}
+                    value={settings.provider === "wati" ? "wati" : settings.provider === "mazbot" ? "mazbot" : "whatchimp"}
                     onValueChange={(v) => setSettings({ ...settings, provider: v })}
                   >
                     <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="wati">Wati</SelectItem>
                       <SelectItem value="whatchimp">WhatChimp</SelectItem>
+                      <SelectItem value="mazbot">MazBot</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -406,7 +413,69 @@ export default function WhatsAppPage() {
                   </div>
                 )}
 
-                {settings.provider !== "wati" && (
+                {settings.provider === "mazbot" && (
+                  <div className="space-y-4 p-4 border rounded-md bg-muted/20">
+                    <div className="text-sm font-semibold">إعدادات MazBot</div>
+                    <div>
+                      <Label>الرابط الأساسي</Label>
+                      <Input
+                        value={settings.mazbot_base_url || "https://mazbot.net/api"}
+                        onChange={(e) => setSettings({ ...settings, mazbot_base_url: e.target.value })}
+                        placeholder="https://mazbot.net/api"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <Label>API Key</Label>
+                      <Input
+                        type="password"
+                        value={settings.mazbot_api_key || ""}
+                        onChange={(e) => setSettings({ ...settings, mazbot_api_key: e.target.value })}
+                        placeholder="انسخه من Profile في لوحة MazBot"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <Label>البريد الإلكتروني</Label>
+                        <Input
+                          type="email"
+                          value={settings.mazbot_email || ""}
+                          onChange={(e) => setSettings({ ...settings, mazbot_email: e.target.value })}
+                          placeholder="you@example.com"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div>
+                        <Label>كلمة المرور</Label>
+                        <Input
+                          type="password"
+                          value={settings.mazbot_password || ""}
+                          onChange={(e) => setSettings({ ...settings, mazbot_password: e.target.value })}
+                          placeholder="كلمة مرور حساب MazBot"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Template ID</Label>
+                      <Input
+                        value={settings.mazbot_template_id || ""}
+                        onChange={(e) => setSettings({ ...settings, mazbot_template_id: e.target.value })}
+                        placeholder="مثال: 42"
+                        dir="ltr"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">يجب أن يحوي القالب 4 متغيرات بالترتيب: {`{{1}}=اسم العميل، {{2}}=رقم الطلب، {{3}}=المنتجات، {{4}}=الإجمالي`}.</p>
+                    </div>
+                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-1">
+                      <div>إرسال القالب: <span className="font-mono" dir="ltr">POST /api/whatsapp/send-template</span></div>
+                      <div>إرسال جلسة نصية: <span className="font-mono" dir="ltr">POST /api/send-message</span></div>
+                      <div>ملاحظة: MazBot لا يدعم Webhook خارجي، لذا لن تصل الردود الواردة مباشرةً.</div>
+                    </div>
+                  </div>
+                )}
+
+                {settings.provider !== "wati" && settings.provider !== "mazbot" && (
                 <div className="space-y-4 p-4 border rounded-md bg-muted/20">
                     <div className="text-sm font-semibold">إعدادات WhatChimp</div>
                     <div className="grid gap-3 md:grid-cols-2">
