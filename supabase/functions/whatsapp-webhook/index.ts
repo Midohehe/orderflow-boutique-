@@ -1,4 +1,4 @@
-// Public webhook for Green API. URL: /functions/v1/whatsapp-webhook?token=<webhook_token>
+// Public webhook for WhatChimp / Wati. URL: /functions/v1/whatsapp-webhook?token=<webhook_token>
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -54,6 +54,144 @@ function pickFirst(obj: any, keys: string[]): any {
     if (v != null && v !== "") return v;
   }
   return undefined;
+}
+
+function detectProvider(url: URL, payload: any): "wati" | "whatchimp" {
+  const q = (url.searchParams.get("provider") || "").toLowerCase();
+  if (q === "wati") return "wati";
+  if (q === "whatchimp") return "whatchimp";
+  // Heuristic: Wati payloads use waId + eventType strings like "message", "sentMessageDELIVERED"
+  if (payload?.waId && typeof payload?.eventType === "string") return "wati";
+  return "whatchimp";
+}
+
+// ---- Wati webhook handler --------------------------------------------
+async function handleWati(supabase: any, ownerId: string, settings: any, payload: any): Promise<string> {
+  const eventType = String(payload?.eventType || "").toLowerCase();
+
+  // Status events: sentmessageDELIVERED / READ / SENT / FAILED / messageStatusUpdate
+  if (eventType.startsWith("sentmessage") || eventType.includes("status")) {
+    const wamid = payload?.whatsappMessageId || payload?.id;
+    const raw = String(payload?.statusString || payload?.status || eventType).toLowerCase();
+    let mapped = "sent";
+    if (raw.includes("read")) mapped = "read";
+    else if (raw.includes("deliver")) mapped = "delivered";
+    else if (raw.includes("fail") || raw.includes("undeliver")) mapped = "failed";
+    else if (raw.includes("sent")) mapped = "sent";
+    if (wamid) {
+      await supabase.from("whatsapp_messages")
+        .update({ status: mapped })
+        .eq("green_message_id", String(wamid))
+        .eq("owner_id", ownerId);
+    }
+    return "ok";
+  }
+
+  // Skip our own outbound echoes
+  if (payload?.owner === true) return "ignored (own message)";
+
+  // Incoming message
+  const phone = String(payload?.waId || "").replace(/\D/g, "");
+  if (!phone) return "ignored (no phone)";
+
+  const senderName = payload?.senderName || null;
+  const rawType = String(payload?.type || "text").toLowerCase();
+  let msgType = "text";
+  let content = String(payload?.text || "");
+  let mediaUrl: string | null = null;
+  let mediaMime: string | null = null;
+
+  if (rawType === "image") { msgType = "image"; mediaUrl = payload?.data || null; }
+  else if (rawType === "audio" || rawType === "voice") { msgType = "audio"; mediaUrl = payload?.data || null; }
+  else if (rawType === "video") { msgType = "video"; mediaUrl = payload?.data || null; }
+  else if (rawType === "document" || rawType === "file") { msgType = "file"; mediaUrl = payload?.data || null; }
+  else if (rawType === "button" || payload?.buttonReply) {
+    msgType = "text";
+    content = payload?.buttonReply?.text || payload?.text || "";
+  }
+  else if (rawType === "interactive" || payload?.listReply?.title) {
+    msgType = "text";
+    content = payload?.listReply?.title || payload?.text || "";
+  }
+
+  const incomingMsgId = payload?.whatsappMessageId || payload?.id || null;
+
+  const { data: conv } = await supabase
+    .from("whatsapp_conversations")
+    .select("id, order_id, unread_count")
+    .eq("owner_id", ownerId).eq("phone", phone).maybeSingle();
+
+  let conversationId: string;
+  let convOrderId: string | null = conv?.order_id ?? null;
+  if (!conv) {
+    const { data: linkedOrder } = await supabase
+      .from("orders").select("id").eq("owner_id", ownerId)
+      .ilike("phone", `%${phone.slice(-9)}%`)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    convOrderId = linkedOrder?.id ?? null;
+    const { data: newConv, error: cErr } = await supabase.from("whatsapp_conversations").insert({
+      owner_id: ownerId, phone, customer_name: senderName,
+      order_id: convOrderId,
+      last_message_preview: previewOf(content, msgType),
+      unread_count: 1,
+    }).select("id").single();
+    if (cErr) throw cErr;
+    conversationId = newConv.id;
+  } else {
+    conversationId = conv.id;
+    await supabase.from("whatsapp_conversations").update({
+      last_message_at: new Date().toISOString(),
+      last_message_preview: previewOf(content, msgType),
+      unread_count: (conv.unread_count || 0) + 1,
+      ...(senderName ? { customer_name: senderName } : {}),
+    }).eq("id", conversationId);
+  }
+
+  await supabase.from("whatsapp_messages").insert({
+    owner_id: ownerId, conversation_id: conversationId, order_id: convOrderId,
+    direction: "in", message_type: msgType, content, media_url: mediaUrl, media_mime: mediaMime,
+    status: "delivered",
+    green_message_id: incomingMsgId ? String(incomingMsgId) : null,
+    raw: payload,
+  });
+
+  // Auto-confirm
+  if (msgType === "text" && convOrderId && settings?.auto_confirm_enabled) {
+    const intent = parseConfirmIntent(content);
+    if (intent) {
+      await supabase.from("orders").update({
+        confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+        confirmed_at: new Date().toISOString(),
+      }).eq("id", convOrderId).eq("owner_id", ownerId);
+
+      const replyText = intent === "confirm"
+        ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
+        : "❌ تم إلغاء طلبك بناءً على طلبك.";
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({ phone, text: replyText, order_id: convOrderId, owner_id: ownerId }),
+        }).catch(() => {});
+      } catch (e) { console.error("wati auto-reply failed", e); }
+      return "ok";
+    }
+  }
+
+  if (settings?.ai_auto_reply_enabled) {
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+        body: JSON.stringify({ owner_id: ownerId, conversation_id: conversationId, phone }),
+      }).catch((e) => console.error("ai-reply trigger failed", e));
+    } catch (e) { console.error("ai-reply trigger error", e); }
+  }
+  return "ok";
 }
 
 async function handleWhatChimp(supabase: any, ownerId: string, settings: any, payload: any): Promise<string> {
@@ -309,13 +447,16 @@ Deno.serve(async (req) => {
   let payload: any;
   try { payload = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
 
-  console.log("WA webhook (whatchimp)", JSON.stringify(payload).slice(0, 500));
+  const provider = detectProvider(url, payload);
+  console.log(`WA webhook (${provider})`, JSON.stringify(payload).slice(0, 500));
 
   try {
-    const result = await handleWhatChimp(supabase, ownerId, settings, payload);
+    const result = provider === "wati"
+      ? await handleWati(supabase, ownerId, settings, payload)
+      : await handleWhatChimp(supabase, ownerId, settings, payload);
     return new Response(result || "ok");
   } catch (e) {
-    console.error("whatchimp webhook error", e);
+    console.error(`${provider} webhook error`, e);
     return new Response("error", { status: 500 });
   }
 });
