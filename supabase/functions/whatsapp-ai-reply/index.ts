@@ -490,8 +490,12 @@ ${priceListText || "(لم تُعدّ بعد)"}
       if (!aiRes.ok) {
         const text = await aiRes.text();
         console.error("AI gateway error:", aiRes.status, text);
-        return new Response(JSON.stringify({ error: "AI gateway error" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        let errMsg = "AI gateway error";
+        if (aiRes.status === 402) errMsg = "رصيد الذكاء الاصطناعي منتهٍ — يرجى شحن رصيد Lovable AI";
+        else if (aiRes.status === 429) errMsg = "تم تجاوز حد المعدّل، حاول لاحقاً";
+        return new Response(JSON.stringify({ error: errMsg, status: aiRes.status, detail: text.slice(0, 300) }), {
+          status: aiRes.status === 402 || aiRes.status === 429 ? aiRes.status : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const aiData = await aiRes.json();
