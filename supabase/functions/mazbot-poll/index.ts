@@ -262,13 +262,17 @@ async function pollOwner(supabase: any, s: any) {
         if (direction === "in" && mtype === "text" && s.ai_auto_reply_enabled && !aiTriggered) {
           aiTriggered = true;
           try {
-            const trigger = fetch(`${SUPABASE_URL}/functions/v1/whatsapp-ai-reply`, {
+            console.log(`[mazbot-poll] triggering ai-reply owner=${s.owner_id} conv=${conv.id} phone=${phone}`);
+            const aiRes = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-ai-reply`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
               body: JSON.stringify({ owner_id: s.owner_id, conversation_id: conv.id, phone }),
-            }).catch((e) => console.error("ai-reply trigger failed", e));
-            queueBackground(trigger);
-          } catch (e) { console.error("ai-reply trigger error", e); }
+            });
+            const aiText = await aiRes.text();
+            console.log(`[mazbot-poll] ai-reply status=${aiRes.status} body=${aiText.slice(0, 300)}`);
+          } catch (e) {
+            console.error("ai-reply trigger error", e);
+          }
         }
       } catch (e) {
         console.error("mazbot message sync failed", {
