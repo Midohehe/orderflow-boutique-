@@ -53,24 +53,36 @@ async function pollOwner(supabase: any, s: any) {
   let totalNew = 0;
 
   for (const room of rooms) {
-    const updatedAt = room?.updated_at ? new Date(room.updated_at).getTime() : 0;
-    if (since && updatedAt && updatedAt <= since) continue;
+    const lastConv = room?.last_conversation_at || room?.updated_at;
+    const updatedAt = lastConv ? new Date(lastConv.replace(" ", "T") + "Z").getTime() : 0;
+    // Skip rooms we already fully processed (with a 30s grace window for clock skew).
+    if (since && updatedAt && updatedAt <= since - 30000) continue;
     const roomId = room?.id;
-    const phone = String(room?.contact?.phone || room?.phone || "").replace(/\D+/g, "");
-    const name = room?.contact?.name || room?.name || null;
+    const phone = String(room?.phone || room?.sender_id || room?.contact?.phone || "").replace(/\D+/g, "");
+    const rawName = room?.name || room?.contact?.name || null;
+    const name = rawName && !/^\+?\d+$/.test(String(rawName).trim()) ? rawName : null;
     if (!roomId || !phone) continue;
 
     // 2) messages for the room
     const msgRes = await fetch(`${base}/message/${roomId}`, { headers });
     const msgData = await msgRes.json().catch(() => ({}));
-    const msgs: any[] = msgData?.data?.messages || msgData?.data || [];
+    // MazBot returns messages grouped by date: data.messages = [{date, messages:[...]}].
+    const groups: any[] = msgData?.data?.messages || [];
+    const msgs: any[] = Array.isArray(groups)
+      ? groups.flatMap((g: any) => Array.isArray(g?.messages) ? g.messages : (g?.id ? [g] : []))
+      : [];
     if (!msgs.length) continue;
 
     // upsert conversation
     const { data: conv } = await supabase
       .from("whatsapp_conversations")
       .upsert(
-        { owner_id: s.owner_id, phone, customer_name: name, last_message_at: new Date(room.updated_at || Date.now()).toISOString() },
+        {
+          owner_id: s.owner_id,
+          phone,
+          ...(name ? { customer_name: name } : {}),
+          last_message_at: new Date(updatedAt || Date.now()).toISOString(),
+        },
         { onConflict: "owner_id,phone" },
       )
       .select("id, order_id")
@@ -93,24 +105,38 @@ async function pollOwner(supabase: any, s: any) {
 
     let lastPreview: string | null = null;
     let unreadInc = 0;
-    for (const m of msgs) {
-      const providerId = String(m?.id || m?.message_id || "");
+    // Process oldest → newest so previews/unread reflect the latest message.
+    const sortedMsgs = msgs.slice().sort((a: any, b: any) => {
+      const ta = new Date(a?.created_at || a?.sent_at || 0).getTime();
+      const tb = new Date(b?.created_at || b?.sent_at || 0).getTime();
+      return ta - tb;
+    });
+    for (const m of sortedMsgs) {
+      const providerId = `mazbot:${m?.id ?? m?.message_id ?? ""}`;
+      if (!m?.id && !m?.message_id) continue;
       if (!providerId) continue;
       // dedupe via green_message_id reuse
       const { data: existing } = await supabase
         .from("whatsapp_messages")
         .select("id")
         .eq("green_message_id", providerId)
+        .eq("owner_id", s.owner_id)
         .maybeSingle();
       if (existing) continue;
 
-      const direction = m?.sender_type === "client" || m?.from_me || m?.is_outgoing ? "out" : "in";
-      const content =
-        m?.button_reply?.title || m?.button?.text || m?.button_payload ||
-        m?.interactive?.button_reply?.title || m?.interactive?.list_reply?.title ||
-        m?.message || m?.text || m?.content || null;
-      const mediaUrl = m?.media_url || m?.file_url || null;
-      const mtype = mediaUrl ? (m?.media_type || "file") : "text";
+      // is_contact_msg=true → message FROM the customer (incoming).
+      const direction = m?.is_contact_msg === true ? "in" : "out";
+      const buttonText = Array.isArray(m?.buttons) && m.buttons.length > 0
+        ? (m.buttons[0]?.text || m.buttons[0]?.title || null) : null;
+      const content = m?.value || buttonText || m?.message || m?.text || null;
+      const mediaUrl =
+        m?.header_image || m?.header_video || m?.header_audio || m?.header_document ||
+        m?.media_url || m?.file_url || null;
+      let mtype = String(m?.message_type || "text").toLowerCase();
+      if (m?.header_image) mtype = "image";
+      else if (m?.header_video) mtype = "video";
+      else if (m?.header_audio) mtype = "audio";
+      else if (m?.header_document) mtype = "file";
       const status = direction === "out" ? "sent" : "delivered";
 
       await supabase.from("whatsapp_messages").insert({
@@ -124,7 +150,9 @@ async function pollOwner(supabase: any, s: any) {
         status,
         green_message_id: providerId,
         raw: m,
-        created_at: m?.created_at ? new Date(m.created_at).toISOString() : new Date().toISOString(),
+        created_at: m?.created_at
+          ? new Date(m.created_at).toISOString()
+          : (m?.sent_at ? new Date(m.sent_at).toISOString() : new Date().toISOString()),
       });
       totalNew++;
       lastPreview = content || (mediaUrl ? "📎 ملف" : null);
