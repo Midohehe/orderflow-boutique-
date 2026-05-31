@@ -183,12 +183,15 @@ async function handleWati(supabase: any, ownerId: string, settings: any, payload
   if (settings?.ai_auto_reply_enabled) {
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      console.log(`[wati] triggering ai-reply owner=${ownerId} conv=${conversationId}`);
+      const aiRes = await fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({ owner_id: ownerId, conversation_id: conversationId, phone }),
-      }).catch((e) => console.error("ai-reply trigger failed", e));
+      });
+      const aiText = await aiRes.text();
+      console.log(`[wati] ai-reply status=${aiRes.status} body=${aiText.slice(0, 300)}`);
     } catch (e) { console.error("ai-reply trigger error", e); }
   }
   return "ok";
@@ -398,12 +401,15 @@ async function handleWhatChimp(supabase: any, ownerId: string, settings: any, pa
   if (settings?.ai_auto_reply_enabled) {
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-      fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      console.log(`[whatchimp] triggering ai-reply owner=${ownerId} conv=${conversationId}`);
+      const aiRes = await fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({ owner_id: ownerId, conversation_id: conversationId, phone }),
-      }).catch((e) => console.error("ai-reply trigger failed", e));
+      });
+      const aiText = await aiRes.text();
+      console.log(`[whatchimp] ai-reply status=${aiRes.status} body=${aiText.slice(0, 300)}`);
     } catch (e) {
       console.error("ai-reply trigger error", e);
     }
