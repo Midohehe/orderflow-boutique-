@@ -3341,6 +3341,11 @@ export type Database = {
           owner_id: string
           provider: string
           updated_at: string
+          wati_access_token: string
+          wati_api_endpoint: string
+          wati_broadcast_name: string
+          wati_template_name: string
+          wati_use_template: boolean
           welcome_template: string
           whatchimp_api_key: string
           whatchimp_api_url: string
@@ -3364,6 +3369,11 @@ export type Database = {
           owner_id: string
           provider?: string
           updated_at?: string
+          wati_access_token?: string
+          wati_api_endpoint?: string
+          wati_broadcast_name?: string
+          wati_template_name?: string
+          wati_use_template?: boolean
           welcome_template?: string
           whatchimp_api_key?: string
           whatchimp_api_url?: string
@@ -3387,6 +3397,11 @@ export type Database = {
           owner_id?: string
           provider?: string
           updated_at?: string
+          wati_access_token?: string
+          wati_api_endpoint?: string
+          wati_broadcast_name?: string
+          wati_template_name?: string
+          wati_use_template?: boolean
           welcome_template?: string
           whatchimp_api_key?: string
           whatchimp_api_url?: string

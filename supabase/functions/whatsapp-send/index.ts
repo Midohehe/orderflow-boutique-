@@ -1,5 +1,6 @@
 // Send a WhatsApp message via WhatChimp. Authenticated only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { sendText, sendImage, isConfigured } from "../_shared/wa-providers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,21 +23,6 @@ function previewOf(text: string | null | undefined, t: string): string {
   if (t === "file") return "📎 ملف";
   if (t === "audio") return "🎤 رسالة صوتية";
   return "";
-}
-
-function resolveEndpoint(raw: string | null | undefined, fallback: string): string {
-  const value = String(raw || "").trim();
-  if (!value) return fallback;
-  if (/^https?:\/\//i.test(value)) return value.replace(/\/$/, "");
-  return `${fallback.replace(/\/$/, "")}/${value.replace(/^\/+/, "")}`;
-}
-
-function isProviderSuccess(data: any): boolean {
-  return data?.status === "1" || data?.status === 1 || data?.status === "success" || data?.success === true || !!data?.wa_message_id || !!data?.message_id;
-}
-
-function getProviderMessageId(data: any): string | null {
-  return data?.wa_message_id || data?.message_id || data?.data?.wa_message_id || data?.data?.message_id || null;
 }
 
 Deno.serve(async (req) => {
@@ -100,8 +86,8 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
-      return new Response(JSON.stringify({ error: "WhatChimp not configured" }), {
+    if (!isConfigured(settings)) {
+      return new Response(JSON.stringify({ error: "WhatsApp provider not configured" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -157,46 +143,19 @@ Deno.serve(async (req) => {
       .single();
     if (mErr) throw mErr;
 
-    let providerMessageId: string | null = null;
-    let providerOk = false;
-    let providerData: any = {};
-
-    {
-      const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
-      const endpoint = resolveEndpoint(settings.whatchimp_send_endpoint, `${baseUrl}/api/v1/whatsapp/send`);
-      const body = new URLSearchParams();
-      body.set("apiToken", settings.whatchimp_api_key);
-      body.set("phone_number_id", settings.whatchimp_phone_number_id);
-      body.set("phone_number", phone);
-
-      if (mediaUrl) {
-        body.set("media_url", mediaUrl);
-        if (mediaType === "image") {
-          body.set("message_type", "image");
-        } else {
-          body.set("message_type", "document");
-        }
-        if (text) body.set("caption", text);
-      } else {
-        body.set("message", text || "");
-      }
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-        body: body.toString(),
-      });
-      providerData = await res.json().catch(() => ({}));
-      providerOk = res.ok && isProviderSuccess(providerData);
-      providerMessageId = getProviderMessageId(providerData);
-    }
+    const result = mediaUrl
+      ? await sendImage(settings, phone, mediaUrl, text)
+      : await sendText(settings, phone, text);
+    const providerOk = result.ok;
+    const providerMessageId = result.messageId;
+    const providerData = result.raw;
 
     if (!providerOk) {
       await supabase.from("whatsapp_messages").update({
         status: "failed",
         error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg.id);
-      return new Response(JSON.stringify({ error: "whatchimp failed", details: providerData }), {
+      return new Response(JSON.stringify({ error: "provider failed", details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
