@@ -1671,6 +1671,11 @@ const Orders = () => {
             <span className="text-[11px] sm:text-xs font-medium leading-tight">قيد الانتظار</span>
             <span className="text-[11px] sm:text-xs font-bold">({pendingOrders.length})</span>
           </TabsTrigger>
+          <TabsTrigger value="foreign" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
+            <Globe className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span className="text-[11px] sm:text-xs font-medium leading-tight">من خارج ليبيا</span>
+            <span className="text-[11px] sm:text-xs font-bold">({foreignOrders.length})</span>
+          </TabsTrigger>
           <TabsTrigger value="shipped" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Truck className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">جاري التوصيل</span>
