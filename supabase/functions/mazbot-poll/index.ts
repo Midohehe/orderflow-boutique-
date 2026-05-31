@@ -19,6 +19,9 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
   if (!t) return null;
   if (t === "1") return "confirm";
   if (t === "2") return "cancel";
+  // Button IDs/payloads from MazBot template buttons
+  if (t === "confirm" || t === "confirm_order" || t === "✅ تأكيد" || t === "✅ تأكيد الطلب") return "confirm";
+  if (t === "cancel" || t === "cancel_order" || t === "❌ إلغاء" || t === "❌ إلغاء الطلب") return "cancel";
   const yes = ["نعم","تاكيد","تأكيد","موافق","ايوه","اوكي","ok","yes","y","اي","أكيد","تاكيد الطلب","تأكيد الطلب"];
   const no = ["لا","الغاء","إلغاء","لاء","cancel","no","n","الغاء الطلب","إلغاء الطلب"];
   if (yes.some((w) => t === w || t.includes(w))) return "confirm";
