@@ -272,6 +272,7 @@ Deno.serve(async (req) => {
 
     if (iErr) {
       console.error("order insert failed", iErr);
+      await logRejected(`db_insert_failed: ${(iErr as any)?.code || ""} ${(iErr as any)?.message || String(iErr)}`.slice(0, 500));
       return new Response(JSON.stringify({ error: "Could not create order" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
