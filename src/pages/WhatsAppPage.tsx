@@ -318,7 +318,7 @@ export default function WhatsAppPage() {
             <DialogHeader>
               <DialogTitle>إعدادات WhatsApp</DialogTitle>
               <DialogDescription>
-                ربط WhatChimp الكامل: بيانات الحساب، مسارات الإرسال، القوالب، والويب هوك.
+                اختر المزوّد (Wati أو WhatChimp)، اضبط مفاتيح الحساب، القوالب، والويب هوك.
               </DialogDescription>
             </DialogHeader>
             {!settings && (
