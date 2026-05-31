@@ -1,5 +1,6 @@
 // Sends the order confirmation WhatsApp message. Service-role; called from create-order or manually.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { sendText, sendConfirmationTemplate, isConfigured, getProvider } from "../_shared/wa-providers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,21 +16,6 @@ function normalizePhone(p: string): string {
   if (digits.startsWith("218")) return digits;
   if (digits.startsWith("0")) return "218" + digits.slice(1);
   return "218" + digits;
-}
-
-function resolveEndpoint(raw: string | null | undefined, fallback: string): string {
-  const value = String(raw || "").trim();
-  if (!value) return fallback;
-  if (/^https?:\/\//i.test(value)) return value.replace(/\/$/, "");
-  return `${fallback.replace(/\/$/, "")}/${value.replace(/^\/+/, "")}`;
-}
-
-function isProviderSuccess(data: any): boolean {
-  return data?.status === "1" || data?.status === 1 || data?.status === "success" || data?.success === true || !!data?.wa_message_id || !!data?.message_id;
-}
-
-function getProviderMessageId(data: any): string | null {
-  return data?.wa_message_id || data?.message_id || data?.data?.wa_message_id || data?.data?.message_id || null;
 }
 
 Deno.serve(async (req) => {
@@ -54,7 +40,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase.from("whatsapp_settings")
       .select("*").eq("owner_id", order.owner_id).maybeSingle();
-    if (!settings || !settings.enabled || !settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
+    if (!isConfigured(settings)) {
       return new Response(JSON.stringify({ skipped: true, reason: "wa_disabled" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -108,85 +94,29 @@ Deno.serve(async (req) => {
       status: "pending",
     }).select("id").single();
 
-    let providerOk = false;
-    let providerMessageId: string | null = null;
-    let providerData: any = {};
+    const provider = getProvider(settings);
+    // For Wati we always use template (24h window applies, business-initiated).
+    // For WhatChimp respect whatchimp_use_template flag.
+    const useTemplate = provider === "wati"
+      ? !!settings.wati_use_template && !!settings.wati_template_name
+      : !!settings.whatchimp_use_template && (!!settings.whatchimp_template_id || !!settings.whatchimp_template_name);
 
-    {
-      const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
-      const sendEndpoint = resolveEndpoint(settings.whatchimp_send_endpoint, `${baseUrl}/api/v1/whatsapp/send`);
-      const templateEndpoint = resolveEndpoint(settings.whatchimp_template_endpoint, `${baseUrl}/api/v1/whatsapp/send/template`);
-      const templateId = String(settings.whatchimp_template_id || "").trim();
-      const templateName = String(settings.whatchimp_template_name || "").trim();
-      const useTemplate = !!settings.whatchimp_use_template && (!!templateId || !!templateName);
-
-      if (useTemplate && templateId) {
-        const body = new URLSearchParams();
-        body.set("apiToken", settings.whatchimp_api_key);
-        body.set("phone_number_id", settings.whatchimp_phone_number_id);
-        body.set("phone_number", phone);
-        body.set("template_id", templateId);
-        body.set("templateVariable-1-1", order.customer_name || "عميلنا");
-        body.set("templateVariable-2-2", String(order.order_code || order.id).slice(0, 8));
-        body.set("templateVariable-3-3", productsLine);
-        body.set("templateVariable-4-4", `${order.price} ${store?.currency_symbol || ""}`.trim());
-
-        const rawButtons = String(settings.whatchimp_template_buttons || "").trim();
-        if (rawButtons) {
-          const arr = rawButtons.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
-          if (arr.length) body.set("template_quick_reply_button_values", JSON.stringify(arr));
-        }
-
-        const res = await fetch(templateEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-          body: body.toString(),
-        });
-        providerData = await res.json().catch(() => ({}));
-        providerOk = res.ok && isProviderSuccess(providerData);
-        providerMessageId = getProviderMessageId(providerData);
-      } else if (useTemplate) {
-        const body = new URLSearchParams();
-        body.set("apiToken", settings.whatchimp_api_key);
-        body.set("phone_number_id", settings.whatchimp_phone_number_id);
-        body.set("phone_number", phone);
-        body.set("template_name", templateName);
-        body.set("language_code", String(settings.whatchimp_template_language || "ar"));
-        body.set("variable1", order.customer_name || "عميلنا");
-        body.set("variable2", String(order.order_code || order.id).slice(0, 8));
-        body.set("variable3", productsLine);
-        body.set("variable4", `${order.price} ${store?.currency_symbol || ""}`.trim());
-
-        const res = await fetch(sendEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-          body: body.toString(),
-        });
-        providerData = await res.json().catch(() => ({}));
-        providerOk = res.ok && isProviderSuccess(providerData);
-        providerMessageId = getProviderMessageId(providerData);
-      } else {
-        const body = new URLSearchParams();
-        body.set("apiToken", settings.whatchimp_api_key);
-        body.set("phone_number_id", settings.whatchimp_phone_number_id);
-        body.set("phone_number", phone);
-        body.set("message", text);
-
-        const res = await fetch(sendEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-          body: body.toString(),
-        });
-        providerData = await res.json().catch(() => ({}));
-        providerOk = res.ok && isProviderSuccess(providerData);
-        providerMessageId = getProviderMessageId(providerData);
-      }
-    }
+    const result = useTemplate
+      ? await sendConfirmationTemplate(settings, phone, {
+          customer_name: order.customer_name || "عميلنا",
+          order_id: String(order.order_code || order.id).slice(0, 8),
+          products: productsLine,
+          total: `${order.price} ${store?.currency_symbol || ""}`.trim(),
+        })
+      : await sendText(settings, phone, text);
+    const providerOk = result.ok;
+    const providerMessageId = result.messageId;
+    const providerData = result.raw;
 
     if (providerOk) {
       await supabase.from("whatsapp_messages").update({
         status: "sent", green_message_id: providerMessageId,
-        raw: { kind: "confirmation_prompt", provider: "whatchimp" },
+        raw: { kind: "confirmation_prompt", provider },
       }).eq("id", msg!.id);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -207,7 +137,7 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "whatchimp failed", details: providerData }), {
+      return new Response(JSON.stringify({ error: "provider failed", details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
