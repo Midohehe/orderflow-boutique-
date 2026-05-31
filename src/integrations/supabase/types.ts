@@ -1334,6 +1334,7 @@ export type Database = {
           confirmation_status: string
           confirmed_at: string | null
           confirmed_by: string | null
+          country_code: string | null
           created_at: string
           customer_name: string
           fb_ad_id: string | null
@@ -1397,6 +1398,7 @@ export type Database = {
           confirmation_status?: string
           confirmed_at?: string | null
           confirmed_by?: string | null
+          country_code?: string | null
           created_at?: string
           customer_name: string
           fb_ad_id?: string | null
@@ -1460,6 +1462,7 @@ export type Database = {
           confirmation_status?: string
           confirmed_at?: string | null
           confirmed_by?: string | null
+          country_code?: string | null
           created_at?: string
           customer_name?: string
           fb_ad_id?: string | null
