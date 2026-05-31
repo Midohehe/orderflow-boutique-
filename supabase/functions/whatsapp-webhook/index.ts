@@ -90,15 +90,20 @@ async function handleWhatChimp(supabase: any, ownerId: string, settings: any, pa
   const fromRaw = String(
     pickFirst(payload, [
       "from", "from_number", "sender", "wa_id", "phone",
+      "chat_id", "chatId", "subscriber_phone", "user_phone",
       "data.from", "data.from_number", "data.sender", "data.wa_id", "data.phone",
+      "data.chat_id", "data.chatId", "data.subscriber_phone", "data.user_phone",
     ]) || ""
   );
-  const phone = fromRaw.replace(/\D/g, "");
+  const subscriberIdRaw = String(
+    pickFirst(payload, ["subscriber_id", "data.subscriber_id"]) || ""
+  );
+  const phone = (fromRaw || subscriberIdRaw.split("-")[0] || "").replace(/\D/g, "");
   if (!phone) return "ignored (no phone)";
 
   const senderName = pickFirst(payload, [
-    "name", "sender_name", "profile_name", "contact_name",
-    "data.name", "data.sender_name", "data.profile_name",
+    "name", "sender_name", "profile_name", "contact_name", "first_name", "full_name",
+    "data.name", "data.sender_name", "data.profile_name", "data.first_name", "data.full_name",
   ]) || null;
 
   // Message type + content
@@ -113,8 +118,8 @@ async function handleWhatChimp(supabase: any, ownerId: string, settings: any, pa
   ).toLowerCase();
 
   const textContent = pickFirst(payload, [
-    "message", "text", "body", "message_body",
-    "data.message", "data.text", "data.body", "data.message_body",
+    "message", "text", "body", "message_body", "user_message", "caption",
+    "data.message", "data.text", "data.body", "data.message_body", "data.user_message", "data.caption",
     "text.body", "data.text.body",
   ]);
   const mediaCandidate = pickFirst(payload, [
@@ -141,7 +146,7 @@ async function handleWhatChimp(supabase: any, ownerId: string, settings: any, pa
   }
 
   const incomingMsgId = pickFirst(payload, [
-    "message_id", "id", "wamid", "data.message_id", "data.id", "data.wamid",
+    "message_id", "id", "wamid", "wa_message_id", "data.message_id", "data.id", "data.wamid", "data.wa_message_id",
   ]) || null;
 
   // Upsert conversation
