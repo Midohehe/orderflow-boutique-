@@ -168,6 +168,11 @@ export async function sendText(settings: any, phone: string, text: string): Prom
 }
 
 export async function sendImage(settings: any, phone: string, mediaUrl: string, caption?: string): Promise<WAResult> {
+  if (getProvider(settings) === "mazbot") {
+    // Mazbot media-by-URL not directly supported in session endpoint; fall back to text+URL.
+    const text = `${caption || ""}\n${mediaUrl}`.trim();
+    return await sendText(settings, phone, text);
+  }
   if (getProvider(settings) === "wati") {
     // Wati session media via URL — uses sendSessionFile but needs upload.
     // Fallback: send caption + URL as text so it still reaches the customer.
