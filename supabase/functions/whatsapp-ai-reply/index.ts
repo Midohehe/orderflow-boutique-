@@ -449,33 +449,36 @@ ${priceListText || "(لم تُعدّ بعد)"}
           if (!prod) return JSON.stringify({ error: "invalid product_id" });
           const imgs = (productImagesById.get(prod.id) || []).filter(Boolean).slice(0, Math.max(1, Math.min(8, Number(args?.max) || 4)));
           if (imgs.length === 0) return JSON.stringify({ error: "لا توجد صور لهذا المنتج" });
-          const chatIdLocal = `${phone}@c.us`;
-          const baseUrl = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
+          const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
           let sent = 0;
           for (let idx = 0; idx < imgs.length; idx++) {
             const url = imgs[idx];
             try {
-              const r = await fetch(`${baseUrl}/sendFileByUrl/${settings.api_token}`, {
+              const r = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
                 body: JSON.stringify({
-                  chatId: chatIdLocal,
-                  urlFile: url,
-                  fileName: `${prod.name}-${idx + 1}.jpg`,
+                  apiToken: settings.whatchimp_api_key,
+                  phone_number_id: settings.whatchimp_phone_number_id,
+                  to_number: phone,
+                  message_type: "image",
+                  media_url: url,
                   caption: idx === 0 ? `📷 ${prod.name}` : undefined,
                 }),
               });
               const jr = await r.json().catch(() => ({}));
-              if (jr?.idMessage) {
+              const msgId = jr?.message_id || jr?.data?.message_id || null;
+              const ok = r.ok && (jr?.status === "success" || jr?.success === true || !!msgId);
+              if (ok) {
                 sent++;
                 await supabase.from("whatsapp_messages").insert({
                   owner_id, conversation_id, order_id: conv?.order_id || null,
                   direction: "out", message_type: "image",
                   content: idx === 0 ? prod.name : "",
-                  media_url: url, status: "sent", green_message_id: jr.idMessage,
+                  media_url: url, status: "sent", green_message_id: msgId,
                 });
               }
-            } catch (e) { console.error("sendFileByUrl failed", e); }
+            } catch (e) { console.error("whatchimp image send failed", e); }
           }
           return JSON.stringify({ ok: sent > 0, sent, product: prod.name });
         }
@@ -529,12 +532,10 @@ ${priceListText || "(لم تُعدّ بعد)"}
       replyText = "شكراً لتواصلك، سيرد عليك أحد ممثلينا قريباً.";
     }
 
-    // Send via Green API
-    const provider = (settings.provider || "green_api").toLowerCase();
+    // Send via WhatChimp
     let providerMsgId: string | null = null;
     let providerOk = false;
-
-    if (provider === "whatchimp") {
+    {
       const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
       const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
         method: "POST",
@@ -550,17 +551,6 @@ ${priceListText || "(لم تُعدّ بعد)"}
       const data = await res.json().catch(() => ({}));
       providerOk = res.ok && (data?.status === "success" || data?.success === true || !!data?.message_id);
       providerMsgId = data?.message_id || data?.data?.message_id || null;
-    } else {
-      const chatId = `${phone}@c.us`;
-      const base = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-      const greenRes = await fetch(`${base}/sendMessage/${settings.api_token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message: replyText }),
-      });
-      const greenData = await greenRes.json().catch(() => ({}));
-      providerOk = !!greenData?.idMessage;
-      providerMsgId = greenData?.idMessage || null;
     }
 
     // Store outgoing message

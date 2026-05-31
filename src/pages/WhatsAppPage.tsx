@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
-import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search, Link2 } from "lucide-react";
+import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -224,10 +224,7 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const { error } = await supabase.from("whatsapp_settings").update({
       enabled: settings.enabled,
-      provider: settings.provider || "green_api",
-      instance_id: settings.instance_id,
-      api_token: settings.api_token,
-      api_url: settings.api_url,
+      provider: "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
       whatchimp_api_url: settings.whatchimp_api_url || "https://app.whatchimp.com",
@@ -269,10 +266,6 @@ export default function WhatsAppPage() {
     !search || c.phone.includes(search) || (c.customer_name || "").includes(search) || (c.last_message_preview || "").includes(search)
   );
 
-  const webhookUrl = settings?.webhook_token
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook?token=${settings.webhook_token}`
-    : "";
-
   return (
     <div className="space-y-4" dir="rtl">
       <PageHeader
@@ -298,38 +291,7 @@ export default function WhatsAppPage() {
                   <Label htmlFor="wa-enabled">تفعيل WhatsApp</Label>
                   <Switch id="wa-enabled" checked={!!settings.enabled} onCheckedChange={(v) => setSettings({ ...settings, enabled: v })} />
                 </div>
-                <div>
-                  <Label>مزوّد الخدمة</Label>
-                  <Select
-                    value={settings.provider || "green_api"}
-                    onValueChange={(v) => setSettings({ ...settings, provider: v })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="green_api">Green API</SelectItem>
-                      <SelectItem value="whatchimp">WhatChimp</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {(settings.provider || "green_api") === "green_api" ? (
-                  <div className="space-y-4 p-3 border rounded-md bg-muted/20">
-                    <div className="text-sm font-semibold">إعدادات Green API</div>
-                    <div>
-                      <Label>Instance ID</Label>
-                      <Input value={settings.instance_id || ""} onChange={(e) => setSettings({ ...settings, instance_id: e.target.value })} placeholder="1101xxxxxx" />
-                    </div>
-                    <div>
-                      <Label>API Token</Label>
-                      <Input type="password" value={settings.api_token || ""} onChange={(e) => setSettings({ ...settings, api_token: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label>API URL</Label>
-                      <Input value={settings.api_url || ""} onChange={(e) => setSettings({ ...settings, api_url: e.target.value })} placeholder="https://api.green-api.com" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4 p-3 border rounded-md bg-muted/20">
+                <div className="space-y-4 p-3 border rounded-md bg-muted/20">
                     <div className="text-sm font-semibold">إعدادات WhatChimp</div>
                     <div>
                       <Label>API Key</Label>
@@ -363,17 +325,6 @@ export default function WhatsAppPage() {
                         </p>
                       </>
                     )}
-                  </div>
-                )}
-                <div className="p-3 bg-muted/40 rounded-md space-y-2">
-                  <Label className="text-sm">Webhook URL (انسخه إلى لوحة Green API):</Label>
-                  <div className="flex gap-2">
-                    <Input readOnly value={webhookUrl} className="font-mono text-xs" />
-                    <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast({ title: "تم النسخ" }); }}>
-                      <Link2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">في Green API: Settings → Notifications → فعّل incomingMessageReceived و outgoingMessageStatus</p>
                 </div>
 
                 {/* WhatChimp webhook tokens */}
