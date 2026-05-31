@@ -15,17 +15,36 @@ function normBase(v: string | null | undefined) {
 }
 
 function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
-  const t = (text || "").trim().toLowerCase();
+  // Strip diacritics, punctuation, and emojis so "✅ تأكيد!" → "تاكيد".
+  const t = (text || "")
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .trim()
+    .toLowerCase();
   if (!t) return null;
-  if (t === "1") return "confirm";
-  if (t === "2") return "cancel";
-  // Button IDs/payloads from MazBot template buttons
-  if (t === "confirm" || t === "confirm_order" || t === "✅ تأكيد" || t === "✅ تأكيد الطلب") return "confirm";
-  if (t === "cancel" || t === "cancel_order" || t === "❌ إلغاء" || t === "❌ إلغاء الطلب") return "cancel";
-  const yes = ["نعم","تاكيد","تأكيد","موافق","ايوه","اوكي","ok","yes","y","اي","أكيد","تاكيد الطلب","تأكيد الطلب"];
-  const no = ["لا","الغاء","إلغاء","لاء","cancel","no","n","الغاء الطلب","إلغاء الطلب"];
-  if (yes.some((w) => t === w || t.includes(w))) return "confirm";
-  if (no.some((w) => t === w || t.includes(w))) return "cancel";
+  // Exact-word match only (split on whitespace) — never substring,
+  // because "السلام" contains "لا" and would otherwise cancel orders.
+  const words = t.split(/\s+/).filter(Boolean);
+  const yes = new Set([
+    "1","نعم","تاكيد","موافق","ايوه","اوكي","ok","yes","y","اي","اكيد","confirm","confirm_order",
+  ]);
+  const no = new Set([
+    "2","لا","الغاء","لاء","cancel","no","n","cancel_order",
+  ]);
+  // Single-token messages are the only ones we treat as intents.
+  if (words.length === 1) {
+    if (yes.has(words[0])) return "confirm";
+    if (no.has(words[0])) return "cancel";
+  }
+  // Two/three-token button labels like "تاكيد الطلب".
+  if (words.length <= 3) {
+    const joined = words.join(" ");
+    if (joined === "تاكيد الطلب" || joined === "confirm order") return "confirm";
+    if (joined === "الغاء الطلب" || joined === "cancel order") return "cancel";
+  }
   return null;
 }
 
