@@ -17,6 +17,21 @@ function normalizePhone(p: string): string {
   return "218" + digits;
 }
 
+function resolveEndpoint(raw: string | null | undefined, fallback: string): string {
+  const value = String(raw || "").trim();
+  if (!value) return fallback;
+  if (/^https?:\/\//i.test(value)) return value.replace(/\/$/, "");
+  return `${fallback.replace(/\/$/, "")}/${value.replace(/^\/+/, "")}`;
+}
+
+function isProviderSuccess(data: any): boolean {
+  return data?.status === "1" || data?.status === 1 || data?.status === "success" || data?.success === true || !!data?.wa_message_id || !!data?.message_id;
+}
+
+function getProviderMessageId(data: any): string | null {
+  return data?.wa_message_id || data?.message_id || data?.data?.wa_message_id || data?.data?.message_id || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -98,39 +113,74 @@ Deno.serve(async (req) => {
     let providerData: any = {};
 
     {
-      const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
+      const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
+      const sendEndpoint = resolveEndpoint(settings.whatchimp_send_endpoint, `${baseUrl}/api/v1/whatsapp/send`);
+      const templateEndpoint = resolveEndpoint(settings.whatchimp_template_endpoint, `${baseUrl}/api/v1/whatsapp/send/template`);
       const templateId = String(settings.whatchimp_template_id || "").trim();
-      const useTemplate = !!settings.whatchimp_use_template && !!templateId;
-      let endpoint = `${apiUrl}/api/v1/whatsapp/send`;
-      const body: any = {
-        apiToken: settings.whatchimp_api_key,
-        phone_number_id: settings.whatchimp_phone_number_id,
-        phone_number: phone,
-      };
-      if (useTemplate) {
-        endpoint = `${apiUrl}/api/v1/whatsapp/send/template`;
-        body.template_id = templateId;
+      const templateName = String(settings.whatchimp_template_name || "").trim();
+      const useTemplate = !!settings.whatchimp_use_template && (!!templateId || !!templateName);
+
+      if (useTemplate && templateId) {
+        const body = new URLSearchParams();
+        body.set("apiToken", settings.whatchimp_api_key);
+        body.set("phone_number_id", settings.whatchimp_phone_number_id);
+        body.set("phone_number", phone);
+        body.set("template_id", templateId);
+        body.set("templateVariable-CustomerName-1", order.customer_name || "عميلنا");
+        body.set("templateVariable-OrderID-2", String(order.order_code || order.id).slice(0, 8));
+        body.set("templateVariable-Products-3", productsLine);
+        body.set("templateVariable-Total-4", `${order.price} ${store?.currency_symbol || ""}`.trim());
+
         const rawButtons = String(settings.whatchimp_template_buttons || "").trim();
         if (rawButtons) {
           const arr = rawButtons.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
-          if (arr.length) body.template_quick_reply_button_values = arr;
+          if (arr.length) body.set("template_quick_reply_button_values", JSON.stringify(arr));
         }
-        body["templateVariable-1-1"] = order.customer_name || "عميلنا";
-        body["templateVariable-2-2"] = String(order.order_code || order.id).slice(0, 8);
-        body["templateVariable-3-3"] = productsLine;
-        body["templateVariable-4-4"] = `${order.price} ${store?.currency_symbol || ""}`.trim();
+
+        const res = await fetch(templateEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+          body: body.toString(),
+        });
+        providerData = await res.json().catch(() => ({}));
+        providerOk = res.ok && isProviderSuccess(providerData);
+        providerMessageId = getProviderMessageId(providerData);
+      } else if (useTemplate) {
+        const body = new URLSearchParams();
+        body.set("apiToken", settings.whatchimp_api_key);
+        body.set("phone_number_id", settings.whatchimp_phone_number_id);
+        body.set("phone_number", phone);
+        body.set("template_name", templateName);
+        body.set("language_code", String(settings.whatchimp_template_language || "ar"));
+        body.set("variable1", order.customer_name || "عميلنا");
+        body.set("variable2", String(order.order_code || order.id).slice(0, 8));
+        body.set("variable3", productsLine);
+        body.set("variable4", `${order.price} ${store?.currency_symbol || ""}`.trim());
+
+        const res = await fetch(sendEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+          body: body.toString(),
+        });
+        providerData = await res.json().catch(() => ({}));
+        providerOk = res.ok && isProviderSuccess(providerData);
+        providerMessageId = getProviderMessageId(providerData);
       } else {
-        body.message_type = "text";
-        body.message_body = text;
+        const body = new URLSearchParams();
+        body.set("apiToken", settings.whatchimp_api_key);
+        body.set("phone_number_id", settings.whatchimp_phone_number_id);
+        body.set("phone_number", phone);
+        body.set("message", text);
+
+        const res = await fetch(sendEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+          body: body.toString(),
+        });
+        providerData = await res.json().catch(() => ({}));
+        providerOk = res.ok && isProviderSuccess(providerData);
+        providerMessageId = getProviderMessageId(providerData);
       }
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(body),
-      });
-      providerData = await res.json().catch(() => ({}));
-      providerOk = res.ok && (providerData?.status === "success" || providerData?.success === true || !!providerData?.message_id);
-      providerMessageId = providerData?.message_id || providerData?.data?.message_id || null;
     }
 
     if (providerOk) {

@@ -449,26 +449,28 @@ ${priceListText || "(لم تُعدّ بعد)"}
           if (!prod) return JSON.stringify({ error: "invalid product_id" });
           const imgs = (productImagesById.get(prod.id) || []).filter(Boolean).slice(0, Math.max(1, Math.min(8, Number(args?.max) || 4)));
           if (imgs.length === 0) return JSON.stringify({ error: "لا توجد صور لهذا المنتج" });
-          const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
+          const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
+          const sendEndpoint = String(settings.whatchimp_send_endpoint || `${baseUrl}/api/v1/whatsapp/send`).trim();
           let sent = 0;
           for (let idx = 0; idx < imgs.length; idx++) {
             const url = imgs[idx];
             try {
-              const r = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
+              const body = new URLSearchParams();
+              body.set("apiToken", settings.whatchimp_api_key);
+              body.set("phone_number_id", settings.whatchimp_phone_number_id);
+              body.set("phone_number", phone);
+              body.set("message_type", "image");
+              body.set("media_url", url);
+              if (idx === 0) body.set("caption", `📷 ${prod.name}`);
+
+              const r = await fetch(sendEndpoint, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", Accept: "application/json" },
-                body: JSON.stringify({
-                  apiToken: settings.whatchimp_api_key,
-                  phone_number_id: settings.whatchimp_phone_number_id,
-                  to_number: phone,
-                  message_type: "image",
-                  media_url: url,
-                  caption: idx === 0 ? `📷 ${prod.name}` : undefined,
-                }),
+                headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+                body: body.toString(),
               });
               const jr = await r.json().catch(() => ({}));
-              const msgId = jr?.message_id || jr?.data?.message_id || null;
-              const ok = r.ok && (jr?.status === "success" || jr?.success === true || !!msgId);
+              const msgId = jr?.wa_message_id || jr?.message_id || jr?.data?.wa_message_id || jr?.data?.message_id || null;
+              const ok = r.ok && (jr?.status === "1" || jr?.status === 1 || jr?.status === "success" || jr?.success === true || !!msgId);
               if (ok) {
                 sent++;
                 await supabase.from("whatsapp_messages").insert({
@@ -536,21 +538,21 @@ ${priceListText || "(لم تُعدّ بعد)"}
     let providerMsgId: string | null = null;
     let providerOk = false;
     {
-      const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
-      const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
+      const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
+      const sendEndpoint = String(settings.whatchimp_send_endpoint || `${baseUrl}/api/v1/whatsapp/send`).trim();
+      const body = new URLSearchParams();
+      body.set("apiToken", settings.whatchimp_api_key);
+      body.set("phone_number_id", settings.whatchimp_phone_number_id);
+      body.set("phone_number", phone);
+      body.set("message", replyText);
+      const res = await fetch(sendEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          apiToken: settings.whatchimp_api_key,
-          phone_number_id: settings.whatchimp_phone_number_id,
-          to_number: phone,
-          message_type: "text",
-          message_body: replyText,
-        }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body: body.toString(),
       });
       const data = await res.json().catch(() => ({}));
-      providerOk = res.ok && (data?.status === "success" || data?.success === true || !!data?.message_id);
-      providerMsgId = data?.message_id || data?.data?.message_id || null;
+      providerOk = res.ok && (data?.status === "1" || data?.status === 1 || data?.status === "success" || data?.success === true || !!data?.wa_message_id || !!data?.message_id);
+      providerMsgId = data?.wa_message_id || data?.message_id || data?.data?.wa_message_id || data?.data?.message_id || null;
     }
 
     // Store outgoing message

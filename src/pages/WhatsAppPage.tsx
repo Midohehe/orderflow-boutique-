@@ -11,11 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Copy, Plus, Trash2 } from "lucide-react";
+
+const DEFAULT_WHATCHIMP_BASE_URL = "https://app.whatchimp.com";
+const DEFAULT_WHATCHIMP_SEND_ENDPOINT = "https://app.whatchimp.com/api/v1/whatsapp/send";
+const DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT = "https://app.whatchimp.com/api/v1/whatsapp/send/template";
+const DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT = "https://app.whatchimp.com/api/v1/whatsapp/get/conversation";
+
+const normalizeEndpoint = (value: string | null | undefined, fallback: string) => {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  return raw.replace(/\/$/, "");
+};
 
 type Conversation = {
   id: string;
@@ -204,7 +215,13 @@ export default function WhatsAppPage() {
       return;
     }
     if (data) {
-      setSettings(data);
+      setSettings({
+        ...data,
+        whatchimp_api_url: normalizeEndpoint(data.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
+        whatchimp_send_endpoint: normalizeEndpoint((data as any).whatchimp_send_endpoint, DEFAULT_WHATCHIMP_SEND_ENDPOINT),
+        whatchimp_template_endpoint: normalizeEndpoint((data as any).whatchimp_template_endpoint, DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT),
+        whatchimp_conversation_endpoint: normalizeEndpoint((data as any).whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
+      });
     } else {
       const { data: created, error: insErr } = await supabase
         .from("whatsapp_settings")
@@ -216,18 +233,27 @@ export default function WhatsAppPage() {
         toast({ title: "تعذر إنشاء الإعدادات", description: insErr.message, variant: "destructive" });
         return;
       }
-      setSettings(created);
+      setSettings({
+        ...created,
+        whatchimp_api_url: DEFAULT_WHATCHIMP_BASE_URL,
+        whatchimp_send_endpoint: DEFAULT_WHATCHIMP_SEND_ENDPOINT,
+        whatchimp_template_endpoint: DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT,
+        whatchimp_conversation_endpoint: DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT,
+      });
     }
   }
 
   async function saveSettings() {
     if (!settings) return;
-    const { error } = await supabase.from("whatsapp_settings").update({
+    const payload: any = {
       enabled: settings.enabled,
       provider: "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
-      whatchimp_api_url: settings.whatchimp_api_url || "https://app.whatchimp.com",
+      whatchimp_api_url: normalizeEndpoint(settings.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
+      whatchimp_send_endpoint: normalizeEndpoint(settings.whatchimp_send_endpoint, DEFAULT_WHATCHIMP_SEND_ENDPOINT),
+      whatchimp_template_endpoint: normalizeEndpoint(settings.whatchimp_template_endpoint, DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT),
+      whatchimp_conversation_endpoint: normalizeEndpoint(settings.whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
       whatchimp_use_template: !!settings.whatchimp_use_template,
       whatchimp_template_name: settings.whatchimp_template_name || "",
       whatchimp_template_language: settings.whatchimp_template_language || "ar",
@@ -237,7 +263,8 @@ export default function WhatsAppPage() {
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
       welcome_template: settings.welcome_template,
-    }).eq("id", settings.id);
+    };
+    const { error } = await supabase.from("whatsapp_settings").update(payload).eq("id", settings.id);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     else { toast({ title: "تم الحفظ" }); setSettingsOpen(false); }
   }
@@ -282,8 +309,13 @@ export default function WhatsAppPage() {
                 <SettingsIcon className="w-4 h-4" /> الإعدادات
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>إعدادات WhatsApp</DialogTitle></DialogHeader>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>إعدادات WhatsApp</DialogTitle>
+              <DialogDescription>
+                ربط WhatChimp الكامل: بيانات الحساب، مسارات الإرسال، القوالب، والويب هوك.
+              </DialogDescription>
+            </DialogHeader>
             {!settings && (
               <div className="py-10 text-center text-sm text-muted-foreground">جاري تحميل الإعدادات…</div>
             )}
@@ -293,19 +325,48 @@ export default function WhatsAppPage() {
                   <Label htmlFor="wa-enabled">تفعيل WhatsApp</Label>
                   <Switch id="wa-enabled" checked={!!settings.enabled} onCheckedChange={(v) => setSettings({ ...settings, enabled: v })} />
                 </div>
-                <div className="space-y-4 p-3 border rounded-md bg-muted/20">
+                <div className="space-y-4 p-4 border rounded-md bg-muted/20">
                     <div className="text-sm font-semibold">إعدادات WhatChimp</div>
-                    <div>
-                      <Label>API Key</Label>
-                      <Input type="password" value={settings.whatchimp_api_key || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_key: e.target.value })} placeholder="WhatChimp API Key" />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <Label>الرابط الأساسي</Label>
+                        <Input value={settings.whatchimp_api_url || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_url: e.target.value })} placeholder={DEFAULT_WHATCHIMP_BASE_URL} dir="ltr" />
+                        <p className="text-[11px] text-muted-foreground mt-1">رابط المنصة فقط بدون اسم endpoint.</p>
+                      </div>
+                      <div>
+                        <Label>API Key</Label>
+                        <Input type="password" value={settings.whatchimp_api_key || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_key: e.target.value })} placeholder="WhatChimp API Key" dir="ltr" />
+                      </div>
                     </div>
-                    <div>
-                      <Label>Phone Number ID</Label>
-                      <Input value={settings.whatchimp_phone_number_id || ""} onChange={(e) => setSettings({ ...settings, whatchimp_phone_number_id: e.target.value })} placeholder="مثال: 1234567890" />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <Label>Phone Number ID</Label>
+                        <Input value={settings.whatchimp_phone_number_id || ""} onChange={(e) => setSettings({ ...settings, whatchimp_phone_number_id: e.target.value })} placeholder="مثال: 463589906828708" dir="ltr" />
+                        <p className="text-[11px] text-muted-foreground mt-1">هذا هو Meta Phone Number ID وليس رقم الهاتف نفسه.</p>
+                      </div>
+                      <div>
+                        <Label>لغة القالب الافتراضية</Label>
+                        <Input value={settings.whatchimp_template_language || "ar"} onChange={(e) => setSettings({ ...settings, whatchimp_template_language: e.target.value })} placeholder="ar" dir="ltr" />
+                      </div>
                     </div>
-                    <div>
-                      <Label>API URL</Label>
-                      <Input value={settings.whatchimp_api_url || ""} onChange={(e) => setSettings({ ...settings, whatchimp_api_url: e.target.value })} placeholder="https://app.whatchimp.com" />
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div>
+                        <Label>رابط إرسال الرسائل</Label>
+                        <Input value={settings.whatchimp_send_endpoint || ""} onChange={(e) => setSettings({ ...settings, whatchimp_send_endpoint: e.target.value })} placeholder={DEFAULT_WHATCHIMP_SEND_ENDPOINT} dir="ltr" />
+                      </div>
+                      <div>
+                        <Label>رابط إرسال القوالب</Label>
+                        <Input value={settings.whatchimp_template_endpoint || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_endpoint: e.target.value })} placeholder={DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT} dir="ltr" />
+                      </div>
+                      <div>
+                        <Label>رابط جلب المحادثة</Label>
+                        <Input value={settings.whatchimp_conversation_endpoint || ""} onChange={(e) => setSettings({ ...settings, whatchimp_conversation_endpoint: e.target.value })} placeholder={DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT} dir="ltr" />
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-1">
+                      <div>المسار الموثّق للرسائل النصية: <span className="font-mono" dir="ltr">/api/v1/whatsapp/send</span></div>
+                      <div>المسار الموثّق لقوالب Quick Reply: <span className="font-mono" dir="ltr">/api/v1/whatsapp/send/template</span></div>
+                      <div>المسار الموثّق للاستعلام عن المحادثة: <span className="font-mono" dir="ltr">/api/v1/whatsapp/get/conversation</span></div>
                     </div>
                     <p className="text-xs text-muted-foreground">احصل على المفتاح من لوحة WhatChimp ← Developer API.</p>
                     <div className="flex items-center justify-between p-2 border rounded-md bg-background">
@@ -314,26 +375,25 @@ export default function WhatsAppPage() {
                     </div>
                     {settings.whatchimp_use_template && (
                       <>
-                        <div>
-                          <Label>معرّف القالب (Template ID)</Label>
-                          <Input value={settings.whatchimp_template_id || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_id: e.target.value })} placeholder="مثال: 383253" />
-                          <p className="text-[11px] text-muted-foreground mt-1">انسخه من WhatChimp بعد إنشاء قالب الإرسال (يظهر بعد توليد الـ API endpoint).</p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div>
+                            <Label>Template ID الداخلي</Label>
+                            <Input value={settings.whatchimp_template_id || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_id: e.target.value })} placeholder="مثال: 383253" dir="ltr" />
+                            <p className="text-[11px] text-muted-foreground mt-1">استخدمه مع مسار <span className="font-mono" dir="ltr">/send/template</span> عندما يكون القالب فيه Quick Reply.</p>
+                          </div>
+                          <div>
+                            <Label>Template Name</Label>
+                            <Input value={settings.whatchimp_template_name || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_name: e.target.value })} placeholder="order_confirmation" dir="ltr" />
+                            <p className="text-[11px] text-muted-foreground mt-1">استخدمه مع مسار <span className="font-mono" dir="ltr">/send</span> للقوالب العادية والـ variables.</p>
+                          </div>
                         </div>
                         <div>
-                          <Label>أزرار الرد السريع (Quick Reply Buttons)</Label>
-                          <Input value={settings.whatchimp_template_buttons || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_buttons: e.target.value })} placeholder="EXTERNAL_ECOMMERCE_CONFIRM_ORDER, EXTERNAL_ECOMMERCE_CANCEL_ORDER" />
-                          <p className="text-[11px] text-muted-foreground mt-1">افصل بين القيم بفاصلة. اتركه فارغًا إن لم يكن للقالب أزرار.</p>
-                        </div>
-                        <div>
-                          <Label>اسم القالب (اختياري - للمرجع فقط)</Label>
-                          <Input value={settings.whatchimp_template_name || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_name: e.target.value })} placeholder="order_confirmation" />
-                        </div>
-                        <div>
-                          <Label>لغة القالب</Label>
-                          <Input value={settings.whatchimp_template_language || "ar"} onChange={(e) => setSettings({ ...settings, whatchimp_template_language: e.target.value })} placeholder="ar" />
+                          <Label>Quick Reply Postback IDs</Label>
+                          <Textarea rows={3} value={settings.whatchimp_template_buttons || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_buttons: e.target.value })} placeholder='["EXTERNAL_ECOMMERCE_CONFIRM_ORDER","EXTERNAL_ECOMMERCE_CANCEL_ORDER"] أو مفصولة بفواصل' dir="ltr" className="min-h-0" />
+                          <p className="text-[11px] text-muted-foreground mt-1">يمكن كتابة JSON Array أو قيم مفصولة بفواصل، وسيتم إرسالها بالترتيب نفسه للأزرار.</p>
                         </div>
                         <p className="text-xs text-amber-600 dark:text-amber-400">
-                          سيتم تمرير المتغيرات بالترتيب: 1=اسم العميل، 2=رقم الطلب، 3=المنتجات، 4=الإجمالي. تأكد أن قالبك في WhatChimp يستخدم نفس الترتيب.
+                          للقالب العادي سنرسل: variable1..variable4. وللقالب ذي Quick Reply سنرسل templateVariable-*-*. تأكد أن ترتيب المتغيرات في WhatChimp يطابق: 1=اسم العميل، 2=رقم الطلب، 3=المنتجات، 4=الإجمالي.
                         </p>
                       </>
                     )}

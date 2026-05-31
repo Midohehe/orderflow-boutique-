@@ -3344,8 +3344,11 @@ export type Database = {
           welcome_template: string
           whatchimp_api_key: string
           whatchimp_api_url: string
+          whatchimp_conversation_endpoint: string
           whatchimp_phone_number_id: string
+          whatchimp_send_endpoint: string
           whatchimp_template_buttons: string | null
+          whatchimp_template_endpoint: string
           whatchimp_template_id: string | null
           whatchimp_template_language: string
           whatchimp_template_name: string
@@ -3364,8 +3367,11 @@ export type Database = {
           welcome_template?: string
           whatchimp_api_key?: string
           whatchimp_api_url?: string
+          whatchimp_conversation_endpoint?: string
           whatchimp_phone_number_id?: string
+          whatchimp_send_endpoint?: string
           whatchimp_template_buttons?: string | null
+          whatchimp_template_endpoint?: string
           whatchimp_template_id?: string | null
           whatchimp_template_language?: string
           whatchimp_template_name?: string
@@ -3384,8 +3390,11 @@ export type Database = {
           welcome_template?: string
           whatchimp_api_key?: string
           whatchimp_api_url?: string
+          whatchimp_conversation_endpoint?: string
           whatchimp_phone_number_id?: string
+          whatchimp_send_endpoint?: string
           whatchimp_template_buttons?: string | null
+          whatchimp_template_endpoint?: string
           whatchimp_template_id?: string | null
           whatchimp_template_language?: string
           whatchimp_template_name?: string
