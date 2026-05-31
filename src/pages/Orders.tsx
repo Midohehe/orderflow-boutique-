@@ -551,9 +551,21 @@ const Orders = () => {
     setSyncingCarrier(true);
     setCarrierSyncResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-carrier-statuses", { body: {} });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error || "فشل المزامنة");
+      const { data, error } = await supabase.functions.invoke("sync-carrier-statuses", {
+        body: { store_id: activeStoreId },
+      });
+      if (error) {
+        // Edge function non-2xx (e.g. 429 cooldown) — try to surface the server message
+        const ctx: any = (error as any)?.context;
+        let msg = error.message;
+        try {
+          const j = await ctx?.json?.();
+          if (j?.message) msg = j.message;
+          else if (j?.error) msg = j.error;
+        } catch {}
+        throw new Error(msg);
+      }
+      if (!data?.ok) throw new Error(data?.message || data?.error || "فشل المزامنة");
       setCarrierSyncResult({
         total: data.total ?? 0,
         updated: data.updated ?? 0,
