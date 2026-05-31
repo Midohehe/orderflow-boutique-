@@ -10,6 +10,13 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function queueBackground(promise: Promise<unknown>) {
+  const edgeRuntime = (globalThis as any)?.EdgeRuntime;
+  if (typeof edgeRuntime?.waitUntil === "function") {
+    edgeRuntime.waitUntil(promise);
+  }
+}
+
 function normBase(v: string | null | undefined) {
   return String(v || "https://mazbot.net/api").trim().replace(/\/$/, "");
 }
@@ -46,6 +53,17 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
     if (joined === "الغاء الطلب" || joined === "cancel order") return "cancel";
   }
   return null;
+}
+
+function normalizeMazbotMessageType(rawType: string, mediaUrl: string | null): string {
+  const t = String(rawType || "text").toLowerCase();
+  if (["text", "image", "file", "audio", "video", "sticker", "location", "contact", "system"].includes(t)) {
+    return t;
+  }
+  if (["button", "template", "interactive", "quick_reply", "reply_button"].includes(t)) {
+    return "text";
+  }
+  return mediaUrl ? "file" : "text";
 }
 
 async function mazbotLogin(s: any): Promise<string | null> {
@@ -145,91 +163,119 @@ async function pollOwner(supabase: any, s: any) {
       return ta - tb;
     });
     for (const m of sortedMsgs) {
-      const providerId = `mazbot:${m?.id ?? m?.message_id ?? ""}`;
-      if (!m?.id && !m?.message_id) continue;
-      if (!providerId) continue;
-      // dedupe via green_message_id reuse
-      const { data: existing } = await supabase
-        .from("whatsapp_messages")
-        .select("id")
-        .eq("green_message_id", providerId)
-        .eq("owner_id", s.owner_id)
-        .maybeSingle();
-      if (existing) continue;
+      try {
+        const providerIdRaw = String(m?.id ?? m?.message_id ?? "").trim();
+        if (!providerIdRaw) continue;
+        const providerIds = [providerIdRaw, `mazbot:${providerIdRaw}`];
 
-      // is_contact_msg=true → message FROM the customer (incoming).
-      const direction = m?.is_contact_msg === true ? "in" : "out";
-      const buttonText = Array.isArray(m?.buttons) && m.buttons.length > 0
-        ? (m.buttons[0]?.text || m.buttons[0]?.title || null) : null;
-      const content = m?.value || buttonText || m?.message || m?.text || null;
-      const mediaUrl =
-        m?.header_image || m?.header_video || m?.header_audio || m?.header_document ||
-        m?.media_url || m?.file_url || null;
-      let mtype = String(m?.message_type || "text").toLowerCase();
-      if (m?.header_image) mtype = "image";
-      else if (m?.header_video) mtype = "video";
-      else if (m?.header_audio) mtype = "audio";
-      else if (m?.header_document) mtype = "file";
-      const status = direction === "out" ? "sent" : "delivered";
+        const { data: existing } = await supabase
+          .from("whatsapp_messages")
+          .select("id")
+          .eq("owner_id", s.owner_id)
+          .in("green_message_id", providerIds)
+          .maybeSingle();
+        if (existing) continue;
 
-      await supabase.from("whatsapp_messages").insert({
-        owner_id: s.owner_id,
-        conversation_id: conv.id,
-        order_id: convOrderId,
-        direction,
-        message_type: mtype,
-        content,
-        media_url: mediaUrl,
-        status,
-        green_message_id: providerId,
-        raw: m,
-        created_at: m?.created_at
-          ? new Date(m.created_at).toISOString()
-          : (m?.sent_at ? new Date(m.sent_at).toISOString() : new Date().toISOString()),
-      });
-      totalNew++;
-      lastPreview = content || (mediaUrl ? "📎 ملف" : null);
-      if (direction === "in") unreadInc++;
+        const direction = m?.is_contact_msg === true ? "in" : "out";
+        const buttonText = Array.isArray(m?.buttons) && m.buttons.length > 0
+          ? (m.buttons[0]?.text || m.buttons[0]?.title || null) : null;
+        const rawContent = m?.value || buttonText || m?.message || m?.text || null;
+        const content = typeof rawContent === "string"
+          ? rawContent.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/gi, " ").trim()
+          : rawContent;
+        const mediaUrl =
+          m?.header_image || m?.header_video || m?.header_audio || m?.header_document ||
+          m?.media_url || m?.file_url || null;
 
-      // Auto-confirm: if incoming text matches confirm/cancel and we have a linked order.
-      const msgAt = new Date(
-        m?.created_at || m?.sent_at || Date.now(),
-      ).getTime();
-      if (
-        direction === "in" && mtype === "text" && promptOrderId &&
-        s.auto_confirm_enabled && promptAt > 0 && msgAt >= promptAt
-      ) {
-        const intent = parseConfirmIntent(content || "");
-        if (intent) {
-          await supabase.from("orders").update({
-            confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
-            confirmed_at: new Date().toISOString(),
-          }).eq("id", promptOrderId).eq("owner_id", s.owner_id);
+        let rawType = String(m?.message_type || "text").toLowerCase();
+        if (m?.header_image) rawType = "image";
+        else if (m?.header_video) rawType = "video";
+        else if (m?.header_audio) rawType = "audio";
+        else if (m?.header_document) rawType = "file";
+        const mtype = normalizeMazbotMessageType(rawType, mediaUrl);
+        const status = direction === "out" ? "sent" : "delivered";
 
-          const replyText = intent === "confirm"
-            ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
-            : "❌ تم إلغاء طلبك بناءً على طلبك.";
+        const contextId = m?.context?.id ? String(m.context.id) : null;
+        let messageOrderId: string | null = convOrderId;
+        let matchedPromptAt = promptAt;
+        if (contextId) {
+          const { data: promptMsg } = await supabase
+            .from("whatsapp_messages")
+            .select("order_id, created_at")
+            .eq("owner_id", s.owner_id)
+            .eq("conversation_id", conv.id)
+            .in("green_message_id", [contextId, `mazbot:${contextId}`])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (promptMsg?.order_id) messageOrderId = promptMsg.order_id;
+          if (promptMsg?.created_at) matchedPromptAt = new Date(promptMsg.created_at).getTime();
+        }
+
+        await supabase.from("whatsapp_messages").insert({
+          owner_id: s.owner_id,
+          conversation_id: conv.id,
+          order_id: messageOrderId,
+          direction,
+          message_type: mtype,
+          content,
+          media_url: mediaUrl,
+          status,
+          green_message_id: `mazbot:${providerIdRaw}`,
+          raw: m,
+          created_at: m?.created_at
+            ? new Date(m.created_at).toISOString()
+            : (m?.sent_at ? new Date(m.sent_at).toISOString() : new Date().toISOString()),
+        });
+        totalNew++;
+        lastPreview = content || (mediaUrl ? "📎 ملف" : null);
+        if (direction === "in") unreadInc++;
+
+        const msgAt = new Date(
+          m?.created_at || m?.sent_at || Date.now(),
+        ).getTime();
+        if (
+          direction === "in" && mtype === "text" && messageOrderId &&
+          s.auto_confirm_enabled && matchedPromptAt > 0 && msgAt >= matchedPromptAt
+        ) {
+          const intent = parseConfirmIntent(content || "");
+          if (intent) {
+            await supabase.from("orders").update({
+              confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+              confirmed_at: new Date().toISOString(),
+            }).eq("id", messageOrderId).eq("owner_id", s.owner_id);
+
+            const replyText = intent === "confirm"
+              ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
+              : "❌ تم إلغاء طلبك بناءً على طلبك.";
+            try {
+              await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+                body: JSON.stringify({ phone, text: replyText, order_id: messageOrderId, owner_id: s.owner_id }),
+              }).catch(() => {});
+            } catch (e) { console.error("mazbot auto-reply failed", e); }
+            continue;
+          }
+        }
+
+        if (direction === "in" && mtype === "text" && s.ai_auto_reply_enabled && !aiTriggered) {
+          aiTriggered = true;
           try {
-            await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
+            const trigger = fetch(`${SUPABASE_URL}/functions/v1/whatsapp-ai-reply`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
-              body: JSON.stringify({ phone, text: replyText, order_id: promptOrderId, owner_id: s.owner_id }),
-            }).catch(() => {});
-          } catch (e) { console.error("mazbot auto-reply failed", e); }
-          continue;
+              body: JSON.stringify({ owner_id: s.owner_id, conversation_id: conv.id, phone }),
+            }).catch((e) => console.error("ai-reply trigger failed", e));
+            queueBackground(trigger);
+          } catch (e) { console.error("ai-reply trigger error", e); }
         }
-      }
-
-      // AI auto-reply for free-text incoming messages (no confirm intent).
-      if (direction === "in" && mtype === "text" && s.ai_auto_reply_enabled && !aiTriggered) {
-        aiTriggered = true;
-        try {
-          fetch(`${SUPABASE_URL}/functions/v1/whatsapp-ai-reply`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
-            body: JSON.stringify({ owner_id: s.owner_id, conversation_id: conv.id, phone }),
-          }).catch((e) => console.error("ai-reply trigger failed", e));
-        } catch (e) { console.error("ai-reply trigger error", e); }
+      } catch (e) {
+        console.error("mazbot message sync failed", {
+          owner_id: s.owner_id,
+          message_id: m?.id ?? m?.message_id ?? null,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
 
