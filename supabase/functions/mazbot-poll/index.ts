@@ -19,6 +19,9 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
   if (!t) return null;
   if (t === "1") return "confirm";
   if (t === "2") return "cancel";
+  // Button IDs/payloads from MazBot template buttons
+  if (t === "confirm" || t === "confirm_order" || t === "✅ تأكيد" || t === "✅ تأكيد الطلب") return "confirm";
+  if (t === "cancel" || t === "cancel_order" || t === "❌ إلغاء" || t === "❌ إلغاء الطلب") return "cancel";
   const yes = ["نعم","تاكيد","تأكيد","موافق","ايوه","اوكي","ok","yes","y","اي","أكيد","تاكيد الطلب","تأكيد الطلب"];
   const no = ["لا","الغاء","إلغاء","لاء","cancel","no","n","الغاء الطلب","إلغاء الطلب"];
   if (yes.some((w) => t === w || t.includes(w))) return "confirm";
@@ -102,7 +105,10 @@ async function pollOwner(supabase: any, s: any) {
       if (existing) continue;
 
       const direction = m?.sender_type === "client" || m?.from_me || m?.is_outgoing ? "out" : "in";
-      const content = m?.message || m?.text || m?.content || null;
+      const content =
+        m?.button_reply?.title || m?.button?.text || m?.button_payload ||
+        m?.interactive?.button_reply?.title || m?.interactive?.list_reply?.title ||
+        m?.message || m?.text || m?.content || null;
       const mediaUrl = m?.media_url || m?.file_url || null;
       const mtype = mediaUrl ? (m?.media_type || "file") : "text";
       const status = direction === "out" ? "sent" : "delivered";
