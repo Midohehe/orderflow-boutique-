@@ -126,10 +126,10 @@ Deno.serve(async (req) => {
         body.set("phone_number_id", settings.whatchimp_phone_number_id);
         body.set("phone_number", phone);
         body.set("template_id", templateId);
-        body.set("templateVariable-CustomerName-1", order.customer_name || "عميلنا");
-        body.set("templateVariable-OrderID-2", String(order.order_code || order.id).slice(0, 8));
-        body.set("templateVariable-Products-3", productsLine);
-        body.set("templateVariable-Total-4", `${order.price} ${store?.currency_symbol || ""}`.trim());
+        body.set("templateVariable-1-1", order.customer_name || "عميلنا");
+        body.set("templateVariable-2-2", String(order.order_code || order.id).slice(0, 8));
+        body.set("templateVariable-3-3", productsLine);
+        body.set("templateVariable-4-4", `${order.price} ${store?.currency_symbol || ""}`.trim());
 
         const rawButtons = String(settings.whatchimp_template_buttons || "").trim();
         if (rawButtons) {
