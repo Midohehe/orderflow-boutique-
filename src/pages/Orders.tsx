@@ -949,7 +949,19 @@ const Orders = () => {
   const productNames = Array.from(
     new Set(orders.map(displayProductName).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
-  const allPending = orders.filter((o) => o.status === "pending" && !o.is_deleted);
+  // Foreign orders (country_code present and not LY) get their own tab so
+  // the user can review them before shipping. Anything without a code or
+  // explicitly LY stays in the regular Pending flow.
+  const isForeign = (o: any) => {
+    const cc = (o.country_code || "").toUpperCase();
+    return cc && cc !== "LY";
+  };
+  const allPending = orders.filter(
+    (o) => o.status === "pending" && !o.is_deleted && !isForeign(o)
+  );
+  const foreignOrders = orders.filter(
+    (o) => !o.is_deleted && isForeign(o)
+  );
   const pendingOrders = allPending.filter((o) => {
     if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
     if (confirmationFilter !== "all") {
