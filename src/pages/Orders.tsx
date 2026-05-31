@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot, Globe } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
@@ -68,6 +68,7 @@ interface Order {
   locked_insufficient_balance?: boolean;
   insufficient_stock?: boolean;
   upsell_offers?: any[] | null;
+  country_code?: string | null;
 }
 
 type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
@@ -88,7 +89,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -949,7 +950,19 @@ const Orders = () => {
   const productNames = Array.from(
     new Set(orders.map(displayProductName).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
-  const allPending = orders.filter((o) => o.status === "pending" && !o.is_deleted);
+  // Foreign orders (country_code present and not LY) get their own tab so
+  // the user can review them before shipping. Anything without a code or
+  // explicitly LY stays in the regular Pending flow.
+  const isForeign = (o: any) => {
+    const cc = (o.country_code || "").toUpperCase();
+    return cc && cc !== "LY";
+  };
+  const allPending = orders.filter(
+    (o) => o.status === "pending" && !o.is_deleted && !isForeign(o)
+  );
+  const foreignOrders = orders.filter(
+    (o) => !o.is_deleted && isForeign(o)
+  );
   const pendingOrders = allPending.filter((o) => {
     if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
     if (confirmationFilter !== "all") {
@@ -1244,6 +1257,12 @@ const Orders = () => {
                 )}
                 {order.insufficient_stock && (
                   <Badge variant="destructive" className="gap-1">⚠ مخزون غير كافٍ</Badge>
+                )}
+                {order.country_code && order.country_code.toUpperCase() !== "LY" && (
+                  <Badge variant="destructive" className="gap-1 bg-orange-600 hover:bg-orange-600">
+                    <Globe className="w-3 h-3" />
+                    من خارج ليبيا ({order.country_code})
+                  </Badge>
                 )}
                 {(() => {
                   const cs = ((order.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
@@ -1653,11 +1672,16 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-8 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-9 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
           <TabsTrigger value="pending" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Clock className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">قيد الانتظار</span>
             <span className="text-[11px] sm:text-xs font-bold">({pendingOrders.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="foreign" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
+            <Globe className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span className="text-[11px] sm:text-xs font-medium leading-tight">من خارج ليبيا</span>
+            <span className="text-[11px] sm:text-xs font-bold">({foreignOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="shipped" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Truck className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -1875,6 +1899,27 @@ const Orders = () => {
           ) : (
             <div className="space-y-4">
               {pendingOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="foreign" className="space-y-4">
+          <Card className="card-shadow border-orange-500/40 bg-orange-500/5">
+            <CardContent className="p-3 flex items-center gap-2 text-sm">
+              <Globe className="w-5 h-5 text-orange-600" />
+              <span>
+                هذه طلبات وردت من عناوين IP خارج ليبيا. راجعها قبل التأكيد أو الشحن — قد تكون من زبائن يستخدمون VPN أو طلبات وهمية.
+              </span>
+            </CardContent>
+          </Card>
+          {foreignOrders.length === 0 ? (
+            renderEmptyState(
+              <Globe className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد طلبات من خارج ليبيا"
+            )
+          ) : (
+            <div className="space-y-4">
+              {foreignOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
             </div>
           )}
         </TabsContent>
