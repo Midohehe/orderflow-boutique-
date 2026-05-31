@@ -449,38 +449,22 @@ ${priceListText || "(لم تُعدّ بعد)"}
           if (!prod) return JSON.stringify({ error: "invalid product_id" });
           const imgs = (productImagesById.get(prod.id) || []).filter(Boolean).slice(0, Math.max(1, Math.min(8, Number(args?.max) || 4)));
           if (imgs.length === 0) return JSON.stringify({ error: "لا توجد صور لهذا المنتج" });
-          const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
-          const sendEndpoint = String(settings.whatchimp_send_endpoint || `${baseUrl}/api/v1/whatsapp/send`).trim();
+          const { sendImage } = await import("../_shared/wa-providers.ts");
           let sent = 0;
           for (let idx = 0; idx < imgs.length; idx++) {
             const url = imgs[idx];
             try {
-              const body = new URLSearchParams();
-              body.set("apiToken", settings.whatchimp_api_key);
-              body.set("phone_number_id", settings.whatchimp_phone_number_id);
-              body.set("phone_number", phone);
-              body.set("message_type", "image");
-              body.set("media_url", url);
-              if (idx === 0) body.set("caption", `📷 ${prod.name}`);
-
-              const r = await fetch(sendEndpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-                body: body.toString(),
-              });
-              const jr = await r.json().catch(() => ({}));
-              const msgId = jr?.wa_message_id || jr?.message_id || jr?.data?.wa_message_id || jr?.data?.message_id || null;
-              const ok = r.ok && (jr?.status === "1" || jr?.status === 1 || jr?.status === "success" || jr?.success === true || !!msgId);
-              if (ok) {
+              const r = await sendImage(settings, phone, url, idx === 0 ? `📷 ${prod.name}` : "");
+              if (r.ok) {
                 sent++;
                 await supabase.from("whatsapp_messages").insert({
                   owner_id, conversation_id, order_id: conv?.order_id || null,
                   direction: "out", message_type: "image",
                   content: idx === 0 ? prod.name : "",
-                  media_url: url, status: "sent", green_message_id: msgId,
+                  media_url: url, status: "sent", green_message_id: r.messageId,
                 });
               }
-            } catch (e) { console.error("whatchimp image send failed", e); }
+            } catch (e) { console.error("wa image send failed", e); }
           }
           return JSON.stringify({ ok: sent > 0, sent, product: prod.name });
         }
@@ -534,26 +518,11 @@ ${priceListText || "(لم تُعدّ بعد)"}
       replyText = "شكراً لتواصلك، سيرد عليك أحد ممثلينا قريباً.";
     }
 
-    // Send via WhatChimp
-    let providerMsgId: string | null = null;
-    let providerOk = false;
-    {
-      const baseUrl = String(settings.whatchimp_api_url || "https://app.whatchimp.com").trim().replace(/\/$/, "");
-      const sendEndpoint = String(settings.whatchimp_send_endpoint || `${baseUrl}/api/v1/whatsapp/send`).trim();
-      const body = new URLSearchParams();
-      body.set("apiToken", settings.whatchimp_api_key);
-      body.set("phone_number_id", settings.whatchimp_phone_number_id);
-      body.set("phone_number", phone);
-      body.set("message", replyText);
-      const res = await fetch(sendEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-        body: body.toString(),
-      });
-      const data = await res.json().catch(() => ({}));
-      providerOk = res.ok && (data?.status === "1" || data?.status === 1 || data?.status === "success" || data?.success === true || !!data?.wa_message_id || !!data?.message_id);
-      providerMsgId = data?.wa_message_id || data?.message_id || data?.data?.wa_message_id || data?.data?.message_id || null;
-    }
+    // Send reply via configured provider
+    const { sendText } = await import("../_shared/wa-providers.ts");
+    const sendRes = await sendText(settings, phone, replyText);
+    const providerOk = sendRes.ok;
+    const providerMsgId = sendRes.messageId;
 
     // Store outgoing message
     await supabase.from("whatsapp_messages").insert({
