@@ -10,7 +10,7 @@ const corsHeaders = {
 function normalizePhone(p: string): string {
   const digits = (p || "").replace(/\D/g, "");
   if (!digits) return "";
-  // Green API requires international format without '+' (e.g. 2189XXXXXXXX for Libya)
+  // WhatsApp requires international format without '+' (e.g. 2189XXXXXXXX for Libya)
   if (digits.startsWith("00218")) return digits.slice(2); // drop 00
   if (digits.startsWith("218")) return digits;
   if (digits.startsWith("0")) return "218" + digits.slice(1);
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase.from("whatsapp_settings")
       .select("*").eq("owner_id", order.owner_id).maybeSingle();
-    if (!settings || !settings.enabled || !settings.instance_id || !settings.api_token) {
+    if (!settings || !settings.enabled || !settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
       return new Response(JSON.stringify({ skipped: true, reason: "wa_disabled" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -93,54 +93,11 @@ Deno.serve(async (req) => {
       status: "pending",
     }).select("id").single();
 
-    const provider = settings.provider || "green_api";
     let providerOk = false;
     let providerMessageId: string | null = null;
     let providerData: any = {};
 
-    if (provider === "green_api") {
-      if (!settings.instance_id || !settings.api_token) {
-        return new Response(JSON.stringify({ skipped: true, reason: "green_api_not_configured" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const base = `${(settings.api_url || "https://api.green-api.com").replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-      // Send interactive Quick Reply buttons so customer can confirm/cancel in one tap
-      const buttonsBody = {
-        chatId: `${phone}@c.us`,
-        message: text,
-        footer: "اختر أحد الخيارات أدناه",
-        buttons: [
-          { buttonId: "confirm_order", buttonText: "✅ تأكيد الطلب" },
-          { buttonId: "cancel_order", buttonText: "❌ إلغاء الطلب" },
-        ],
-      };
-      let res = await fetch(`${base}/sendButtons/${settings.api_token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buttonsBody),
-      });
-      providerData = await res.json().catch(() => ({}));
-      providerOk = res.ok && !!providerData?.idMessage;
-      providerMessageId = providerData?.idMessage || null;
-      // Fallback to plain text (with manual instructions) if buttons endpoint fails
-      if (!providerOk) {
-        const fallbackText = `${text}\n\nللتأكيد أرسل: تأكيد\nللإلغاء أرسل: إلغاء`;
-        res = await fetch(`${base}/sendMessage/${settings.api_token}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chatId: `${phone}@c.us`, message: fallbackText }),
-        });
-        providerData = await res.json().catch(() => ({}));
-        providerOk = res.ok && !!providerData?.idMessage;
-        providerMessageId = providerData?.idMessage || null;
-      }
-    } else if (provider === "whatchimp") {
-      if (!settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
-        return new Response(JSON.stringify({ skipped: true, reason: "whatchimp_not_configured" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    {
       const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
       // Confirmation messages are almost always sent outside the 24h window,
       // so WhatsApp Business API only allows approved templates. Force template
@@ -179,7 +136,7 @@ Deno.serve(async (req) => {
     if (providerOk) {
       await supabase.from("whatsapp_messages").update({
         status: "sent", green_message_id: providerMessageId,
-        raw: { kind: "confirmation_prompt", provider },
+        raw: { kind: "confirmation_prompt", provider: "whatchimp" },
       }).eq("id", msg!.id);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -189,9 +146,7 @@ Deno.serve(async (req) => {
         status: "failed", error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg!.id);
       const providerMessage = String(providerData?.message || "");
-      const templateWindowError =
-        provider === "whatchimp" &&
-        providerMessage.toLowerCase().includes("outside 24 hour window");
+      const templateWindowError = providerMessage.toLowerCase().includes("outside 24 hour window");
       if (templateWindowError) {
         return new Response(JSON.stringify({
           skipped: true,
@@ -202,7 +157,7 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: `${provider} failed`, details: providerData }), {
+      return new Response(JSON.stringify({ error: "whatchimp failed", details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
