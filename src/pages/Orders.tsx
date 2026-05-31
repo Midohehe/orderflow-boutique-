@@ -1258,6 +1258,12 @@ const Orders = () => {
                 {order.insufficient_stock && (
                   <Badge variant="destructive" className="gap-1">⚠ مخزون غير كافٍ</Badge>
                 )}
+                {order.country_code && order.country_code.toUpperCase() !== "LY" && (
+                  <Badge variant="destructive" className="gap-1 bg-orange-600 hover:bg-orange-600">
+                    <Globe className="w-3 h-3" />
+                    من خارج ليبيا ({order.country_code})
+                  </Badge>
+                )}
                 {(() => {
                   const cs = ((order.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
                   return (
