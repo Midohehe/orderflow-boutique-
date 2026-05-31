@@ -279,7 +279,6 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
-  const providerParam = (url.searchParams.get("provider") || "").toLowerCase();
   if (!token) return new Response("missing token", { status: 401 });
 
   const supabase = createClient(
@@ -287,303 +286,36 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Resolve token: first check dedicated tokens table (per-user WhatChimp tokens),
-  // then fall back to legacy whatsapp_settings.webhook_token (Green API).
-  let ownerId: string | null = null;
-  let provider: string = providerParam || "green_api";
-  let settings: any = null;
-
   const { data: tokenRow } = await supabase
     .from("whatsapp_webhook_tokens")
-    .select("id, owner_id, provider")
+    .select("id, owner_id")
     .eq("token", token)
     .maybeSingle();
 
-  if (tokenRow) {
-    ownerId = tokenRow.owner_id;
-    provider = providerParam || tokenRow.provider || "whatchimp";
-    await supabase
-      .from("whatsapp_webhook_tokens")
-      .update({ last_used_at: new Date().toISOString() })
-      .eq("id", tokenRow.id);
-    const { data: s } = await supabase
-      .from("whatsapp_settings")
-      .select("*")
-      .eq("owner_id", ownerId)
-      .maybeSingle();
-    settings = s;
-  } else {
-    const { data: s } = await supabase
-      .from("whatsapp_settings")
-      .select("*")
-      .eq("webhook_token", token)
-      .maybeSingle();
-    if (!s) return new Response("invalid token", { status: 401 });
-    settings = s;
-    ownerId = s.owner_id;
-    provider = providerParam || s.provider || "green_api";
-  }
+  if (!tokenRow) return new Response("invalid token", { status: 401 });
 
-  if (!ownerId) return new Response("invalid token", { status: 401 });
+  const ownerId = tokenRow.owner_id;
+  await supabase
+    .from("whatsapp_webhook_tokens")
+    .update({ last_used_at: new Date().toISOString() })
+    .eq("id", tokenRow.id);
+
+  const { data: settings } = await supabase
+    .from("whatsapp_settings")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
 
   let payload: any;
   try { payload = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
 
-  console.log("WA webhook", provider, JSON.stringify(payload).slice(0, 500));
-
-  // === WhatChimp branch ============================================
-  if (provider === "whatchimp") {
-    try {
-      const result = await handleWhatChimp(supabase, ownerId!, settings, payload);
-      return new Response(result || "ok");
-    } catch (e) {
-      console.error("whatchimp webhook error", e);
-      return new Response("error", { status: 500 });
-    }
-  }
-
-  // === Green API branch (existing logic) ===========================
-  const type = payload?.typeWebhook;
+  console.log("WA webhook (whatchimp)", JSON.stringify(payload).slice(0, 500));
 
   try {
-    // Status updates
-    if (type === "outgoingMessageStatus") {
-      const status = String(payload.status || "").toLowerCase();
-      const map: Record<string,string> = { sent:"sent", delivered:"delivered", read:"read", failed:"failed", noaccount:"failed", notinwhitelist:"failed" };
-      const mapped = map[status] || status;
-      const idMessage = payload.idMessage;
-      if (idMessage) {
-        await supabase.from("whatsapp_messages")
-          .update({ status: mapped })
-          .eq("green_message_id", idMessage)
-          .eq("owner_id", ownerId);
-      }
-      return new Response("ok");
-    }
-
-    // Incoming messages
-    if (type === "incomingMessageReceived") {
-      const senderData = payload.senderData || {};
-      const messageData = payload.messageData || {};
-      const chatId: string = senderData.chatId || "";
-      if (!chatId.endsWith("@c.us")) return new Response("ok"); // ignore groups
-      const phone = chatId.replace("@c.us", "").replace(/\D/g, "");
-      const senderName = senderData.senderName || senderData.chatName || null;
-
-      let msgType = "text";
-      let content = "";
-      let mediaUrl: string | null = null;
-      let mediaMime: string | null = null;
-      let mediaFilename: string | null = null;
-
-      if (messageData.typeMessage === "textMessage" || messageData.typeMessage === "extendedTextMessage") {
-        content = messageData.textMessageData?.textMessage || messageData.extendedTextMessageData?.text || "";
-      } else if (messageData.typeMessage === "quotedMessage") {
-        // Reply that quotes another message - extract the user's actual text
-        content = messageData.extendedTextMessageData?.text
-          || messageData.extendedTextMessageData?.stanzaId
-          || messageData.textMessageData?.textMessage
-          || "";
-      } else if (
-        messageData.typeMessage === "buttonsResponseMessage" ||
-        messageData.typeMessage === "templateButtonReplyMessage" ||
-        messageData.typeMessage === "listResponseMessage" ||
-        messageData.typeMessage === "interactiveButtons"
-      ) {
-        // Interactive Quick Reply tap → use buttonId (stable) when available, else displayed text
-        const br = messageData.buttonsResponseMessage
-          || messageData.templateButtonReplyMessage
-          || messageData.listResponseMessage
-          || messageData.interactiveButtons
-          || {};
-        content = br.selectedButtonId || br.selectedId || br.stanzaId || br.selectedDisplayText || br.selectedRowId || "";
-        msgType = "text";
-      } else if (messageData.typeMessage === "imageMessage") {
-        msgType = "image";
-        const fm = messageData.fileMessageData || {};
-        mediaUrl = fm.downloadUrl || null;
-        mediaMime = fm.mimeType || null;
-        mediaFilename = fm.fileName || null;
-        content = fm.caption || "";
-      } else if (messageData.typeMessage === "audioMessage") {
-        msgType = "audio";
-        const fm = messageData.fileMessageData || {};
-        mediaUrl = fm.downloadUrl || null;
-        mediaMime = fm.mimeType || null;
-      } else if (messageData.typeMessage === "videoMessage") {
-        msgType = "video";
-        const fm = messageData.fileMessageData || {};
-        mediaUrl = fm.downloadUrl || null;
-        mediaMime = fm.mimeType || null;
-        content = fm.caption || "";
-      } else if (messageData.typeMessage === "documentMessage") {
-        msgType = "file";
-        const fm = messageData.fileMessageData || {};
-        mediaUrl = fm.downloadUrl || null;
-        mediaMime = fm.mimeType || null;
-        mediaFilename = fm.fileName || null;
-      } else {
-        msgType = "system";
-        content = `[${messageData.typeMessage}]`;
-      }
-
-      // Upsert conversation
-      const { data: conv } = await supabase
-        .from("whatsapp_conversations")
-        .select("id, order_id, unread_count")
-        .eq("owner_id", ownerId)
-        .eq("phone", phone)
-        .maybeSingle();
-
-      let conversationId: string;
-      let convOrderId: string | null = conv?.order_id ?? null;
-      if (!conv) {
-        // Try linking to most recent pending order from this phone
-        const { data: linkedOrder } = await supabase
-          .from("orders")
-          .select("id")
-          .eq("owner_id", ownerId)
-          .ilike("phone", `%${phone.slice(-9)}%`)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        convOrderId = linkedOrder?.id ?? null;
-
-        const { data: newConv, error: cErr } = await supabase
-          .from("whatsapp_conversations")
-          .insert({
-            owner_id: ownerId,
-            phone,
-            customer_name: senderName,
-            order_id: convOrderId,
-            last_message_preview: previewOf(content, msgType),
-            unread_count: 1,
-          })
-          .select("id")
-          .single();
-        if (cErr) throw cErr;
-        conversationId = newConv.id;
-      } else {
-        conversationId = conv.id;
-        await supabase.from("whatsapp_conversations").update({
-          last_message_at: new Date().toISOString(),
-          last_message_preview: previewOf(content, msgType),
-          unread_count: (conv.unread_count || 0) + 1,
-          ...(senderName ? { customer_name: senderName } : {}),
-        }).eq("id", conversationId);
-      }
-
-      await supabase.from("whatsapp_messages").insert({
-        owner_id: ownerId,
-        conversation_id: conversationId,
-        order_id: convOrderId,
-        direction: "in",
-        message_type: msgType,
-        content,
-        media_url: mediaUrl,
-        media_mime: mediaMime,
-        media_filename: mediaFilename,
-        status: "delivered",
-        green_message_id: payload.idMessage || null,
-        raw: payload,
-      });
-
-      // Auto-confirm intent handling
-      if (msgType === "text" && convOrderId && settings.auto_confirm_enabled) {
-        const intent = parseConfirmIntent(content);
-        const { data: lastOutgoing } = await supabase
-          .from("whatsapp_messages")
-          .select("content, created_at, order_id, raw")
-          .eq("conversation_id", conversationId)
-          .eq("direction", "out")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const canUseAutoConfirm = !!(
-          intent &&
-          lastOutgoing?.order_id === convOrderId &&
-          (isStructuredConfirmationPrompt(lastOutgoing?.content) || (lastOutgoing as any)?.raw?.kind === "confirmation_prompt") &&
-          isRecentEnough(lastOutgoing?.created_at, 1000 * 60 * 60 * 24)
-        );
-
-        if (intent && canUseAutoConfirm) {
-          // Mirror the manual confirm flow in Orders page:
-          // only update confirmation_status (keep order.status as-is so workflow tabs stay correct).
-          await supabase.from("orders").update({
-            confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
-            confirmed_at: new Date().toISOString(),
-          }).eq("id", convOrderId).eq("owner_id", ownerId);
-
-          // Reply to customer
-          const replyText = intent === "confirm"
-            ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
-            : "❌ تم إلغاء طلبك بناءً على طلبك.";
-
-          try {
-            const base = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-            const greenRes = await fetch(`${base}/sendMessage/${settings.api_token}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chatId, message: replyText }),
-            });
-            const greenData = await greenRes.json().catch(() => ({}));
-            await supabase.from("whatsapp_messages").insert({
-              owner_id: ownerId,
-              conversation_id: conversationId,
-              order_id: convOrderId,
-              direction: "out",
-              message_type: "text",
-              content: replyText,
-              status: greenData?.idMessage ? "sent" : "failed",
-              green_message_id: greenData?.idMessage || null,
-            });
-            await supabase.from("whatsapp_conversations").update({
-              last_message_at: new Date().toISOString(),
-              last_message_preview: replyText.slice(0, 120),
-            }).eq("id", conversationId);
-          } catch (e) {
-            console.error("auto-reply failed", e);
-          }
-
-          return new Response("ok");
-        }
-
-        if (intent && !canUseAutoConfirm) {
-          console.log("Skipping auto-confirm; latest outgoing message is not an active confirmation prompt", {
-            conversationId,
-            convOrderId,
-            lastOutgoingOrderId: lastOutgoing?.order_id ?? null,
-            lastOutgoingPreview: (lastOutgoing?.content || "").slice(0, 80),
-          });
-        }
-      }
-
-      // AI auto-reply for non-confirmation messages
-      if (settings.ai_auto_reply_enabled) {
-        try {
-          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-          const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-          // Fire-and-forget AI reply (do not block webhook response)
-          fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-reply`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${anonKey}`,
-            },
-            body: JSON.stringify({ owner_id: ownerId, conversation_id: conversationId, phone }),
-          }).catch((e) => console.error("ai-reply trigger failed", e));
-        } catch (e) {
-          console.error("ai-reply trigger error", e);
-        }
-      }
-
-      return new Response("ok");
-    }
-
-    return new Response("ignored");
+    const result = await handleWhatChimp(supabase, ownerId, settings, payload);
+    return new Response(result || "ok");
   } catch (e) {
-    console.error("webhook error", e);
+    console.error("whatchimp webhook error", e);
     return new Response("error", { status: 500 });
   }
 });
