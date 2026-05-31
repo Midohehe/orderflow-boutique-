@@ -1,4 +1,4 @@
-// Send a WhatsApp message via Green API. Authenticated only.
+// Send a WhatsApp message via WhatChimp. Authenticated only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -80,18 +80,12 @@ Deno.serve(async (req) => {
       .eq("owner_id", ownerId)
       .maybeSingle();
 
-    const provider = settings?.provider || "green_api";
     if (!settings || !settings.enabled) {
       return new Response(JSON.stringify({ error: "WhatsApp not configured" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (provider === "green_api" && (!settings.instance_id || !settings.api_token)) {
-      return new Response(JSON.stringify({ error: "Green API not configured" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (provider === "whatchimp" && (!settings.whatchimp_api_key || !settings.whatchimp_phone_number_id)) {
+    if (!settings.whatchimp_api_key || !settings.whatchimp_phone_number_id) {
       return new Response(JSON.stringify({ error: "WhatChimp not configured" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -152,29 +146,7 @@ Deno.serve(async (req) => {
     let providerOk = false;
     let providerData: any = {};
 
-    if (provider === "green_api") {
-      const base = `${settings.api_url.replace(/\/$/, "")}/waInstance${settings.instance_id}`;
-      const chatId = `${phone}@c.us`;
-      let endpoint = `${base}/sendMessage/${settings.api_token}`;
-      let payload: Record<string, unknown> = { chatId, message: text };
-      if (mediaUrl) {
-        endpoint = `${base}/sendFileByUrl/${settings.api_token}`;
-        payload = {
-          chatId,
-          urlFile: mediaUrl,
-          fileName: body.media_filename || mediaUrl.split("/").pop() || "file",
-          caption: text || undefined,
-        };
-      }
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      providerData = await res.json().catch(() => ({}));
-      providerOk = res.ok && !!providerData?.idMessage;
-      providerMessageId = providerData?.idMessage || null;
-    } else if (provider === "whatchimp") {
+    {
       const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
       const endpoint = `${apiUrl}/api/v1/whatsapp/send`;
       const payload: Record<string, unknown> = {
@@ -200,7 +172,7 @@ Deno.serve(async (req) => {
         status: "failed",
         error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg.id);
-      return new Response(JSON.stringify({ error: `${provider} failed`, details: providerData }), {
+      return new Response(JSON.stringify({ error: "whatchimp failed", details: providerData }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
