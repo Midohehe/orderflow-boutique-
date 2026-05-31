@@ -203,6 +203,36 @@ export async function sendConfirmationTemplate(
   phone: string,
   vars: { customer_name: string; order_id: string; products: string; total: string },
 ): Promise<WAResult> {
+  if (getProvider(settings) === "mazbot") {
+    const templateId = String(settings.mazbot_template_id || "").trim();
+    if (!templateId) {
+      return { ok: false, messageId: null, raw: { error: "mazbot_template_id not set" } };
+    }
+    const jwt = await mazbotLogin(settings);
+    if (!jwt) return { ok: false, messageId: null, raw: { error: "mazbot login failed" } };
+    const base = mazbotBase(settings);
+    const fd = new FormData();
+    fd.set("template_id", templateId);
+    fd.set("mobile", phone);
+    // Indexes MUST start at 1 per Mazbot docs.
+    const values = [vars.customer_name, vars.order_id, vars.products, vars.total];
+    values.forEach((v, i) => {
+      const idx = i + 1;
+      fd.set(`body_matchs[${idx}]`, "input_value");
+      fd.set(`body_values[${idx}]`, String(v ?? ""));
+    });
+    const res = await fetch(`${base}/whatsapp/send-template`, {
+      method: "POST",
+      headers: {
+        apikey: String(settings.mazbot_api_key || ""),
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/json",
+      },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: mazbotOk(res, data), messageId: mazbotMsgId(data), raw: data };
+  }
   if (getProvider(settings) === "wati") {
     const base = normalizeBaseUrl(settings.wati_api_endpoint, "");
     const templateName = String(settings.wati_template_name || "").trim();
