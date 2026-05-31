@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
-import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search } from "lucide-react";
+import { Send, Settings as SettingsIcon, MessageCircle, Check, CheckCheck, Clock, Search, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -644,9 +644,9 @@ export default function WhatsAppPage() {
         }
       />
 
-      <Card className="grid grid-cols-1 md:grid-cols-[320px_1fr] h-[calc(100dvh-220px)] min-h-[500px] overflow-hidden">
+      <Card className="grid grid-cols-1 md:grid-cols-[320px_1fr] h-[calc(100dvh-180px)] md:h-[calc(100dvh-220px)] min-h-[500px] overflow-hidden">
         {/* Conversations list */}
-        <div className="border-l flex flex-col min-h-0">
+        <div className={`border-l flex flex-col min-h-0 ${active ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 border-b">
             <div className="relative">
               <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -678,20 +678,31 @@ export default function WhatsAppPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex flex-col min-h-0">
+        <div className={`flex-col min-h-0 ${active ? "flex" : "hidden md:flex"}`}>
           {!active ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               اختر محادثة للبدء
             </div>
           ) : (
             <>
-              <div className="p-3 border-b flex items-center justify-between">
-                <div>
+              <div className="p-3 border-b flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden shrink-0"
+                    onClick={() => setActiveId(null)}
+                    aria-label="رجوع"
+                  >
+                    <ArrowRight className="w-5 h-5" />
+                  </Button>
+                  <div className="min-w-0">
                   <div className="font-medium">{active.customer_name || active.phone}</div>
                   <div className="text-xs text-muted-foreground">{active.phone}</div>
+                  </div>
                 </div>
                 {active.order_id && (
-                  <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard/orders?open=${active.order_id}`)}>
+                  <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate(`/dashboard/orders?open=${active.order_id}`)}>
                     فتح الطلب
                   </Button>
                 )}
