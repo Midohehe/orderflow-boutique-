@@ -1665,7 +1665,7 @@ const Orders = () => {
       )}
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-8 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-9 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
           <TabsTrigger value="pending" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Clock className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">قيد الانتظار</span>
