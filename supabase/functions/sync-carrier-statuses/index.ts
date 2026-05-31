@@ -102,18 +102,28 @@ Deno.serve(async (req) => {
       return await r.json().catch(() => ({}));
     };
 
-    // Fetch orders that have a shipping_id and are in shipped/delivered/etc lifecycle.
-    const { data: orders, error: oErr } = await admin
-      .from("orders")
-      .select("id, shipping_id, shipping_reference, status, carrier_status")
-      .eq("owner_id", ownerId)
-      .not("shipping_id", "is", null)
-      // Skip orders already in a terminal carrier state to avoid re-polling them every run.
-      .not("status", "in", "(delivered,returned,cancelled,refunded)");
-    if (oErr) {
-      return new Response(JSON.stringify({ error: oErr.message }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Fetch orders in pages of 1000 (Supabase's per-request cap) so we cover
+    // every shipped order, not just the first 1000.
+    const PAGE_SIZE = 1000;
+    const orders: any[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error: oErr } = await admin
+        .from("orders")
+        .select("id, shipping_id, shipping_reference, status, carrier_status")
+        .eq("owner_id", ownerId)
+        .not("shipping_id", "is", null)
+        // Skip orders already in a terminal carrier state to avoid re-polling them every run.
+        .not("status", "in", "(delivered,returned,cancelled,refunded)")
+        .order("id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (oErr) {
+        return new Response(JSON.stringify({ error: oErr.message }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!page || page.length === 0) break;
+      orders.push(...page);
+      if (page.length < PAGE_SIZE) break;
     }
 
     // Pre-load global custom mappings (managed by superadmin)
@@ -202,9 +212,8 @@ Deno.serve(async (req) => {
 
     // Process in parallel batches to stay well under the 150s idle timeout.
     const CONCURRENCY = 10;
-    const list = orders || [];
-    for (let i = 0; i < list.length; i += CONCURRENCY) {
-      const batch = list.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < orders.length; i += CONCURRENCY) {
+      const batch = orders.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map((o) => processOne(o).catch(() => { failed++; })));
     }
 
@@ -214,7 +223,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       ok: true,
-      total: orders?.length ?? 0,
+      total: orders.length,
       updated,
       failed,
       codes,
