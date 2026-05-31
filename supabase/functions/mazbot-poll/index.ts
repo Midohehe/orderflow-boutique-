@@ -185,9 +185,9 @@ async function pollOwner(supabase: any, s: any) {
       await supabase
         .from("whatsapp_conversations")
         .update({
-          last_message_preview: lastPreview,
-          last_message_at: new Date(room.updated_at || Date.now()).toISOString(),
-          ...(unreadInc ? { unread_count: (Number(room?.unread_count) || 0) + unreadInc } : {}),
+          ...(lastPreview ? { last_message_preview: lastPreview } : {}),
+          last_message_at: new Date(updatedAt || Date.now()).toISOString(),
+          ...(unreadInc ? { unread_count: (Number(room?.total_unread_messages) || 0) + unreadInc } : {}),
         })
         .eq("id", conv.id);
     }
