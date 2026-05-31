@@ -231,6 +231,8 @@ export default function WhatsAppPage() {
       whatchimp_use_template: !!settings.whatchimp_use_template,
       whatchimp_template_name: settings.whatchimp_template_name || "",
       whatchimp_template_language: settings.whatchimp_template_language || "ar",
+      whatchimp_template_id: settings.whatchimp_template_id || "",
+      whatchimp_template_buttons: settings.whatchimp_template_buttons || "",
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
