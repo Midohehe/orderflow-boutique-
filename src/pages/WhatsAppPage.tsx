@@ -168,7 +168,7 @@ export default function WhatsAppPage() {
   }
 
   const buildWebhookUrl = (token: string) =>
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook?provider=whatchimp&token=${token}`;
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook?provider=${settings?.provider === "wati" ? "wati" : "whatchimp"}&token=${token}`;
 
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
@@ -330,6 +330,83 @@ export default function WhatsAppPage() {
                   <Label htmlFor="wa-enabled">تفعيل WhatsApp</Label>
                   <Switch id="wa-enabled" checked={!!settings.enabled} onCheckedChange={(v) => setSettings({ ...settings, enabled: v })} />
                 </div>
+                <div className="flex items-center justify-between p-3 border rounded-md gap-3">
+                  <Label>المزوّد</Label>
+                  <Select
+                    value={settings.provider === "wati" ? "wati" : "whatchimp"}
+                    onValueChange={(v) => setSettings({ ...settings, provider: v })}
+                  >
+                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="wati">Wati</SelectItem>
+                      <SelectItem value="whatchimp">WhatChimp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {settings.provider === "wati" && (
+                  <div className="space-y-4 p-4 border rounded-md bg-muted/20">
+                    <div className="text-sm font-semibold">إعدادات Wati</div>
+                    <div>
+                      <Label>API Endpoint</Label>
+                      <Input
+                        value={settings.wati_api_endpoint || ""}
+                        onChange={(e) => setSettings({ ...settings, wati_api_endpoint: e.target.value })}
+                        placeholder="https://live-mt-server.wati.io/{tenantId}"
+                        dir="ltr"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">انسخه من Wati ← API Docs (السطر الأول يحوي رقم الحساب).</p>
+                    </div>
+                    <div>
+                      <Label>Access Token</Label>
+                      <Input
+                        type="password"
+                        value={settings.wati_access_token || ""}
+                        onChange={(e) => setSettings({ ...settings, wati_access_token: e.target.value })}
+                        placeholder="Bearer eyJ... (بدون كلمة Bearer)"
+                        dir="ltr"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">من Wati ← Settings ← API. ضع المفتاح فقط؛ سنضيف كلمة Bearer تلقائياً.</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <Label>اسم القالب (Template Name)</Label>
+                        <Input
+                          value={settings.wati_template_name || ""}
+                          onChange={(e) => setSettings({ ...settings, wati_template_name: e.target.value })}
+                          placeholder="order_confirmation"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div>
+                        <Label>اسم الحملة (Broadcast Name)</Label>
+                        <Input
+                          value={settings.wati_broadcast_name || ""}
+                          onChange={(e) => setSettings({ ...settings, wati_broadcast_name: e.target.value })}
+                          placeholder="order_confirmation"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-2 border rounded-md bg-background">
+                      <Label htmlFor="wati-tpl" className="text-sm">إرسال رسالة التأكيد كقالب</Label>
+                      <Switch
+                        id="wati-tpl"
+                        checked={settings.wati_use_template !== false}
+                        onCheckedChange={(v) => setSettings({ ...settings, wati_use_template: v })}
+                      />
+                    </div>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      يجب أن يحوي القالب 4 متغيرات بالترتيب: {`{{1}}=اسم العميل، {{2}}=رقم الطلب، {{3}}=المنتجات، {{4}}=الإجمالي`}.
+                    </p>
+                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-1">
+                      <div>إرسال القالب: <span className="font-mono" dir="ltr">POST {`{endpoint}`}/api/v2/sendTemplateMessage?whatsappNumber={`{phone}`}</span></div>
+                      <div>إرسال جلسة نصية: <span className="font-mono" dir="ltr">POST {`{endpoint}`}/api/v1/sendSessionMessage/{`{phone}`}</span></div>
+                    </div>
+                  </div>
+                )}
+
+                {settings.provider !== "wati" && (
                 <div className="space-y-4 p-4 border rounded-md bg-muted/20">
                     <div className="text-sm font-semibold">إعدادات WhatChimp</div>
                     <div className="grid gap-3 md:grid-cols-2">
@@ -403,14 +480,15 @@ export default function WhatsAppPage() {
                       </>
                     )}
                 </div>
+                )}
 
                 {/* WhatChimp webhook tokens */}
                 <div className="p-3 border rounded-md space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-semibold">روابط Webhook لـ WhatChimp</Label>
+                    <Label className="text-sm font-semibold">روابط Webhook</Label>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    أنشئ توكناً، انسخ الرابط، ثم الصقه في WhatChimp ← Webhook Settings (Incoming Messages + Message Status).
+                    أنشئ توكناً، انسخ الرابط، ثم الصقه في {settings.provider === "wati" ? "Wati ← Webhooks" : "WhatChimp ← Webhook Settings"} (للرسائل الواردة وحالات التسليم).
                   </p>
                   <div className="flex gap-2">
                     <Input
