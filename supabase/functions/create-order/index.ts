@@ -56,6 +56,25 @@ Deno.serve(async (req) => {
       null;
     const userAgent = req.headers.get("user-agent") || null;
 
+    // Detect customer country (Cloudflare provides cf-ipcountry on was-la.com;
+    // fallback to ipapi.co lookup when missing). Never blocks the order — only
+    // tags it so the dashboard can route non-Libya orders to a separate tab.
+    let countryCode: string | null =
+      (req.headers.get("cf-ipcountry") || "").toUpperCase().trim() || null;
+    if (countryCode === "XX" || countryCode === "T1") countryCode = null;
+    if (!countryCode && clientIp) {
+      try {
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 1500);
+        const r = await fetch(`https://ipapi.co/${clientIp}/country/`, { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (r.ok) {
+          const t = (await r.text()).trim().toUpperCase();
+          if (/^[A-Z]{2}$/.test(t)) countryCode = t;
+        }
+      } catch (_e) { /* ignore — country stays null */ }
+    }
+
     // Helper: persist a rejected attempt so the dashboard can review it.
     const logRejected = async (reason: string) => {
       try {
@@ -257,6 +276,7 @@ Deno.serve(async (req) => {
       upsell_offers: upsellOffers && upsellOffers.length > 0 ? upsellOffers : [],
       client_ip: clientIp,
       user_agent: userAgent,
+      country_code: countryCode,
       utm_source: s(body.utm_source ?? "", 120) || null,
       utm_medium: s(body.utm_medium ?? "", 120) || null,
       utm_campaign: s(body.utm_campaign ?? "", 200) || null,
