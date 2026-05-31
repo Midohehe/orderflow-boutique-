@@ -14,6 +14,18 @@ function normBase(v: string | null | undefined) {
   return String(v || "https://mazbot.net/api").trim().replace(/\/$/, "");
 }
 
+function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
+  const t = (text || "").trim().toLowerCase();
+  if (!t) return null;
+  if (t === "1") return "confirm";
+  if (t === "2") return "cancel";
+  const yes = ["نعم","تاكيد","تأكيد","موافق","ايوه","اوكي","ok","yes","y","اي","أكيد","تاكيد الطلب","تأكيد الطلب"];
+  const no = ["لا","الغاء","إلغاء","لاء","cancel","no","n","الغاء الطلب","إلغاء الطلب"];
+  if (yes.some((w) => t === w || t.includes(w))) return "confirm";
+  if (no.some((w) => t === w || t.includes(w))) return "cancel";
+  return null;
+}
+
 async function mazbotLogin(s: any): Promise<string | null> {
   const r = await fetch(`${normBase(s.mazbot_base_url)}/login`, {
     method: "POST",
