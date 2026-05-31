@@ -224,10 +224,7 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const { error } = await supabase.from("whatsapp_settings").update({
       enabled: settings.enabled,
-      provider: settings.provider || "green_api",
-      instance_id: settings.instance_id,
-      api_token: settings.api_token,
-      api_url: settings.api_url,
+      provider: "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
       whatchimp_api_url: settings.whatchimp_api_url || "https://app.whatchimp.com",
@@ -268,10 +265,6 @@ export default function WhatsAppPage() {
   const filtered = conversations.filter((c) =>
     !search || c.phone.includes(search) || (c.customer_name || "").includes(search) || (c.last_message_preview || "").includes(search)
   );
-
-  const webhookUrl = settings?.webhook_token
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook?token=${settings.webhook_token}`
-    : "";
 
   return (
     <div className="space-y-4" dir="rtl">
