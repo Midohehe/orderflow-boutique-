@@ -346,6 +346,7 @@ export default function WhatsAppPage() {
                     <SelectContent>
                       <SelectItem value="wati">Wati</SelectItem>
                       <SelectItem value="whatchimp">WhatChimp</SelectItem>
+                      <SelectItem value="mazbot">MazBot</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
