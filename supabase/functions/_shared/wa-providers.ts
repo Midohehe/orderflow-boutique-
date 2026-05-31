@@ -36,17 +36,81 @@ function watiMsgId(d: any): string | null {
   return d?.messages?.[0]?.id || d?.id || d?.whatsappMessageId || null;
 }
 
-export function getProvider(settings: any): "wati" | "whatchimp" {
+export function getProvider(settings: any): "wati" | "whatchimp" | "mazbot" {
   const p = String(settings?.provider || "").toLowerCase();
-  return p === "wati" ? "wati" : "whatchimp";
+  if (p === "wati") return "wati";
+  if (p === "mazbot") return "mazbot";
+  return "whatchimp";
 }
 
 export function isConfigured(settings: any): boolean {
   if (!settings || !settings.enabled) return false;
-  if (getProvider(settings) === "wati") {
+  const provider = getProvider(settings);
+  if (provider === "wati") {
     return !!(settings.wati_api_endpoint && settings.wati_access_token);
   }
+  if (provider === "mazbot") {
+    return !!(settings.mazbot_api_key && settings.mazbot_email && settings.mazbot_password);
+  }
   return !!(settings.whatchimp_api_key && settings.whatchimp_phone_number_id);
+}
+
+// ============ MazBot helpers ============
+function mazbotBase(settings: any): string {
+  return normalizeBaseUrl(settings.mazbot_base_url, "https://mazbot.net/api");
+}
+function mazbotOk(res: Response, d: any): boolean {
+  return res.ok && d?.success === true;
+}
+function mazbotMsgId(d: any): string | null {
+  return d?.data?.message_id || d?.message_id || null;
+}
+
+async function mazbotLogin(settings: any): Promise<string | null> {
+  const base = mazbotBase(settings);
+  const res = await fetch(`${base}/login`, {
+    method: "POST",
+    headers: {
+      apikey: String(settings.mazbot_api_key || ""),
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      email: String(settings.mazbot_email || ""),
+      password: String(settings.mazbot_password || ""),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return data?.data?.token || null;
+}
+
+// Look up contact by phone, create if missing. Returns numeric id or null.
+async function mazbotEnsureContact(settings: any, jwt: string, phone: string, name?: string): Promise<number | null> {
+  const base = mazbotBase(settings);
+  const headers = {
+    apikey: String(settings.mazbot_api_key || ""),
+    Authorization: `Bearer ${jwt}`,
+    Accept: "application/json",
+  } as Record<string, string>;
+  // Try search (best-effort)
+  try {
+    const r = await fetch(`${base}/contacts?search=${encodeURIComponent(phone)}`, { headers });
+    const d = await r.json().catch(() => ({}));
+    const list = d?.data?.contacts || d?.data || [];
+    const hit = Array.isArray(list)
+      ? list.find((c: any) => String(c?.phone || "").replace(/\D+/g, "") === phone.replace(/\D+/g, ""))
+      : null;
+    if (hit?.id) return Number(hit.id);
+  } catch (_) { /* ignore */ }
+  // Create
+  const body = new FormData();
+  body.set("name", name || phone);
+  body.set("phone", phone);
+  body.set("type", "whatsapp");
+  const cr = await fetch(`${base}/contacts`, { method: "POST", headers, body });
+  const cd = await cr.json().catch(() => ({}));
+  const id = cd?.data?.id || cd?.data?.contact?.id;
+  return id ? Number(id) : null;
 }
 
 function watiAuthHeader(token: string): string {
@@ -55,6 +119,27 @@ function watiAuthHeader(token: string): string {
 }
 
 export async function sendText(settings: any, phone: string, text: string): Promise<WAResult> {
+  if (getProvider(settings) === "mazbot") {
+    const jwt = await mazbotLogin(settings);
+    if (!jwt) return { ok: false, messageId: null, raw: { error: "mazbot login failed" } };
+    const contactId = await mazbotEnsureContact(settings, jwt, phone);
+    if (!contactId) return { ok: false, messageId: null, raw: { error: "mazbot contact not found" } };
+    const base = mazbotBase(settings);
+    const fd = new FormData();
+    fd.set("receiver_id", String(contactId));
+    fd.set("message", text);
+    const res = await fetch(`${base}/send-message`, {
+      method: "POST",
+      headers: {
+        apikey: String(settings.mazbot_api_key || ""),
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/json",
+      },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: mazbotOk(res, data), messageId: mazbotMsgId(data), raw: data };
+  }
   if (getProvider(settings) === "wati") {
     const base = normalizeBaseUrl(settings.wati_api_endpoint, "");
     const url = `${base}/api/v1/sendSessionMessage/${phone}?messageText=${encodeURIComponent(text)}`;
