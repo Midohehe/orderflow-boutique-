@@ -15,17 +15,36 @@ function normBase(v: string | null | undefined) {
 }
 
 function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
-  const t = (text || "").trim().toLowerCase();
+  // Strip diacritics, punctuation, and emojis so "✅ تأكيد!" → "تاكيد".
+  const t = (text || "")
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .trim()
+    .toLowerCase();
   if (!t) return null;
-  if (t === "1") return "confirm";
-  if (t === "2") return "cancel";
-  // Button IDs/payloads from MazBot template buttons
-  if (t === "confirm" || t === "confirm_order" || t === "✅ تأكيد" || t === "✅ تأكيد الطلب") return "confirm";
-  if (t === "cancel" || t === "cancel_order" || t === "❌ إلغاء" || t === "❌ إلغاء الطلب") return "cancel";
-  const yes = ["نعم","تاكيد","تأكيد","موافق","ايوه","اوكي","ok","yes","y","اي","أكيد","تاكيد الطلب","تأكيد الطلب"];
-  const no = ["لا","الغاء","إلغاء","لاء","cancel","no","n","الغاء الطلب","إلغاء الطلب"];
-  if (yes.some((w) => t === w || t.includes(w))) return "confirm";
-  if (no.some((w) => t === w || t.includes(w))) return "cancel";
+  // Exact-word match only (split on whitespace) — never substring,
+  // because "السلام" contains "لا" and would otherwise cancel orders.
+  const words = t.split(/\s+/).filter(Boolean);
+  const yes = new Set([
+    "1","نعم","تاكيد","موافق","ايوه","اوكي","ok","yes","y","اي","اكيد","confirm","confirm_order",
+  ]);
+  const no = new Set([
+    "2","لا","الغاء","لاء","cancel","no","n","cancel_order",
+  ]);
+  // Single-token messages are the only ones we treat as intents.
+  if (words.length === 1) {
+    if (yes.has(words[0])) return "confirm";
+    if (no.has(words[0])) return "cancel";
+  }
+  // Two/three-token button labels like "تاكيد الطلب".
+  if (words.length <= 3) {
+    const joined = words.join(" ");
+    if (joined === "تاكيد الطلب" || joined === "confirm order") return "confirm";
+    if (joined === "الغاء الطلب" || joined === "cancel order") return "cancel";
+  }
   return null;
 }
 
@@ -105,6 +124,20 @@ async function pollOwner(supabase: any, s: any) {
 
     let lastPreview: string | null = null;
     let unreadInc = 0;
+    // Pull most recent outgoing confirmation prompt (if any) so we only
+    // honor confirm/cancel replies that arrive AFTER it.
+    const { data: lastPrompt } = await supabase
+      .from("whatsapp_messages")
+      .select("created_at, order_id")
+      .eq("conversation_id", conv.id)
+      .eq("direction", "out")
+      .ilike("content", "%للتأكيد أرسل%")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const promptAt = lastPrompt?.created_at ? new Date(lastPrompt.created_at).getTime() : 0;
+    const promptOrderId: string | null = (lastPrompt as any)?.order_id ?? convOrderId;
+    let aiTriggered = false;
     // Process oldest → newest so previews/unread reflect the latest message.
     const sortedMsgs = msgs.slice().sort((a: any, b: any) => {
       const ta = new Date(a?.created_at || a?.sent_at || 0).getTime();
@@ -159,13 +192,19 @@ async function pollOwner(supabase: any, s: any) {
       if (direction === "in") unreadInc++;
 
       // Auto-confirm: if incoming text matches confirm/cancel and we have a linked order.
-      if (direction === "in" && mtype === "text" && convOrderId && s.auto_confirm_enabled) {
+      const msgAt = new Date(
+        m?.created_at || m?.sent_at || Date.now(),
+      ).getTime();
+      if (
+        direction === "in" && mtype === "text" && promptOrderId &&
+        s.auto_confirm_enabled && promptAt > 0 && msgAt >= promptAt
+      ) {
         const intent = parseConfirmIntent(content || "");
         if (intent) {
           await supabase.from("orders").update({
             confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
             confirmed_at: new Date().toISOString(),
-          }).eq("id", convOrderId).eq("owner_id", s.owner_id);
+          }).eq("id", promptOrderId).eq("owner_id", s.owner_id);
 
           const replyText = intent === "confirm"
             ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
@@ -174,10 +213,23 @@ async function pollOwner(supabase: any, s: any) {
             await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
-              body: JSON.stringify({ phone, text: replyText, order_id: convOrderId, owner_id: s.owner_id }),
+              body: JSON.stringify({ phone, text: replyText, order_id: promptOrderId, owner_id: s.owner_id }),
             }).catch(() => {});
           } catch (e) { console.error("mazbot auto-reply failed", e); }
+          continue;
         }
+      }
+
+      // AI auto-reply for free-text incoming messages (no confirm intent).
+      if (direction === "in" && mtype === "text" && s.ai_auto_reply_enabled && !aiTriggered) {
+        aiTriggered = true;
+        try {
+          fetch(`${SUPABASE_URL}/functions/v1/whatsapp-ai-reply`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+            body: JSON.stringify({ owner_id: s.owner_id, conversation_id: conv.id, phone }),
+          }).catch((e) => console.error("ai-reply trigger failed", e));
+        } catch (e) { console.error("ai-reply trigger error", e); }
       }
     }
 
