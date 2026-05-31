@@ -3333,18 +3333,14 @@ export type Database = {
       whatsapp_settings: {
         Row: {
           ai_auto_reply_enabled: boolean
-          api_token: string
-          api_url: string
           auto_confirm_enabled: boolean
           confirm_template: string
           created_at: string
           enabled: boolean
           id: string
-          instance_id: string
           owner_id: string
           provider: string
           updated_at: string
-          webhook_token: string | null
           welcome_template: string
           whatchimp_api_key: string
           whatchimp_api_url: string
@@ -3355,18 +3351,14 @@ export type Database = {
         }
         Insert: {
           ai_auto_reply_enabled?: boolean
-          api_token?: string
-          api_url?: string
           auto_confirm_enabled?: boolean
           confirm_template?: string
           created_at?: string
           enabled?: boolean
           id?: string
-          instance_id?: string
           owner_id: string
           provider?: string
           updated_at?: string
-          webhook_token?: string | null
           welcome_template?: string
           whatchimp_api_key?: string
           whatchimp_api_url?: string
@@ -3377,18 +3369,14 @@ export type Database = {
         }
         Update: {
           ai_auto_reply_enabled?: boolean
-          api_token?: string
-          api_url?: string
           auto_confirm_enabled?: boolean
           confirm_template?: string
           created_at?: string
           enabled?: boolean
           id?: string
-          instance_id?: string
           owner_id?: string
           provider?: string
           updated_at?: string
-          webhook_token?: string | null
           welcome_template?: string
           whatchimp_api_key?: string
           whatchimp_api_url?: string
