@@ -99,31 +99,31 @@ Deno.serve(async (req) => {
 
     {
       const apiUrl = (settings.whatchimp_api_url || "https://app.whatchimp.com").replace(/\/$/, "");
-      // Confirmation messages are almost always sent outside the 24h window,
-      // so WhatsApp Business API only allows approved templates. Force template
-      // mode whenever a template name is configured.
-      const normalizedTemplateName = String(settings.whatchimp_template_name || "")
-        .replace(/\s*\(Custom\)\s*$/i, "")
-        .trim();
-      const useTemplate = !!settings.whatchimp_use_template && !!normalizedTemplateName;
+      const templateId = String(settings.whatchimp_template_id || "").trim();
+      const useTemplate = !!settings.whatchimp_use_template && !!templateId;
+      let endpoint = `${apiUrl}/api/v1/whatsapp/send`;
       const body: any = {
         apiToken: settings.whatchimp_api_key,
         phone_number_id: settings.whatchimp_phone_number_id,
         phone_number: phone,
       };
       if (useTemplate) {
-        body.template_name = normalizedTemplateName;
-        body.language_code = settings.whatchimp_template_language || "ar";
-        // WhatChimp template API expects flat variableN fields.
-        body.variable1 = order.customer_name || "عميلنا";
-        body.variable2 = String(order.order_code || order.id).slice(0, 8);
-        body.variable3 = productsLine;
-        body.variable4 = `${order.price} ${store?.currency_symbol || ""}`.trim();
+        endpoint = `${apiUrl}/api/v1/whatsapp/send/template`;
+        body.template_id = templateId;
+        const rawButtons = String(settings.whatchimp_template_buttons || "").trim();
+        if (rawButtons) {
+          const arr = rawButtons.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
+          if (arr.length) body.template_quick_reply_button_values = arr;
+        }
+        body["templateVariable-1-1"] = order.customer_name || "عميلنا";
+        body["templateVariable-2-2"] = String(order.order_code || order.id).slice(0, 8);
+        body["templateVariable-3-3"] = productsLine;
+        body["templateVariable-4-4"] = `${order.price} ${store?.currency_symbol || ""}`.trim();
       } else {
         body.message_type = "text";
         body.message_body = text;
       }
-      const res = await fetch(`${apiUrl}/api/v1/whatsapp/send`, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify(body),

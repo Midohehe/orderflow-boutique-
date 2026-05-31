@@ -231,6 +231,8 @@ export default function WhatsAppPage() {
       whatchimp_use_template: !!settings.whatchimp_use_template,
       whatchimp_template_name: settings.whatchimp_template_name || "",
       whatchimp_template_language: settings.whatchimp_template_language || "ar",
+      whatchimp_template_id: settings.whatchimp_template_id || "",
+      whatchimp_template_buttons: settings.whatchimp_template_buttons || "",
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
@@ -313,7 +315,17 @@ export default function WhatsAppPage() {
                     {settings.whatchimp_use_template && (
                       <>
                         <div>
-                          <Label>اسم القالب (Template Name)</Label>
+                          <Label>معرّف القالب (Template ID)</Label>
+                          <Input value={settings.whatchimp_template_id || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_id: e.target.value })} placeholder="مثال: 383253" />
+                          <p className="text-[11px] text-muted-foreground mt-1">انسخه من WhatChimp بعد إنشاء قالب الإرسال (يظهر بعد توليد الـ API endpoint).</p>
+                        </div>
+                        <div>
+                          <Label>أزرار الرد السريع (Quick Reply Buttons)</Label>
+                          <Input value={settings.whatchimp_template_buttons || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_buttons: e.target.value })} placeholder="EXTERNAL_ECOMMERCE_CONFIRM_ORDER, EXTERNAL_ECOMMERCE_CANCEL_ORDER" />
+                          <p className="text-[11px] text-muted-foreground mt-1">افصل بين القيم بفاصلة. اتركه فارغًا إن لم يكن للقالب أزرار.</p>
+                        </div>
+                        <div>
+                          <Label>اسم القالب (اختياري - للمرجع فقط)</Label>
                           <Input value={settings.whatchimp_template_name || ""} onChange={(e) => setSettings({ ...settings, whatchimp_template_name: e.target.value })} placeholder="order_confirmation" />
                         </div>
                         <div>
@@ -321,7 +333,7 @@ export default function WhatsAppPage() {
                           <Input value={settings.whatchimp_template_language || "ar"} onChange={(e) => setSettings({ ...settings, whatchimp_template_language: e.target.value })} placeholder="ar" />
                         </div>
                         <p className="text-xs text-amber-600 dark:text-amber-400">
-                          مهم: واتساب يسمح بإرسال رسائل عادية للعميل خلال 24 ساعة فقط من آخر رسالة منه. للعملاء الجدد يجب استخدام قالب معتمد من واتساب Business. سيتم تمرير المتغيرات: اسم العميل، رقم الطلب، المنتجات، الإجمالي.
+                          سيتم تمرير المتغيرات بالترتيب: 1=اسم العميل، 2=رقم الطلب، 3=المنتجات، 4=الإجمالي. تأكد أن قالبك في WhatChimp يستخدم نفس الترتيب.
                         </p>
                       </>
                     )}
