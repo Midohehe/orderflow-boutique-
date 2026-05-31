@@ -70,9 +70,23 @@ async function pollOwner(supabase: any, s: any) {
         { owner_id: s.owner_id, phone, customer_name: name, last_message_at: new Date(room.updated_at || Date.now()).toISOString() },
         { onConflict: "owner_id,phone" },
       )
-      .select("id")
+      .select("id, order_id")
       .single();
     if (!conv?.id) continue;
+
+    // Link conversation to most recent order from this phone if not linked.
+    let convOrderId: string | null = (conv as any).order_id ?? null;
+    if (!convOrderId) {
+      const { data: linkedOrder } = await supabase
+        .from("orders").select("id").eq("owner_id", s.owner_id)
+        .ilike("phone", `%${phone.slice(-9)}%`)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (linkedOrder?.id) {
+        convOrderId = linkedOrder.id;
+        await supabase.from("whatsapp_conversations")
+          .update({ order_id: convOrderId }).eq("id", conv.id);
+      }
+    }
 
     let lastPreview: string | null = null;
     let unreadInc = 0;
@@ -96,6 +110,7 @@ async function pollOwner(supabase: any, s: any) {
       await supabase.from("whatsapp_messages").insert({
         owner_id: s.owner_id,
         conversation_id: conv.id,
+        order_id: convOrderId,
         direction,
         message_type: mtype,
         content,
@@ -108,6 +123,28 @@ async function pollOwner(supabase: any, s: any) {
       totalNew++;
       lastPreview = content || (mediaUrl ? "📎 ملف" : null);
       if (direction === "in") unreadInc++;
+
+      // Auto-confirm: if incoming text matches confirm/cancel and we have a linked order.
+      if (direction === "in" && mtype === "text" && convOrderId && s.auto_confirm_enabled) {
+        const intent = parseConfirmIntent(content || "");
+        if (intent) {
+          await supabase.from("orders").update({
+            confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+            confirmed_at: new Date().toISOString(),
+          }).eq("id", convOrderId).eq("owner_id", s.owner_id);
+
+          const replyText = intent === "confirm"
+            ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
+            : "❌ تم إلغاء طلبك بناءً على طلبك.";
+          try {
+            await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+              body: JSON.stringify({ phone, text: replyText, order_id: convOrderId, owner_id: s.owner_id }),
+            }).catch(() => {});
+          } catch (e) { console.error("mazbot auto-reply failed", e); }
+        }
+      }
     }
 
     if (lastPreview || unreadInc) {
