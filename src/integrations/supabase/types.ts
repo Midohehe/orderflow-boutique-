@@ -3346,6 +3346,7 @@ export type Database = {
           mazbot_email: string
           mazbot_jwt_expires_at: string | null
           mazbot_jwt_token: string | null
+          mazbot_last_polled_at: string | null
           mazbot_password: string
           mazbot_template_id: string
           mazbot_use_template: boolean
@@ -3382,6 +3383,7 @@ export type Database = {
           mazbot_email?: string
           mazbot_jwt_expires_at?: string | null
           mazbot_jwt_token?: string | null
+          mazbot_last_polled_at?: string | null
           mazbot_password?: string
           mazbot_template_id?: string
           mazbot_use_template?: boolean
@@ -3418,6 +3420,7 @@ export type Database = {
           mazbot_email?: string
           mazbot_jwt_expires_at?: string | null
           mazbot_jwt_token?: string | null
+          mazbot_last_polled_at?: string | null
           mazbot_password?: string
           mazbot_template_id?: string
           mazbot_use_template?: boolean
