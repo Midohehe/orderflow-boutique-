@@ -105,7 +105,10 @@ async function pollOwner(supabase: any, s: any) {
       if (existing) continue;
 
       const direction = m?.sender_type === "client" || m?.from_me || m?.is_outgoing ? "out" : "in";
-      const content = m?.message || m?.text || m?.content || null;
+      const content =
+        m?.button_reply?.title || m?.button?.text || m?.button_payload ||
+        m?.interactive?.button_reply?.title || m?.interactive?.list_reply?.title ||
+        m?.message || m?.text || m?.content || null;
       const mediaUrl = m?.media_url || m?.file_url || null;
       const mtype = mediaUrl ? (m?.media_type || "file") : "text";
       const status = direction === "out" ? "sent" : "delivered";
