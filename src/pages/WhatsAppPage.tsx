@@ -413,7 +413,7 @@ export default function WhatsAppPage() {
                   </div>
                 )}
 
-                {settings.provider !== "wati" && (
+                {settings.provider !== "wati" && settings.provider !== "mazbot" && (
                 <div className="space-y-4 p-4 border rounded-md bg-muted/20">
                     <div className="text-sm font-semibold">إعدادات WhatChimp</div>
                     <div className="grid gap-3 md:grid-cols-2">
