@@ -247,7 +247,7 @@ export default function WhatsAppPage() {
     if (!settings) return;
     const payload: any = {
       enabled: settings.enabled,
-      provider: settings.provider === "wati" ? "wati" : "whatchimp",
+      provider: settings.provider === "wati" ? "wati" : settings.provider === "mazbot" ? "mazbot" : "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
       whatchimp_api_url: normalizeEndpoint(settings.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
