@@ -66,6 +66,40 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Require a specific store — sync runs per store, not for all stores at once.
+    let storeId: string | null = null;
+    try {
+      const body = await req.json();
+      storeId = body?.store_id ?? null;
+    } catch (_) { /* no body */ }
+    if (!storeId) {
+      return new Response(JSON.stringify({ error: "store_id مطلوب" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 5-minute cooldown per store
+    const COOLDOWN_MS = 5 * 60 * 1000;
+    const { data: storeRow } = await admin
+      .from("stores").select("id, owner_id, carrier_last_sync_at")
+      .eq("id", storeId).maybeSingle();
+    if (!storeRow || storeRow.owner_id !== ownerId) {
+      return new Response(JSON.stringify({ error: "متجر غير صالح" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (storeRow.carrier_last_sync_at) {
+      const elapsed = Date.now() - new Date(storeRow.carrier_last_sync_at).getTime();
+      if (elapsed < COOLDOWN_MS) {
+        const remainingSec = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+        return new Response(JSON.stringify({
+          error: "cooldown",
+          message: `يجب الانتظار ${Math.ceil(remainingSec / 60)} دقيقة قبل إعادة المزامنة لهذا المتجر`,
+          remaining_seconds: remainingSec,
+        }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
     const { data: settingsRows } = await admin
       .from("shipping_settings").select("*").eq("owner_id", ownerId).eq("enabled", true)
       .order("updated_at", { ascending: false }).limit(1);
@@ -111,6 +145,7 @@ Deno.serve(async (req) => {
         .from("orders")
         .select("id, shipping_id, shipping_reference, status, carrier_status")
         .eq("owner_id", ownerId)
+        .eq("store_id", storeId)
         .not("shipping_id", "is", null)
         // Skip orders already in a terminal carrier state to avoid re-polling them every run.
         .not("status", "in", "(delivered,returned,cancelled,refunded)")
@@ -125,6 +160,12 @@ Deno.serve(async (req) => {
       orders.push(...page);
       if (page.length < PAGE_SIZE) break;
     }
+
+    // Mark this store's last sync time (before processing so concurrent calls
+    // also respect the cooldown even if processing is long).
+    await admin.from("stores")
+      .update({ carrier_last_sync_at: new Date().toISOString() })
+      .eq("id", storeId);
 
     // Pre-load global custom mappings (managed by superadmin)
     const { data: mappings } = await admin
