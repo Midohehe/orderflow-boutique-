@@ -215,7 +215,13 @@ export default function WhatsAppPage() {
       return;
     }
     if (data) {
-      setSettings(data);
+      setSettings({
+        ...data,
+        whatchimp_api_url: normalizeEndpoint(data.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
+        whatchimp_send_endpoint: normalizeEndpoint((data as any).whatchimp_send_endpoint, DEFAULT_WHATCHIMP_SEND_ENDPOINT),
+        whatchimp_template_endpoint: normalizeEndpoint((data as any).whatchimp_template_endpoint, DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT),
+        whatchimp_conversation_endpoint: normalizeEndpoint((data as any).whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
+      });
     } else {
       const { data: created, error: insErr } = await supabase
         .from("whatsapp_settings")
@@ -227,7 +233,13 @@ export default function WhatsAppPage() {
         toast({ title: "تعذر إنشاء الإعدادات", description: insErr.message, variant: "destructive" });
         return;
       }
-      setSettings(created);
+      setSettings({
+        ...created,
+        whatchimp_api_url: DEFAULT_WHATCHIMP_BASE_URL,
+        whatchimp_send_endpoint: DEFAULT_WHATCHIMP_SEND_ENDPOINT,
+        whatchimp_template_endpoint: DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT,
+        whatchimp_conversation_endpoint: DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT,
+      });
     }
   }
 
@@ -238,7 +250,10 @@ export default function WhatsAppPage() {
       provider: "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
       whatchimp_phone_number_id: settings.whatchimp_phone_number_id || "",
-      whatchimp_api_url: settings.whatchimp_api_url || "https://app.whatchimp.com",
+      whatchimp_api_url: normalizeEndpoint(settings.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
+      whatchimp_send_endpoint: normalizeEndpoint(settings.whatchimp_send_endpoint, DEFAULT_WHATCHIMP_SEND_ENDPOINT),
+      whatchimp_template_endpoint: normalizeEndpoint(settings.whatchimp_template_endpoint, DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT),
+      whatchimp_conversation_endpoint: normalizeEndpoint(settings.whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
       whatchimp_use_template: !!settings.whatchimp_use_template,
       whatchimp_template_name: settings.whatchimp_template_name || "",
       whatchimp_template_language: settings.whatchimp_template_language || "ar",
