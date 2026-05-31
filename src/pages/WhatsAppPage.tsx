@@ -413,6 +413,68 @@ export default function WhatsAppPage() {
                   </div>
                 )}
 
+                {settings.provider === "mazbot" && (
+                  <div className="space-y-4 p-4 border rounded-md bg-muted/20">
+                    <div className="text-sm font-semibold">إعدادات MazBot</div>
+                    <div>
+                      <Label>الرابط الأساسي</Label>
+                      <Input
+                        value={settings.mazbot_base_url || "https://mazbot.net/api"}
+                        onChange={(e) => setSettings({ ...settings, mazbot_base_url: e.target.value })}
+                        placeholder="https://mazbot.net/api"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div>
+                      <Label>API Key</Label>
+                      <Input
+                        type="password"
+                        value={settings.mazbot_api_key || ""}
+                        onChange={(e) => setSettings({ ...settings, mazbot_api_key: e.target.value })}
+                        placeholder="انسخه من Profile في لوحة MazBot"
+                        dir="ltr"
+                      />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <Label>البريد الإلكتروني</Label>
+                        <Input
+                          type="email"
+                          value={settings.mazbot_email || ""}
+                          onChange={(e) => setSettings({ ...settings, mazbot_email: e.target.value })}
+                          placeholder="you@example.com"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div>
+                        <Label>كلمة المرور</Label>
+                        <Input
+                          type="password"
+                          value={settings.mazbot_password || ""}
+                          onChange={(e) => setSettings({ ...settings, mazbot_password: e.target.value })}
+                          placeholder="كلمة مرور حساب MazBot"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Template ID</Label>
+                      <Input
+                        value={settings.mazbot_template_id || ""}
+                        onChange={(e) => setSettings({ ...settings, mazbot_template_id: e.target.value })}
+                        placeholder="مثال: 42"
+                        dir="ltr"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">يجب أن يحوي القالب 4 متغيرات بالترتيب: {`{{1}}=اسم العميل، {{2}}=رقم الطلب، {{3}}=المنتجات، {{4}}=الإجمالي`}.</p>
+                    </div>
+                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-1">
+                      <div>إرسال القالب: <span className="font-mono" dir="ltr">POST /api/whatsapp/send-template</span></div>
+                      <div>إرسال جلسة نصية: <span className="font-mono" dir="ltr">POST /api/send-message</span></div>
+                      <div>ملاحظة: MazBot لا يدعم Webhook خارجي، لذا لن تصل الردود الواردة مباشرةً.</div>
+                    </div>
+                  </div>
+                )}
+
                 {settings.provider !== "wati" && settings.provider !== "mazbot" && (
                 <div className="space-y-4 p-4 border rounded-md bg-muted/20">
                     <div className="text-sm font-semibold">إعدادات WhatChimp</div>
