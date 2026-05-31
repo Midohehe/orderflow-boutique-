@@ -3055,6 +3055,7 @@ export type Database = {
       }
       stores: {
         Row: {
+          carrier_last_sync_at: string | null
           created_at: string
           id: string
           is_default: boolean
@@ -3065,6 +3066,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          carrier_last_sync_at?: string | null
           created_at?: string
           id?: string
           is_default?: boolean
@@ -3075,6 +3077,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          carrier_last_sync_at?: string | null
           created_at?: string
           id?: string
           is_default?: boolean
