@@ -92,25 +92,70 @@ async function mazbotEnsureContact(settings: any, jwt: string, phone: string, na
     Authorization: `Bearer ${jwt}`,
     Accept: "application/json",
   } as Record<string, string>;
-  // Try search (best-effort)
+  const digits = phone.replace(/\D+/g, "");
+  const extractId = (d: any): number | null => {
+    const candidates = [
+      d?.data?.id, d?.data?.contact?.id, d?.contact?.id, d?.id,
+      d?.data?.contacts?.[0]?.id, d?.contacts?.[0]?.id,
+    ];
+    for (const c of candidates) {
+      if (c != null && !Number.isNaN(Number(c))) return Number(c);
+    }
+    const list = d?.data?.contacts || d?.data || d?.contacts || [];
+    if (Array.isArray(list)) {
+      const hit = list.find((c: any) => String(c?.phone || c?.mobile || "").replace(/\D+/g, "") === digits);
+      if (hit?.id) return Number(hit.id);
+    }
+    return null;
+  };
+  // Try multiple search variations
+  const searchUrls = [
+    `${base}/contacts?search=${encodeURIComponent(phone)}`,
+    `${base}/contacts?phone=${encodeURIComponent(phone)}`,
+    `${base}/contacts?mobile=${encodeURIComponent(phone)}`,
+    `${base}/contacts?search=${encodeURIComponent(digits)}`,
+  ];
+  for (const url of searchUrls) {
+    try {
+      const r = await fetch(url, { headers });
+      const d = await r.json().catch(() => ({}));
+      const id = extractId(d);
+      if (id) return id;
+    } catch (_) { /* ignore */ }
+  }
+  // Create (try FormData)
   try {
-    const r = await fetch(`${base}/contacts?search=${encodeURIComponent(phone)}`, { headers });
-    const d = await r.json().catch(() => ({}));
-    const list = d?.data?.contacts || d?.data || [];
-    const hit = Array.isArray(list)
-      ? list.find((c: any) => String(c?.phone || "").replace(/\D+/g, "") === phone.replace(/\D+/g, ""))
-      : null;
-    if (hit?.id) return Number(hit.id);
+    const body = new FormData();
+    body.set("name", name || phone);
+    body.set("phone", phone);
+    body.set("mobile", phone);
+    body.set("type", "whatsapp");
+    const cr = await fetch(`${base}/contacts`, { method: "POST", headers, body });
+    const cd = await cr.json().catch(() => ({}));
+    const id = extractId(cd);
+    if (id) return id;
   } catch (_) { /* ignore */ }
-  // Create
-  const body = new FormData();
-  body.set("name", name || phone);
-  body.set("phone", phone);
-  body.set("type", "whatsapp");
-  const cr = await fetch(`${base}/contacts`, { method: "POST", headers, body });
-  const cd = await cr.json().catch(() => ({}));
-  const id = cd?.data?.id || cd?.data?.contact?.id;
-  return id ? Number(id) : null;
+  // Create (try JSON)
+  try {
+    const cr = await fetch(`${base}/contacts`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name || phone, phone, mobile: phone, type: "whatsapp" }),
+    });
+    const cd = await cr.json().catch(() => ({}));
+    const id = extractId(cd);
+    if (id) return id;
+  } catch (_) { /* ignore */ }
+  // Last attempt: re-search after creation
+  for (const url of searchUrls) {
+    try {
+      const r = await fetch(url, { headers });
+      const d = await r.json().catch(() => ({}));
+      const id = extractId(d);
+      if (id) return id;
+    } catch (_) { /* ignore */ }
+  }
+  return null;
 }
 
 function watiAuthHeader(token: string): string {
@@ -123,22 +168,34 @@ export async function sendText(settings: any, phone: string, text: string): Prom
     const jwt = await mazbotLogin(settings);
     if (!jwt) return { ok: false, messageId: null, raw: { error: "mazbot login failed" } };
     const contactId = await mazbotEnsureContact(settings, jwt, phone);
-    if (!contactId) return { ok: false, messageId: null, raw: { error: "mazbot contact not found" } };
     const base = mazbotBase(settings);
-    const fd = new FormData();
-    fd.set("receiver_id", String(contactId));
-    fd.set("message", text);
-    const res = await fetch(`${base}/send-message`, {
-      method: "POST",
-      headers: {
-        apikey: String(settings.mazbot_api_key || ""),
-        Authorization: `Bearer ${jwt}`,
-        Accept: "application/json",
-      },
-      body: fd,
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: mazbotOk(res, data), messageId: mazbotMsgId(data), raw: data };
+    const headers = {
+      apikey: String(settings.mazbot_api_key || ""),
+      Authorization: `Bearer ${jwt}`,
+      Accept: "application/json",
+    };
+    // Primary: try with receiver_id (if we have contact)
+    if (contactId) {
+      const fd = new FormData();
+      fd.set("receiver_id", String(contactId));
+      fd.set("message", text);
+      const res = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (mazbotOk(res, data)) return { ok: true, messageId: mazbotMsgId(data), raw: data };
+    }
+    // Fallback: send directly by mobile number (some Mazbot endpoints accept this)
+    const fd2 = new FormData();
+    fd2.set("mobile", phone);
+    fd2.set("phone", phone);
+    fd2.set("message", text);
+    fd2.set("type", "whatsapp");
+    const res2 = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd2 });
+    const data2 = await res2.json().catch(() => ({}));
+    return {
+      ok: mazbotOk(res2, data2),
+      messageId: mazbotMsgId(data2),
+      raw: data2?.success ? data2 : { error: "mazbot send failed", contactId, response: data2 },
+    };
   }
   if (getProvider(settings) === "wati") {
     const base = normalizeBaseUrl(settings.wati_api_endpoint, "");
