@@ -245,7 +245,7 @@ export default function WhatsAppPage() {
 
   async function saveSettings() {
     if (!settings) return;
-    const { error } = await supabase.from("whatsapp_settings").update({
+    const payload: any = {
       enabled: settings.enabled,
       provider: "whatchimp",
       whatchimp_api_key: settings.whatchimp_api_key || "",
@@ -263,7 +263,8 @@ export default function WhatsAppPage() {
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
       welcome_template: settings.welcome_template,
-    }).eq("id", settings.id);
+    };
+    const { error } = await supabase.from("whatsapp_settings").update(payload).eq("id", settings.id);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     else { toast({ title: "تم الحفظ" }); setSettingsOpen(false); }
   }
