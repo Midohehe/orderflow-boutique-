@@ -1896,6 +1896,27 @@ const Orders = () => {
           )}
         </TabsContent>
 
+        <TabsContent value="foreign" className="space-y-4">
+          <Card className="card-shadow border-orange-500/40 bg-orange-500/5">
+            <CardContent className="p-3 flex items-center gap-2 text-sm">
+              <Globe className="w-5 h-5 text-orange-600" />
+              <span>
+                هذه طلبات وردت من عناوين IP خارج ليبيا. راجعها قبل التأكيد أو الشحن — قد تكون من زبائن يستخدمون VPN أو طلبات وهمية.
+              </span>
+            </CardContent>
+          </Card>
+          {foreignOrders.length === 0 ? (
+            renderEmptyState(
+              <Globe className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد طلبات من خارج ليبيا"
+            )
+          ) : (
+            <div className="space-y-4">
+              {foreignOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="shipped" className="space-y-4">
           <Card className="card-shadow">
             <CardContent className="p-4">
