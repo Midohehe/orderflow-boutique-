@@ -339,7 +339,7 @@ export default function WhatsAppPage() {
                 <div className="flex items-center justify-between p-3 border rounded-md gap-3">
                   <Label>المزوّد</Label>
                   <Select
-                    value={settings.provider === "wati" ? "wati" : "whatchimp"}
+                    value={settings.provider === "wati" ? "wati" : settings.provider === "mazbot" ? "mazbot" : "whatchimp"}
                     onValueChange={(v) => setSettings({ ...settings, provider: v })}
                   >
                     <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
