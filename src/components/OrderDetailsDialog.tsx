@@ -142,12 +142,17 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       const [o, p, it] = await Promise.all([
         supabase.from("orders").select("*").eq("id", orderId).maybeSingle(),
         (uid
-          ? supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id").eq("owner_id", uid).order("name")
+          ? supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id, store_id, owner_id").order("name")
           : supabase.from("products").select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id").order("name")),
         supabase.from("order_items").select("*").eq("order_id", orderId).order("created_at"),
       ]);
       if (o.error) toast({ title: "خطأ", description: o.error.message, variant: "destructive" });
       setData(o.data || null);
+      // Filter products to the order's store to prevent cross-store leakage
+      const orderStoreId = (o.data as any)?.store_id;
+      const filteredProducts = ((p.data || []) as any[]).filter((pr) =>
+        !orderStoreId || pr.store_id === orderStoreId || (pr.store_id == null)
+      );
       if (o.data) {
         const variantStr = [o.data.selected_color, o.data.selected_size, o.data.selected_product_code]
           .filter((v: any) => v != null && String(v).trim() !== "")
@@ -159,7 +164,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
           quantity: o.data.quantity ?? null,
         });
       }
-      setProducts((p.data || []) as ProductLite[]);
+      setProducts(filteredProducts as ProductLite[]);
       const list = (it.data || []) as any[];
       // If no order_items yet, seed with the order's main product so the user can edit it
       if (list.length === 0 && o.data) {
