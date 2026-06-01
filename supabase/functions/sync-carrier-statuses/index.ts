@@ -240,8 +240,6 @@ Deno.serve(async (req) => {
       const upper = String(composite).toUpperCase();
       if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
         updatePayload.status = "unpacked";
-      } else if (upper === "DTR" || upper === "DTRC" || upper === "DTRUC" || upper === "DTRCP") {
-        updatePayload.status = "delivered";
       } else if (upper === "RTRN" || upper === "RCV") {
         updatePayload.status = "returned_received";
       }
