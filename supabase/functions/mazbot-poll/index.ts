@@ -36,21 +36,31 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
   // because "السلام" contains "لا" and would otherwise cancel orders.
   const words = t.split(/\s+/).filter(Boolean);
   const yes = new Set([
-    "1","نعم","تاكيد","موافق","ايوه","اوكي","ok","yes","y","اي","اكيد","confirm","confirm_order",
+    "1","نعم","تاكيد","موافق","ايوه","ايوا","اوكي","اوك","ok","yes","y","اي","اكيد","confirm","confirm_order",
+    "تمام","خلاص","ماشي","نبيها","نبي","ابعث","ابعتها","ارسل","صح","تم","تماام",
   ]);
   const no = new Set([
-    "2","لا","الغاء","لاء","cancel","no","n","cancel_order",
+    "2","لا","الغاء","لاء","cancel","no","n","cancel_order","الغي","ماني","ماش","مش",
+    "بدلت","ندمت","ترا","تراجعت",
   ]);
   // Single-token messages are the only ones we treat as intents.
   if (words.length === 1) {
     if (yes.has(words[0])) return "confirm";
     if (no.has(words[0])) return "cancel";
   }
-  // Two/three-token button labels like "تاكيد الطلب".
-  if (words.length <= 3) {
+  // Two/three-token button labels and common short phrases.
+  if (words.length <= 4) {
     const joined = words.join(" ");
-    if (joined === "تاكيد الطلب" || joined === "confirm order") return "confirm";
-    if (joined === "الغاء الطلب" || joined === "cancel order") return "cancel";
+    const yesPhrases = [
+      "تاكيد الطلب","confirm order","نعم اكيد","اكيد نبي","نبي الطلب","موافق على الطلب",
+      "موافق عليه","اكيد نبيها","ابعث الطلب","تمام نبي",
+    ];
+    const noPhrases = [
+      "الغاء الطلب","cancel order","ما نبيش","ما نبي","مش رايد","مش نبي","الغي الطلب",
+      "بدلت رايي","ندمت عليه","ما عاد نبي","مش راضي",
+    ];
+    if (yesPhrases.includes(joined)) return "confirm";
+    if (noPhrases.includes(joined)) return "cancel";
   }
   return null;
 }
