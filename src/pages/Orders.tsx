@@ -307,7 +307,7 @@ const Orders = () => {
             r.readAsDataURL(file);
           });
           const { data, error } = await supabase.functions.invoke("extract-order-from-image", {
-            body: { image: dataUrl },
+            body: { image: dataUrl, store_id: activeStoreId },
           });
           if (error) throw error;
           success++;

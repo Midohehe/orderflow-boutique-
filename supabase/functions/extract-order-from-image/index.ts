@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const image: string | undefined = body?.image; // data URL or base64
     const product_id: string | undefined = body?.product_id; // optional, to link & price
+    const store_id: string | undefined = body?.store_id;
 
     if (!image) {
       return new Response(JSON.stringify({ error: "Missing image" }), {
@@ -224,6 +225,7 @@ ${productHints || "(لا يوجد)"}`,
 
     const { data: inserted, error: iErr } = await admin.from("orders").insert({
       owner_id: ownerId,
+      store_id: store_id ?? null,
       customer_name: fields.customer_name || "بدون اسم",
       phone: String(fields.phone || ""),
       address: fields.address || "",
@@ -256,6 +258,7 @@ ${productHints || "(لا يوجد)"}`,
       const rows = matchedItems.map((it) => ({
         order_id: inserted.id,
         owner_id: ownerId,
+        store_id: store_id ?? null,
         product_id: it.product_id,
         product_name: it.product_name,
         quantity: it.quantity,
