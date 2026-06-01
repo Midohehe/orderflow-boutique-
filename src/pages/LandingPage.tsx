@@ -881,6 +881,25 @@ const LandingPage = () => {
       }
     }
 
+    // Extra safety: re-extract phone the same way we send it to the server,
+    // and reject if it's empty or invalid (covers forms whose phone field
+    // isn't typed as "phone" but is still labeled "هاتف/جوال/tel").
+    {
+      const findFieldEarly = (...keywords: string[]) => {
+        const f = formFields.find((fld) => {
+          const hay = `${fld.label || ""} ${fld.field_key || ""}`.toLowerCase();
+          return keywords.some((k) => hay.includes(k.toLowerCase()));
+        });
+        return f ? (formData[f.field_key] || "") : "";
+      };
+      const phoneCandidate = (formData.phone || findFieldEarly("phone", "tel", "هاتف", "رقم", "جوال", "موبايل") || "").toString();
+      const digits = phoneCandidate.replace(/\D/g, "");
+      if (digits.length < 9 || digits.length > 10) {
+        showToast("خطأ", "يرجى إدخال رقم هاتف صحيح (9 إلى 10 أرقام)", "destructive");
+        return;
+      }
+    }
+
     // Validate per-piece variants: if product has variants, each piece must have its selections
     const hasColors = !!(product?.colors && product.colors.length > 0);
     const hasSizes = !!(product?.sizes && product.sizes.length > 0);
