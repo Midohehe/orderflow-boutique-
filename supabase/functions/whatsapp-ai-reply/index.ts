@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       .select("direction, content, message_type, media_url, media_mime, created_at")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: false })
-      .limit(15);
+      .limit(30);
 
     const history = (messages || [])
       .reverse()
@@ -355,6 +355,57 @@ ${priceListText || "(لم تُعدّ بعد)"}
               max: { type: "number", description: "أقصى عدد صور (افتراضي 4)", minimum: 1, maximum: 8 },
             },
             required: ["product_id"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "check_stock",
+          description: "تحقق من توفر منتج/لون/مقاس قبل قبول الطلب.",
+          parameters: {
+            type: "object",
+            properties: {
+              product_id: { type: "string" },
+              color: { type: "string" },
+              size: { type: "string" },
+            },
+            required: ["product_id"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "suggest_alternatives",
+          description: "اقترح 2-3 منتجات بديلة بنفس الفئة عند نفاد منتج أو رفض الزبون.",
+          parameters: {
+            type: "object",
+            properties: {
+              exclude_product_id: { type: "string" },
+              max: { type: "number", minimum: 1, maximum: 5 },
+            },
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "track_order",
+          description: "اجلب حالة آخر طلب لهذا الزبون (رقم/حالة/مدينة) ليرد على سؤال 'وين طلبي'.",
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "cancel_order",
+          description: "ألغِ طلباً قائماً للزبون بعد تأكيده الإلغاء. لا تستدعها قبل التأكيد الصريح.",
+          parameters: {
+            type: "object",
+            properties: {
+              order_id: { type: "string", description: "معرف الطلب (يكفي أول 8 محارف، أو اتركه فارغاً لإلغاء آخر طلب pending)" },
+            },
           },
         },
       },
