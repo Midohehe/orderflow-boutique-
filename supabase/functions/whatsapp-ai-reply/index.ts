@@ -636,9 +636,19 @@ ${priceListText || "(لم تُعدّ بعد)"}
       replyText = "شكراً لتواصلك، سيرد عليك أحد ممثلينا قريباً.";
     }
 
+    // Clean text for WhatsApp providers (some reject markdown/long text)
+    const cleanText = (s: string) => s
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/__(.+?)__/g, "$1")
+      .replace(/(^|\s)\*(\S[^*]*\S)\*(\s|$)/g, "$1$2$3")
+      .replace(/^[\s]*[•●◦]\s?/gm, "- ")
+      .slice(0, 1000);
+    const outboundText = cleanText(replyText);
+
     // Send reply via configured provider
     const { sendText } = await import("../_shared/wa-providers.ts");
-    const sendRes = await sendText(settings, phone, replyText);
+    const sendRes = await sendText(settings, phone, outboundText);
+    console.log("[ai-reply] sendText result", JSON.stringify(sendRes).slice(0, 500));
     const providerOk = sendRes.ok;
     const providerMsgId = sendRes.messageId;
 
@@ -649,9 +659,10 @@ ${priceListText || "(لم تُعدّ بعد)"}
       order_id: conv?.order_id || null,
       direction: "out",
       message_type: "text",
-      content: replyText,
+      content: outboundText,
       status: providerOk ? "sent" : "failed",
       green_message_id: providerMsgId,
+      error: providerOk ? null : JSON.stringify(sendRes.raw).slice(0, 500),
     });
 
     await supabase.from("whatsapp_conversations").update({
