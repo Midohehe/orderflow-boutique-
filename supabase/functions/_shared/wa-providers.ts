@@ -228,9 +228,59 @@ export async function sendText(settings: any, phone: string, text: string): Prom
 
 export async function sendImage(settings: any, phone: string, mediaUrl: string, caption?: string): Promise<WAResult> {
   if (getProvider(settings) === "mazbot") {
-    // Mazbot media-by-URL not directly supported in session endpoint; fall back to text+URL.
-    const text = `${caption || ""}\n${mediaUrl}`.trim();
-    return await sendText(settings, phone, text);
+    // MazBot /send-message expects multipart binary upload as `image` (jpeg/png, ≤5MB)
+    // or `document` (pdf, ≤10MB). It does NOT accept URLs or base64 strings.
+    const digits = String(phone || "").replace(/\D+/g, "");
+    if (!digits) return { ok: false, messageId: null, raw: { error: "invalid phone" } };
+    const jwt = await mazbotLogin(settings);
+    if (!jwt) return { ok: false, messageId: null, raw: { error: "mazbot login failed" } };
+    const contactId = await mazbotEnsureContact(settings, jwt, digits);
+    if (!contactId) {
+      return { ok: false, messageId: null, raw: { error: "mazbot contact not found/created", phone: digits } };
+    }
+    // Download media from URL → Blob
+    let blob: Blob;
+    let filename = "image.jpg";
+    let isDoc = false;
+    try {
+      const r = await fetch(mediaUrl);
+      if (!r.ok) throw new Error(`fetch media ${r.status}`);
+      blob = await r.blob();
+      const ct = (r.headers.get("content-type") || blob.type || "").toLowerCase();
+      const urlName = (mediaUrl.split("?")[0].split("/").pop() || "").trim();
+      if (ct.includes("pdf") || /\.pdf$/i.test(urlName)) {
+        isDoc = true;
+        filename = urlName || "document.pdf";
+      } else if (ct.includes("png") || /\.png$/i.test(urlName)) {
+        filename = urlName || "image.png";
+      } else {
+        filename = urlName || "image.jpg";
+      }
+    } catch (e) {
+      // Fallback: send caption + URL as plain text if download fails.
+      const text = `${caption || ""}\n${mediaUrl}`.trim();
+      return await sendText(settings, phone, text);
+    }
+    const base = mazbotBase(settings);
+    const headers = {
+      apikey: String(settings.mazbot_api_key || ""),
+      Authorization: `Bearer ${jwt}`,
+      Accept: "application/json",
+    };
+    const fd = new FormData();
+    fd.set("receiver_id", String(contactId));
+    if (caption && caption.trim()) fd.set("message", caption.trim());
+    fd.set(isDoc ? "document" : "image", blob, filename);
+    const res = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (mazbotOk(res, data)) {
+      return { ok: true, messageId: mazbotMsgId(data), raw: data };
+    }
+    return {
+      ok: false,
+      messageId: null,
+      raw: { error: "mazbot send media failed", contactId, status: res.status, body: data },
+    };
   }
   if (getProvider(settings) === "wati") {
     // Wati session media via URL — uses sendSessionFile but needs upload.
