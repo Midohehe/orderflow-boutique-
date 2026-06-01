@@ -1,45 +1,26 @@
-## المشكلة
+## الهدف
+إلغاء فحص البوتات في `create-order` (الحقل الخفي + سرعة الإرسال) وتحويل أي طلب مرفوض بسبب هذه الحماية إلى طلب فعلي بحالة "قيد الانتظار".
 
-دوال `carrier-webhook` و `sync-carrier-statuses` تحدّث فقط نص `carrier_status` (للعرض)، ولا تحدّث `status` الداخلي للطلب إلا عند "تم التفريغ" (UPKBD/UPKBL/UKDB → unpacked). لذلك الطلبات اللي تم تسليمها أو رجعت تظل بحالة `shipped` بشكل دائم — حالياً عندنا 200+ طلب DTRC و 88 DTRUC و 290+ راجع كلها عالقة.
+## التغييرات
 
-## الحل
+### 1) supabase/functions/create-order/index.ts
+- حذف فحص الحقل الخفي (السطور 124–132).
+- حذف فحص زمن الإرسال أقل من 3 ثوانٍ (السطور 133–142).
+- إبقاء `logRejected` لأسباب أخرى (missing_phone، product_unavailable، invalid_variant…) كما هي.
+- إزالة `hp` و`elapsed_ms` من `OrderPayload` (تنظيف).
 
-### 1. خريطة تحويل الحالات (دالة مشتركة)
-أضيف الخريطة التالية لكلتا الدالتين:
+### 2) src/pages/LandingPage.tsx
+- إزالة state الـ `honeypot` و`formLoadTime` وفحصها قبل الإرسال (~سطر 176–177، 870–875).
+- إزالة الحقل المخفي من الـ JSX (~سطر 1242).
+- إزالة `hp` و`elapsed_ms` من جسم الطلب المُرسَل لـ `create-order` (~سطر 1011–1012).
 
-| كود شركة الشحن | الحالة الداخلية الجديدة |
-|---|---|
-| DTR, DTRC, DTRUC, DTRCP | `delivered` |
-| RTRN (تم الإرجاع للراسل) | `returned_received` |
-| RCV (ارتجاع للمخزن) | `returned_received` |
-| UPKBL, UPKBD, UKDB | `unpacked` (موجود) |
-| غير ذلك | بدون تغيير |
+### 3) استرجاع الطلبات المرفوضة الحالية
+- فحص قاعدة البيانات: حالياً **لا يوجد أي طلب** برفض `honeypot` أو `too_fast` (الموجود فقط: 43 `missing_phone` + 1 `invalid_variant_color` — لا تُسترجع لأنها رفض حقيقي ناقصة بيانات).
+- لا حاجة لـ migration لاسترجاع طلبات؛ سأؤكد للمستخدم بعد التطبيق.
 
-ملاحظة: عند تحويل الطلب إلى `returned_received`، الـ trigger الموجود `handle_order_return_refund` يعكس التسوية المالية تلقائياً إذا كانت موجودة.
-
-### 2. تعديل `supabase/functions/carrier-webhook/index.ts`
-- إضافة دالة `mapToInternalStatus(code)` ترجع الحالة الجديدة أو null.
-- بدل الشرط الحالي `if (status === "UPKBD"...)`، نستخدم الخريطة لتحديد `updatePayload.status`.
-- استدعاء `apply-order-stock` يبقى فقط لحالات unpacked.
-
-### 3. تعديل `supabase/functions/sync-carrier-statuses/index.ts`
-- نفس التعديل داخل `processOne`.
-- إزالة استبعاد الطلبات اللي `status = 'shipped'` من الفلتر — هي بالفعل غير مستبعدة (الفلتر يستبعد فقط delivered/returned/cancelled/refunded)، لكن نتأكد إن المزامنة ستلتقطها.
-
-### 4. مزامنة الطلبات القديمة (مهمة لمرة واحدة)
-بعد نشر التغييرات، نشغّل تحديث SQL مباشر لكل الطلبات اللي عندها carrier_status نهائي لكن status لا يزال shipped:
-- DTR/DTRC/DTRUC/DTRCP → `delivered`
-- RTRN/RCV → `returned_received`
-
-يتم تطبيقها كـ migration data update بعد موافقتك.
-
-## الملفات المتأثرة
-
-- `supabase/functions/carrier-webhook/index.ts` — تعديل
-- `supabase/functions/sync-carrier-statuses/index.ts` — تعديل
-- migration واحدة لتحديث الطلبات الموجودة
+### 4) واجهة Orders.tsx (تبويب المرفوضات)
+- إبقاء التبويب كما هو لأنه يعرض أسباب رفض أخرى مشروعة (هاتف مفقود، منتج غير متاح…). فقط أزيل تسميتي "🍯 حقل خفي" و"⚡ إرسال سريع" من badge الأسباب لأنها لن تتولد بعد الآن (تنظيف اختياري — سأحذف السطر للاختصار).
 
 ## خارج النطاق
-
-- لا تغيير في الـ UI.
-- حالات RTS / OTR / DEX / HTR تبقى shipped (مرحلية، ليست نهائية).
+- لا تغييرات على جدول `rejected_orders` (يبقى للأسباب الأخرى).
+- لا تغييرات على Cloudflare/Turnstile.
