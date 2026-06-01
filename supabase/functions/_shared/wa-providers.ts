@@ -92,85 +92,68 @@ async function mazbotEnsureContact(settings: any, jwt: string, phone: string, na
     Authorization: `Bearer ${jwt}`,
     Accept: "application/json",
   } as Record<string, string>;
+  // Per MazBot API docs (https://api.mazbot.net):
+  //  - Phones must be clean digits, NO `+` prefix.
+  //  - /send-message REQUIRES integer `receiver_id` (= contacts.id). No mobile fallback.
+  //  - /chat-rooms supports `?q=` search by phone digits.
+  //  - /contacts is paginated (10 per page) without documented filter.
   const digits = phone.replace(/\D+/g, "");
-  const plus = `+${digits}`;
-  const extractId = (d: any): number | null => {
-    const candidates = [
-      d?.data?.id, d?.data?.contact?.id, d?.contact?.id, d?.id,
-      d?.data?.contacts?.[0]?.id, d?.contacts?.[0]?.id,
-      d?.data?.data?.[0]?.id, d?.data?.data?.id,
-    ];
-    for (const c of candidates) {
-      if (c != null && !Number.isNaN(Number(c))) return Number(c);
+  const tail9 = digits.slice(-9);
+  let lastDebug: any = null;
+
+  // 1) Find via /chat-rooms?q= (existing customer with open chat)
+  try {
+    const r = await fetch(
+      `${base}/chat-rooms?q=${encodeURIComponent(digits)}&type=whatsapp`,
+      { headers },
+    );
+    const d = await r.json().catch(() => ({}));
+    lastDebug = { step: "chat-rooms", status: r.status, body: d };
+    const rooms: any[] = d?.data?.chat_rooms || d?.data || [];
+    if (Array.isArray(rooms)) {
+      for (const room of rooms) {
+        const rp = String(room?.phone || room?.contact?.phone || "").replace(/\D+/g, "");
+        if (rp === digits || (tail9 && rp.endsWith(tail9))) {
+          const cid = room?.contact?.id ?? room?.contact_id ?? room?.receiver_id ?? room?.id;
+          if (cid != null && !Number.isNaN(Number(cid))) return Number(cid);
+        }
+      }
     }
-    const list = d?.data?.contacts || d?.data?.data || d?.data || d?.contacts || [];
-    if (Array.isArray(list)) {
-      const hit = list.find((c: any) =>
-        String(c?.phone || c?.mobile || c?.contact_name || "").replace(/\D+/g, "") === digits
-      );
-      if (hit?.id) return Number(hit.id);
-    }
-    return null;
-  };
-  // Try multiple search variations (with and without leading +)
-  const searchUrls = [
-    `${base}/contacts?search=${encodeURIComponent(phone)}`,
-    `${base}/contacts?phone=${encodeURIComponent(phone)}`,
-    `${base}/contacts?mobile=${encodeURIComponent(phone)}`,
-    `${base}/contacts?search=${encodeURIComponent(digits)}`,
-    `${base}/contacts?search=${encodeURIComponent(plus)}`,
-    `${base}/contacts?phone=${encodeURIComponent(plus)}`,
-    `${base}/contacts?mobile=${encodeURIComponent(plus)}`,
-  ];
-  let lastSearch: any = null;
-  for (const url of searchUrls) {
+  } catch (_) { /* ignore */ }
+
+  // 2) Fallback: paginate /contacts (max 5 pages = 50 contacts)
+  for (let page = 1; page <= 5; page++) {
     try {
-      const r = await fetch(url, { headers });
+      const r = await fetch(`${base}/contacts?page=${page}`, { headers });
       const d = await r.json().catch(() => ({}));
-      lastSearch = { url, status: r.status, body: d };
-      const id = extractId(d);
-      if (id) return id;
+      lastDebug = { step: "contacts-page-" + page, status: r.status, body: d };
+      const list: any[] = d?.data?.contacts || d?.data || [];
+      if (!Array.isArray(list) || list.length === 0) break;
+      const hit = list.find((c: any) => {
+        const cp = String(c?.phone || c?.mobile || "").replace(/\D+/g, "");
+        return cp === digits || (tail9 && cp.endsWith(tail9));
+      });
+      if (hit?.id != null) return Number(hit.id);
+      const lastPage = d?.data?.paginate?.last_page ?? 1;
+      if (page >= Number(lastPage)) break;
     } catch (_) { /* ignore */ }
   }
-  // Create (try FormData) — try both with and without +
-  let lastCreate: any = null;
+
+  // 3) Create contact (multipart form-data per docs)
   try {
     const body = new FormData();
-    body.set("name", name || phone);
-    body.set("phone", plus);
-    body.set("mobile", plus);
+    body.set("name", String(name || digits));
+    body.set("phone", digits);
     body.set("type", "whatsapp");
-    const cr = await fetch(`${base}/contacts`, { method: "POST", headers, body });
-    const cd = await cr.json().catch(() => ({}));
-    lastCreate = { status: cr.status, body: cd };
-    const id = extractId(cd);
-    if (id) return id;
+    const r = await fetch(`${base}/contacts`, { method: "POST", headers, body });
+    const d = await r.json().catch(() => ({}));
+    lastDebug = { step: "create", status: r.status, body: d };
+    const cid = d?.data?.id ?? d?.data?.contact?.id ?? d?.contact?.id ?? d?.id;
+    if (cid != null && !Number.isNaN(Number(cid))) return Number(cid);
   } catch (_) { /* ignore */ }
-  // Create (try JSON)
-  try {
-    const cr = await fetch(`${base}/contacts`, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name || phone, phone: plus, mobile: plus, type: "whatsapp" }),
-    });
-    const cd = await cr.json().catch(() => ({}));
-    lastCreate = { status: cr.status, body: cd };
-    const id = extractId(cd);
-    if (id) return id;
-  } catch (_) { /* ignore */ }
-  // Last attempt: re-search after creation
-  for (const url of searchUrls) {
-    try {
-      const r = await fetch(url, { headers });
-      const d = await r.json().catch(() => ({}));
-      lastSearch = { url, status: r.status, body: d };
-      const id = extractId(d);
-      if (id) return id;
-    } catch (_) { /* ignore */ }
-  }
-  console.log("[mazbotEnsureContact] FAILED phone=", phone,
-    "lastSearch=", JSON.stringify(lastSearch).slice(0, 400),
-    "lastCreate=", JSON.stringify(lastCreate).slice(0, 400));
+
+  console.log("[mazbotEnsureContact] FAILED phone=", digits,
+    "lastDebug=", JSON.stringify(lastDebug).slice(0, 600));
   return null;
 }
 
