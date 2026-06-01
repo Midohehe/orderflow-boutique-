@@ -209,6 +209,66 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_training_qa: {
+        Row: {
+          answer: string
+          created_at: string
+          enabled: boolean
+          id: string
+          keywords: string[]
+          owner_id: string
+          question: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          owner_id: string
+          question: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          owner_id?: string
+          question?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_training_settings: {
+        Row: {
+          created_at: string
+          custom_instructions: string
+          enabled: boolean
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_instructions?: string
+          enabled?: boolean
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_instructions?: string
+          enabled?: boolean
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           created_at: string

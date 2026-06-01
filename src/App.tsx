@@ -44,6 +44,7 @@ const StoreFront = lazy(() => import("./pages/StoreFront"));
 const HeaderSettings = lazy(() => import("./pages/HeaderSettings"));
 const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
 const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
+const AITrainingSettings = lazy(() => import("./pages/AITrainingSettings"));
 const StickerDesigner = lazy(() => import("./pages/StickerDesigner"));
 const PrintBarcodes = lazy(() => import("./pages/PrintBarcodes"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -146,6 +147,7 @@ const App = () => {
                 <Route path="shipping-price-lists" element={<ShippingPriceLists />} />
                 <Route path="my-stores" element={<MyStores />} />
                 <Route path="whatsapp" element={<WhatsAppPage />} />
+                <Route path="ai-training" element={<AITrainingSettings />} />
                 <Route path="sticker-designer" element={<StickerDesigner />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="account" element={<AccountSettings />} />

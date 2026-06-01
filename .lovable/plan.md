@@ -1,36 +1,62 @@
-## السبب الجذري
 
-الخطأ الحقيقي من MazBot الآن ظاهر في `whatsapp_messages.error`:
+## الهدف
+تحسين دقة ردود مساعد الواتساب وتقليل التكلفة، مع منح المسؤول تحكماً كاملاً في "تدريب" النموذج عبر تعليمات عامة + جدول أسئلة وأجوبة.
 
-```
-attempt2: { status: 422, body: { "receiver_id": ["The receiver id field is required."] } }
-contactId: null
-```
+## 1) تبديل النموذج
+- في `supabase/functions/whatsapp-ai-reply/index.ts` تغيير الـmodel من `google/gemini-3-flash-preview` إلى **`google/gemini-2.5-flash`** (دقة أعلى من 3-flash-preview في المحادثات العربية، وسعر اقتصادي).
+- إبقاء `whatsapp-classify-intent` على `gemini-2.5-flash-lite` (تصنيف بسيط).
 
-أي أن `mazbotEnsureContact()` يرجع `null`، فينتقل الكود للبديل عبر `/send-message` بـ `mobile=` فقط، لكن MazBot يرفضه ويطلب `receiver_id` إلزامياً.
+## 2) قاعدة بيانات التدريب
+Migration واحد ينشئ جدولين:
 
-سبب إرجاع `null`: الرقم يُمرَّر بصيغة `218925243296` بينما MazBot يخزّن جهة الاتصال بصيغة `+218925243296` (واضح في `raw.contact_name` للرسائل الواردة). كل عمليات البحث في `mazbotEnsureContact` تفشل لذلك، ومحاولة الإنشاء تُرجع رداً بدون `id` قابل للاستخراج.
+### جدول `ai_training_settings` (تعليمات عامة)
+- `owner_id` (PK, FK auth.users)
+- `custom_instructions` text — تُضاف إلى الـsystem prompt
+- `tone` text (مثلاً: ودود/رسمي) — اختياري
+- `enabled` bool default true
 
-## الخطة (ملف واحد فقط)
+### جدول `ai_training_qa` (أسئلة وأجوبة)
+- `id` uuid PK
+- `owner_id` uuid
+- `question` text — مثال "متى يوصل الطلب؟"
+- `answer` text — الجواب الذي يرد به النموذج
+- `keywords` text[] — كلمات مفتاحية للبحث السريع (اختياري)
+- `enabled` bool default true
+- `sort_order` int
 
-تعديل `supabase/functions/_shared/wa-providers.ts` داخل دالة `mazbotEnsureContact`:
+كلا الجدولين: RLS scoped على `auth.uid() = owner_id`، GRANTs مناسبة، تريغر `updated_at`.
 
-1. **توسيع صيغ البحث** لتشمل النسخة مع `+`:
-   - `+218...` بدل `218...` فقط
-   - تجربة `/contacts?search=+digits` و `/contacts?mobile=+digits` و `/contacts?phone=+digits`
+## 3) دمجها في الـsystem prompt
+في `whatsapp-ai-reply`:
+1. جلب `ai_training_settings` + كل `ai_training_qa` المفعّلة للمالك (بالتوازي مع الاستعلامات الحالية).
+2. إضافة قسمين جديدين داخل `systemPrompt`:
+   ```
+   📌 تعليمات إضافية من المتجر:
+   {custom_instructions}
 
-2. **توسيع `extractId`** ليتعرف على شكل إضافي محتمل من MazBot:
-   - `d?.data?.data?.[0]?.id`
-   - مطابقة `String(c.mobile).replace(/^\+/, '')` مع `digits` (لإزالة + قبل المقارنة)
+   📚 أسئلة وأجوبة جاهزة (استخدم نفس الجواب إن طابق سؤال الزبون):
+   - س: {question}
+     ج: {answer}
+   ```
+3. لا تغيير على الـtools أو حلقة الـagent.
 
-3. **عند فشل كل المحاولات**: تسجيل (`console.log`) آخر استجابة بحث وإنشاء لتشخيص أعمق في حال بقي الفشل.
+## 4) واجهة الإدارة
+صفحة جديدة `src/pages/AITrainingSettings.tsx` (مسار `/dashboard/ai-training`):
+- قسم "تعليمات عامة": Textarea كبير + سويتش تفعيل + زر حفظ.
+- قسم "أسئلة وأجوبة":
+  - جدول/قائمة بطاقات للـQA الموجودة (تعديل/حذف/تفعيل).
+  - زر "+ إضافة سؤال" يفتح Dialog (سؤال، جواب، كلمات مفتاحية اختيارية).
+  - السحب لإعادة الترتيب (اختياري — أو حقل sort_order يدوي).
+- إضافة رابط في `DashboardLayout` ضمن قسم الواتساب/الإعدادات.
 
-4. **تحسين `attempt2` (الإرسال عبر mobile)**: تجربة الرقم بالصيغتين (`+digits` و `digits`) لأن بعض نسخ MazBot تقبل الإرسال المباشر بالرقم دون `receiver_id` فقط عندما تكون الصيغة صحيحة.
+## التفاصيل التقنية
+- استخدام `supabase.from('ai_training_qa').select()` مع RLS التلقائي.
+- تنظيف HTML/قص الإجابات الطويلة قبل الحقن في الـprompt (حد 500 حرف لكل إجابة، إجمالي ~4000 حرف لمنع تضخم الـcontext).
+- لا تعديل على إرسال الواتساب أو منطق الطلبات.
 
-## التحقق
-
-بعد النشر، أطلب من المستخدم إرسال رسالة جديدة. أقرأ السجل من `whatsapp_messages`:
-- المتوقع: `status='sent'` و `green_message_id != null`.
-- لو ما زال يفشل: حقل `error` سيحتوي الآن استجابة بحث/إنشاء حقيقية تكشف صيغة الـ ID المطلوب.
-
-لا توجد تغييرات على المخطط أو على الواجهة.
+## الملفات المتأثرة
+- Migration جديد (جدولان + RLS + GRANTs + trigger).
+- `supabase/functions/whatsapp-ai-reply/index.ts` (تغيير model + قراءة جداول التدريب + دمج في prompt).
+- `src/pages/AITrainingSettings.tsx` (جديد).
+- `src/App.tsx` (إضافة route).
+- `src/components/DashboardLayout.tsx` (رابط في القائمة).
