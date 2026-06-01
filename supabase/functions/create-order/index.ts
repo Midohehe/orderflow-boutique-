@@ -154,6 +154,7 @@ Deno.serve(async (req) => {
 
     if (!product_id || !phone) {
       console.error("Missing required fields", { product_id, phone });
+      await logRejected(!product_id ? "missing_product_id" : "missing_phone");
       return new Response(JSON.stringify({ error: "Missing required fields (product/phone)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -173,6 +174,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (pErr || !product || !product.is_visible) {
+      await logRejected("product_unavailable");
       return new Response(JSON.stringify({ error: "Product unavailable" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -199,21 +201,25 @@ Deno.serve(async (req) => {
         const c = s(it?.color ?? "", 200);
         const sz = s(it?.size ?? "", 200);
         if (requiresColor && !c) {
+          await logRejected("missing_variant_color");
           return new Response(JSON.stringify({ error: "missing_variant_color" }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
         if (requiresSize && !sz) {
+          await logRejected("missing_variant_size");
           return new Response(JSON.stringify({ error: "missing_variant_size" }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
         if (requiresColor && !productColors.includes(c)) {
+          await logRejected("invalid_variant_color");
           return new Response(JSON.stringify({ error: "invalid_variant_color" }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
         if (requiresSize && !productSizes.includes(sz)) {
+          await logRejected("invalid_variant_size");
           return new Response(JSON.stringify({ error: "invalid_variant_size" }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
