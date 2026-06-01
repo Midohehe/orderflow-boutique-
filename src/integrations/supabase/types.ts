@@ -3773,6 +3773,7 @@ export type Database = {
         }[]
       }
       redeem_card: { Args: { _code: string }; Returns: Json }
+      release_mazbot_lock: { Args: never; Returns: boolean }
       settle_orders_into_safe: {
         Args: {
           _amount: number
@@ -3783,6 +3784,7 @@ export type Database = {
         Returns: Json
       }
       store_used_skus: { Args: { _store_id: string }; Returns: string[] }
+      try_mazbot_lock: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
