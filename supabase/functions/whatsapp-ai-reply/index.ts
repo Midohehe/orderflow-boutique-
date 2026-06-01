@@ -264,6 +264,28 @@ ${focused.colors?.length ? `- الألوان: ${focused.colors.join("، ")}\n` :
       `- ${r.cities} (${r.region}): ${r.price} ${currency}${r.duration ? ` — مدة ${r.duration} يوم` : ""}`
     ).join("\n");
 
+    // ===== AI Training (custom instructions + Q&A) =====
+    const [trainSettingsRes, trainQaRes] = await Promise.all([
+      supabase.from("ai_training_settings")
+        .select("custom_instructions, enabled")
+        .eq("owner_id", owner_id).maybeSingle(),
+      supabase.from("ai_training_qa")
+        .select("question, answer")
+        .eq("owner_id", owner_id).eq("enabled", true)
+        .order("sort_order", { ascending: true })
+        .limit(60),
+    ]);
+    const trainSettings = trainSettingsRes?.data as any;
+    const trainQa = (trainQaRes?.data as any[]) || [];
+    const customInstructionsBlock = (trainSettings?.enabled !== false && trainSettings?.custom_instructions?.trim())
+      ? `\n\n📌 تعليمات إضافية من صاحب المتجر (يجب التزامها):\n${String(trainSettings.custom_instructions).slice(0, 4000)}`
+      : "";
+    const qaBlock = trainQa.length
+      ? `\n\n📚 أسئلة وأجوبة جاهزة (إذا طابق سؤال الزبون أحد هذه الأسئلة، استخدم نفس الإجابة بدلاً من الاجتهاد):\n${
+          trainQa.map((q: any) => `- س: ${String(q.question).slice(0,200)}\n  ج: ${String(q.answer).slice(0,500)}`).join("\n")
+        }`
+      : "";
+
     const systemPrompt = `أنت مساعد ذكي لمتجر إلكتروني اسمه "LIBYA STORE". أنت تتحدث مع عميل عبر واتساب.
 
 قواعد الرد:
@@ -294,6 +316,7 @@ ${catalogBrief || "(لا يوجد منتجات)"}
 
 قائمة أسعار التوصيل (استخدمها مباشرة عند سؤال الزبون عن سعر التوصيل لمدينة):
 ${priceListText || "(لم تُعدّ بعد)"}
+${customInstructionsBlock}${qaBlock}
 `;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
