@@ -331,6 +331,20 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+    // Overlap guard: skip if a poll is already running (10s cron + slow MazBot
+    // can otherwise stack up).
+    const lockedAtCutoff = new Date(Date.now() - 25_000).toISOString();
+    const { data: busy } = await supabase
+      .from("whatsapp_settings")
+      .select("owner_id, mazbot_last_polled_at")
+      .eq("enabled", true).eq("provider", "mazbot")
+      .gte("mazbot_last_polled_at", new Date(Date.now() - 7_000).toISOString())
+      .limit(1);
+    if (busy && busy.length > 0) {
+      return new Response(JSON.stringify({ ok: true, skipped: "recent_run" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { data: settingsList, error } = await supabase
       .from("whatsapp_settings")
       .select("*")
