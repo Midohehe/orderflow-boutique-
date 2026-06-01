@@ -1,62 +1,54 @@
-# خطة إكمال المراجعة الشاملة
+# خطة تطوير واتساب الذكي
 
-## 1. تنظيف الواجهة (Frontend Store Isolation)
-فلترة صارمة بـ `activeStoreId` في المكونات التالية:
-- `src/components/OrderDetailsDialog.tsx` — استعلامات المنتجات/الإعدادات
-- `src/components/StoreHeader.tsx` — إعدادات المتجر
-- `src/components/CityCorrections.tsx` — تصحيحات المدن
-- `src/components/ConfirmationCenter.tsx` و `src/pages/ConfirmationSettings.tsx`
-- `src/pages/Inventory.tsx`, `Products.tsx`, `Returns.tsx`, `Settlements.tsx`, `Expenses.tsx`, `Purchases.tsx`, `FinancialAccounts.tsx`
-- `src/pages/PixelSettings.tsx`, `ThankYouSettings.tsx`, `OrderFormSettings.tsx`, `StickerDesigner.tsx`, `WhatsAppPage.tsx`
+## 1. تسريع البولينج إلى 10 ثوانٍ
+- إعادة جدولة `pg_cron` للوظيفة `mazbot-poll-every-30s` إلى `10 seconds` (الحد الأدنى الآمن لـ pg_cron على Supabase).
+- إضافة قفل خفيف داخل `mazbot-poll` لمنع تداخل التشغيلات المتوازية (إذا استغرق التشغيل أكثر من 10ث).
+- تقليل عدد قراءات DB غير الضرورية لكل دورة (تجاهل الغرف غير المتغيرة عبر `last_conversation_at`).
 
-كل استعلام يضيف `.eq("store_id", activeStoreId)` بدلاً من `owner_id` فقط.
+## 2. إرسال رسالة تأكيد فور إنشاء الطلب
+- استدعاء `whatsapp-send-confirmation` تلقائياً من `create-order` بعد نجاح الإدخال (إن لم يكن مستدعى).
+- نص الرسالة يستخدم القالب الموجود في `whatsapp_settings.confirm_template` + يوضّح كيفية الرد ("نعم/لا/أكيد/الغاء…").
 
-## 2. Edge Functions تدرك المتجر
-- `sync-easyorder`, `sync-returns`, `sync-settlements`, `receive-return`, `receive-settlement` — تمرير `store_id` عند الإدخال/التحديث
-- `whatsapp-send-confirmation`, `whatsapp-webhook` — قراءة `whatsapp_settings` حسب `store_id`
-- `apply-order-stock` — قراءة `stock_movements` حسب `store_id` للطلب
+## 3. تأكيد/إلغاء بصياغات حرة عبر AI
+- في `mazbot-poll`، توسيع `parseConfirmIntent` ليشمل عبارات: "أكيد نبي"، "ما نبيش"، "بدلت رايي"، "اكسلي"، "موافق"، "خلاص"، "تمام"، "ايوا".
+- عند الفشل في المطابقة الحرفية ووجود `lastPrompt` نشط (آخر 24س)، يُستدعى edge function جديد `whatsapp-classify-intent` يستخدم Lovable AI (Gemini Flash Lite + structured tool call) لتصنيف الرسالة إلى `confirm | cancel | other`، ثم تطبيق التأكيد/الإلغاء بناءً على النتيجة.
 
-## 3. المرحلة 4 — تقارير مالية متقدمة
+## 4. تذكير تلقائي إن لم يرد الزبون
+- جدول جديد `confirmation_reminders` (order_id, conversation_id, scheduled_at, sent, attempts).
+- بعد إرسال رسالة التأكيد الأولى، يُجدول تذكير بعد 30 دقيقة.
+- cron جديد كل دقيقة `process-confirmation-reminders` يرسل تذكيراً لطيفاً، ثم بعد تذكيرين بدون رد يُعلَّم الطلب `needs_manual_review` ويظهر في "مركز التأكيد".
 
-### أ) إغلاق الفترات (Period Closing)
-- جدول `accounting_periods` (store_id, start, end, closed_at, closed_by)
-- Trigger يمنع تعديل/حذف `safe_movements`, `orders.status`, `purchases` ضمن فترة مغلقة (ما عدا admin)
-- صفحة `src/pages/AccountingPeriods.tsx` لإقفال/فتح فترة
+## 5. توسيع قدرات AI Reply
+إضافات على `whatsapp-ai-reply`:
+- **أداة `check_stock`**: تتحقق من توفر اللون/المقاس قبل قبول الطلب.
+- **أداة `suggest_alternatives`**: عند نفاد المنتج، تقترح 2-3 منتجات شبيهة.
+- **أداة `track_order`**: تجلب حالة شحنة من `orders` + carrier_status للعميل الذي يسأل "وين طلبي".
+- **أداة `cancel_order`**: تلغي طلباً قائماً بطلب الزبون (مع تأكيد).
+- **ذاكرة محادثة أوسع**: من 15 إلى 30 رسالة + ملخص للمحادثات الأطول.
+- **نموذج أقوى**: ترقية من `gemini-2.5-flash` إلى `gemini-3-flash-preview` للسرعة والدقة.
+- **حماية ضد التكرار**: عدم إنشاء طلب مكرر لنفس الزبون خلال 5 دقائق (فحص قبل `create_order`).
+- **معالجة أسعار التوصيل في الـ prompt**: تمرير المدن السريعة جاهزة بدلاً من استدعاء أداة في كل مرة.
 
-### ب) تقرير الأرباح والخسائر (P&L)
-- صفحة `src/pages/ProfitLossReport.tsx`:
-  - الإيرادات: مجموع `orders.price` للحالة `delivered`
-  - تكلفة البضاعة: `SUM(order_items.quantity * purchase_price_snapshot)` للمسلّمة
-  - المصاريف: `expenses` ضمن الفترة
-  - رسوم الشحن: من `orders.shipping_fee` (إن وجد)
-  - صافي الربح = إيرادات − تكلفة − مصاريف
-  - فلترة: متجر + فترة زمنية + مقارنة بفترة سابقة
+## التفاصيل التقنية
 
-### ج) تقرير التدفقات النقدية (Cash Flow)
-- صفحة `src/pages/CashFlowReport.tsx`:
-  - تجميع `safe_movements` حسب `movement_type` (settlement, expense, purchase, manual, transfer)
-  - الرصيد الافتتاحي/الختامي لكل خزينة
-  - تصدير Excel
+**ملفات ستُعدَّل:**
+- `supabase/functions/mazbot-poll/index.ts` — قفل، parseIntent موسّع، استدعاء classifier
+- `supabase/functions/whatsapp-ai-reply/index.ts` — 4 أدوات جديدة + نموذج محدّث
+- `supabase/functions/create-order/index.ts` — استدعاء confirmation بعد الإنشاء
+- `supabase/config.toml` — تسجيل الدوال الجديدة
 
-### د) معالجة المرتجعات مالياً
-- عند تحويل الطلب إلى `returned`:
-  - Trigger يخصم المبلغ المُحصَّل من الخزينة (`movement_type='return_refund'`)
-  - يُرجع المخزون تلقائياً
-- صفحة `Returns.tsx` تعرض الأثر المالي لكل مرتجع
+**ملفات جديدة:**
+- `supabase/functions/whatsapp-classify-intent/index.ts` — تصنيف نية الرسالة
+- `supabase/functions/process-confirmation-reminders/index.ts` — التذكيرات
+- `supabase/functions/mazbot-poll-trigger/index.ts` — (اختياري) لو احتجنا تقسيم العمل
 
-### هـ) تصدير محاسبي
-- زر "تصدير دفتر الأستاذ" يخرج Excel بـ:
-  - تاريخ، نوع الحركة، الوصف، مدين، دائن، الرصيد، المرجع
+**ترحيلات DB:**
+- إعادة جدولة `mazbot-poll-every-30s` إلى 10 ثوانٍ (عبر `supabase--insert` لأنها بيانات مستخدم).
+- جدول `confirmation_reminders` + RLS + GRANTs.
+- إضافة عمود `needs_manual_review` و `reminder_count` إلى `orders`.
+- جدولة `process-confirmation-reminders` كل دقيقة.
 
-## تفاصيل تقنية
-- جميع Migrations جديدة بدون تعديل القديمة
-- استخدام `has_store_or_legacy` في RLS للجداول الجديدة
-- المتطلب: حقل `store_id` موجود مسبقاً في الجداول المالية (تمّ في المرحلة السابقة)
-- التريغرات الجديدة تستخدم `SECURITY DEFINER` مع `search_path = public`
-
-## ترتيب التنفيذ
-1. تنظيف الواجهة (سريع، أعلى أولوية لمنع تسريب البيانات)
-2. Edge Functions
-3. Migration: accounting_periods + return_refund trigger
-4. صفحات التقارير الجديدة (P&L, Cash Flow, إغلاق الفترات)
-5. زر التصدير المحاسبي
+**ملاحظات:**
+- كل استدعاءات AI تذهب عبر Lovable AI Gateway باستخدام `LOVABLE_API_KEY` (موجود).
+- معالجة أخطاء 429/402 من Gateway مع fallback للقواعد الحرفية.
+- لا تغييرات على الواجهة الأمامية (UI) سوى إضافة شارة "بانتظار التأكيد" + "بحاجة لمتابعة يدوية" في صفحة الطلبات.
