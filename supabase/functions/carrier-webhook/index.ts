@@ -206,8 +206,13 @@ Deno.serve(async (req) => {
     };
     if (cancellationReasonId !== null) updatePayload.carrier_cancellation_reason_id = cancellationReasonId;
     if (notes !== null) updatePayload.carrier_notes = notes;
-    if (status === "UPKBD" || status === "UKDB" || status === "UPKBL") {
+    const upper = String(status).toUpperCase();
+    if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
       updatePayload.status = "unpacked";
+    } else if (upper === "DTR" || upper === "DTRC" || upper === "DTRUC" || upper === "DTRCP") {
+      updatePayload.status = "delivered";
+    } else if (upper === "RTRN" || upper === "RCV") {
+      updatePayload.status = "returned_received";
     }
 
     let q = supabase
