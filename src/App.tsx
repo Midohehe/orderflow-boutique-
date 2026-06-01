@@ -27,6 +27,7 @@ const OrderFormSettings = lazy(() => import("./pages/OrderFormSettings"));
 const ThankYouSettings = lazy(() => import("./pages/ThankYouSettings"));
 const CurrencySettings = lazy(() => import("./pages/CurrencySettings"));
 const FinancialAccounts = lazy(() => import("./pages/FinancialAccounts"));
+const ProfitLossReport = lazy(() => import("./pages/ProfitLossReport"));
 const Settlements = lazy(() => import("./pages/Settlements"));
 const SettlementDetail = lazy(() => import("./pages/SettlementDetail"));
 const Returns = lazy(() => import("./pages/Returns"));
