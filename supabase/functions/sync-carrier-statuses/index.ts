@@ -237,8 +237,13 @@ Deno.serve(async (req) => {
       if (sh.notes != null && String(sh.notes).trim() !== "") {
         updatePayload.carrier_notes = String(sh.notes);
       }
-      if (composite === "UPKBD" || composite === "UKDB" || composite === "UPKBL") {
+      const upper = String(composite).toUpperCase();
+      if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
         updatePayload.status = "unpacked";
+      } else if (upper === "DTR" || upper === "DTRC" || upper === "DTRUC" || upper === "DTRCP") {
+        updatePayload.status = "delivered";
+      } else if (upper === "RTRN" || upper === "RCV") {
+        updatePayload.status = "returned_received";
       }
       const { error: uErr } = await admin.from("orders").update(updatePayload).eq("id", o.id);
       if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); return; }
