@@ -73,51 +73,8 @@ Deno.serve(async (req) => {
       } catch (_e) { /* ignore — country stays null */ }
     }
 
-    // Helper: persist a rejected attempt so the dashboard can review it.
-    const logRejected = async (reason: string) => {
-      try {
-        const svc = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-        );
-        let ownerId: string | null = null;
-        let storeId: string | null = null;
-        let productName: string | null = null;
-        const pid = s(body?.product_id ?? "", 64);
-        if (pid) {
-          const { data: p } = await svc
-            .from("products")
-            .select("owner_id, store_id, name")
-            .eq("id", pid)
-            .maybeSingle();
-          if (p) {
-            ownerId = (p as any).owner_id ?? null;
-            storeId = (p as any).store_id ?? null;
-            productName = (p as any).name ?? null;
-          }
-        }
-        await svc.from("rejected_orders").insert({
-          owner_id: ownerId,
-          store_id: storeId,
-          product_id: pid || null,
-          product_name: productName,
-          landing_slug: s(body?.landing_slug ?? "", 200) || null,
-          customer_name: s(body?.customer_name ?? "", 120) || null,
-          phone: s(body?.phone ?? "", 40) || null,
-          address: s(body?.address ?? "", 500) || null,
-          city: s(body?.city ?? "", 120) || null,
-          quantity: Math.max(1, Math.floor(Number(body?.quantity) || 1)),
-          reason,
-          elapsed_ms: null,
-          honeypot_value: null,
-          client_ip: clientIp,
-          user_agent: userAgent,
-          payload: body as any,
-        });
-      } catch (e) {
-        console.error("rejected_orders log failed", e);
-      }
-    };
+    // (rejected_orders logging removed — feature deleted)
+    const logRejected = async (_reason: string) => { /* no-op */ };
 
     const product_id = s(body.product_id, 64);
     let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
