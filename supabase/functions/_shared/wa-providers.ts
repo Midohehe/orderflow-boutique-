@@ -242,20 +242,29 @@ export async function sendImage(settings: any, phone: string, mediaUrl: string, 
     let blob: Blob;
     let filename = "image.jpg";
     let isDoc = false;
+    let mime = "image/jpeg";
     try {
       const r = await fetch(mediaUrl);
       if (!r.ok) throw new Error(`fetch media ${r.status}`);
-      blob = await r.blob();
-      const ct = (r.headers.get("content-type") || blob.type || "").toLowerCase();
+      const rawBlob = await r.blob();
+      const ct = (r.headers.get("content-type") || rawBlob.type || "").toLowerCase();
       const urlName = (mediaUrl.split("?")[0].split("/").pop() || "").trim();
       if (ct.includes("pdf") || /\.pdf$/i.test(urlName)) {
         isDoc = true;
         filename = urlName || "document.pdf";
+        mime = "application/pdf";
+      } else if (ct.includes("webp") || /\.webp$/i.test(urlName)) {
+        mime = "image/webp";
+        filename = "image.webp";
       } else if (ct.includes("png") || /\.png$/i.test(urlName)) {
-        filename = urlName || "image.png";
+        mime = "image/png";
+        filename = "image.png";
       } else {
-        filename = urlName || "image.jpg";
+        mime = "image/jpeg";
+        filename = "image.jpg";
       }
+      // Re-wrap with explicit MIME so MazBot's validator accepts it.
+      blob = new Blob([await rawBlob.arrayBuffer()], { type: mime });
     } catch (e) {
       // Fallback: send caption + URL as plain text if download fails.
       const text = `${caption || ""}\n${mediaUrl}`.trim();
