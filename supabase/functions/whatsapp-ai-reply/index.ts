@@ -590,7 +590,9 @@ ${priceListText || "(لم تُعدّ بعد)"}
 
     // Agent loop (max 4 tool rounds)
     let replyText = "";
-    for (let i = 0; i < 4; i++) {
+    let createOrderSucceeded = false;
+    let nudgedForCreateOrder = false;
+    for (let i = 0; i < 6; i++) {
       const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
@@ -619,6 +621,21 @@ ${priceListText || "(لم تُعدّ بعد)"}
       console.log(`[ai-loop ${i}] tool_calls=${toolCalls.length} content_preview=${(msg.content||'').slice(0,80)}`);
       if (toolCalls.length === 0) {
         replyText = (msg.content || "").trim();
+        // Anti-hallucination guard: if the assistant claims the order was
+        // accepted/registered without actually calling create_order, force a
+        // corrective round so it calls the tool instead of inventing an order.
+        const looksLikeOrderConfirmation = /تم\s*(اعتماد|تسجيل|حجز|قبول|إنشاء|انشاء|تأكيد|تاكيد).{0,15}طلب|رقم\s*طلب(ك|ه)?\s*[:#]?\s*\d|طلبك\s*رقم|order\s*#?\s*\d/i.test(replyText);
+        if (looksLikeOrderConfirmation && !createOrderSucceeded && !nudgedForCreateOrder) {
+          nudgedForCreateOrder = true;
+          chatMessages.push({ role: "assistant", content: replyText });
+          chatMessages.push({
+            role: "system",
+            content:
+              "تنبيه نظام: أنت أرسلت تأكيداً للطلب دون استدعاء الأداة create_order. ممنوع تأكيد الطلب أو إعطاء رقم طلب قبل استدعاء الأداة. استدعِ create_order الآن بالبيانات المجمّعة (product_id, quantity, customer_name, address, city, selected_color, selected_size). لا ترسل أي نص للزبون في هذه الدورة، فقط استدعاء الأداة.",
+          });
+          replyText = "";
+          continue;
+        }
         break;
       }
       chatMessages.push({ role: "assistant", content: msg.content || "", tool_calls: toolCalls });
@@ -628,6 +645,12 @@ ${priceListText || "(لم تُعدّ بعد)"}
         console.log(`[ai-loop ${i}] calling tool ${tc.function?.name} args=${JSON.stringify(args).slice(0,200)}`);
         const result = await runTool(tc.function?.name, args);
         console.log(`[ai-loop ${i}] tool ${tc.function?.name} result=${result.slice(0,200)}`);
+        if (tc.function?.name === "create_order") {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed?.ok) createOrderSucceeded = true;
+          } catch { /* ignore */ }
+        }
         chatMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
       }
     }
