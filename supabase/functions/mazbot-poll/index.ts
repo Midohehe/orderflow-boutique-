@@ -248,11 +248,25 @@ async function pollOwner(supabase: any, s: any) {
           direction === "in" && mtype === "text" && messageOrderId &&
           s.auto_confirm_enabled && matchedPromptAt > 0 && msgAt >= matchedPromptAt
         ) {
-          const intent = parseConfirmIntent(content || "");
+          let intent = parseConfirmIntent(content || "");
+          // Fallback to AI classifier when literal match fails.
+          if (!intent && content && content.trim().length > 0 && content.trim().length < 200) {
+            try {
+              const ci = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-classify-intent`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+                body: JSON.stringify({ text: content, prompt_context: "رسالة طلب تأكيد لطلب شراء" }),
+              });
+              const cj = await ci.json().catch(() => ({}));
+              if (cj?.intent === "confirm" || cj?.intent === "cancel") intent = cj.intent;
+              console.log(`[mazbot-poll] ai-intent=${cj?.intent} conf=${cj?.confidence ?? "-"} text="${(content||"").slice(0,60)}"`);
+            } catch (e) { console.error("ai-intent failed", e); }
+          }
           if (intent) {
             await supabase.from("orders").update({
               confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
               confirmed_at: new Date().toISOString(),
+              needs_manual_review: false,
             }).eq("id", messageOrderId).eq("owner_id", s.owner_id);
 
             const replyText = intent === "confirm"
