@@ -118,6 +118,13 @@ Deno.serve(async (req) => {
         status: "sent", green_message_id: providerMessageId,
         raw: { kind: "confirmation_prompt", provider },
       }).eq("id", msg!.id);
+      // Stamp the order so the reminder cron knows when we last prompted
+      try {
+        await supabase.from("orders").update({
+          last_confirm_prompt_at: new Date().toISOString(),
+          confirmation_attempts: (Number(order.confirmation_attempts) || 0) + 1,
+        }).eq("id", order.id);
+      } catch (e) { console.error("stamp confirm prompt failed", e); }
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
