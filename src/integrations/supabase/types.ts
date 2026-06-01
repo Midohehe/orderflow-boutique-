@@ -1431,12 +1431,14 @@ export type Database = {
           is_deleted: boolean
           landing_slug: string | null
           last_attempt_at: string | null
+          last_confirm_prompt_at: string | null
           link_error: string | null
           locked_insufficient_balance: boolean
           matched_area_id: number | null
           matched_area_name: string | null
           matched_zone_id: number | null
           matched_zone_name: string | null
+          needs_manual_review: boolean
           order_code: string | null
           owner_id: string
           phone: string
@@ -1497,12 +1499,14 @@ export type Database = {
           is_deleted?: boolean
           landing_slug?: string | null
           last_attempt_at?: string | null
+          last_confirm_prompt_at?: string | null
           link_error?: string | null
           locked_insufficient_balance?: boolean
           matched_area_id?: number | null
           matched_area_name?: string | null
           matched_zone_id?: number | null
           matched_zone_name?: string | null
+          needs_manual_review?: boolean
           order_code?: string | null
           owner_id: string
           phone: string
@@ -1563,12 +1567,14 @@ export type Database = {
           is_deleted?: boolean
           landing_slug?: string | null
           last_attempt_at?: string | null
+          last_confirm_prompt_at?: string | null
           link_error?: string | null
           locked_insufficient_balance?: boolean
           matched_area_id?: number | null
           matched_area_name?: string | null
           matched_zone_id?: number | null
           matched_zone_name?: string | null
+          needs_manual_review?: boolean
           order_code?: string | null
           owner_id?: string
           phone?: string
@@ -3492,6 +3498,8 @@ export type Database = {
           mazbot_use_template: boolean
           owner_id: string
           provider: string
+          reminder_max: number
+          reminder_minutes: number
           store_id: string | null
           updated_at: string
           wati_access_token: string
@@ -3530,6 +3538,8 @@ export type Database = {
           mazbot_use_template?: boolean
           owner_id: string
           provider?: string
+          reminder_max?: number
+          reminder_minutes?: number
           store_id?: string | null
           updated_at?: string
           wati_access_token?: string
@@ -3568,6 +3578,8 @@ export type Database = {
           mazbot_use_template?: boolean
           owner_id?: string
           provider?: string
+          reminder_max?: number
+          reminder_minutes?: number
           store_id?: string | null
           updated_at?: string
           wati_access_token?: string
