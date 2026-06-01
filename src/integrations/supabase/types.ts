@@ -852,6 +852,42 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          owner_id: string | null
+          row_id: string | null
+          table_name: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          owner_id?: string | null
+          row_id?: string | null
+          table_name: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          owner_id?: string | null
+          row_id?: string | null
+          table_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       form_field_catalog: {
         Row: {
           admin_enabled: boolean
@@ -1266,6 +1302,7 @@ export type Database = {
           price: number
           product_id: string | null
           product_name: string
+          purchase_price_snapshot: number | null
           quantity: number
           selected_color: string | null
           selected_product_code: string | null
@@ -1283,6 +1320,7 @@ export type Database = {
           price?: number
           product_id?: string | null
           product_name: string
+          purchase_price_snapshot?: number | null
           quantity?: number
           selected_color?: string | null
           selected_product_code?: string | null
@@ -1300,6 +1338,7 @@ export type Database = {
           price?: number
           product_id?: string | null
           product_name?: string
+          purchase_price_snapshot?: number | null
           quantity?: number
           selected_color?: string | null
           selected_product_code?: string | null
@@ -1329,6 +1368,8 @@ export type Database = {
           carrier_status_updated_at: string | null
           city: string
           client_ip: string | null
+          cod_amount_collected: number | null
+          cod_collected: boolean | null
           confirmation_attempts: number
           confirmation_notes: string | null
           confirmation_status: string
@@ -1393,6 +1434,8 @@ export type Database = {
           carrier_status_updated_at?: string | null
           city: string
           client_ip?: string | null
+          cod_amount_collected?: number | null
+          cod_collected?: boolean | null
           confirmation_attempts?: number
           confirmation_notes?: string | null
           confirmation_status?: string
@@ -1457,6 +1500,8 @@ export type Database = {
           carrier_status_updated_at?: string | null
           city?: string
           client_ip?: string | null
+          cod_amount_collected?: number | null
+          cod_collected?: boolean | null
           confirmation_attempts?: number
           confirmation_notes?: string | null
           confirmation_status?: string
@@ -1519,6 +1564,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pending_order_fees: {
+        Row: {
+          created_at: string
+          fee: number
+          id: string
+          order_id: string
+          owner_id: string
+          reason: string | null
+          resolved: boolean
+          resolved_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          fee: number
+          id?: string
+          order_id: string
+          owner_id: string
+          reason?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          fee?: number
+          id?: string
+          order_id?: string
+          owner_id?: string
+          reason?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+        }
+        Relationships: []
       }
       permission_group_items: {
         Row: {
@@ -3608,6 +3686,15 @@ export type Database = {
         }[]
       }
       redeem_card: { Args: { _code: string }; Returns: Json }
+      settle_orders_into_safe: {
+        Args: {
+          _amount: number
+          _notes?: string
+          _order_ids: string[]
+          _safe_id: string
+        }
+        Returns: Json
+      }
       store_used_skus: { Args: { _store_id: string }; Returns: string[] }
     }
     Enums: {
