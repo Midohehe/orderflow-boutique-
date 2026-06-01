@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       .select("direction, content, message_type, media_url, media_mime, created_at")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: false })
-      .limit(15);
+      .limit(30);
 
     const history = (messages || [])
       .reverse()
@@ -358,6 +358,57 @@ ${priceListText || "(لم تُعدّ بعد)"}
           },
         },
       },
+      {
+        type: "function",
+        function: {
+          name: "check_stock",
+          description: "تحقق من توفر منتج/لون/مقاس قبل قبول الطلب.",
+          parameters: {
+            type: "object",
+            properties: {
+              product_id: { type: "string" },
+              color: { type: "string" },
+              size: { type: "string" },
+            },
+            required: ["product_id"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "suggest_alternatives",
+          description: "اقترح 2-3 منتجات بديلة بنفس الفئة عند نفاد منتج أو رفض الزبون.",
+          parameters: {
+            type: "object",
+            properties: {
+              exclude_product_id: { type: "string" },
+              max: { type: "number", minimum: 1, maximum: 5 },
+            },
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "track_order",
+          description: "اجلب حالة آخر طلب لهذا الزبون (رقم/حالة/مدينة) ليرد على سؤال 'وين طلبي'.",
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "cancel_order",
+          description: "ألغِ طلباً قائماً للزبون بعد تأكيده الإلغاء. لا تستدعها قبل التأكيد الصريح.",
+          parameters: {
+            type: "object",
+            properties: {
+              order_id: { type: "string", description: "معرف الطلب (يكفي أول 8 محارف، أو اتركه فارغاً لإلغاء آخر طلب pending)" },
+            },
+          },
+        },
+      },
     ];
 
     const chatMessages: any[] = [
@@ -407,6 +458,15 @@ ${priceListText || "(لم تُعدّ بعد)"}
           const pid = String(args?.product_id || "");
           const prod = products.find((p: any) => p.id === pid || p.id.startsWith(pid));
           if (!prod) return JSON.stringify({ error: "invalid product_id" });
+          // Dedupe: avoid creating a duplicate order for the same phone+product within 5min
+          const { data: recent } = await supabase
+            .from("orders").select("id, order_code, created_at")
+            .eq("owner_id", owner_id).eq("phone", phone).eq("product_id", prod.id)
+            .gte("created_at", new Date(Date.now() - 5 * 60_000).toISOString())
+            .limit(1);
+          if (recent && recent.length > 0) {
+            return JSON.stringify({ ok: true, duplicate: true, order_code: recent[0].order_code, note: "طلب مماثل أُنشئ مؤخراً" });
+          }
           const r = await fetch(`${SUPABASE_URL}/functions/v1/create-order`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
@@ -468,6 +528,60 @@ ${priceListText || "(لم تُعدّ بعد)"}
           }
           return JSON.stringify({ ok: sent > 0, sent, product: prod.name });
         }
+        if (name === "check_stock") {
+          const pid = String(args?.product_id || "");
+          const prod = products.find((p: any) => p.id === pid || p.id.startsWith(pid));
+          if (!prod) return JSON.stringify({ error: "invalid product_id" });
+          const stock = Number((prod as any).stock);
+          const colorOk = !args?.color || !prod.colors?.length || prod.colors.includes(args.color);
+          const sizeOk = !args?.size || !prod.sizes?.length || prod.sizes.includes(args.size);
+          return JSON.stringify({
+            in_stock: (Number.isFinite(stock) ? stock > 0 : true) && colorOk && sizeOk,
+            stock: Number.isFinite(stock) ? stock : null,
+            valid_color: colorOk, valid_size: sizeOk,
+            available_colors: prod.colors || [], available_sizes: prod.sizes || [],
+          });
+        }
+        if (name === "suggest_alternatives") {
+          const excl = String(args?.exclude_product_id || "");
+          const max = Math.max(1, Math.min(5, Number(args?.max) || 3));
+          const alts = products
+            .filter((p: any) => p.id !== excl && !p.id.startsWith(excl) && Number(p.stock) !== 0)
+            .slice(0, max)
+            .map((p: any) => ({ id: p.id.slice(0, 8), name: p.name, price: p.price }));
+          return JSON.stringify({ alternatives: alts, currency });
+        }
+        if (name === "track_order") {
+          const { data: ords } = await supabase
+            .from("orders")
+            .select("id, order_code, product_name, status, confirmation_status, city, created_at, price")
+            .eq("owner_id", owner_id).ilike("phone", `%${phone.slice(-9)}%`)
+            .order("created_at", { ascending: false }).limit(3);
+          return JSON.stringify({ orders: ords || [] });
+        }
+        if (name === "cancel_order") {
+          let oid = String(args?.order_id || "");
+          let target: any = null;
+          if (oid) {
+            const { data } = await supabase.from("orders")
+              .select("id, order_code, status, confirmation_status")
+              .eq("owner_id", owner_id).ilike("id", `${oid}%`).limit(1);
+            target = data?.[0] || null;
+          }
+          if (!target) {
+            const { data } = await supabase.from("orders")
+              .select("id, order_code, status, confirmation_status")
+              .eq("owner_id", owner_id).ilike("phone", `%${phone.slice(-9)}%`)
+              .in("status", ["pending"]).order("created_at", { ascending: false }).limit(1);
+            target = data?.[0] || null;
+          }
+          if (!target) return JSON.stringify({ error: "لا يوجد طلب نشط يمكن إلغاؤه" });
+          if (target.status !== "pending") return JSON.stringify({ error: "الطلب لم يعد قابلاً للإلغاء (حالته " + target.status + ")" });
+          await supabase.from("orders").update({
+            confirmation_status: "cancelled", status: "cancelled", confirmed_at: new Date().toISOString(),
+          }).eq("id", target.id);
+          return JSON.stringify({ ok: true, order_code: target.order_code });
+        }
         return JSON.stringify({ error: "unknown tool" });
       } catch (e) {
         return JSON.stringify({ error: e instanceof Error ? e.message : "tool failed" });
@@ -481,7 +595,7 @@ ${priceListText || "(لم تُعدّ بعد)"}
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-3-flash-preview",
           messages: chatMessages,
           tools,
           temperature: 0.5,
