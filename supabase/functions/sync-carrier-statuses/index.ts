@@ -68,11 +68,18 @@ Deno.serve(async (req) => {
 
     // Require a specific store — sync runs per store, not for all stores at once.
     let storeId: string | null = null;
+    let rawBody = "";
     try {
-      const body = await req.json();
-      storeId = body?.store_id ?? null;
-    } catch (_) { /* no body */ }
+      rawBody = await req.text();
+      if (rawBody) {
+        const body = JSON.parse(rawBody);
+        storeId = body?.store_id ?? null;
+      }
+    } catch (e) {
+      console.error("sync-carrier-statuses body parse error", e, "raw=", rawBody);
+    }
     if (!storeId) {
+      console.warn("sync-carrier-statuses missing store_id, raw body=", rawBody);
       return new Response(JSON.stringify({ error: "store_id مطلوب" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
