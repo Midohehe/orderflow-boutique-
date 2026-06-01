@@ -28,19 +28,21 @@ const DEFAULTS: HeaderSettings = {
 
 interface StoreHeaderProps {
   ownerId?: string;
+  storeId?: string;
 }
 
-const StoreHeader = ({ ownerId }: StoreHeaderProps = {}) => {
+const StoreHeader = ({ ownerId, storeId }: StoreHeaderProps = {}) => {
   const [settings, setSettings] = useState<HeaderSettings>(DEFAULTS);
 
   useEffect(() => {
     let cancelled = false;
     if (!ownerId) return;
-    supabase
+    let q = supabase
       .from("header_settings")
       .select("logo_text, logo_image, tagline, phone, email, instagram_url, facebook_url, whatsapp_url, tiktok_url, owner_id")
-      .eq("owner_id", ownerId)
-      .limit(1)
+      .eq("owner_id", ownerId);
+    if (storeId) q = q.eq("store_id", storeId);
+    q.limit(1)
       .maybeSingle()
       .then(({ data }) => {
         if (!cancelled && data) setSettings(data as HeaderSettings);
@@ -48,7 +50,7 @@ const StoreHeader = ({ ownerId }: StoreHeaderProps = {}) => {
     return () => {
       cancelled = true;
     };
-  }, [ownerId]);
+  }, [ownerId, storeId]);
 
   const hasContact = settings.phone || settings.email;
   const hasSocial =
