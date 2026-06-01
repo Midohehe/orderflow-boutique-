@@ -1719,11 +1719,6 @@ const Orders = () => {
             <span className="text-[11px] sm:text-xs font-medium leading-tight">محذوفة</span>
             <span className="text-[11px] sm:text-xs font-bold">({deletedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="rejected" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg col-span-2 sm:col-span-1 border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-zinc-700 data-[state=active]:to-zinc-900 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
-            <Bot className="w-5 h-5 sm:w-4 sm:h-4" />
-            <span className="text-[11px] sm:text-xs font-medium leading-tight">طلبات مرفوضة</span>
-            <span className="text-[11px] sm:text-xs font-bold">({rejectedOrders.length})</span>
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
