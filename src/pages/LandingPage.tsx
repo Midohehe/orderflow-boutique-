@@ -970,6 +970,14 @@ const LandingPage = () => {
         formData.name || findField("name", "اسم");
       const phone =
         formData.phone || findField("phone", "tel", "هاتف", "رقم", "جوال", "موبايل");
+      // Normalize Libyan phone: strip +218/00218 country code, ensure leading 0
+      const normalizePhone = (raw: string) => {
+        let d = (raw || "").toString().replace(/\D/g, "");
+        d = d.replace(/^(00)?218/, "");
+        if (d.length === 9 && d.startsWith("9")) d = "0" + d;
+        return d;
+      };
+      const normalizedPhone = normalizePhone(phone);
       const city =
         formData.city ||
         findField("city", "مدينة", "محافظة", "محافضة", "ولاية", "منطقة");
@@ -981,7 +989,7 @@ const LandingPage = () => {
       const { error } = await supabase.functions.invoke("create-order", {
         body: {
           customer_name,
-          phone,
+          phone: normalizedPhone,
           address,
           city,
           product_id: product?.id,
@@ -1012,7 +1020,7 @@ const LandingPage = () => {
             productId: product?.id,
             quantity,
             customerName: customer_name,
-            phone,
+            phone: normalizedPhone,
             city,
             address,
             ownerId: product?.owner_id || ownerId || null,
