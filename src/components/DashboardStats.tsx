@@ -103,7 +103,9 @@ const DashboardStats = () => {
           .from("orders")
           .select("*", { count: "exact", head: true })
           .eq("status", "pending")
-          .eq("is_deleted", false);
+          .eq("is_deleted", false)
+          // استثناء الطلبيات الأجنبية (تظهر في تبويب منفصل بصفحة الطلبيات)
+          .or("country_code.is.null,country_code.eq.,country_code.eq.LY,country_code.eq.ly");
         if (user) ordersCountQ = ordersCountQ.eq("owner_id", user.id);
         if (activeStoreId) ordersCountQ = ordersCountQ.eq("store_id", activeStoreId);
         const { count: ordersCount } = await ordersCountQ;
