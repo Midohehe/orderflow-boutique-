@@ -2760,6 +2760,7 @@ export type Database = {
           page_width_mm: number
           show_barcode: boolean
           show_logo: boolean
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2774,6 +2775,7 @@ export type Database = {
           page_width_mm?: number
           show_barcode?: boolean
           show_logo?: boolean
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2788,6 +2790,7 @@ export type Database = {
           page_width_mm?: number
           show_barcode?: boolean
           show_logo?: boolean
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2804,6 +2807,7 @@ export type Database = {
           qty: number
           reason: string
           return_id: string | null
+          store_id: string | null
           unit_price: number | null
           variant_key: string | null
           warehouse_code: string | null
@@ -2819,6 +2823,7 @@ export type Database = {
           qty: number
           reason: string
           return_id?: string | null
+          store_id?: string | null
           unit_price?: number | null
           variant_key?: string | null
           warehouse_code?: string | null
@@ -2834,6 +2839,7 @@ export type Database = {
           qty?: number
           reason?: string
           return_id?: string | null
+          store_id?: string | null
           unit_price?: number | null
           variant_key?: string | null
           warehouse_code?: string | null
@@ -3044,6 +3050,7 @@ export type Database = {
           currency_symbol: string
           id: string
           owner_id: string
+          store_id: string | null
           success_message: string
           updated_at: string
         }
@@ -3055,6 +3062,7 @@ export type Database = {
           currency_symbol?: string
           id?: string
           owner_id: string
+          store_id?: string | null
           success_message?: string
           updated_at?: string
         }
@@ -3066,6 +3074,7 @@ export type Database = {
           currency_symbol?: string
           id?: string
           owner_id?: string
+          store_id?: string | null
           success_message?: string
           updated_at?: string
         }
@@ -3200,6 +3209,7 @@ export type Database = {
           shipping_message: string
           show_contact_info: boolean
           show_order_details: boolean
+          store_id: string | null
           subtitle: string
           title: string
           updated_at: string
@@ -3212,6 +3222,7 @@ export type Database = {
           shipping_message?: string
           show_contact_info?: boolean
           show_order_details?: boolean
+          store_id?: string | null
           subtitle?: string
           title?: string
           updated_at?: string
@@ -3224,6 +3235,7 @@ export type Database = {
           shipping_message?: string
           show_contact_info?: boolean
           show_order_details?: boolean
+          store_id?: string | null
           subtitle?: string
           title?: string
           updated_at?: string
@@ -3436,6 +3448,7 @@ export type Database = {
           mazbot_use_template: boolean
           owner_id: string
           provider: string
+          store_id: string | null
           updated_at: string
           wati_access_token: string
           wati_api_endpoint: string
@@ -3473,6 +3486,7 @@ export type Database = {
           mazbot_use_template?: boolean
           owner_id: string
           provider?: string
+          store_id?: string | null
           updated_at?: string
           wati_access_token?: string
           wati_api_endpoint?: string
@@ -3510,6 +3524,7 @@ export type Database = {
           mazbot_use_template?: boolean
           owner_id?: string
           provider?: string
+          store_id?: string | null
           updated_at?: string
           wati_access_token?: string
           wati_api_endpoint?: string
@@ -3662,6 +3677,10 @@ export type Database = {
         Returns: boolean
       }
       has_store_access: { Args: { _store_id: string }; Returns: boolean }
+      has_store_or_legacy: {
+        Args: { _owner_id: string; _store_id: string }
+        Returns: boolean
+      }
       is_member_of: { Args: { _owner_id: string }; Returns: boolean }
       is_subscription_active: { Args: { _user_id: string }; Returns: boolean }
       move_to_dlq: {
