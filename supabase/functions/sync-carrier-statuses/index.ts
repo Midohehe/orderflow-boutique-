@@ -85,8 +85,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5-minute cooldown per store
-    const COOLDOWN_MS = 5 * 60 * 1000;
+    // 30-second cooldown per store
+    const COOLDOWN_MS = 30 * 1000;
     const { data: storeRow } = await admin
       .from("stores").select("id, owner_id, carrier_last_sync_at")
       .eq("id", storeId).maybeSingle();
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         const remainingSec = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
         return new Response(JSON.stringify({
           error: "cooldown",
-          message: `يجب الانتظار ${Math.ceil(remainingSec / 60)} دقيقة قبل إعادة المزامنة لهذا المتجر`,
+          message: `يجب الانتظار ${remainingSec} ثانية قبل إعادة المزامنة لهذا المتجر`,
           remaining_seconds: remainingSec,
         }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
