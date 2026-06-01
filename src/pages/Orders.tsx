@@ -548,6 +548,10 @@ const Orders = () => {
   };
 
   const handleSyncCarrierStatuses = async () => {
+    if (!activeStoreId) {
+      toast({ title: "فشل المزامنة", description: "لم يتم تحديد المتجر الحالي", variant: "destructive" });
+      return;
+    }
     setSyncingCarrier(true);
     setCarrierSyncResult(null);
     try {
@@ -559,9 +563,16 @@ const Orders = () => {
         const ctx: any = (error as any)?.context;
         let msg = error.message;
         try {
-          const j = await ctx?.json?.();
-          if (j?.message) msg = j.message;
-          else if (j?.error) msg = j.error;
+          const txt = await ctx?.text?.();
+          if (txt) {
+            try {
+              const j = JSON.parse(txt);
+              if (j?.message) msg = j.message;
+              else if (j?.error) msg = j.error;
+            } catch {
+              msg = txt;
+            }
+          }
         } catch {}
         throw new Error(msg);
       }
