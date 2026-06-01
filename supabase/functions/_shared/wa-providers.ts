@@ -175,6 +175,7 @@ export async function sendText(settings: any, phone: string, text: string): Prom
       Accept: "application/json",
     };
     // Primary: try with receiver_id (if we have contact)
+    let attempt1: any = null;
     if (contactId) {
       const fd = new FormData();
       fd.set("receiver_id", String(contactId));
@@ -182,11 +183,13 @@ export async function sendText(settings: any, phone: string, text: string): Prom
       const res = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd });
       const data = await res.json().catch(() => ({}));
       if (mazbotOk(res, data)) return { ok: true, messageId: mazbotMsgId(data), raw: data };
+      attempt1 = { status: res.status, body: data };
     }
     // Fallback: send directly by mobile number (some Mazbot endpoints accept this)
     const fd2 = new FormData();
     fd2.set("mobile", phone);
     fd2.set("phone", phone);
+    fd2.set("receiver", phone);
     fd2.set("message", text);
     fd2.set("type", "whatsapp");
     const res2 = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd2 });
@@ -194,7 +197,12 @@ export async function sendText(settings: any, phone: string, text: string): Prom
     return {
       ok: mazbotOk(res2, data2),
       messageId: mazbotMsgId(data2),
-      raw: data2?.success ? data2 : { error: "mazbot send failed", contactId, response: data2 },
+      raw: data2?.success ? data2 : {
+        error: "mazbot send failed",
+        contactId,
+        attempt1,
+        attempt2: { status: res2.status, body: data2 },
+      },
     };
   }
   if (getProvider(settings) === "wati") {
