@@ -164,44 +164,39 @@ function watiAuthHeader(token: string): string {
 
 export async function sendText(settings: any, phone: string, text: string): Promise<WAResult> {
   if (getProvider(settings) === "mazbot") {
+    const digits = String(phone || "").replace(/\D+/g, "");
+    if (!digits) {
+      return { ok: false, messageId: null, raw: { error: "invalid phone" } };
+    }
     const jwt = await mazbotLogin(settings);
     if (!jwt) return { ok: false, messageId: null, raw: { error: "mazbot login failed" } };
-    const contactId = await mazbotEnsureContact(settings, jwt, phone);
+    const contactId = await mazbotEnsureContact(settings, jwt, digits);
+    if (!contactId) {
+      return {
+        ok: false,
+        messageId: null,
+        raw: { error: "mazbot contact not found/created", phone: digits },
+      };
+    }
     const base = mazbotBase(settings);
     const headers = {
       apikey: String(settings.mazbot_api_key || ""),
       Authorization: `Bearer ${jwt}`,
       Accept: "application/json",
     };
-    // Primary: try with receiver_id (if we have contact)
-    let attempt1: any = null;
-    if (contactId) {
-      const fd = new FormData();
-      fd.set("receiver_id", String(contactId));
-      fd.set("message", text);
-      const res = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (mazbotOk(res, data)) return { ok: true, messageId: mazbotMsgId(data), raw: data };
-      attempt1 = { status: res.status, body: data };
+    // Per docs: /send-message requires `receiver_id` (integer contact id).
+    const fd = new FormData();
+    fd.set("receiver_id", String(contactId));
+    fd.set("message", text);
+    const res = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (mazbotOk(res, data)) {
+      return { ok: true, messageId: mazbotMsgId(data), raw: data };
     }
-    // Fallback: send directly by mobile number (some Mazbot endpoints accept this)
-    const fd2 = new FormData();
-    fd2.set("mobile", phone);
-    fd2.set("phone", phone);
-    fd2.set("receiver", phone);
-    fd2.set("message", text);
-    fd2.set("type", "whatsapp");
-    const res2 = await fetch(`${base}/send-message`, { method: "POST", headers, body: fd2 });
-    const data2 = await res2.json().catch(() => ({}));
     return {
-      ok: mazbotOk(res2, data2),
-      messageId: mazbotMsgId(data2),
-      raw: data2?.success ? data2 : {
-        error: "mazbot send failed",
-        contactId,
-        attempt1,
-        attempt2: { status: res2.status, body: data2 },
-      },
+      ok: false,
+      messageId: null,
+      raw: { error: "mazbot send failed", contactId, status: res.status, body: data },
     };
   }
   if (getProvider(settings) === "wati") {
