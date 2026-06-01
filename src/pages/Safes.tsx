@@ -75,8 +75,10 @@ const Safes = () => {
     setSaving(true);
     const balance = Number(initBalance) || 0;
     const { data: { user } } = await supabase.auth.getUser();
+    // أنشئ الخزينة برصيد 0، ودع trigger sync_safe_balance يضبط الرصيد عبر الحركة.
+    // (إن أنشأنا برصيد ابتدائي ثم أدرجنا حركة، الـ trigger يُضاعف الرصيد.)
     const { data, error } = await supabase.from("safes")
-      .insert({ name: name.trim(), balance, owner_id: user!.id, store_id: activeStoreId })
+      .insert({ name: name.trim(), balance: 0, owner_id: user!.id, store_id: activeStoreId })
       .select().single();
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); setSaving(false); return; }
     if (balance !== 0) {
@@ -96,13 +98,12 @@ const Safes = () => {
     if (!amt || amt <= 0) return;
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const newBalance = Number(depositSafe.balance) + amt;
-    const { error: e1 } = await supabase.from("safes").update({ balance: newBalance }).eq("id", depositSafe.id);
-    if (e1) { toast({ title: "خطأ", description: e1.message, variant: "destructive" }); setSaving(false); return; }
-    await supabase.from("safe_movements").insert({
+    // لا تُحدّث balance يدوياً — trigger sync_safe_balance يضيف المبلغ تلقائياً عند INSERT الحركة.
+    const { error: eIns } = await supabase.from("safe_movements").insert({
       safe_id: depositSafe.id, amount: amt, movement_type: "deposit",
       notes: depositNotes || null, owner_id: user!.id, store_id: activeStoreId,
     });
+    if (eIns) { toast({ title: "خطأ", description: eIns.message, variant: "destructive" }); setSaving(false); return; }
     toast({ title: "تمت إضافة القيمة" });
     setDepositOpen(false); setDepositAmount(""); setDepositNotes(""); setSaving(false);
     load();
