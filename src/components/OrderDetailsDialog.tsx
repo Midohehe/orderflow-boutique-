@@ -164,7 +164,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
           quantity: o.data.quantity ?? null,
         });
       }
-      setProducts((p.data || []) as ProductLite[]);
+      setProducts(filteredProducts as ProductLite[]);
       const list = (it.data || []) as any[];
       // If no order_items yet, seed with the order's main product so the user can edit it
       if (list.length === 0 && o.data) {
