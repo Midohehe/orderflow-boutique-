@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_periods: {
+        Row: {
+          closed_at: string
+          closed_by: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          owner_id: string
+          period_end: string
+          period_start: string
+          store_id: string | null
+        }
+        Insert: {
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          owner_id: string
+          period_end: string
+          period_start: string
+          store_id?: string | null
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          period_end?: string
+          period_start?: string
+          store_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_periods_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_spends: {
         Row: {
           amount_foreign: number
@@ -3610,6 +3654,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cash_flow_report: {
+        Args: { _from: string; _store_id: string; _to: string }
+        Returns: {
+          count_movements: number
+          movement_type: string
+          total: number
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -3695,6 +3747,10 @@ export type Database = {
       next_skus_for_store: {
         Args: { _count: number; _store_id: string }
         Returns: string[]
+      }
+      profit_loss_report: {
+        Args: { _from: string; _store_id: string; _to: string }
+        Returns: Json
       }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
