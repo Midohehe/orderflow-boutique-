@@ -258,6 +258,7 @@ ${productHints || "(لا يوجد)"}`,
       const rows = matchedItems.map((it) => ({
         order_id: inserted.id,
         owner_id: ownerId,
+        store_id: store_id ?? null,
         product_id: it.product_id,
         product_name: it.product_name,
         quantity: it.quantity,
