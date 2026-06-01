@@ -93,45 +93,56 @@ async function mazbotEnsureContact(settings: any, jwt: string, phone: string, na
     Accept: "application/json",
   } as Record<string, string>;
   const digits = phone.replace(/\D+/g, "");
+  const plus = `+${digits}`;
   const extractId = (d: any): number | null => {
     const candidates = [
       d?.data?.id, d?.data?.contact?.id, d?.contact?.id, d?.id,
       d?.data?.contacts?.[0]?.id, d?.contacts?.[0]?.id,
+      d?.data?.data?.[0]?.id, d?.data?.data?.id,
     ];
     for (const c of candidates) {
       if (c != null && !Number.isNaN(Number(c))) return Number(c);
     }
-    const list = d?.data?.contacts || d?.data || d?.contacts || [];
+    const list = d?.data?.contacts || d?.data?.data || d?.data || d?.contacts || [];
     if (Array.isArray(list)) {
-      const hit = list.find((c: any) => String(c?.phone || c?.mobile || "").replace(/\D+/g, "") === digits);
+      const hit = list.find((c: any) =>
+        String(c?.phone || c?.mobile || c?.contact_name || "").replace(/\D+/g, "") === digits
+      );
       if (hit?.id) return Number(hit.id);
     }
     return null;
   };
-  // Try multiple search variations
+  // Try multiple search variations (with and without leading +)
   const searchUrls = [
     `${base}/contacts?search=${encodeURIComponent(phone)}`,
     `${base}/contacts?phone=${encodeURIComponent(phone)}`,
     `${base}/contacts?mobile=${encodeURIComponent(phone)}`,
     `${base}/contacts?search=${encodeURIComponent(digits)}`,
+    `${base}/contacts?search=${encodeURIComponent(plus)}`,
+    `${base}/contacts?phone=${encodeURIComponent(plus)}`,
+    `${base}/contacts?mobile=${encodeURIComponent(plus)}`,
   ];
+  let lastSearch: any = null;
   for (const url of searchUrls) {
     try {
       const r = await fetch(url, { headers });
       const d = await r.json().catch(() => ({}));
+      lastSearch = { url, status: r.status, body: d };
       const id = extractId(d);
       if (id) return id;
     } catch (_) { /* ignore */ }
   }
-  // Create (try FormData)
+  // Create (try FormData) — try both with and without +
+  let lastCreate: any = null;
   try {
     const body = new FormData();
     body.set("name", name || phone);
-    body.set("phone", phone);
-    body.set("mobile", phone);
+    body.set("phone", plus);
+    body.set("mobile", plus);
     body.set("type", "whatsapp");
     const cr = await fetch(`${base}/contacts`, { method: "POST", headers, body });
     const cd = await cr.json().catch(() => ({}));
+    lastCreate = { status: cr.status, body: cd };
     const id = extractId(cd);
     if (id) return id;
   } catch (_) { /* ignore */ }
@@ -140,9 +151,10 @@ async function mazbotEnsureContact(settings: any, jwt: string, phone: string, na
     const cr = await fetch(`${base}/contacts`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name || phone, phone, mobile: phone, type: "whatsapp" }),
+      body: JSON.stringify({ name: name || phone, phone: plus, mobile: plus, type: "whatsapp" }),
     });
     const cd = await cr.json().catch(() => ({}));
+    lastCreate = { status: cr.status, body: cd };
     const id = extractId(cd);
     if (id) return id;
   } catch (_) { /* ignore */ }
@@ -151,10 +163,14 @@ async function mazbotEnsureContact(settings: any, jwt: string, phone: string, na
     try {
       const r = await fetch(url, { headers });
       const d = await r.json().catch(() => ({}));
+      lastSearch = { url, status: r.status, body: d };
       const id = extractId(d);
       if (id) return id;
     } catch (_) { /* ignore */ }
   }
+  console.log("[mazbotEnsureContact] FAILED phone=", phone,
+    "lastSearch=", JSON.stringify(lastSearch).slice(0, 400),
+    "lastCreate=", JSON.stringify(lastCreate).slice(0, 400));
   return null;
 }
 

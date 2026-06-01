@@ -1,36 +1,36 @@
-## المشكلة
-رسائل الـ AI الطويلة تُحفظ في صندوق الوارد بحالة **failed** ولا تصل لواتساب الزبون، بينما الرسائل القصيرة المُرسلة يدوياً من لوحة المحادثات تنجح (مع `green_message_id: mazbot:xxx`).
+## السبب الجذري
 
-## السبب المرجّح
-- دالة `whatsapp-ai-reply` تحفظ الفشل لكن **لا تسجل سبب الخطأ** من MazBot (حقل `error` يبقى فارغاً).
-- MazBot غالباً يرفض الرسائل بسبب: طول الرسالة، أو محارف Markdown (`**bold**`)، أو رموز emoji، أو فشل البحث عن `receiver_id` ثم فشل الـ fallback.
-- بدون تسجيل الـ raw response لا نستطيع الجزم.
+الخطأ الحقيقي من MazBot الآن ظاهر في `whatsapp_messages.error`:
 
-## الخطوات
+```
+attempt2: { status: 422, body: { "receiver_id": ["The receiver id field is required."] } }
+contactId: null
+```
 
-### 1. التقاط الخطأ (تشخيص فوري)
-- في `supabase/functions/whatsapp-ai-reply/index.ts` عند `insert` للرسالة الصادرة:
-  - أضف `error: providerOk ? null : JSON.stringify(sendRes.raw).slice(0,500)`.
-  - أضف `console.log("[ai-reply] sendText result", JSON.stringify(sendRes).slice(0,500))`.
+أي أن `mazbotEnsureContact()` يرجع `null`، فينتقل الكود للبديل عبر `/send-message` بـ `mobile=` فقط، لكن MazBot يرفضه ويطلب `receiver_id` إلزامياً.
 
-### 2. تنظيف نص الرد قبل الإرسال
-في نفس الملف، قبل `sendText`:
-- إزالة Markdown bold/italic: `**x**` → `x`, `*x*` → `x`, `__x__` → `x`.
-- استبدال الـ bullet points (`•`, `-`) ببداية سطر عادية.
-- قص الرسالة إلى 1000 محرف كحد أقصى (MazBot لا يقبل رسائل طويلة جداً).
+سبب إرجاع `null`: الرقم يُمرَّر بصيغة `218925243296` بينما MazBot يخزّن جهة الاتصال بصيغة `+218925243296` (واضح في `raw.contact_name` للرسائل الواردة). كل عمليات البحث في `mazbotEnsureContact` تفشل لذلك، ومحاولة الإنشاء تُرجع رداً بدون `id` قابل للاستخراج.
 
-### 3. تحسين منطق MazBot في `_shared/wa-providers.ts`
-- في `sendText` لمزود mazbot: عند فشل `receiver_id` و fallback `mobile`، **سجّل** السبب بشكل أوضح في `raw` (status code + body).
-- جرّب أيضاً حقل `receiver` (بعض نسخ MazBot تستخدمه بدلاً من `mobile`).
+## الخطة (ملف واحد فقط)
 
-### 4. التحقق
-- بعد النشر، أرسل رسالة جديدة من واتساب الزبون لتفعيل AI.
-- افحص `whatsapp_messages.error` للرسالة الصادرة الجديدة لمعرفة رد MazBot الحقيقي.
-- بناءً على الخطأ المعروض نقرر الإصلاح النهائي (مثلاً تقسيم الرسالة، تغيير endpoint، إلخ).
+تعديل `supabase/functions/_shared/wa-providers.ts` داخل دالة `mazbotEnsureContact`:
 
-## الملفات المعدّلة
-- `supabase/functions/whatsapp-ai-reply/index.ts` — حفظ الخطأ + تنظيف النص + تسجيل.
-- `supabase/functions/_shared/wa-providers.ts` — تحسين تسجيل خطأ MazBot + محاولة إضافية.
+1. **توسيع صيغ البحث** لتشمل النسخة مع `+`:
+   - `+218...` بدل `218...` فقط
+   - تجربة `/contacts?search=+digits` و `/contacts?mobile=+digits` و `/contacts?phone=+digits`
 
-## ملاحظة
-هذه خطوة تشخيصية + إصلاح أولي. بعد رؤية أول `error` حقيقي في قاعدة البيانات، قد نحتاج تعديلاً إضافياً (تقسيم رسائل، تغيير endpoint، إلخ).
+2. **توسيع `extractId`** ليتعرف على شكل إضافي محتمل من MazBot:
+   - `d?.data?.data?.[0]?.id`
+   - مطابقة `String(c.mobile).replace(/^\+/, '')` مع `digits` (لإزالة + قبل المقارنة)
+
+3. **عند فشل كل المحاولات**: تسجيل (`console.log`) آخر استجابة بحث وإنشاء لتشخيص أعمق في حال بقي الفشل.
+
+4. **تحسين `attempt2` (الإرسال عبر mobile)**: تجربة الرقم بالصيغتين (`+digits` و `digits`) لأن بعض نسخ MazBot تقبل الإرسال المباشر بالرقم دون `receiver_id` فقط عندما تكون الصيغة صحيحة.
+
+## التحقق
+
+بعد النشر، أطلب من المستخدم إرسال رسالة جديدة. أقرأ السجل من `whatsapp_messages`:
+- المتوقع: `status='sent'` و `green_message_id != null`.
+- لو ما زال يفشل: حقل `error` سيحتوي الآن استجابة بحث/إنشاء حقيقية تكشف صيغة الـ ID المطلوب.
+
+لا توجد تغييرات على المخطط أو على الواجهة.
