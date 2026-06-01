@@ -122,6 +122,7 @@ const App = () => {
                 <Route path="confirmation" element={<ConfirmationCenter />} />
                 <Route path="confirmation/settings" element={<ConfirmationSettings />} />
                 <Route path="financial" element={<FinancialAccounts />} />
+                <Route path="profit-loss" element={<ProfitLossReport />} />
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="safes" element={<Safes />} />
                 <Route path="expenses" element={<Expenses />} />

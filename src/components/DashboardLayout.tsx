@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2, ClipboardList, ScanLine,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun, ShieldCheck, Megaphone
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun, ShieldCheck, Megaphone, TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,7 @@ const baseMenuGroups = [
     label: "المالية",
     items: [
       { icon: Calculator, label: "الحسابات المالية", path: "/dashboard/financial", external: false, adminOnly: false, dynamicStore: false },
+      { icon: TrendingUp, label: "الأرباح والخسائر", path: "/dashboard/profit-loss", external: false, adminOnly: false, dynamicStore: false },
       { icon: Wallet, label: "الخزائن", path: "/dashboard/safes", external: false, adminOnly: false, dynamicStore: false },
       { icon: Receipt, label: "المصروفات", path: "/dashboard/expenses", external: false, adminOnly: false, dynamicStore: false },
       { icon: ShoppingBag, label: "المشتريات", path: "/dashboard/purchases", external: false, adminOnly: false, dynamicStore: false },
