@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format, subDays, startOfDay } from "date-fns";
 import { ar } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Stats {
   newOrders: number;
@@ -54,6 +55,7 @@ const sourceColors: Record<string, string> = {
 };
 
 const DashboardStats = () => {
+  const { activeStoreId } = useStoreContext();
   const [stats, setStats] = useState<Stats>({
     newOrders: 0,
     totalVisits: 0,
@@ -70,40 +72,48 @@ const DashboardStats = () => {
     const fetchProducts = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: ordersData } = await supabase
+      let ordersQ = supabase
         .from("orders")
         .select("product_name")
         .eq("owner_id", user.id);
+      if (activeStoreId) ordersQ = ordersQ.eq("store_id", activeStoreId);
+      const { data: ordersData } = await ordersQ;
       const orderedNames = new Set((ordersData || []).map(o => o.product_name).filter(Boolean));
       if (orderedNames.size === 0) {
         setProducts([]);
         return;
       }
-      const { data } = await supabase
+      let prodQ = supabase
         .from("products")
         .select("slug, name")
         .eq("owner_id", user.id);
+      if (activeStoreId) prodQ = prodQ.eq("store_id", activeStoreId);
+      const { data } = await prodQ;
       setProducts((data || []).filter(p => orderedNames.has(p.name)));
     };
     fetchProducts();
-  }, []);
+  }, [activeStoreId]);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        const { data: { user } } = await supabase.auth.getUser();
         // Get orders count (pending = new orders)
-        const { count: ordersCount } = await supabase
+        let ordersCountQ = supabase
           .from("orders")
           .select("*", { count: "exact", head: true })
           .eq("status", "pending")
           .eq("is_deleted", false);
+        if (user) ordersCountQ = ordersCountQ.eq("owner_id", user.id);
+        if (activeStoreId) ordersCountQ = ordersCountQ.eq("store_id", activeStoreId);
+        const { count: ordersCount } = await ordersCountQ;
 
         // Build query for page views based on selected product
         let pageViewsQuery = supabase
           .from("analytics_events")
           .select("*", { count: "exact", head: true })
           .eq("event_type", "page_view");
-        
+        if (activeStoreId) pageViewsQuery = pageViewsQuery.eq("store_id", activeStoreId);
         if (selectedProduct !== "all") {
           pageViewsQuery = pageViewsQuery.eq("product_slug", selectedProduct);
         }
@@ -115,7 +125,7 @@ const DashboardStats = () => {
           .from("analytics_events")
           .select("*", { count: "exact", head: true })
           .eq("event_type", "checkout_start");
-        
+        if (activeStoreId) checkoutStartsQuery = checkoutStartsQuery.eq("store_id", activeStoreId);
         if (selectedProduct !== "all") {
           checkoutStartsQuery = checkoutStartsQuery.eq("product_slug", selectedProduct);
         }
@@ -123,9 +133,12 @@ const DashboardStats = () => {
         const { count: checkoutStarts } = await checkoutStartsQuery;
 
         // Get total orders for conversion rate
-        const { count: totalOrders } = await supabase
+        let totalOrdersQ = supabase
           .from("orders")
           .select("*", { count: "exact", head: true });
+        if (user) totalOrdersQ = totalOrdersQ.eq("owner_id", user.id);
+        if (activeStoreId) totalOrdersQ = totalOrdersQ.eq("store_id", activeStoreId);
+        const { count: totalOrders } = await totalOrdersQ;
 
         const visits = pageViews || 0;
         const orders = totalOrders || 0;
@@ -143,7 +156,7 @@ const DashboardStats = () => {
           .from("analytics_events")
           .select("utm_source, created_at")
           .eq("event_type", "page_view");
-        
+        if (activeStoreId) pageViewEventsQuery = pageViewEventsQuery.eq("store_id", activeStoreId);
         if (selectedProduct !== "all") {
           pageViewEventsQuery = pageViewEventsQuery.eq("product_slug", selectedProduct);
         }
@@ -154,7 +167,7 @@ const DashboardStats = () => {
           .from("analytics_events")
           .select("utm_source")
           .eq("event_type", "checkout_start");
-        
+        if (activeStoreId) checkoutEventsQuery = checkoutEventsQuery.eq("store_id", activeStoreId);
         if (selectedProduct !== "all") {
           checkoutEventsQuery = checkoutEventsQuery.eq("product_slug", selectedProduct);
         }
@@ -225,7 +238,7 @@ const DashboardStats = () => {
           .from("analytics_events")
           .select("utm_source, created_at")
           .eq("event_type", "checkout_start");
-        
+        if (activeStoreId) checkoutEventsWithTimeQuery = checkoutEventsWithTimeQuery.eq("store_id", activeStoreId);
         if (selectedProduct !== "all") {
           checkoutEventsWithTimeQuery = checkoutEventsWithTimeQuery.eq("product_slug", selectedProduct);
         }
@@ -253,7 +266,7 @@ const DashboardStats = () => {
     };
 
     fetchStats();
-  }, [selectedProduct]);
+  }, [selectedProduct, activeStoreId]);
 
   const formatLastVisit = (dateStr: string | null) => {
     if (!dateStr) return "—";
