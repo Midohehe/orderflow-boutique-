@@ -21,8 +21,6 @@ interface OrderPayload {
   shipping_included?: boolean;
   upsell_index?: number | null;
   landing_slug?: string | null;
-  hp?: string | null;
-  elapsed_ms?: number | null;
   items?: Array<{
     color?: string | null;
     size?: string | null;
@@ -110,8 +108,8 @@ Deno.serve(async (req) => {
           city: s(body?.city ?? "", 120) || null,
           quantity: Math.max(1, Math.floor(Number(body?.quantity) || 1)),
           reason,
-          elapsed_ms: Number.isFinite(Number(body?.elapsed_ms)) ? Math.floor(Number(body?.elapsed_ms)) : null,
-          honeypot_value: typeof body?.hp === "string" ? body.hp.slice(0, 500) : null,
+          elapsed_ms: null,
+          honeypot_value: null,
           client_ip: clientIp,
           user_agent: userAgent,
           payload: body as any,
@@ -120,26 +118,6 @@ Deno.serve(async (req) => {
         console.error("rejected_orders log failed", e);
       }
     };
-
-    // ---- Bot protection (Level 1) ----
-    // 1) Honeypot: if the hidden field is filled, silently accept and discard.
-    if (typeof body.hp === "string" && body.hp.trim() !== "") {
-      console.warn("bot blocked: honeypot filled");
-      await logRejected("honeypot");
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    // 2) Time-to-submit: real users can't fill the form in < 3s.
-    const elapsedMs = Number(body.elapsed_ms);
-    if (Number.isFinite(elapsedMs) && elapsedMs > 0 && elapsedMs < 3000) {
-      console.warn("bot blocked: submitted too fast", elapsedMs);
-      await logRejected("too_fast");
-      return new Response(JSON.stringify({ error: "too_fast" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const product_id = s(body.product_id, 64);
     let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));

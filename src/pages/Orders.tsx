@@ -2318,9 +2318,7 @@ const Orders = () => {
                   <CardContent className="p-4 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Badge variant={r.reason === "honeypot" ? "destructive" : "secondary"} className="text-xs">
-                          {r.reason === "honeypot" ? "🍯 حقل خفي" : r.reason === "too_fast" ? "⚡ إرسال سريع" : r.reason}
-                        </Badge>
+                        <Badge variant="secondary" className="text-xs">{r.reason}</Badge>
                         {r.product_name && (
                           <span className="text-sm font-semibold">{r.product_name}</span>
                         )}
