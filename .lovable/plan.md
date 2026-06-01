@@ -1,62 +1,45 @@
+## المشكلة
 
-## الهدف
-تحسين دقة ردود مساعد الواتساب وتقليل التكلفة، مع منح المسؤول تحكماً كاملاً في "تدريب" النموذج عبر تعليمات عامة + جدول أسئلة وأجوبة.
+دوال `carrier-webhook` و `sync-carrier-statuses` تحدّث فقط نص `carrier_status` (للعرض)، ولا تحدّث `status` الداخلي للطلب إلا عند "تم التفريغ" (UPKBD/UPKBL/UKDB → unpacked). لذلك الطلبات اللي تم تسليمها أو رجعت تظل بحالة `shipped` بشكل دائم — حالياً عندنا 200+ طلب DTRC و 88 DTRUC و 290+ راجع كلها عالقة.
 
-## 1) تبديل النموذج
-- في `supabase/functions/whatsapp-ai-reply/index.ts` تغيير الـmodel من `google/gemini-3-flash-preview` إلى **`google/gemini-2.5-flash`** (دقة أعلى من 3-flash-preview في المحادثات العربية، وسعر اقتصادي).
-- إبقاء `whatsapp-classify-intent` على `gemini-2.5-flash-lite` (تصنيف بسيط).
+## الحل
 
-## 2) قاعدة بيانات التدريب
-Migration واحد ينشئ جدولين:
+### 1. خريطة تحويل الحالات (دالة مشتركة)
+أضيف الخريطة التالية لكلتا الدالتين:
 
-### جدول `ai_training_settings` (تعليمات عامة)
-- `owner_id` (PK, FK auth.users)
-- `custom_instructions` text — تُضاف إلى الـsystem prompt
-- `tone` text (مثلاً: ودود/رسمي) — اختياري
-- `enabled` bool default true
+| كود شركة الشحن | الحالة الداخلية الجديدة |
+|---|---|
+| DTR, DTRC, DTRUC, DTRCP | `delivered` |
+| RTRN (تم الإرجاع للراسل) | `returned_received` |
+| RCV (ارتجاع للمخزن) | `returned_received` |
+| UPKBL, UPKBD, UKDB | `unpacked` (موجود) |
+| غير ذلك | بدون تغيير |
 
-### جدول `ai_training_qa` (أسئلة وأجوبة)
-- `id` uuid PK
-- `owner_id` uuid
-- `question` text — مثال "متى يوصل الطلب؟"
-- `answer` text — الجواب الذي يرد به النموذج
-- `keywords` text[] — كلمات مفتاحية للبحث السريع (اختياري)
-- `enabled` bool default true
-- `sort_order` int
+ملاحظة: عند تحويل الطلب إلى `returned_received`، الـ trigger الموجود `handle_order_return_refund` يعكس التسوية المالية تلقائياً إذا كانت موجودة.
 
-كلا الجدولين: RLS scoped على `auth.uid() = owner_id`، GRANTs مناسبة، تريغر `updated_at`.
+### 2. تعديل `supabase/functions/carrier-webhook/index.ts`
+- إضافة دالة `mapToInternalStatus(code)` ترجع الحالة الجديدة أو null.
+- بدل الشرط الحالي `if (status === "UPKBD"...)`، نستخدم الخريطة لتحديد `updatePayload.status`.
+- استدعاء `apply-order-stock` يبقى فقط لحالات unpacked.
 
-## 3) دمجها في الـsystem prompt
-في `whatsapp-ai-reply`:
-1. جلب `ai_training_settings` + كل `ai_training_qa` المفعّلة للمالك (بالتوازي مع الاستعلامات الحالية).
-2. إضافة قسمين جديدين داخل `systemPrompt`:
-   ```
-   📌 تعليمات إضافية من المتجر:
-   {custom_instructions}
+### 3. تعديل `supabase/functions/sync-carrier-statuses/index.ts`
+- نفس التعديل داخل `processOne`.
+- إزالة استبعاد الطلبات اللي `status = 'shipped'` من الفلتر — هي بالفعل غير مستبعدة (الفلتر يستبعد فقط delivered/returned/cancelled/refunded)، لكن نتأكد إن المزامنة ستلتقطها.
 
-   📚 أسئلة وأجوبة جاهزة (استخدم نفس الجواب إن طابق سؤال الزبون):
-   - س: {question}
-     ج: {answer}
-   ```
-3. لا تغيير على الـtools أو حلقة الـagent.
+### 4. مزامنة الطلبات القديمة (مهمة لمرة واحدة)
+بعد نشر التغييرات، نشغّل تحديث SQL مباشر لكل الطلبات اللي عندها carrier_status نهائي لكن status لا يزال shipped:
+- DTR/DTRC/DTRUC/DTRCP → `delivered`
+- RTRN/RCV → `returned_received`
 
-## 4) واجهة الإدارة
-صفحة جديدة `src/pages/AITrainingSettings.tsx` (مسار `/dashboard/ai-training`):
-- قسم "تعليمات عامة": Textarea كبير + سويتش تفعيل + زر حفظ.
-- قسم "أسئلة وأجوبة":
-  - جدول/قائمة بطاقات للـQA الموجودة (تعديل/حذف/تفعيل).
-  - زر "+ إضافة سؤال" يفتح Dialog (سؤال، جواب، كلمات مفتاحية اختيارية).
-  - السحب لإعادة الترتيب (اختياري — أو حقل sort_order يدوي).
-- إضافة رابط في `DashboardLayout` ضمن قسم الواتساب/الإعدادات.
-
-## التفاصيل التقنية
-- استخدام `supabase.from('ai_training_qa').select()` مع RLS التلقائي.
-- تنظيف HTML/قص الإجابات الطويلة قبل الحقن في الـprompt (حد 500 حرف لكل إجابة، إجمالي ~4000 حرف لمنع تضخم الـcontext).
-- لا تعديل على إرسال الواتساب أو منطق الطلبات.
+يتم تطبيقها كـ migration data update بعد موافقتك.
 
 ## الملفات المتأثرة
-- Migration جديد (جدولان + RLS + GRANTs + trigger).
-- `supabase/functions/whatsapp-ai-reply/index.ts` (تغيير model + قراءة جداول التدريب + دمج في prompt).
-- `src/pages/AITrainingSettings.tsx` (جديد).
-- `src/App.tsx` (إضافة route).
-- `src/components/DashboardLayout.tsx` (رابط في القائمة).
+
+- `supabase/functions/carrier-webhook/index.ts` — تعديل
+- `supabase/functions/sync-carrier-statuses/index.ts` — تعديل
+- migration واحدة لتحديث الطلبات الموجودة
+
+## خارج النطاق
+
+- لا تغيير في الـ UI.
+- حالات RTS / OTR / DEX / HTR تبقى shipped (مرحلية، ليست نهائية).
