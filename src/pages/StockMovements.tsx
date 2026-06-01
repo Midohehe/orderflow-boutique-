@@ -47,6 +47,7 @@ const REASON_LABEL: Record<string, string> = {
 };
 
 const StockMovements = () => {
+  const { activeStoreId } = useStoreContext();
   const [rows, setRows] = useState<MovementRow[]>([]);
   const [products, setProducts] = useState<ProductPrice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,18 +70,24 @@ const StockMovements = () => {
     const { data: ownerRow } = await (supabase as any)
       .rpc("get_effective_owner_id", { _uid: userData.user.id });
     const effectiveOwnerId = (ownerRow as string) || userData.user.id;
+    let smQ = (supabase as any)
+      .from("stock_movements")
+      .select("*")
+      .eq("owner_id", effectiveOwnerId)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    let prQ = (supabase as any)
+      .from("products")
+      .select("id, price")
+      .eq("owner_id", effectiveOwnerId)
+      .limit(1000);
+    if (activeStoreId) {
+      smQ = smQ.eq("store_id", activeStoreId);
+      prQ = prQ.eq("store_id", activeStoreId);
+    }
     const [smRes, prRes] = await Promise.all([
-      (supabase as any)
-        .from("stock_movements")
-        .select("*")
-        .eq("owner_id", effectiveOwnerId)
-        .order("created_at", { ascending: false })
-        .limit(1000),
-      (supabase as any)
-        .from("products")
-        .select("id, price")
-        .eq("owner_id", effectiveOwnerId)
-        .limit(1000),
+      smQ,
+      prQ,
     ]);
     if (smRes.error) toast({ title: "خطأ", description: smRes.error.message, variant: "destructive" });
     else setRows((smRes.data as MovementRow[]) || []);
@@ -89,7 +96,7 @@ const StockMovements = () => {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeStoreId]);
 
   const productPriceMap = useMemo(() => {
     const map = new Map<string, number>();
