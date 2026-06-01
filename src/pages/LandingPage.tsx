@@ -847,6 +847,26 @@ const LandingPage = () => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Ensure we always log a checkout attempt, even if the user pasted data
+    // without firing input events (some autofill flows skip onChange).
+    if (!checkoutTracked) {
+      setCheckoutTracked(true);
+      try {
+        const attr = getAttribution();
+        supabase.from("analytics_events").insert({
+          event_type: "checkout_start",
+          product_slug: slug,
+          owner_id: ownerId || null,
+          store_id: storeId || null,
+          ...attr,
+        } as any).then(({ error }) => {
+          if (error) console.error("Error tracking checkout start (submit):", error);
+        });
+      } catch (err) {
+        console.error("checkout_start submit tracking failed", err);
+      }
+    }
+
     // Bot protection: honeypot field — real users never fill this.
     // Silently pretend success to avoid telling the bot it was caught.
     if (honeypot.trim() !== "") {
