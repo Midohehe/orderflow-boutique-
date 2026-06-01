@@ -847,6 +847,26 @@ const LandingPage = () => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Ensure we always log a checkout attempt, even if the user pasted data
+    // without firing input events (some autofill flows skip onChange).
+    if (!checkoutTracked) {
+      setCheckoutTracked(true);
+      try {
+        const attr = getAttribution();
+        supabase.from("analytics_events").insert({
+          event_type: "checkout_start",
+          product_slug: slug,
+          owner_id: ownerId || null,
+          store_id: storeId || null,
+          ...attr,
+        } as any).then(({ error }) => {
+          if (error) console.error("Error tracking checkout start (submit):", error);
+        });
+      } catch (err) {
+        console.error("checkout_start submit tracking failed", err);
+      }
+    }
+
     // Bot protection: honeypot field — real users never fill this.
     // Silently pretend success to avoid telling the bot it was caught.
     if (honeypot.trim() !== "") {
@@ -877,6 +897,25 @@ const LandingPage = () => {
       const digitsOnly = phoneValue.replace(/\D/g, "");
       if (digitsOnly.length < 9 || digitsOnly.length > 10) {
         showToast("خطأ", "رقم الهاتف يجب أن يكون بين 9 و 10 أرقام", "destructive");
+        return;
+      }
+    }
+
+    // Extra safety: re-extract phone the same way we send it to the server,
+    // and reject if it's empty or invalid (covers forms whose phone field
+    // isn't typed as "phone" but is still labeled "هاتف/جوال/tel").
+    {
+      const findFieldEarly = (...keywords: string[]) => {
+        const f = formFields.find((fld) => {
+          const hay = `${fld.label || ""} ${fld.field_key || ""}`.toLowerCase();
+          return keywords.some((k) => hay.includes(k.toLowerCase()));
+        });
+        return f ? (formData[f.field_key] || "") : "";
+      };
+      const phoneCandidate = (formData.phone || findFieldEarly("phone", "tel", "هاتف", "رقم", "جوال", "موبايل") || "").toString();
+      const digits = phoneCandidate.replace(/\D/g, "");
+      if (digits.length < 9 || digits.length > 10) {
+        showToast("خطأ", "يرجى إدخال رقم هاتف صحيح (9 إلى 10 أرقام)", "destructive");
         return;
       }
     }
