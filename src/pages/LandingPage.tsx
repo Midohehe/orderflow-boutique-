@@ -877,7 +877,8 @@ const LandingPage = () => {
     const phoneField = formFields.find(f => f.field_type === "phone");
     if (phoneField) {
       const phoneValue = formData[phoneField.field_key] || "";
-      const digitsOnly = phoneValue.replace(/\D/g, "");
+      // Strip +218 / 00218 country code if present, then check length
+      const digitsOnly = phoneValue.replace(/\D/g, "").replace(/^(00)?218/, "");
       if (digitsOnly.length < 9 || digitsOnly.length > 10) {
         showToast("خطأ", "رقم الهاتف يجب أن يكون بين 9 و 10 أرقام", "destructive");
         return;
@@ -896,7 +897,7 @@ const LandingPage = () => {
         return f ? (formData[f.field_key] || "") : "";
       };
       const phoneCandidate = (formData.phone || findFieldEarly("phone", "tel", "هاتف", "رقم", "جوال", "موبايل") || "").toString();
-      const digits = phoneCandidate.replace(/\D/g, "");
+      const digits = phoneCandidate.replace(/\D/g, "").replace(/^(00)?218/, "");
       if (digits.length < 9 || digits.length > 10) {
         showToast("خطأ", "يرجى إدخال رقم هاتف صحيح (9 إلى 10 أرقام)", "destructive");
         return;
