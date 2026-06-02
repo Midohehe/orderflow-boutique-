@@ -538,10 +538,12 @@ const Orders = () => {
       const cm: Record<string, string> = {};
       const lo: Record<string, number> = {};
       const catm: Record<string, string> = {};
+      const lcm: Record<string, string> = {};
       (d.mapRes.data as any[]).forEach((r) => {
         m[String(r.status_code)] = r.custom_label;
         if (r.color) cm[String(r.status_code)] = r.color;
         if (r.category) catm[String(r.status_code)] = r.category;
+        if (r.custom_label && r.category && !lcm[String(r.custom_label)]) lcm[String(r.custom_label)] = r.category;
         const so = Number(r.sort_order ?? 0);
         if (so > 0) {
           const key = String(r.custom_label);
@@ -552,6 +554,7 @@ const Orders = () => {
       setStatusColorMap(cm);
       setLabelOrderMap(lo);
       setStatusCategoryMap(catm);
+      setLabelCategoryMap(lcm);
     }
     if (d.carrierCountsRes?.data) {
       // RPC returns raw `carrier_status` text like "تم التسليم (DTR)".
