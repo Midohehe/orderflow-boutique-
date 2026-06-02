@@ -69,7 +69,16 @@ const LandingTemplates = lazy(() => import("./pages/LandingTemplates"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,        // 1 min — bytes stay "fresh"
+      gcTime: 5 * 60_000,       // 5 min — cache retained for back-nav
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 const Privacy = lazy(() => import("./pages/Privacy"));
 const PageFallback = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
