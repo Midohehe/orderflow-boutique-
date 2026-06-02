@@ -422,11 +422,7 @@ const Orders = () => {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
         const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
-          supabase
-            .from("orders")
-            .select(ORDER_SELECT_COLS)
-            .eq("store_id", activeStoreId)
-            .order("created_at", { ascending: false }),
+          fetchAllOrdersForStore(activeStoreId).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
           (uid
             ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
             : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
