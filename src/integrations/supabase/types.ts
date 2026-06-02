@@ -3757,6 +3757,20 @@ export type Database = {
         Args: { _count: number; _store_id: string }
         Returns: string[]
       }
+      orders_shipped_carrier_counts: {
+        Args: { _store_id: string }
+        Returns: {
+          cnt: number
+          label: string
+        }[]
+      }
+      orders_status_counts: {
+        Args: { _store_id: string }
+        Returns: {
+          cnt: number
+          status: string
+        }[]
+      }
       profit_loss_report: {
         Args: { _from: string; _store_id: string; _to: string }
         Returns: Json
