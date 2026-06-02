@@ -1984,9 +1984,9 @@ const Orders = () => {
                     <SelectValue placeholder="فلترة حسب حالة الشحن" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">كل الحالات ({allShipped.length})</SelectItem>
+                    <SelectItem value="all">كل الحالات ({serverStatusCounts.shipped ?? allShipped.length})</SelectItem>
                     {shippedCarrierOptions.map((opt) => {
-                      const count = allShipped.filter((o) => {
+                      const localCount = allShipped.filter((o) => {
                         const c = extractStatusCode(o);
                         if (opt.code === "__none__") return !c;
                         if (opt.code.startsWith("label:")) {
@@ -1996,6 +1996,12 @@ const Orders = () => {
                         }
                         return c === opt.code;
                       }).length;
+                      // Prefer server-side count (matches by displayed label) so the
+                      // dropdown stays accurate even when the in-memory list is capped.
+                      const serverKey = opt.code.startsWith("label:")
+                        ? opt.code.slice("label:".length)
+                        : opt.code === "__none__" ? "بدون حالة" : opt.label;
+                      const count = serverCarrierCounts[serverKey] ?? localCount;
                       return (
                         <SelectItem key={opt.code} value={opt.code}>
                           {opt.label} ({count})
