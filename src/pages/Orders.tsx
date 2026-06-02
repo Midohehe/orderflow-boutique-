@@ -1202,8 +1202,7 @@ const Orders = () => {
         );
   const carrierCategoryCounts = carrierRateOrders.reduce(
     (acc, o) => {
-      const code = extractStatusCode(o);
-      const cat = code ? statusCategoryMap[code] : undefined;
+      const cat = getCarrierStatusCategory(o);
       if (cat === "delivered") acc.delivered += 1;
       else if (cat === "returned") acc.returned += 1;
       else if (cat === "in_progress") acc.in_progress += 1;
