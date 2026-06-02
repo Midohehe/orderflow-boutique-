@@ -1566,7 +1566,7 @@ const Orders = () => {
               <XCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{cancelledOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{serverStatusCounts.cancelled ?? cancelledOrders.length}</p>
               <p className="text-muted-foreground text-sm">ملغي</p>
             </div>
           </CardContent>
