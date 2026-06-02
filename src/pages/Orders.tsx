@@ -489,11 +489,6 @@ const Orders = () => {
       (d.statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
       setServerStatusCounts(sc);
     }
-    if (d.carrierCountsRes?.data) {
-      const cc: Record<string, number> = {};
-      (d.carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
-      setServerCarrierCounts(cc);
-    }
     if (d.productsRes.data) {
       const pm: Record<string, string> = {};
       (d.productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
@@ -535,6 +530,34 @@ const Orders = () => {
       setStatusColorMap(cm);
       setLabelOrderMap(lo);
       setStatusCategoryMap(catm);
+    }
+    if (d.carrierCountsRes?.data) {
+      // RPC returns raw `carrier_status` text like "تم التسليم (DTR)".
+      // Re-key by custom_label (via statusMap) so dropdown lookups by label match,
+      // and aggregate codes that share the same custom_label.
+      const localMap: Record<string, string> = {};
+      if (d.mapRes.data) {
+        (d.mapRes.data as any[]).forEach((r) => { localMap[String(r.status_code)] = r.custom_label; });
+      }
+      const cc: Record<string, number> = {};
+      (d.carrierCountsRes.data as any[]).forEach((r) => {
+        const raw = String(r.label ?? "");
+        const n = Number(r.cnt) || 0;
+        // Always index by raw label (back-compat for "بدون حالة" etc.)
+        cc[raw] = (cc[raw] || 0) + n;
+        // Parse trailing "(CODE)" and re-key by custom_label if mapped
+        const m = raw.match(/\(([^)]+)\)\s*$/);
+        const code = m ? m[1].trim() : raw.trim();
+        const customLabel = localMap[code];
+        if (customLabel) {
+          cc[customLabel] = (cc[customLabel] || 0) + n;
+        } else if (m) {
+          // Also index by the part before "(CODE)" as a fallback label
+          const base = raw.slice(0, m.index).trim();
+          if (base) cc[base] = (cc[base] || 0) + n;
+        }
+      });
+      setServerCarrierCounts(cc);
     }
     setLoading(false);
   }, [activeStoreId, ordersQuery.data, ordersQuery.isLoading, ordersQuery.error]);
