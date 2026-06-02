@@ -76,6 +76,34 @@ const FinancialAccounts = () => {
   const [shippedDateFrom, setShippedDateFrom] = useState<string>("");
   const [shippedDateTo, setShippedDateTo] = useState<string>("");
   const [shippedCarrierStatus, setShippedCarrierStatus] = useState<string>("all");
+  // Map carrier status_code -> custom_label so we group codes (DTR, DTRC, DTRCP, DTRUC) under one label like "تم التسليم".
+  const [carrierStatusMap, setCarrierStatusMap] = useState<Record<string, string>>({});
+
+  const getCarrierLabel = (raw: string | null | undefined): string => {
+    const s = (raw || "").trim();
+    if (!s) return "";
+    const m = s.match(/\(([^)]+)\)\s*$/);
+    const code = m ? m[1].trim() : s;
+    if (carrierStatusMap[code]) return carrierStatusMap[code];
+    if (m) {
+      const base = s.slice(0, m.index).trim();
+      if (base) return base;
+    }
+    return s;
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("carrier_status_mappings")
+        .select("status_code, custom_label");
+      if (data) {
+        const m: Record<string, string> = {};
+        (data as any[]).forEach(r => { if (r.status_code && r.custom_label) m[String(r.status_code)] = r.custom_label; });
+        setCarrierStatusMap(m);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (ctxLoading || !effectiveOwnerId || !activeStoreId) return;
@@ -206,16 +234,19 @@ const FinancialAccounts = () => {
       return true;
     };
     return shippedOrders.filter(o => {
-      if (shippedCarrierStatus !== "all" && (o.carrier_status || "") !== shippedCarrierStatus) return false;
+      if (shippedCarrierStatus !== "all" && getCarrierLabel(o.carrier_status) !== shippedCarrierStatus) return false;
       if (!inRange(o.carrier_status_updated_at)) return false;
       return true;
     });
   }, [shippedOrders, shippedDateFrom, shippedDateTo, shippedCarrierStatus]);
   const shippedCarrierStatuses = useMemo(() => {
     const set = new Set<string>();
-    shippedOrders.forEach(o => { if (o.carrier_status) set.add(o.carrier_status); });
+    shippedOrders.forEach(o => {
+      const lbl = getCarrierLabel(o.carrier_status);
+      if (lbl) set.add(lbl);
+    });
     return Array.from(set).sort();
-  }, [shippedOrders]);
+  }, [shippedOrders, carrierStatusMap]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
   const filteredAdSpends = useMemo(() => adSpends.filter(a => {
