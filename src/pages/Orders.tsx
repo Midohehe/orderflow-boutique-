@@ -149,6 +149,7 @@ const statusColors: Record<Order["status"], string> = {
 
 const Orders = () => {
   const { activeStoreId } = useStoreContext();
+  const queryClient = useQueryClient();
   const [orders, setOrders] = useState<Order[]>([]);
   // Server-side counts (authoritative — independent of how many rows are loaded).
   const [serverStatusCounts, setServerStatusCounts] = useState<Record<string, number>>({});
