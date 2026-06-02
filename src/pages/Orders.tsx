@@ -2023,11 +2023,11 @@ const Orders = () => {
                     {shippedCarrierOptions.map((opt) => {
                       const localCount = allShipped.filter((o) => {
                         const c = extractStatusCode(o);
+                        const label = getCarrierFilterLabel(o);
                         if (opt.code === "__none__") return !c;
                         if (opt.code.startsWith("label:")) {
                           const wanted = opt.code.slice("label:".length);
-                          const lbl = c ? (statusMap[c] || displayCarrierStatus(o)) : "";
-                          return lbl === wanted;
+                          return label === wanted;
                         }
                         return c === opt.code;
                       }).length;
