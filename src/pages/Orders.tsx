@@ -149,6 +149,9 @@ const statusColors: Record<Order["status"], string> = {
 const Orders = () => {
   const { activeStoreId } = useStoreContext();
   const [orders, setOrders] = useState<Order[]>([]);
+  // Server-side counts (authoritative — independent of how many rows are loaded).
+  const [serverStatusCounts, setServerStatusCounts] = useState<Record<string, number>>({});
+  const [serverCarrierCounts, setServerCarrierCounts] = useState<Record<string, number>>({});
   const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -421,7 +424,7 @@ const Orders = () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
-        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
+        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes] = await Promise.all([
           fetchAllOrdersForStore(activeStoreId).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
           (uid
             ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
@@ -435,10 +438,22 @@ const Orders = () => {
           uid
             ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
+          supabase.rpc("orders_status_counts", { _store_id: activeStoreId }),
+          supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId }),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
         setOrders((ordersRes.data || []) as Order[]);
+        if (statusCountsRes?.data) {
+          const sc: Record<string, number> = {};
+          (statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
+          setServerStatusCounts(sc);
+        }
+        if (carrierCountsRes?.data) {
+          const cc: Record<string, number> = {};
+          (carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
+          setServerCarrierCounts(cc);
+        }
         if (productsRes.data) {
           const pm: Record<string, string> = {};
           (productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
@@ -528,8 +543,22 @@ const Orders = () => {
         setLoading(false);
         return;
       }
-      const data = await fetchAllOrdersForStore(activeStoreId);
+      const [data, statusCountsRes, carrierCountsRes] = await Promise.all([
+        fetchAllOrdersForStore(activeStoreId),
+        supabase.rpc("orders_status_counts", { _store_id: activeStoreId }),
+        supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId }),
+      ]);
       setOrders(data as Order[]);
+      if (statusCountsRes?.data) {
+        const sc: Record<string, number> = {};
+        (statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
+        setServerStatusCounts(sc);
+      }
+      if (carrierCountsRes?.data) {
+        const cc: Record<string, number> = {};
+        (carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
+        setServerCarrierCounts(cc);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
@@ -1504,7 +1533,7 @@ const Orders = () => {
               <Clock className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{pendingOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{serverStatusCounts.pending ?? pendingOrders.length}</p>
               <p className="text-muted-foreground text-sm">قيد الانتظار</p>
             </div>
           </CardContent>
@@ -1515,7 +1544,7 @@ const Orders = () => {
               <Truck className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{shippedOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{serverStatusCounts.shipped ?? shippedOrders.length}</p>
               <p className="text-muted-foreground text-sm">جاري التوصيل</p>
             </div>
           </CardContent>
@@ -1526,7 +1555,7 @@ const Orders = () => {
               <CheckCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{deliveredOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{(serverStatusCounts.delivered ?? 0) + (serverStatusCounts.settled ?? 0) || deliveredOrders.length}</p>
               <p className="text-muted-foreground text-sm">تم الاستلام</p>
             </div>
           </CardContent>
@@ -1537,7 +1566,7 @@ const Orders = () => {
               <XCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{cancelledOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{serverStatusCounts.cancelled ?? cancelledOrders.length}</p>
               <p className="text-muted-foreground text-sm">ملغي</p>
             </div>
           </CardContent>
@@ -1694,7 +1723,7 @@ const Orders = () => {
           <TabsTrigger value="pending" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Clock className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">قيد الانتظار</span>
-            <span className="text-[11px] sm:text-xs font-bold">({pendingOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.pending ?? pendingOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="foreign" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Globe className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -1704,27 +1733,27 @@ const Orders = () => {
           <TabsTrigger value="shipped" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Truck className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">جاري التوصيل</span>
-            <span className="text-[11px] sm:text-xs font-bold">({shippedOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.shipped ?? shippedOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="delivered" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-emerald-500 data-[state=active]:to-green-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <CheckCircle className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">تم الاستلام</span>
-            <span className="text-[11px] sm:text-xs font-bold">({deliveredOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({(serverStatusCounts.delivered ?? 0) + (serverStatusCounts.settled ?? 0) || deliveredOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="unpacked" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-teal-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <PackageOpen className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">تم التفريغ</span>
-            <span className="text-[11px] sm:text-xs font-bold">({unpackedOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.unpacked ?? unpackedOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="cancelled" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-rose-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <XCircle className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">ملغي</span>
-            <span className="text-[11px] sm:text-xs font-bold">({cancelledOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.cancelled ?? cancelledOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="returned_received" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-fuchsia-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Undo2 className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">المرتجعات</span>
-            <span className="text-[11px] sm:text-xs font-bold">({returnedReceivedOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.returned_received ?? returnedReceivedOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="deleted" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg col-span-2 sm:col-span-1 border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-slate-500 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Archive className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -1955,9 +1984,9 @@ const Orders = () => {
                     <SelectValue placeholder="فلترة حسب حالة الشحن" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">كل الحالات ({allShipped.length})</SelectItem>
+                    <SelectItem value="all">كل الحالات ({serverStatusCounts.shipped ?? allShipped.length})</SelectItem>
                     {shippedCarrierOptions.map((opt) => {
-                      const count = allShipped.filter((o) => {
+                      const localCount = allShipped.filter((o) => {
                         const c = extractStatusCode(o);
                         if (opt.code === "__none__") return !c;
                         if (opt.code.startsWith("label:")) {
@@ -1967,6 +1996,12 @@ const Orders = () => {
                         }
                         return c === opt.code;
                       }).length;
+                      // Prefer server-side count (matches by displayed label) so the
+                      // dropdown stays accurate even when the in-memory list is capped.
+                      const serverKey = opt.code.startsWith("label:")
+                        ? opt.code.slice("label:".length)
+                        : opt.code === "__none__" ? "بدون حالة" : opt.label;
+                      const count = serverCarrierCounts[serverKey] ?? localCount;
                       return (
                         <SelectItem key={opt.code} value={opt.code}>
                           {opt.label} ({count})
