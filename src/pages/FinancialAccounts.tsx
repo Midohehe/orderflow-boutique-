@@ -76,6 +76,34 @@ const FinancialAccounts = () => {
   const [shippedDateFrom, setShippedDateFrom] = useState<string>("");
   const [shippedDateTo, setShippedDateTo] = useState<string>("");
   const [shippedCarrierStatus, setShippedCarrierStatus] = useState<string>("all");
+  // Map carrier status_code -> custom_label so we group codes (DTR, DTRC, DTRCP, DTRUC) under one label like "تم التسليم".
+  const [carrierStatusMap, setCarrierStatusMap] = useState<Record<string, string>>({});
+
+  const getCarrierLabel = (raw: string | null | undefined): string => {
+    const s = (raw || "").trim();
+    if (!s) return "";
+    const m = s.match(/\(([^)]+)\)\s*$/);
+    const code = m ? m[1].trim() : s;
+    if (carrierStatusMap[code]) return carrierStatusMap[code];
+    if (m) {
+      const base = s.slice(0, m.index).trim();
+      if (base) return base;
+    }
+    return s;
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("carrier_status_mappings")
+        .select("status_code, custom_label");
+      if (data) {
+        const m: Record<string, string> = {};
+        (data as any[]).forEach(r => { if (r.status_code && r.custom_label) m[String(r.status_code)] = r.custom_label; });
+        setCarrierStatusMap(m);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (ctxLoading || !effectiveOwnerId || !activeStoreId) return;
