@@ -217,7 +217,12 @@ const FinancialAccounts = () => {
     orphanDelivered.reduce((s, o) => s + Number(o.price), 0) +
     (selectedProduct === "all" ? filteredOrphanShipments.reduce((s, x) => s + Number(x.paid_amount), 0) : 0);
   const orphanCount = orphanDelivered.length + (selectedProduct === "all" ? filteredOrphanShipments.length : 0);
-  const shippedOrders = useMemo(() => filteredOrders.filter(o => o.status === "shipped"), [filteredOrders]);
+  // Include every order tracked by the carrier (even if locally settled/delivered),
+  // so counts match the Orders page which groups by carrier_status.
+  const shippedOrders = useMemo(
+    () => filteredOrders.filter(o => o.status === "shipped" || !!o.carrier_status),
+    [filteredOrders],
+  );
   const shippedFiltered = useMemo(() => {
     const inRange = (iso?: string | null) => {
       if (!shippedDateFrom && !shippedDateTo) return true;
