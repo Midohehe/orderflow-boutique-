@@ -234,16 +234,19 @@ const FinancialAccounts = () => {
       return true;
     };
     return shippedOrders.filter(o => {
-      if (shippedCarrierStatus !== "all" && (o.carrier_status || "") !== shippedCarrierStatus) return false;
+      if (shippedCarrierStatus !== "all" && getCarrierLabel(o.carrier_status) !== shippedCarrierStatus) return false;
       if (!inRange(o.carrier_status_updated_at)) return false;
       return true;
     });
   }, [shippedOrders, shippedDateFrom, shippedDateTo, shippedCarrierStatus]);
   const shippedCarrierStatuses = useMemo(() => {
     const set = new Set<string>();
-    shippedOrders.forEach(o => { if (o.carrier_status) set.add(o.carrier_status); });
+    shippedOrders.forEach(o => {
+      const lbl = getCarrierLabel(o.carrier_status);
+      if (lbl) set.add(lbl);
+    });
     return Array.from(set).sort();
-  }, [shippedOrders]);
+  }, [shippedOrders, carrierStatusMap]);
   const filteredExpenses = useMemo(() => expenses.filter(e => inDateRange(e.created_at)), [expenses, dateFrom, dateTo]);
   const filteredPurchases = useMemo(() => purchases.filter(p => inDateRange(p.created_at)), [purchases, dateFrom, dateTo]);
   const filteredAdSpends = useMemo(() => adSpends.filter(a => {
