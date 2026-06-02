@@ -154,8 +154,8 @@ Deno.serve(async (req) => {
         .eq("owner_id", ownerId)
         .eq("store_id", storeId)
         .not("shipping_id", "is", null)
-        // Skip orders already in a terminal carrier state to avoid re-polling them every run.
-        .not("status", "in", "(delivered,returned,cancelled,refunded)")
+        // Manual sync covers ALL orders with a shipping_id, including delivered/settled/returned,
+        // so the user can refresh the latest carrier status for every shipment in the store.
         .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
       if (oErr) {
