@@ -199,6 +199,31 @@ const Orders = () => {
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [storeName, setStoreName] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const PAGE_SIZE = 50;
+  const [pageMap, setPageMap] = useState<Record<string, number>>({});
+  const getPage = (key: string) => pageMap[key] || 1;
+  const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
+  const paginate = <T,>(arr: T[], key: string) => {
+    const total = arr.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    let page = getPage(key);
+    if (page > totalPages) page = totalPages;
+    const start = (page - 1) * PAGE_SIZE;
+    return { items: arr.slice(start, start + PAGE_SIZE), page, totalPages, total, key };
+  };
+  const Pager = ({ p }: { p: { page: number; totalPages: number; total: number; key: string } }) => {
+    if (p.total <= PAGE_SIZE) return null;
+    return (
+      <div className="flex items-center justify-between gap-2 mt-3 px-1 text-xs text-muted-foreground" dir="rtl">
+        <span>عرض {(p.page - 1) * PAGE_SIZE + 1}–{Math.min(p.page * PAGE_SIZE, p.total)} من {p.total}</span>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="outline" disabled={p.page <= 1} onClick={() => setPage(p.key, p.page - 1)}>السابق</Button>
+          <span className="px-2">{p.page} / {p.totalPages}</span>
+          <Button size="sm" variant="outline" disabled={p.page >= p.totalPages} onClick={() => setPage(p.key, p.page + 1)}>التالي</Button>
+        </div>
+      </div>
+    );
+  };
 
   const COLOR_CLASSES: Record<string, string> = {
     default: "bg-accent text-accent-foreground",
@@ -1911,11 +1936,15 @@ const Orders = () => {
               <Clock className="w-16 h-16 text-muted-foreground mb-4" />,
               "لا توجد طلبات قيد الانتظار"
             )
-          ) : (
-            <div className="space-y-4">
-              {pendingOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(pendingOrders, "pending");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="foreign" className="space-y-4">
@@ -1932,11 +1961,15 @@ const Orders = () => {
               <Globe className="w-16 h-16 text-muted-foreground mb-4" />,
               "لا توجد طلبات من خارج ليبيا"
             )
-          ) : (
-            <div className="space-y-4">
-              {foreignOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(foreignOrders, "foreign");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="shipped" className="space-y-4">
@@ -2079,11 +2112,15 @@ const Orders = () => {
               <Truck className="w-16 h-16 text-muted-foreground mb-4" />,
               shippedSearchNorm ? "لا توجد نتائج مطابقة" : "لا توجد طلبات جاري توصيلها"
             )
-          ) : (
-            <div className="space-y-4">
-              {shippedOrders.map((order) => renderOrderCard(order, true))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(shippedOrders, "shipped");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order, true))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="delivered" className="space-y-4">
@@ -2092,11 +2129,15 @@ const Orders = () => {
               <CheckCircle className="w-16 h-16 text-muted-foreground mb-4" />,
               "لا توجد طلبات مستلمة"
             )
-          ) : (
-            <div className="space-y-4">
-              {deliveredOrders.map((order) => renderOrderCard(order))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(deliveredOrders, "delivered");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="unpacked" className="space-y-4">
@@ -2149,11 +2190,15 @@ const Orders = () => {
               <PackageOpen className="w-16 h-16 text-muted-foreground mb-4" />,
               unpackedSearch.trim() ? "لا توجد نتائج مطابقة" : "لا توجد طلبات تم تفريغها"
             )
-          ) : (
-            <div className="space-y-4">
-              {unpackedOrders.map((order) => renderOrderCard(order))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(unpackedOrders, "unpacked");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
         <TabsContent value="cancelled" className="space-y-4">
           {cancelledOrders.length === 0 ? (
@@ -2209,9 +2254,15 @@ const Orders = () => {
                   </div>
                 </CardContent>
               </Card>
-              <div className="space-y-4">
-                {cancelledOrders.map((order) => renderOrderCard(order, true))}
-              </div>
+              {(() => {
+                const p = paginate(cancelledOrders, "cancelled");
+                return (
+                  <div className="space-y-4">
+                    {p.items.map((order) => renderOrderCard(order, true))}
+                    <Pager p={p} />
+                  </div>
+                );
+              })()}
             </>
           )}
         </TabsContent>
@@ -2221,11 +2272,15 @@ const Orders = () => {
               <Undo2 className="w-16 h-16 text-muted-foreground mb-4" />,
               "لا توجد مرتجعات مؤكدة"
             )
-          ) : (
-            <div className="space-y-4">
-              {returnedReceivedOrders.map((order) => renderOrderCard(order))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(returnedReceivedOrders, "returned");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
         <TabsContent value="deleted" className="space-y-4">
           {deletedOrders.length === 0 ? (
@@ -2282,9 +2337,15 @@ const Orders = () => {
                   </div>
                 </CardContent>
               </Card>
-              <div className="space-y-4">
-                {deletedOrders.map((order) => renderOrderCard(order, true))}
-              </div>
+              {(() => {
+                const p = paginate(deletedOrders, "deleted");
+                return (
+                  <div className="space-y-4">
+                    {p.items.map((order) => renderOrderCard(order, true))}
+                    <Pager p={p} />
+                  </div>
+                );
+              })()}
             </>
           )}
         </TabsContent>
