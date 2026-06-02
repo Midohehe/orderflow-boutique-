@@ -91,6 +91,28 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
 
 const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
 
+// Supabase caps a single query at 1000 rows. Stores can easily exceed that, and
+// truncated results made tabs/dropdown counters under-report (e.g. "تم التسليم"
+// dropdown only showed orders from the most recent 1000 rows). Paginate to load
+// every order for the active store.
+const ORDERS_PAGE_SIZE = 1000;
+async function fetchAllOrdersForStore(storeId: string) {
+  const all: any[] = [];
+  for (let from = 0; ; from += ORDERS_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(ORDER_SELECT_COLS)
+      .eq("store_id", storeId)
+      .order("created_at", { ascending: false })
+      .range(from, from + ORDERS_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < ORDERS_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
   preparing: "جاري التجهيز",
@@ -400,11 +422,7 @@ const Orders = () => {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
         const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
-          supabase
-            .from("orders")
-            .select(ORDER_SELECT_COLS)
-            .eq("store_id", activeStoreId)
-            .order("created_at", { ascending: false }),
+          fetchAllOrdersForStore(activeStoreId).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
           (uid
             ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
             : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
@@ -510,14 +528,8 @@ const Orders = () => {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from("orders")
-        .select(ORDER_SELECT_COLS)
-        .eq("store_id", activeStoreId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setOrders((data || []) as Order[]);
+      const data = await fetchAllOrdersForStore(activeStoreId);
+      setOrders(data as Order[]);
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
