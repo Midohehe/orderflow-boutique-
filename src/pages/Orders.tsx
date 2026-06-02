@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -148,6 +149,7 @@ const statusColors: Record<Order["status"], string> = {
 
 const Orders = () => {
   const { activeStoreId } = useStoreContext();
+  const queryClient = useQueryClient();
   const [orders, setOrders] = useState<Order[]>([]);
   // Server-side counts (authoritative — independent of how many rows are loaded).
   const [serverStatusCounts, setServerStatusCounts] = useState<Record<string, number>>({});
@@ -416,99 +418,101 @@ const Orders = () => {
     }
   };
 
+  const ordersQuery = useQuery({
+    queryKey: ["orders-page", activeStoreId],
+    enabled: !!activeStoreId,
+    queryFn: async () => {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes] = await Promise.all([
+        fetchAllOrdersForStore(activeStoreId!).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
+        (uid
+          ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
+          : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
+        supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
+        supabase.from("products").select("id, name").eq("store_id", activeStoreId!),
+        uid
+          ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+        supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId!).maybeSingle(),
+        uid
+          ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+        supabase.rpc("orders_status_counts", { _store_id: activeStoreId! }),
+        supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId! }),
+      ]);
+      if (ordersRes.error) throw ordersRes.error;
+      return { ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, uid };
+    },
+  });
+
+  // Hydrate local state from query result so existing mutation logic keeps working
   useEffect(() => {
-    let cancelled = false;
     if (!activeStoreId) { setOrders([]); setLoading(false); return; }
-    setLoading(true);
-    (async () => {
-      try {
-        const { data: userRes } = await supabase.auth.getUser();
-        const uid = userRes.user?.id;
-        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes] = await Promise.all([
-          fetchAllOrdersForStore(activeStoreId).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
-          (uid
-            ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
-            : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
-          supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
-          supabase.from("products").select("id, name").eq("store_id", activeStoreId),
-          uid
-            ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
-            : Promise.resolve({ data: null } as any),
-          supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId).maybeSingle(),
-          uid
-            ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
-            : Promise.resolve({ data: null } as any),
-          supabase.rpc("orders_status_counts", { _store_id: activeStoreId }),
-          supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId }),
-        ]);
-        if (cancelled) return;
-        if (ordersRes.error) throw ordersRes.error;
-        setOrders((ordersRes.data || []) as Order[]);
-        if (statusCountsRes?.data) {
-          const sc: Record<string, number> = {};
-          (statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
-          setServerStatusCounts(sc);
+    if (ordersQuery.isLoading) { setLoading(true); return; }
+    if (ordersQuery.error) {
+      console.error("Error fetching orders:", ordersQuery.error);
+      toast({ title: "خطأ", description: "حدث خطأ أثناء تحميل الطلبات", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+    const d = ordersQuery.data;
+    if (!d) return;
+    setOrders((d.ordersRes.data || []) as Order[]);
+    if (d.statusCountsRes?.data) {
+      const sc: Record<string, number> = {};
+      (d.statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
+      setServerStatusCounts(sc);
+    }
+    if (d.carrierCountsRes?.data) {
+      const cc: Record<string, number> = {};
+      (d.carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
+      setServerCarrierCounts(cc);
+    }
+    if (d.productsRes.data) {
+      const pm: Record<string, string> = {};
+      (d.productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
+      setProductsMap(pm);
+    }
+    if (d.currencyRes.data) setCurrencySymbol(d.currencyRes.data.currency_symbol);
+    if (d.stickerRes?.data) {
+      const s: any = d.stickerRes.data;
+      setStickerSettings({
+        page_width_mm: s.page_width_mm ?? 100,
+        page_height_mm: s.page_height_mm ?? 150,
+        font_size: s.font_size ?? 12,
+        header_text: s.header_text ?? "",
+        footer_text: s.footer_text ?? "",
+        show_barcode: s.show_barcode ?? true,
+        show_logo: s.show_logo ?? false,
+        fields: Array.isArray(s.fields) && s.fields.length > 0 ? s.fields : DEFAULT_STICKER_SETTINGS.fields,
+      });
+    }
+    if (d.headerRes?.data?.logo_text) setStoreName(d.headerRes.data.logo_text);
+    if (d.walletRes?.data) setWalletBalance(Number(d.walletRes.data.balance) || 0);
+    else if (d.uid) setWalletBalance(0);
+    if (d.mapRes.data) {
+      const m: Record<string, string> = {};
+      const cm: Record<string, string> = {};
+      const lo: Record<string, number> = {};
+      const catm: Record<string, string> = {};
+      (d.mapRes.data as any[]).forEach((r) => {
+        m[String(r.status_code)] = r.custom_label;
+        if (r.color) cm[String(r.status_code)] = r.color;
+        if (r.category) catm[String(r.status_code)] = r.category;
+        const so = Number(r.sort_order ?? 0);
+        if (so > 0) {
+          const key = String(r.custom_label);
+          if (lo[key] === undefined || so < lo[key]) lo[key] = so;
         }
-        if (carrierCountsRes?.data) {
-          const cc: Record<string, number> = {};
-          (carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
-          setServerCarrierCounts(cc);
-        }
-        if (productsRes.data) {
-          const pm: Record<string, string> = {};
-          (productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
-          setProductsMap(pm);
-        }
-        if (currencyRes.data) setCurrencySymbol(currencyRes.data.currency_symbol);
-        if (stickerRes?.data) {
-          const s: any = stickerRes.data;
-          setStickerSettings({
-            page_width_mm: s.page_width_mm ?? 100,
-            page_height_mm: s.page_height_mm ?? 150,
-            font_size: s.font_size ?? 12,
-            header_text: s.header_text ?? "",
-            footer_text: s.footer_text ?? "",
-            show_barcode: s.show_barcode ?? true,
-            show_logo: s.show_logo ?? false,
-            fields: Array.isArray(s.fields) && s.fields.length > 0 ? s.fields : DEFAULT_STICKER_SETTINGS.fields,
-          });
-        }
-        if (headerRes?.data?.logo_text) setStoreName(headerRes.data.logo_text);
-        if (walletRes?.data) setWalletBalance(Number(walletRes.data.balance) || 0);
-        else if (uid) setWalletBalance(0);
-        if (mapRes.data) {
-          const m: Record<string, string> = {};
-          const cm: Record<string, string> = {};
-          const lo: Record<string, number> = {};
-          const catm: Record<string, string> = {};
-          (mapRes.data as any[]).forEach((r) => {
-            m[String(r.status_code)] = r.custom_label;
-            if (r.color) cm[String(r.status_code)] = r.color;
-            if (r.category) catm[String(r.status_code)] = r.category;
-            const so = Number(r.sort_order ?? 0);
-            if (so > 0) {
-              const key = String(r.custom_label);
-              if (lo[key] === undefined || so < lo[key]) lo[key] = so;
-            }
-          });
-          setStatusMap(m);
-          setStatusColorMap(cm);
-          setLabelOrderMap(lo);
-          setStatusCategoryMap(catm);
-        }
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-        toast({
-          title: "خطأ",
-          description: "حدث خطأ أثناء تحميل الطلبات",
-          variant: "destructive",
-        });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [activeStoreId]);
+      });
+      setStatusMap(m);
+      setStatusColorMap(cm);
+      setLabelOrderMap(lo);
+      setStatusCategoryMap(catm);
+    }
+    setLoading(false);
+  }, [activeStoreId, ordersQuery.data, ordersQuery.isLoading, ordersQuery.error]);
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -535,40 +539,9 @@ const Orders = () => {
   };
 
   const fetchOrders = async () => {
-    try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const uid = userRes.user?.id;
-      if (!uid || !activeStoreId) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-      const [data, statusCountsRes, carrierCountsRes] = await Promise.all([
-        fetchAllOrdersForStore(activeStoreId),
-        supabase.rpc("orders_status_counts", { _store_id: activeStoreId }),
-        supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId }),
-      ]);
-      setOrders(data as Order[]);
-      if (statusCountsRes?.data) {
-        const sc: Record<string, number> = {};
-        (statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
-        setServerStatusCounts(sc);
-      }
-      if (carrierCountsRes?.data) {
-        const cc: Record<string, number> = {};
-        (carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
-        setServerCarrierCounts(cc);
-      }
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-      toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء تحميل الطلبات",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    if (!activeStoreId) { setOrders([]); setLoading(false); return; }
+    // Invalidate cached query → triggers refetch and hydration via the effect above
+    await queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId] });
   };
 
   const handleSyncCarrierStatuses = async () => {
