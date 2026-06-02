@@ -208,12 +208,11 @@ Deno.serve(async (req) => {
     if (notes !== null) updatePayload.carrier_notes = notes;
     const upper = String(status).toUpperCase();
     // Auto-transition order.status based on carrier status code:
-    //   DTR / DTRC / DTRCP / DTRUC / DTRFD ... (any DTR*) -> delivered
     //   RTRN / RCV -> returned_received
     //   UPKBD / UKDB / UPKBL -> unpacked
-    if (upper.startsWith("DTR")) {
-      updatePayload.status = "delivered";
-    } else if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
+    // NOTE: DTR* (delivered by carrier) does NOT change local status.
+    // Local "delivered" is set only via financial settlements tab.
+    if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
       updatePayload.status = "unpacked";
     } else if (upper === "RTRN" || upper === "RCV") {
       updatePayload.status = "returned_received";
