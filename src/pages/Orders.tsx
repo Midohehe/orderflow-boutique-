@@ -297,6 +297,12 @@ const Orders = () => {
     return order.carrier_status || "في انتظار تحديث من شركة الشحن";
   };
 
+  const getCarrierFilterLabel = (order: Order): string => {
+    const code = extractStatusCode(order);
+    if (code && statusMap[code]) return statusMap[code];
+    return order.carrier_status?.trim() || "";
+  };
+
   const handleCreateManualOrder = async () => {
     setCreating(true);
     try {
@@ -1072,9 +1078,9 @@ const Orders = () => {
     let hasNone = false;
     for (const o of allShipped) {
       const code = extractStatusCode(o);
-      if (code) {
-        const label = statusMap[code] || displayCarrierStatus(o);
-        if (!byLabel.has(label)) byLabel.set(label, code);
+      const label = getCarrierFilterLabel(o);
+      if (label) {
+        if (!byLabel.has(label)) byLabel.set(label, code || `label:${label}`);
       } else {
         hasNone = true;
       }
@@ -1104,12 +1110,12 @@ const Orders = () => {
     }
     if (shippedCarrierFilter !== "all") {
       const code = extractStatusCode(o);
+      const label = getCarrierFilterLabel(o);
       if (shippedCarrierFilter === "__none__") {
-        if (code) return false;
+        if (label) return false;
       } else if (shippedCarrierFilter.startsWith("label:")) {
         const wanted = shippedCarrierFilter.slice("label:".length);
-        const lbl = code ? (statusMap[code] || displayCarrierStatus(o)) : "";
-        if (lbl !== wanted) return false;
+        if (label !== wanted) return false;
       } else if (code !== shippedCarrierFilter) {
         return false;
       }
