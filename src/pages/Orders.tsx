@@ -149,6 +149,9 @@ const statusColors: Record<Order["status"], string> = {
 const Orders = () => {
   const { activeStoreId } = useStoreContext();
   const [orders, setOrders] = useState<Order[]>([]);
+  // Server-side counts (authoritative — independent of how many rows are loaded).
+  const [serverStatusCounts, setServerStatusCounts] = useState<Record<string, number>>({});
+  const [serverCarrierCounts, setServerCarrierCounts] = useState<Record<string, number>>({});
   const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
