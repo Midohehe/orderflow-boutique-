@@ -186,6 +186,7 @@ const Orders = () => {
   const [labelOrderMap, setLabelOrderMap] = useState<Record<string, number>>({});
   const [statusColorMap, setStatusColorMap] = useState<Record<string, string>>({});
   const [statusCategoryMap, setStatusCategoryMap] = useState<Record<string, string>>({});
+  const [labelCategoryMap, setLabelCategoryMap] = useState<Record<string, string>>({});
   const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
   const [prepFilter, setPrepFilter] = useState<"all" | "pending" | "preparing" | "prepared">("all");
   const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
@@ -301,6 +302,21 @@ const Orders = () => {
     const code = extractStatusCode(order);
     if (code && statusMap[code]) return statusMap[code];
     return order.carrier_status?.trim() || "";
+  };
+
+  const getCarrierStatusCategory = (order: Order): string | undefined => {
+    const code = extractStatusCode(order);
+    if (code && statusCategoryMap[code]) return statusCategoryMap[code];
+
+    const label = getCarrierFilterLabel(order);
+    if (labelCategoryMap[label]) return labelCategoryMap[label];
+
+    const raw = order.carrier_status?.trim() || "";
+    const m = raw.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    const base = m?.[1]?.trim();
+    if (base && labelCategoryMap[base]) return labelCategoryMap[base];
+
+    return undefined;
   };
 
   const handleCreateManualOrder = async () => {
@@ -522,10 +538,12 @@ const Orders = () => {
       const cm: Record<string, string> = {};
       const lo: Record<string, number> = {};
       const catm: Record<string, string> = {};
+      const lcm: Record<string, string> = {};
       (d.mapRes.data as any[]).forEach((r) => {
         m[String(r.status_code)] = r.custom_label;
         if (r.color) cm[String(r.status_code)] = r.color;
         if (r.category) catm[String(r.status_code)] = r.category;
+        if (r.custom_label && r.category && !lcm[String(r.custom_label)]) lcm[String(r.custom_label)] = r.category;
         const so = Number(r.sort_order ?? 0);
         if (so > 0) {
           const key = String(r.custom_label);
@@ -536,6 +554,7 @@ const Orders = () => {
       setStatusColorMap(cm);
       setLabelOrderMap(lo);
       setStatusCategoryMap(catm);
+      setLabelCategoryMap(lcm);
     }
     if (d.carrierCountsRes?.data) {
       // RPC returns raw `carrier_status` text like "تم التسليم (DTR)".
@@ -1183,8 +1202,7 @@ const Orders = () => {
         );
   const carrierCategoryCounts = carrierRateOrders.reduce(
     (acc, o) => {
-      const code = extractStatusCode(o);
-      const cat = code ? statusCategoryMap[code] : undefined;
+      const cat = getCarrierStatusCategory(o);
       if (cat === "delivered") acc.delivered += 1;
       else if (cat === "returned") acc.returned += 1;
       else if (cat === "in_progress") acc.in_progress += 1;
