@@ -1936,11 +1936,15 @@ const Orders = () => {
               <Clock className="w-16 h-16 text-muted-foreground mb-4" />,
               "لا توجد طلبات قيد الانتظار"
             )
-          ) : (
-            <div className="space-y-4">
-              {pendingOrders.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
-            </div>
-          )}
+          ) : (() => {
+            const p = paginate(pendingOrders, "pending");
+            return (
+              <div className="space-y-4">
+                {p.items.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="foreign" className="space-y-4">
