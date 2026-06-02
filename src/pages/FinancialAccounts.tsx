@@ -110,10 +110,32 @@ const FinancialAccounts = () => {
     (async () => {
       setLoading(true);
       try {
+        // Paginated fetch helper to bypass Supabase 1000-row default cap
+        const fetchAll = async <T,>(builder: any, pageSize = 1000): Promise<T[]> => {
+          const out: T[] = [];
+          for (let from = 0; ; from += pageSize) {
+            const { data, error } = await builder.range(from, from + pageSize - 1);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            out.push(...(data as T[]));
+            if (data.length < pageSize) break;
+          }
+          return out;
+        };
         const [o, p, oi, e, et, pu, sa, ads] = await Promise.all([
-          supabase.from("orders").select("id, product_name, price, status, customer_name, created_at, quantity, is_deleted, carrier_status, carrier_status_updated_at").eq("store_id", activeStoreId).eq("is_deleted", false).order("created_at", { ascending: false }),
+          fetchAll<Order>(
+            supabase.from("orders")
+              .select("id, product_name, price, status, customer_name, created_at, quantity, is_deleted, carrier_status, carrier_status_updated_at")
+              .eq("store_id", activeStoreId).eq("is_deleted", false)
+              .order("created_at", { ascending: false }),
+          ).then((data) => ({ data })),
           supabase.from("products").select("id, name").eq("store_id", activeStoreId).is("deleted_at", null),
-          supabase.from("order_items").select("id, order_id, product_id, product_name, price, quantity").eq("store_id", activeStoreId),
+          fetchAll<OrderItemRow>(
+            supabase.from("order_items")
+              .select("id, order_id, product_id, product_name, price, quantity")
+              .eq("store_id", activeStoreId)
+              .order("id"),
+          ).then((data) => ({ data })),
           supabase.from("expenses").select("id, amount, created_at, expense_type_id").eq("store_id", activeStoreId),
           supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId),
           supabase.from("purchases").select("id, amount, created_at").eq("store_id", activeStoreId),
