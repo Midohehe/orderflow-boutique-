@@ -238,7 +238,13 @@ Deno.serve(async (req) => {
         updatePayload.carrier_notes = String(sh.notes);
       }
       const upper = String(composite).toUpperCase();
-      if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
+      // Auto-transition order.status based on carrier status code:
+      //   DTR / DTRC / DTRCP / DTRUC / DTRFD ... (any DTR*) -> delivered
+      //   RTRN / RCV -> returned_received
+      //   UPKBD / UKDB / UPKBL -> unpacked
+      if (upper.startsWith("DTR")) {
+        updatePayload.status = "delivered";
+      } else if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
         updatePayload.status = "unpacked";
       } else if (upper === "RTRN" || upper === "RCV") {
         updatePayload.status = "returned_received";
