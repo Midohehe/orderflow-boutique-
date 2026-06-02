@@ -528,14 +528,8 @@ const Orders = () => {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from("orders")
-        .select(ORDER_SELECT_COLS)
-        .eq("store_id", activeStoreId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setOrders((data || []) as Order[]);
+      const data = await fetchAllOrdersForStore(activeStoreId);
+      setOrders(data as Order[]);
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
