@@ -1533,7 +1533,7 @@ const Orders = () => {
               <Clock className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{pendingOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{serverStatusCounts.pending ?? pendingOrders.length}</p>
               <p className="text-muted-foreground text-sm">قيد الانتظار</p>
             </div>
           </CardContent>
@@ -1544,7 +1544,7 @@ const Orders = () => {
               <Truck className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{shippedOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{serverStatusCounts.shipped ?? shippedOrders.length}</p>
               <p className="text-muted-foreground text-sm">جاري التوصيل</p>
             </div>
           </CardContent>
@@ -1555,7 +1555,7 @@ const Orders = () => {
               <CheckCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{deliveredOrders.length}</p>
+              <p className="text-2xl font-bold text-foreground">{(serverStatusCounts.delivered ?? 0) + (serverStatusCounts.settled ?? 0) || deliveredOrders.length}</p>
               <p className="text-muted-foreground text-sm">تم الاستلام</p>
             </div>
           </CardContent>
