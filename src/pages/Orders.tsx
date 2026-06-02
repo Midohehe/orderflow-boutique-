@@ -543,8 +543,22 @@ const Orders = () => {
         setLoading(false);
         return;
       }
-      const data = await fetchAllOrdersForStore(activeStoreId);
+      const [data, statusCountsRes, carrierCountsRes] = await Promise.all([
+        fetchAllOrdersForStore(activeStoreId),
+        supabase.rpc("orders_status_counts", { _store_id: activeStoreId }),
+        supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId }),
+      ]);
       setOrders(data as Order[]);
+      if (statusCountsRes?.data) {
+        const sc: Record<string, number> = {};
+        (statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
+        setServerStatusCounts(sc);
+      }
+      if (carrierCountsRes?.data) {
+        const cc: Record<string, number> = {};
+        (carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
+        setServerCarrierCounts(cc);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
