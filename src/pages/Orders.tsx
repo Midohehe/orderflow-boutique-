@@ -424,7 +424,7 @@ const Orders = () => {
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
-        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes] = await Promise.all([
+        const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes] = await Promise.all([
           fetchAllOrdersForStore(activeStoreId).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
           (uid
             ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
@@ -438,10 +438,22 @@ const Orders = () => {
           uid
             ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
             : Promise.resolve({ data: null } as any),
+          supabase.rpc("orders_status_counts", { _store_id: activeStoreId }),
+          supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId }),
         ]);
         if (cancelled) return;
         if (ordersRes.error) throw ordersRes.error;
         setOrders((ordersRes.data || []) as Order[]);
+        if (statusCountsRes?.data) {
+          const sc: Record<string, number> = {};
+          (statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
+          setServerStatusCounts(sc);
+        }
+        if (carrierCountsRes?.data) {
+          const cc: Record<string, number> = {};
+          (carrierCountsRes.data as any[]).forEach((r) => { cc[String(r.label)] = Number(r.cnt) || 0; });
+          setServerCarrierCounts(cc);
+        }
         if (productsRes.data) {
           const pm: Record<string, string> = {};
           (productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
