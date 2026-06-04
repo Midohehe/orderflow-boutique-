@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
     const { data: localWh } = await admin
       .from("shipping_warehouse_products")
       .select("external_id, code, name")
-      .eq("owner_id", userData.user.id);
+      .eq("store_id", settings.store_id);
     for (const p of localWh || []) {
       if (p.code) whProductByCode.set(String(p.code).trim(), p.external_id);
       whProductByCode.set(String(p.external_id), p.external_id);

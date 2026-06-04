@@ -29,16 +29,34 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: settingsRows } = await admin
+    const body = await req.json().catch(() => ({} as { store_id?: string }));
+    const requestedStoreId = typeof body?.store_id === "string" ? body.store_id.trim() : "";
+
+    let settingsQuery = admin
       .from("shipping_settings")
       .select("*")
-      .eq("owner_id", userData.user.id)
       .eq("enabled", true)
       .order("updated_at", { ascending: false })
       .limit(1);
+
+    if (requestedStoreId) {
+      settingsQuery = settingsQuery.eq("store_id", requestedStoreId);
+    } else {
+      const { data: effectiveOwnerId } = await admin.rpc("get_effective_owner_id", {
+        _uid: userData.user.id,
+      });
+      settingsQuery = settingsQuery.eq("owner_id", effectiveOwnerId || userData.user.id);
+    }
+
+    const { data: settingsRows } = await settingsQuery;
     const settings = settingsRows?.[0];
     if (!settings?.email || !settings?.password) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!settings.store_id) {
+      return new Response(JSON.stringify({ error: "لم يُحدَّد متجر لإعدادات الشحن" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -100,7 +118,8 @@ Deno.serve(async (req) => {
 
     // Upsert
     const rows = products.map((p) => ({
-      owner_id: userData.user.id,
+      owner_id: settings.owner_id,
+      store_id: settings.store_id,
       external_id: p.id,
       code: p.code || null,
       name: p.name || null,
@@ -109,7 +128,7 @@ Deno.serve(async (req) => {
     }));
     const { error: upErr } = await admin
       .from("shipping_warehouse_products")
-      .upsert(rows, { onConflict: "owner_id,external_id" });
+      .upsert(rows, { onConflict: "store_id,external_id" });
     if (upErr) {
       return new Response(JSON.stringify({ error: upErr.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
