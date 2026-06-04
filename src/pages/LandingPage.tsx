@@ -402,6 +402,9 @@ const LandingPage = () => {
           .maybeSingle();
 
         const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
+        if ((landingRes as any).error) {
+          console.error("landing_pages fetch:", (landingRes as any).error);
+        }
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
         const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
@@ -417,7 +420,10 @@ const LandingPage = () => {
 
         const productRes = await productPromise;
 
-        if (ac.signal.aborted) return;
+        if (ac.signal.aborted) {
+          setLoading(false);
+          return;
+        }
         let resolvedOwnerId: string | null = null;
         let resolvedStoreId: string | null = storeBySlug?.id || landingPage?.store_id || null;
         if (storeBySlug) {
