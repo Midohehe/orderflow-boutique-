@@ -66,3 +66,27 @@ export async function uploadProductImage(
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+
+/** Upload a data URL or remote image URL to Supabase Storage. */
+export async function uploadImageFromUrl(
+  url: string,
+  ownerId: string,
+  storeId?: string | null
+): Promise<string> {
+  if (!url) return url;
+  if (isHttpImageUrl(url) && !isDataUrl(url)) return url;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`فشل تحميل الصورة (${res.status})`);
+  const blob = await res.blob();
+  const ext = blob.type.includes("webp") ? "webp" : blob.type.includes("png") ? "png" : "jpg";
+  const path = `${ownerId}/${storeId || "default"}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
+    contentType: blob.type || "image/webp",
+    cacheControl: "31536000",
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
