@@ -107,16 +107,35 @@ export function validateOrderPayload(
   if (req) return req;
 
   const resolved = resolveOrderFields(formFields, formData);
+  const d = trimFormValues(formData);
 
-  if (!resolved.customer_name.trim()) {
+  const nameRequired = formFields.some(
+    (f) => f.required && (f.field_key === "full_name" || f.field_key === "name")
+  );
+  if (nameRequired && !resolved.customer_name.trim()) {
     return "يرجى إدخال الاسم الكامل";
   }
 
-  if (!validatePhoneDigits(resolved.phone)) {
+  const phoneFields = formFields.filter(
+    (f) => f.field_type === "phone" || f.field_key.includes("phone")
+  );
+  const phoneRequired = phoneFields.some((f) => f.required);
+  const phoneValue =
+    resolved.phone ||
+    phoneFields.map((f) => d[f.field_key]).find((v) => v)?.trim() ||
+    "";
+
+  if (phoneRequired && !phoneValue) {
+    return "يرجى إدخال رقم الهاتف";
+  }
+  if (phoneValue && !validatePhoneDigits(phoneValue)) {
     return "يرجى إدخال رقم هاتف صحيح (9 إلى 10 أرقام)";
   }
 
-  if (!resolved.city.trim()) {
+  const cityRequired = formFields.some(
+    (f) => f.required && (f.field_key === "government" || f.field_key === "city")
+  );
+  if (cityRequired && !resolved.city.trim()) {
     return "يرجى إدخال المدينة";
   }
 

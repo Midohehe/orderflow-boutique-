@@ -12,7 +12,10 @@ export const PuckRender = ({
   ctx: PuckContext;
   slots?: LandingSlots;
 }) => {
-  const config = useMemo(() => buildPuckConfig(ctx), [ctx]);
+  const config = useMemo(
+    () => buildPuckConfig(ctx),
+    [ctx.ownerId, ctx.storeId, ctx.username, ctx.currencySymbol]
+  );
   if (!data) return null;
   const rendered = <Render config={config as any} data={data} />;
   if (slots) return <LandingSlotsProvider value={slots}>{rendered}</LandingSlotsProvider>;

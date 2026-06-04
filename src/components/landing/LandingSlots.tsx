@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 
 export type LandingSlotName =
   | "hero"
@@ -10,7 +10,11 @@ export type LandingSlotName =
 
 export type LandingSlots = Partial<Record<LandingSlotName, ReactNode>>;
 
-const LandingSlotsContext = createContext<LandingSlots | null>(null);
+type LandingSlotsContextValue = {
+  getSlot: (name: LandingSlotName) => ReactNode | null;
+};
+
+const LandingSlotsContext = createContext<LandingSlotsContextValue | null>(null);
 
 export const LandingSlotsProvider = ({
   value,
@@ -18,13 +22,23 @@ export const LandingSlotsProvider = ({
 }: {
   value: LandingSlots;
   children: ReactNode;
-}) => (
-  <LandingSlotsContext.Provider value={value}>{children}</LandingSlotsContext.Provider>
-);
+}) => {
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const ctx = useMemo(
+    () => ({
+      getSlot: (name: LandingSlotName) => valueRef.current[name] ?? null,
+    }),
+    []
+  );
+  return (
+    <LandingSlotsContext.Provider value={ctx}>{children}</LandingSlotsContext.Provider>
+  );
+};
 
 export const useLandingSlot = (name: LandingSlotName): ReactNode | null => {
   const ctx = useContext(LandingSlotsContext);
-  return (ctx && ctx[name]) || null;
+  return ctx?.getSlot(name) ?? null;
 };
 
 /** Placeholder shown in the Puck editor when no real slot is provided. */
