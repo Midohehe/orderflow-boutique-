@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +92,76 @@ interface StoreSettings {
   theme_tokens?: StoreThemeTokens;
   theme_custom_css?: string | null;
 }
+
+function ensureFormFieldKeys(
+  prev: Record<string, string>,
+  fields: Pick<FormField, "field_key">[]
+): Record<string, string> {
+  let changed = false;
+  const next = { ...prev };
+  for (const field of fields) {
+    if (!(field.field_key in next)) {
+      next[field.field_key] = "";
+      changed = true;
+    }
+  }
+  return changed ? next : prev;
+}
+
+const LandingOrderFormFields = memo(function LandingOrderFormFields({
+  fields,
+  values,
+  onChange,
+}: {
+  fields: FormField[];
+  values: Record<string, string>;
+  onChange: (fieldKey: string, value: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {fields.map((field) => (
+        <div key={field.field_key} className="space-y-2">
+          <Label className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            {field.field_type === "phone" ? (
+              <Phone className="w-4 h-4 text-amber-500" />
+            ) : field.field_type === "email" ? (
+              <Mail className="w-4 h-4 text-amber-500" />
+            ) : (
+              <User className="w-4 h-4 text-amber-500" />
+            )}
+            <span>{field.label}</span>
+            {field.required && <span className="text-rose-500 font-bold">*</span>}
+          </Label>
+          {field.field_type === "textarea" ? (
+            <Textarea
+              name={field.field_key}
+              value={values[field.field_key] || ""}
+              onChange={(e) => onChange(field.field_key, e.target.value)}
+              placeholder={field.placeholder}
+              rows={3}
+              required={field.required}
+              autoComplete={autocompleteForField(field)}
+              className="text-base shadow-sm focus:shadow-md"
+            />
+          ) : (
+            <Input
+              name={field.field_key}
+              value={values[field.field_key] || ""}
+              onChange={(e) => onChange(field.field_key, e.target.value)}
+              placeholder={field.placeholder}
+              type={inputTypeForField(field)}
+              inputMode={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
+              autoComplete={autocompleteForField(field)}
+              dir={field.field_type === "phone" ? "ltr" : "rtl"}
+              required={field.required}
+              className="text-base h-12 shadow-sm focus:shadow-md"
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+});
 
 // Declare fbq for TypeScript
 declare global {
@@ -197,7 +267,19 @@ const LandingPage = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
-  const [checkoutTracked, setCheckoutTracked] = useState(false);
+  const checkoutTrackedRef = useRef(false);
+  const formFieldsRef = useRef<FormField[]>([]);
+  const productRef = useRef<Product | null>(null);
+  const storeSettingsRef = useRef(storeSettings);
+  const ownerIdRef = useRef<string | null>(null);
+  const storeIdRef = useRef<string | null>(null);
+  const slugRef = useRef<string | undefined>(slug);
+  formFieldsRef.current = formFields;
+  productRef.current = product;
+  storeSettingsRef.current = storeSettings;
+  ownerIdRef.current = ownerId;
+  storeIdRef.current = storeId;
+  slugRef.current = slug;
   const [puckData, setPuckData] = useState<any>(null);
   const [puckLoading, setPuckLoading] = useState(false);
   
@@ -480,11 +562,7 @@ const LandingPage = () => {
         }
         if (cachedFormFields) {
           setFormFields(cachedFormFields);
-          const initialFormData: Record<string, string> = {};
-          (cachedFormFields as FormField[]).forEach((field) => {
-            initialFormData[field.field_key] = "";
-          });
-          setFormData((prev) => ({ ...initialFormData, ...prev }));
+          setFormData((prev) => ensureFormFieldKeys(prev, cachedFormFields as FormField[]));
         }
 
         if (cachedPixelSettings) {
@@ -526,11 +604,7 @@ const LandingPage = () => {
             const filtered = (formFieldsResult.data as FormField[]).filter(f => allowed.size === 0 || allowed.has(f.field_key));
             setFormFields(filtered);
             setToCache(formKey, filtered);
-            const initialFormData: Record<string, string> = {};
-            filtered.forEach((field: FormField) => {
-              initialFormData[field.field_key] = "";
-            });
-            setFormData((prev) => ({ ...initialFormData, ...prev }));
+            setFormData((prev) => ensureFormFieldKeys(prev, filtered));
           }
 
           if (storeSettingsResult.data) {
@@ -620,10 +694,9 @@ const LandingPage = () => {
   }, [product?.description]);
 
   // Track checkout start when user starts filling the form
-  const handleInputChange = (fieldKey: string, value: string) => {
+  const handleInputChange = useCallback((fieldKey: string, value: string) => {
     let cleanedValue = value;
-    // Phone field: strip everything except digits and optional leading +
-    const fieldMeta = formFields.find((f) => f.field_key === fieldKey);
+    const fieldMeta = formFieldsRef.current.find((f) => f.field_key === fieldKey);
     const isPhoneField = fieldMeta?.field_type === "phone";
     if (isPhoneField) {
       cleanedValue = value.replace(/[^0-9+]/g, "");
@@ -635,60 +708,59 @@ const LandingPage = () => {
     }
     setFormData((prev) => ({ ...prev, [fieldKey]: cleanedValue }));
 
-    // Track checkout start on first input
-    if (!checkoutTracked && value.length > 0) {
-      setCheckoutTracked(true);
-      
-      // Track InitiateCheckout across all enabled pixels
-      if (product) {
-        const value = parseFloat(product.price);
-        const currency = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
+    if (!checkoutTrackedRef.current && cleanedValue.length > 0) {
+      checkoutTrackedRef.current = true;
+
+      const productData = productRef.current;
+      const settings = storeSettingsRef.current;
+      if (productData) {
+        const orderValue = parseFloat(productData.price);
+        const currency = toISOCurrency(settings.currency_code, settings.currency_symbol);
         if (window.fbq) {
-          window.fbq('track', 'InitiateCheckout', {
-            content_name: product.name,
-            content_ids: [product.id],
-            content_type: 'product',
-            value,
+          window.fbq("track", "InitiateCheckout", {
+            content_name: productData.name,
+            content_ids: [productData.id],
+            content_type: "product",
+            value: orderValue,
             currency,
             num_items: 1,
           });
         }
-        if (window.ttq && typeof window.ttq.track === 'function') {
-          window.ttq.track('InitiateCheckout', {
-            value,
+        if (window.ttq && typeof window.ttq.track === "function") {
+          window.ttq.track("InitiateCheckout", {
+            value: orderValue,
             currency,
-            contents: [{ content_id: product.id, content_name: product.name, quantity: 1 }],
+            contents: [{ content_id: productData.id, content_name: productData.name, quantity: 1 }],
           });
         }
         if (window.gtag) {
-          window.gtag('event', 'begin_checkout', {
-            value,
+          window.gtag("event", "begin_checkout", {
+            value: orderValue,
             currency,
-            items: [{ item_id: product.id, item_name: product.name, quantity: 1 }],
+            items: [{ item_id: productData.id, item_name: productData.name, quantity: 1 }],
           });
         }
         if (window.snaptr) {
-          window.snaptr('track', 'START_CHECKOUT', {
-            price: value,
+          window.snaptr("track", "START_CHECKOUT", {
+            price: orderValue,
             currency,
-            item_ids: [product.id],
+            item_ids: [productData.id],
           });
         }
       }
-      
-      // Fire-and-forget so input stays buttery smooth
+
       const attr = getAttribution();
       supabase.from("analytics_events").insert({
         event_type: "checkout_start",
-        product_slug: slug,
-          owner_id: ownerId || null,
-          store_id: storeId || null,
+        product_slug: slugRef.current,
+        owner_id: ownerIdRef.current || null,
+        store_id: storeIdRef.current || null,
         ...attr,
       } as any).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
     }
-  };
+  }, []);
 
   const initializePixels = (settings: PixelSettings, productData: Product | null, currencyCode: string) => {
     // Facebook Pixel
@@ -923,8 +995,8 @@ const LandingPage = () => {
 
     // Ensure we always log a checkout attempt, even if the user pasted data
     // without firing input events (some autofill flows skip onChange).
-    if (!checkoutTracked) {
-      setCheckoutTracked(true);
+    if (!checkoutTrackedRef.current) {
+      checkoutTrackedRef.current = true;
       try {
         const attr = getAttribution();
         supabase.from("analytics_events").insert({
@@ -1475,48 +1547,11 @@ const LandingPage = () => {
                 })}
 
                 {/* حقول نموذج البيانات للزبون */}
-                <div className="space-y-4">
-                  {formFields.map((field) => (
-                    <div key={field.id} className="space-y-2">
-                      <Label className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                        {field.field_type === "phone" ? (
-                          <Phone className="w-4 h-4 text-amber-500" />
-                        ) : field.field_type === "email" ? (
-                          <Mail className="w-4 h-4 text-amber-500" />
-                        ) : (
-                          <User className="w-4 h-4 text-amber-500" />
-                        )}
-                        <span>{field.label}</span>
-                        {field.required && <span className="text-rose-500 font-bold">*</span>}
-                      </Label>
-                      {field.field_type === "textarea" ? (
-                        <Textarea
-                          name={field.field_key}
-                          value={formData[field.field_key] || ""}
-                          onChange={(e) => handleInputChange(field.field_key, e.target.value)}
-                          placeholder={field.placeholder}
-                          rows={3}
-                          required={field.required}
-                          autoComplete={autocompleteForField(field)}
-                          className="text-base shadow-sm focus:shadow-md"
-                        />
-                      ) : (
-                        <Input
-                          name={field.field_key}
-                          value={formData[field.field_key] || ""}
-                          onChange={(e) => handleInputChange(field.field_key, e.target.value)}
-                          placeholder={field.placeholder}
-                          type={inputTypeForField(field)}
-                          inputMode={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
-                          autoComplete={autocompleteForField(field)}
-                          dir={field.field_type === "phone" ? "ltr" : "rtl"}
-                          required={field.required}
-                          className="text-base h-12 shadow-sm focus:shadow-md"
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <LandingOrderFormFields
+                  fields={formFields}
+                  values={formData}
+                  onChange={handleInputChange}
+                />
 
                 {/* زر الإرسال الملكي */}
                 <Button
@@ -1639,6 +1674,15 @@ const LandingPage = () => {
     </>
   );
   const puckHasContent = !!(puckData && Array.isArray(puckData?.content) && puckData.content.length > 0);
+  const puckCtx = useMemo(
+    () => ({
+      ownerId: product?.owner_id || ownerId || undefined,
+      storeId: storeId || undefined,
+      username,
+      currencySymbol: storeSettings.currency_symbol,
+    }),
+    [product?.owner_id, ownerId, storeId, username, storeSettings.currency_symbol]
+  );
 
   return (
     <StoreThemeScope tokens={storeSettings.theme_tokens} customCss={storeSettings.theme_custom_css}>
@@ -1684,12 +1728,7 @@ const LandingPage = () => {
         >
           <PuckRender
             data={puckData}
-            ctx={{
-            ownerId: product?.owner_id || ownerId || undefined,
-            storeId: storeId || undefined,
-            username,
-            currencySymbol: storeSettings.currency_symbol,
-          }}
+            ctx={puckCtx}
           slots={{
             hero: heroSlot,
             productImages: productImagesSlot,

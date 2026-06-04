@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Loader2, MousePointerClick, MessageSquare, FormInput, ArrowUp, ArrowDown, Shield } from "lucide-react";
+import { FileText, Save, Loader2, MousePointerClick, MessageSquare, FormInput, ArrowUp, ArrowDown, Shield, Eye, EyeOff, Asterisk } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
@@ -103,7 +103,14 @@ const OrderFormSettings = () => {
   const visibleFields = formFields.filter(f => allowedKeys.has(f.field_key));
 
   const handleFieldToggle = (id: string) => {
-    setFormFields(formFields.map((f) => f.id === id ? { ...f, enabled: !f.enabled } : f));
+    setFormFields(formFields.map((f) => {
+      if (f.id !== id) return f;
+      const enabled = !f.enabled;
+      return { ...f, enabled, required: enabled ? f.required : false };
+    }));
+  };
+  const handleRequiredToggle = (id: string) => {
+    setFormFields(formFields.map((f) => f.id === id ? { ...f, required: !f.required } : f));
   };
   const handleFieldEdit = (id: string, patch: Partial<FormField>) => {
     setFormFields(formFields.map((f) => f.id === id ? { ...f, ...patch } : f));
@@ -124,7 +131,13 @@ const OrderFormSettings = () => {
     try {
       for (const f of formFields) {
         await supabase.from("order_form_fields")
-          .update({ enabled: f.enabled, sort_order: f.sort_order, label: f.label, placeholder: f.placeholder })
+          .update({
+            enabled: f.enabled,
+            required: f.enabled ? f.required : false,
+            sort_order: f.sort_order,
+            label: f.label,
+            placeholder: f.placeholder,
+          })
           .eq("id", f.id);
       }
       if (effectiveOwnerId) {
@@ -192,11 +205,11 @@ const OrderFormSettings = () => {
       )}
 
       <div className="grid lg:grid-cols-2 gap-5">
-        <SectionCard icon={FileText} title="حقول النموذج" description="إظهار/إخفاء الحقول وترتيبها" iconColor="bg-blue-500">
+        <SectionCard icon={FileText} title="حقول النموذج" description="لكل حقل: إظهار/إخفاء + إلزامي/اختياري" iconColor="bg-blue-500">
           {[...visibleFields].sort((a, b) => a.sort_order - b.sort_order).map((field, i, arr) => (
             <div key={field.id} className="p-4 bg-muted/50 rounded-lg border space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
+              <div className="flex items-start gap-3">
+                <div className="flex flex-col gap-1 shrink-0">
                   <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => handleMove(field.id, -1)}>
                     <ArrowUp className="w-4 h-4" />
                   </Button>
@@ -204,13 +217,39 @@ const OrderFormSettings = () => {
                     <ArrowDown className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex-1 text-xs text-muted-foreground font-mono">
-                  {field.field_key}{field.required ? " · مطلوب" : ""}
+                <div className="flex-1 min-w-0 space-y-3">
+                  <div className="text-xs text-muted-foreground font-mono">{field.field_key}</div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm min-w-[140px]">
+                      <Switch checked={field.enabled} onCheckedChange={() => handleFieldToggle(field.id)} />
+                      {field.enabled ? (
+                        <span className="flex items-center gap-1 font-medium text-emerald-700">
+                          <Eye className="w-4 h-4" /> ظاهر
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 font-medium text-muted-foreground">
+                          <EyeOff className="w-4 h-4" /> مخفي
+                        </span>
+                      )}
+                    </label>
+                    <label className={`flex items-center gap-2 text-sm min-w-[160px] ${!field.enabled ? "opacity-50 pointer-events-none" : ""}`}>
+                      <Switch
+                        checked={field.required}
+                        disabled={!field.enabled}
+                        onCheckedChange={() => handleRequiredToggle(field.id)}
+                      />
+                      {field.required ? (
+                        <span className="flex items-center gap-1 font-medium text-amber-700">
+                          <Asterisk className="w-4 h-4" /> إلزامي
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 font-medium text-muted-foreground">
+                          اختياري
+                        </span>
+                      )}
+                    </label>
+                  </div>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch checked={field.enabled} onCheckedChange={() => handleFieldToggle(field.id)} />
-                  <span className="font-medium">{field.enabled ? "ظاهر" : "مخفي"}</span>
-                </label>
               </div>
               <div className="grid sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
