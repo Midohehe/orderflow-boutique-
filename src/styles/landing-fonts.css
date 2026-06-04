@@ -1,0 +1,10 @@
+@import "@fontsource/cairo/400.css";
+@import "@fontsource/cairo/600.css";
+@import "@fontsource/cairo/700.css";
+@import "@fontsource/cairo/800.css";
+
+/* Self-hosted on conversion routes — no render-blocking Google Fonts request. */
+html[data-landing-fonts="1"],
+html[data-landing-fonts="1"] body {
+  font-family: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

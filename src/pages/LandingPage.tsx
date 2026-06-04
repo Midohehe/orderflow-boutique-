@@ -13,6 +13,12 @@ import StoreHeader from "@/components/StoreHeader";
 import { StoreThemeScope } from "@/components/StoreThemeScope";
 import { parseThemeTokens, type StoreThemeTokens } from "@/lib/themeTokens";
 import {
+  resolveAttributionFromUrl,
+  getAnalyticsSessionId,
+  hasTrackedPageView,
+  markPageViewTracked,
+} from "@/lib/analyticsAttribution";
+import {
   autocompleteForField,
   inputTypeForField,
   mapCreateOrderError,
@@ -20,6 +26,8 @@ import {
   resolveOrderFields,
   validateOrderPayload,
 } from "@/lib/landingOrderForm";
+import { LandingImage } from "@/components/LandingImage";
+import { landingHeroPreloadHref } from "@/lib/landingImageUrl";
 
 const PuckRender = lazy(() =>
   import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
@@ -269,6 +277,7 @@ const LandingPage = () => {
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
   const checkoutTrackedRef = useRef(false);
+  const pageViewTrackedRef = useRef(false);
   const formFieldsRef = useRef<FormField[]>([]);
   const productRef = useRef<Product | null>(null);
   const storeSettingsRef = useRef(storeSettings);
@@ -298,6 +307,7 @@ const LandingPage = () => {
   useEffect(() => {
     const href = product?.images?.[selectedImage] ?? product?.images?.[0];
     if (!href) return;
+    const optimized = landingHeroPreloadHref(href);
     const id = "landing-lcp-preload";
     let link = document.getElementById(id) as HTMLLinkElement | null;
     if (!link) {
@@ -307,8 +317,8 @@ const LandingPage = () => {
       link.as = "image";
       document.head.appendChild(link);
     }
-    if (link.href !== href) {
-      link.href = href;
+    if (link.href !== optimized) {
+      link.href = optimized;
       link.setAttribute("fetchpriority", "high");
     }
     return () => {
@@ -325,39 +335,25 @@ const LandingPage = () => {
   const [itemVariants, setItemVariants] = useState<ItemVariant[]>([{ color: "", size: "", productCode: "" }]);
   
   
-  // Get UTM source from URL params
-  const getUtmSource = () => {
-    const utmSource = searchParams.get("utm_source");
-    if (utmSource) return utmSource;
-    
-    // Try to detect from referrer
-    const referrer = document.referrer;
-    if (referrer.includes("facebook.com") || referrer.includes("fb.com")) return "facebook";
-    if (referrer.includes("instagram.com")) return "instagram";
-    if (referrer.includes("tiktok.com")) return "tiktok";
-    if (referrer.includes("google.com")) return "google";
-    if (referrer.includes("twitter.com") || referrer.includes("x.com")) return "twitter";
-    if (referrer.includes("snapchat.com")) return "snapchat";
-    
-    return "direct";
-  };
+  const getAttribution = useCallback(() => {
+    return resolveAttributionFromUrl(searchParams, typeof document !== "undefined" ? document.referrer : "");
+  }, [searchParams]);
 
-  // Full UTM + FB attribution captured from URL
-  const getAttribution = () => {
-    const fbclid = searchParams.get("fbclid") || "";
-    const inferredSource = (fbclid && !searchParams.get("utm_source")) ? "facebook" : getUtmSource();
-    return {
-      utm_source: inferredSource,
-      utm_medium: searchParams.get("utm_medium") || (fbclid ? "paid" : null),
-      utm_campaign: searchParams.get("utm_campaign") || null,
-      utm_content: searchParams.get("utm_content") || null,
-      utm_term: searchParams.get("utm_term") || null,
-      fb_campaign_id: searchParams.get("fb_campaign_id") || searchParams.get("utm_campaign") || null,
-      fb_adset_id: searchParams.get("fb_adset_id") || searchParams.get("utm_term") || null,
-      fb_ad_id: searchParams.get("fb_ad_id") || searchParams.get("utm_content") || null,
-      fbclid: fbclid || null,
-    };
-  };
+  const trackAnalyticsEvent = useCallback(
+    (eventType: "page_view" | "checkout_start" | "purchase", productSlug: string, owner: string | null, store: string | null) => {
+      const sessionId = getAnalyticsSessionId();
+      const attr = getAttribution();
+      return supabase.from("analytics_events").insert({
+        event_type: eventType,
+        product_slug: productSlug,
+        owner_id: owner,
+        store_id: store,
+        session_id: sessionId,
+        ...attr,
+      } as any);
+    },
+    [getAttribution]
+  );
 
   useEffect(() => {
     const ac = new AbortController();
@@ -660,16 +656,16 @@ const LandingPage = () => {
             setToCache(pixelKey, pixelResult.data);
           }
 
-          // Track page view in background (non-blocking)
-          if (loadedProduct) {
-            const attr = getAttribution();
-            supabase.from("analytics_events").insert({
-              event_type: "page_view",
-              product_slug: slug,
-              owner_id: ownerForSettings || null,
-              store_id: storeForSettings || null,
-              ...attr,
-            } as any).then(() => {});
+          // Track one page view per session (deduped)
+          if (loadedProduct && slug && !pageViewTrackedRef.current) {
+            const sessionId = getAnalyticsSessionId();
+            if (!hasTrackedPageView(slug, sessionId)) {
+              pageViewTrackedRef.current = true;
+              markPageViewTracked(slug, sessionId);
+              trackAnalyticsEvent("page_view", slug, ownerForSettings || null, storeForSettings || null).then(({ error }) => {
+                if (error) console.error("page_view tracking:", error);
+              });
+            }
           }
 
           // Initialize tracking pixels when browser is idle
@@ -689,8 +685,27 @@ const LandingPage = () => {
     };
 
     loadData();
+    pageViewTrackedRef.current = false;
     return () => ac.abort();
   }, [slug, username, isPreviewMode]);
+
+  useEffect(() => {
+    if (!product?.name) return;
+    let cancelled = false;
+    supabase
+      .from("app_settings")
+      .select("system_name")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const platform = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
+        document.title = `${product.name} | ${platform}`;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [product?.name]);
 
   // Sanitize description in background, after main render
   useEffect(() => {
@@ -786,14 +801,12 @@ const LandingPage = () => {
         }
       }
 
-      const attr = getAttribution();
-      supabase.from("analytics_events").insert({
-        event_type: "checkout_start",
-        product_slug: slugRef.current,
-        owner_id: ownerIdRef.current || null,
-        store_id: storeIdRef.current || null,
-        ...attr,
-      } as any).then(({ error }) => {
+      trackAnalyticsEvent(
+        "checkout_start",
+        slugRef.current || slug || "",
+        ownerIdRef.current || null,
+        storeIdRef.current || null
+      ).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
     }
@@ -1046,14 +1059,7 @@ const LandingPage = () => {
     if (!checkoutTrackedRef.current) {
       checkoutTrackedRef.current = true;
       try {
-        const attr = getAttribution();
-        supabase.from("analytics_events").insert({
-          event_type: "checkout_start",
-          product_slug: slug,
-          owner_id: ownerId || null,
-          store_id: storeId || null,
-          ...attr,
-        } as any).then(({ error }) => {
+        trackAnalyticsEvent("checkout_start", slug || "", ownerId || null, storeId || null).then(({ error }) => {
           if (error) console.error("Error tracking checkout start (submit):", error);
         });
       } catch (err) {
@@ -1159,8 +1165,11 @@ const LandingPage = () => {
         throw new Error(mapCreateOrderError(String((data as { error: string }).error)));
       }
 
-      // Track purchase event
+      // Track purchase event (pixels + internal analytics)
       trackPurchaseEvent();
+      trackAnalyticsEvent("purchase", slug || "", ownerId || null, storeId || null).then(({ error }) => {
+        if (error) console.error("purchase tracking:", error);
+      });
 
       const orderPrice =
         selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
@@ -1272,62 +1281,61 @@ const LandingPage = () => {
   );
   const productImagesSlot = (
     <>
-            <div className="aspect-[4/5] sm:aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.12)] mb-4 relative border border-slate-100 group gpu">
-              <div className="absolute top-3 right-3 z-10 bg-[#0f172a]/80 backdrop-blur-md text-amber-400 text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full border border-amber-500/20">
-                ⭐ الأكثر مبيعاً في ليبيا
-              </div>
-              {product.images && product.images.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setLightboxOpen(true)}
-                  className="relative w-full h-full flex items-center justify-center cursor-zoom-in"
-                  aria-label="تكبير تفاصيل المنتج"
-                >
-                  <img
-                    src={product.images[selectedImage]}
-                    alt={product.name}
-                    className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
-                    loading="eager"
-                    fetchPriority="high"
-                    decoding="async"
-                    width={800}
-                    height={800}
-                  />
-                  <div className="absolute bottom-3 left-3 bg-[#0f172a]/70 backdrop-blur-md text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 border border-white/10">
-                    <ZoomIn className="w-4 h-4" />
-                  </div>
-                </button>
-              ) : (
-                <Skeleton className="w-full h-full" />
-              )}
-            </div>
+      <figure className="aspect-[4/5] sm:aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.12)] mb-4 relative border border-slate-100 group gpu">
+        <span className="absolute top-3 right-3 z-10 bg-[#0f172a]/80 backdrop-blur-md text-amber-400 text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full border border-amber-500/20">
+          ⭐ الأكثر مبيعاً في ليبيا
+        </span>
+        {product.images && product.images.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="relative w-full h-full flex items-center justify-center cursor-zoom-in"
+            aria-label="تكبير تفاصيل المنتج"
+          >
+            <LandingImage
+              src={product.images[selectedImage]}
+              alt={product.name}
+              width={800}
+              height={800}
+              priority
+              sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 480px"
+              className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+            />
+            <span className="absolute bottom-3 left-3 bg-[#0f172a]/70 backdrop-blur-md text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 border border-white/10">
+              <ZoomIn className="w-4 h-4" />
+            </span>
+          </button>
+        ) : (
+          <Skeleton className="w-full h-full" />
+        )}
+      </figure>
 
-            {/* مؤشرات الصور المصغرة بحدود متفاعلة وراقية */}
-            {product.images && product.images.length > 1 && (
-              <div className="flex gap-2.5 sm:gap-4 justify-center flex-wrap">
-                {product.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 bg-white transition-all duration-300 transform active:scale-95 ${
-                      selectedImage === index
-                        ? "border-amber-500 ring-4 ring-amber-500/15 shadow-md scale-105"
-                        : "border-slate-200/80 hover:border-slate-300 hover:scale-102 shadow-sm"
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt=""
-                      className="w-full h-full object-contain p-1"
-                      loading="lazy"
-                      decoding="async"
-                      width={80}
-                      height={80}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
+      {product.images && product.images.length > 1 && (
+        <ul className="flex gap-2.5 sm:gap-4 justify-center flex-wrap list-none p-0 m-0">
+          {product.images.map((image, index) => (
+            <li key={index}>
+              <button
+                type="button"
+                onClick={() => setSelectedImage(index)}
+                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 bg-white transition-all duration-300 transform active:scale-95 ${
+                  selectedImage === index
+                    ? "border-amber-500 ring-4 ring-amber-500/15 shadow-md scale-105"
+                    : "border-slate-200/80 hover:border-slate-300 shadow-sm"
+                }`}
+              >
+                <LandingImage
+                  src={image}
+                  alt=""
+                  width={80}
+                  height={80}
+                  sizes="80px"
+                  className="w-full h-full object-contain p-1"
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
   const orderFormSlot = (
@@ -1806,9 +1814,12 @@ const LandingPage = () => {
           >
             <X className="w-6 h-6" />
           </button>
-          <img
+          <LandingImage
             src={product.images[selectedImage]}
             alt={product.name}
+            width={1200}
+            height={1200}
+            sizes="100vw"
             className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl p-2"
             onClick={(e) => e.stopPropagation()}
           />

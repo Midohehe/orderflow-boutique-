@@ -340,7 +340,7 @@ const AppShell = () => {
 
     supabase.from("app_settings").select("system_name").limit(1).maybeSingle().then(({ data }) => {
 
-      if (data?.system_name) document.title = data.system_name;
+      document.title = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
 
     });
 

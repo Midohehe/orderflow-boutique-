@@ -3,35 +3,39 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, Eye, CreditCard, TrendingUp, Loader2, Globe, Calendar, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ar } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Stats {
-  newOrders: number;
-  totalVisits: number;
+  pendingOrders: number;
+  uniqueVisits: number;
   checkoutStarts: number;
+  orders: number;
   conversionRate: number;
+  checkoutRate: number;
 }
 
 interface SourceStats {
   source: string;
   visits: number;
   checkouts: number;
+  orders: number;
   conversionRate: number;
   lastVisit: string | null;
-}
-
-interface Product {
-  slug: string;
-  name: string;
 }
 
 interface DailyStats {
   date: string;
   visits: number;
   checkouts: number;
+  orders: number;
+}
+
+interface Product {
+  slug: string;
+  name: string;
 }
 
 const sourceLabels: Record<string, string> = {
@@ -57,209 +61,110 @@ const sourceColors: Record<string, string> = {
 const DashboardStats = () => {
   const { activeStoreId } = useStoreContext();
   const [stats, setStats] = useState<Stats>({
-    newOrders: 0,
-    totalVisits: 0,
+    pendingOrders: 0,
+    uniqueVisits: 0,
     checkoutStarts: 0,
+    orders: 0,
     conversionRate: 0,
+    checkoutRate: 0,
   });
   const [sourceStats, setSourceStats] = useState<SourceStats[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>("all");
+  const [daysRange, setDaysRange] = useState<string>("7");
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProducts = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      let ordersQ = supabase
-        .from("orders")
-        .select("product_name")
-        .eq("owner_id", user.id);
-      if (activeStoreId) ordersQ = ordersQ.eq("store_id", activeStoreId);
-      const { data: ordersData } = await ordersQ;
-      const orderedNames = new Set((ordersData || []).map(o => o.product_name).filter(Boolean));
-      if (orderedNames.size === 0) {
+      if (!activeStoreId) {
         setProducts([]);
         return;
       }
-      let prodQ = supabase
-        .from("products")
-        .select("slug, name")
-        .eq("owner_id", user.id);
-      if (activeStoreId) prodQ = prodQ.eq("store_id", activeStoreId);
-      const { data } = await prodQ;
-      setProducts((data || []).filter(p => orderedNames.has(p.name)));
+      const { data } = await supabase
+        .from("landing_pages")
+        .select("slug, title, product_id, products(name)")
+        .eq("store_id", activeStoreId)
+        .eq("is_visible", true);
+      const list: Product[] = (data || [])
+        .filter((lp: any) => lp.slug)
+        .map((lp: any) => ({
+          slug: lp.slug as string,
+          name: (lp.title || lp.products?.name || lp.slug) as string,
+        }));
+      setProducts(list);
     };
     fetchProducts();
   }, [activeStoreId]);
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!activeStoreId) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        // Get orders count (pending = new orders)
-        let ordersCountQ = supabase
-          .from("orders")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "pending")
-          .eq("is_deleted", false)
-          // استثناء الطلبيات الأجنبية (تظهر في تبويب منفصل بصفحة الطلبيات)
-          .or("country_code.is.null,country_code.eq.,country_code.eq.LY,country_code.eq.ly");
-        if (user) ordersCountQ = ordersCountQ.eq("owner_id", user.id);
-        if (activeStoreId) ordersCountQ = ordersCountQ.eq("store_id", activeStoreId);
-        const { count: ordersCount } = await ordersCountQ;
+        const days = Number(daysRange) || 7;
+        const productSlug = selectedProduct === "all" ? null : selectedProduct;
 
-        // Build query for page views based on selected product
-        let pageViewsQuery = supabase
-          .from("analytics_events")
-          .select("*", { count: "exact", head: true })
-          .eq("event_type", "page_view");
-        if (activeStoreId) pageViewsQuery = pageViewsQuery.eq("store_id", activeStoreId);
-        if (selectedProduct !== "all") {
-          pageViewsQuery = pageViewsQuery.eq("product_slug", selectedProduct);
-        }
-        
-        const { count: pageViews } = await pageViewsQuery;
-
-        // Build query for checkout starts based on selected product
-        let checkoutStartsQuery = supabase
-          .from("analytics_events")
-          .select("*", { count: "exact", head: true })
-          .eq("event_type", "checkout_start");
-        if (activeStoreId) checkoutStartsQuery = checkoutStartsQuery.eq("store_id", activeStoreId);
-        if (selectedProduct !== "all") {
-          checkoutStartsQuery = checkoutStartsQuery.eq("product_slug", selectedProduct);
-        }
-        
-        const { count: checkoutStarts } = await checkoutStartsQuery;
-
-        // Get total orders for conversion rate
-        let totalOrdersQ = supabase
-          .from("orders")
-          .select("*", { count: "exact", head: true });
-        if (user) totalOrdersQ = totalOrdersQ.eq("owner_id", user.id);
-        if (activeStoreId) totalOrdersQ = totalOrdersQ.eq("store_id", activeStoreId);
-        const { count: totalOrders } = await totalOrdersQ;
-
-        const visits = pageViews || 0;
-        const orders = totalOrders || 0;
-        const conversionRate = visits > 0 ? (orders / visits) * 100 : 0;
-
-        setStats({
-          newOrders: ordersCount || 0,
-          totalVisits: visits,
-          checkoutStarts: checkoutStarts || 0,
-          conversionRate: Math.round(conversionRate * 100) / 100,
+        const { data, error } = await supabase.rpc("get_store_analytics", {
+          _store_id: activeStoreId,
+          _days: days,
+          _product_slug: productSlug,
         });
 
-        // Fetch source-based statistics with timestamps and product filter
-        let pageViewEventsQuery = supabase
-          .from("analytics_events")
-          .select("utm_source, created_at")
-          .eq("event_type", "page_view");
-        if (activeStoreId) pageViewEventsQuery = pageViewEventsQuery.eq("store_id", activeStoreId);
-        if (selectedProduct !== "all") {
-          pageViewEventsQuery = pageViewEventsQuery.eq("product_slug", selectedProduct);
-        }
-        
-        const { data: pageViewEvents } = await pageViewEventsQuery;
+        if (error) throw error;
 
-        let checkoutEventsQuery = supabase
-          .from("analytics_events")
-          .select("utm_source")
-          .eq("event_type", "checkout_start");
-        if (activeStoreId) checkoutEventsQuery = checkoutEventsQuery.eq("store_id", activeStoreId);
-        if (selectedProduct !== "all") {
-          checkoutEventsQuery = checkoutEventsQuery.eq("product_slug", selectedProduct);
-        }
-        
-        const { data: checkoutEvents } = await checkoutEventsQuery;
-
-        // Group by source with last visit tracking
-        const sourceVisitCounts: Record<string, number> = {};
-        const sourceCheckoutCounts: Record<string, number> = {};
-        const sourceLastVisit: Record<string, string> = {};
-
-        (pageViewEvents || []).forEach(event => {
-          const source = event.utm_source || "direct";
-          sourceVisitCounts[source] = (sourceVisitCounts[source] || 0) + 1;
-          
-          // Track last visit time
-          if (!sourceLastVisit[source] || event.created_at > sourceLastVisit[source]) {
-            sourceLastVisit[source] = event.created_at;
-          }
-        });
-
-        (checkoutEvents || []).forEach(event => {
-          const source = event.utm_source || "direct";
-          sourceCheckoutCounts[source] = (sourceCheckoutCounts[source] || 0) + 1;
-        });
-
-        // Combine into source stats
-        const allSources = new Set([...Object.keys(sourceVisitCounts), ...Object.keys(sourceCheckoutCounts)]);
-        const combinedSourceStats: SourceStats[] = Array.from(allSources).map(source => {
-          const visitsCount = sourceVisitCounts[source] || 0;
-          const checkoutsCount = sourceCheckoutCounts[source] || 0;
-          return {
-            source,
-            visits: visitsCount,
-            checkouts: checkoutsCount,
-            conversionRate: visitsCount > 0 ? Math.round((checkoutsCount / visitsCount) * 100 * 100) / 100 : 0,
-            lastVisit: sourceLastVisit[source] || null,
+        const payload = data as {
+          summary?: {
+            unique_visits?: number;
+            checkout_starts?: number;
+            orders?: number;
+            conversion_rate?: number;
+            checkout_rate?: number;
           };
-        }).sort((a, b) => b.visits - a.visits);
+          daily?: Array<{ date: string; visits: number; checkouts: number; orders: number }>;
+          sources?: Array<{
+            source: string;
+            visits: number;
+            checkouts: number;
+            orders: number;
+            conversion_rate: number;
+            last_visit: string | null;
+          }>;
+          pending_orders?: number;
+        };
 
-        setSourceStats(combinedSourceStats);
+        const summary = payload?.summary || {};
+        setStats({
+          pendingOrders: Number(payload?.pending_orders ?? 0),
+          uniqueVisits: Number(summary.unique_visits ?? 0),
+          checkoutStarts: Number(summary.checkout_starts ?? 0),
+          orders: Number(summary.orders ?? 0),
+          conversionRate: Number(summary.conversion_rate ?? 0),
+          checkoutRate: Number(summary.checkout_rate ?? 0),
+        });
 
-        // Calculate daily stats for the last 7 days
-        const last7Days: DailyStats[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = startOfDay(subDays(new Date(), i));
-          const dateStr = format(date, "yyyy-MM-dd");
-          const displayDate = format(date, "d MMM", { locale: ar });
-          
-          const dayVisits = (pageViewEvents || []).filter(e => 
-            e.created_at && e.created_at.startsWith(dateStr)
-          ).length;
-          
-          const dayCheckouts = (checkoutEvents || []).filter(e => {
-            // We need created_at for checkout events too
-            return false; // Will be updated below
-          }).length;
-          
-          last7Days.push({
-            date: displayDate,
-            visits: dayVisits,
-            checkouts: 0,
-          });
-        }
+        setSourceStats(
+          (payload?.sources || []).map((s) => ({
+            source: s.source,
+            visits: Number(s.visits ?? 0),
+            checkouts: Number(s.checkouts ?? 0),
+            orders: Number(s.orders ?? 0),
+            conversionRate: Number(s.conversion_rate ?? 0),
+            lastVisit: s.last_visit,
+          }))
+        );
 
-        // Fetch checkout events with timestamps for chart
-        let checkoutEventsWithTimeQuery = supabase
-          .from("analytics_events")
-          .select("utm_source, created_at")
-          .eq("event_type", "checkout_start");
-        if (activeStoreId) checkoutEventsWithTimeQuery = checkoutEventsWithTimeQuery.eq("store_id", activeStoreId);
-        if (selectedProduct !== "all") {
-          checkoutEventsWithTimeQuery = checkoutEventsWithTimeQuery.eq("product_slug", selectedProduct);
-        }
-        
-        const { data: checkoutEventsWithTime } = await checkoutEventsWithTimeQuery;
-
-        // Update daily stats with checkout data
-        for (let i = 6; i >= 0; i--) {
-          const date = startOfDay(subDays(new Date(), i));
-          const dateStr = format(date, "yyyy-MM-dd");
-          
-          const dayCheckouts = (checkoutEventsWithTime || []).filter(e => 
-            e.created_at && e.created_at.startsWith(dateStr)
-          ).length;
-          
-          last7Days[6 - i].checkouts = dayCheckouts;
-        }
-
-        setDailyStats(last7Days);
+        setDailyStats(
+          (payload?.daily || []).map((d) => ({
+            date: format(parseISO(String(d.date).slice(0, 10)), "d MMM", { locale: ar }),
+            visits: Number(d.visits ?? 0),
+            checkouts: Number(d.checkouts ?? 0),
+            orders: Number(d.orders ?? 0),
+          }))
+        );
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {
@@ -268,7 +173,7 @@ const DashboardStats = () => {
     };
 
     fetchStats();
-  }, [selectedProduct, activeStoreId]);
+  }, [selectedProduct, activeStoreId, daysRange]);
 
   const formatLastVisit = (dateStr: string | null) => {
     if (!dateStr) return "—";
@@ -280,10 +185,10 @@ const DashboardStats = () => {
   };
 
   const statCards = [
-    { code: "01", title: "الطلبيات الجديدة", value: stats.newOrders, icon: ShoppingCart },
-    { code: "02", title: "إجمالي الزيارات", value: stats.totalVisits, icon: Eye },
+    { code: "01", title: "طلبات جديدة (معلّقة)", value: stats.pendingOrders, icon: ShoppingCart },
+    { code: "02", title: `زيارات فريدة (${daysRange} يوم)`, value: stats.uniqueVisits, icon: Eye },
     { code: "03", title: "بدء الشراء", value: stats.checkoutStarts, icon: CreditCard },
-    { code: "04", title: "معدل التحويل", value: `${stats.conversionRate}%`, icon: TrendingUp },
+    { code: "04", title: "معدل التحويل (طلبات/زيارات)", value: `${stats.conversionRate}%`, icon: TrendingUp },
   ];
 
   if (loading) {
@@ -304,7 +209,20 @@ const DashboardStats = () => {
 
   return (
     <div className="space-y-8" dir="rtl">
-      {/* Main Stats — Swiss editorial grid */}
+      <div className="flex flex-wrap items-center gap-3 justify-end">
+        <Select value={daysRange} onValueChange={setDaysRange}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7">آخر 7 أيام</SelectItem>
+            <SelectItem value="14">آخر 14 يوم</SelectItem>
+            <SelectItem value="30">آخر 30 يوم</SelectItem>
+            <SelectItem value="90">آخر 90 يوم</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-border border border-border">
         {statCards.map((stat) => (
           <div key={stat.title} className="bg-card p-5 flex flex-col justify-between min-h-[140px] relative group">
@@ -320,12 +238,15 @@ const DashboardStats = () => {
         ))}
       </div>
 
-      {/* Visits & Conversions Chart */}
+      <p className="text-xs text-muted-foreground">
+        معدل بدء الشراء: {stats.checkoutRate}% — الطلبات المحسوبة من قاعدة البيانات مع UTM المحفوظ على كل طلب (مصدر حقيقي من البيكسل/الرابط).
+      </p>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            الزيارات والتحويلات (آخر 7 أيام)
+            الزيارات والتحويلات ({daysRange} أيام)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -334,72 +255,51 @@ const DashboardStats = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={dailyStats} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fontSize: 12 }}
-                    className="text-muted-foreground"
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 12 }}
-                    className="text-muted-foreground"
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      direction: 'rtl'
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      direction: "rtl",
                     }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    labelStyle={{ color: "hsl(var(--foreground))" }}
                   />
-                  <Legend 
-                    wrapperStyle={{ direction: 'rtl' }}
-                    formatter={(value) => value === 'visits' ? 'الزيارات' : 'بدء الشراء'}
+                  <Legend
+                    wrapperStyle={{ direction: "rtl" }}
+                    formatter={(value) =>
+                      value === "visits" ? "زيارات فريدة" : value === "checkouts" ? "بدء شراء" : "طلبات"
+                    }
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="visits" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--primary))' }}
-                    name="visits"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="checkouts" 
-                    stroke="hsl(var(--accent))" 
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--accent))' }}
-                    name="checkouts"
-                  />
+                  <Line type="monotone" dataKey="visits" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: "hsl(var(--primary))" }} name="visits" />
+                  <Line type="monotone" dataKey="checkouts" stroke="hsl(var(--accent))" strokeWidth={2} dot={{ fill: "hsl(var(--accent))" }} name="checkouts" />
+                  <Line type="monotone" dataKey="orders" stroke="#16a34a" strokeWidth={2} dot={{ fill: "#16a34a" }} name="orders" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="text-center text-muted-foreground py-8">
-              لا توجد بيانات للعرض
-            </div>
+            <div className="text-center text-muted-foreground py-8">لا توجد بيانات للعرض</div>
           )}
         </CardContent>
       </Card>
 
-      {/* Traffic Sources */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <Globe className="w-5 h-5" />
-              مصادر الزيارات
+              مصادر الزيارات والتحويل
             </CardTitle>
             <div className="flex items-center gap-2">
               <Package className="w-4 h-4 text-muted-foreground" />
               <Select value={selectedProduct} onValueChange={setSelectedProduct}>
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="اختر المنتج" />
+                  <SelectValue placeholder="اختر صفحة/منتج" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">جميع المنتجات</SelectItem>
-              {products.filter(p => p.slug).map((product) => (
+                  <SelectItem value="all">جميع الصفحات</SelectItem>
+                  {products.map((product) => (
                     <SelectItem key={product.slug} value={product.slug}>
                       {product.name}
                     </SelectItem>
@@ -413,10 +313,9 @@ const DashboardStats = () => {
           {sourceStats.length > 0 ? (
             <div className="space-y-4">
               {sourceStats.map((sourceStat) => {
-                const percentage = stats.totalVisits > 0 
-                  ? Math.round((sourceStat.visits / stats.totalVisits) * 100) 
-                  : 0;
-                
+                const percentage =
+                  stats.uniqueVisits > 0 ? Math.round((sourceStat.visits / stats.uniqueVisits) * 100) : 0;
+
                 return (
                   <div key={sourceStat.source} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -427,6 +326,7 @@ const DashboardStats = () => {
                       <div className="flex items-center gap-4 text-muted-foreground flex-wrap justify-end">
                         <span>{sourceStat.visits} زيارة</span>
                         <span>{sourceStat.checkouts} بدء شراء</span>
+                        <span>{sourceStat.orders} طلب</span>
                         <span className="text-primary font-medium">{sourceStat.conversionRate}% تحويل</span>
                       </div>
                     </div>
@@ -446,7 +346,7 @@ const DashboardStats = () => {
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              لا توجد بيانات زيارات {selectedProduct !== "all" ? "لهذا المنتج" : ""}
+              لا توجد بيانات زيارات {selectedProduct !== "all" ? "لهذه الصفحة" : ""}
             </div>
           )}
         </CardContent>
