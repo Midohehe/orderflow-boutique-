@@ -210,6 +210,28 @@ const LandingPage = () => {
       if (wasDark) root.classList.add("dark");
     };
   }, []);
+
+  // Preload LCP hero image as soon as URL is known (session cache or fetch)
+  useEffect(() => {
+    const href = product?.images?.[selectedImage] ?? product?.images?.[0];
+    if (!href) return;
+    const id = "landing-lcp-preload";
+    let link = document.getElementById(id) as HTMLLinkElement | null;
+    if (!link) {
+      link = document.createElement("link");
+      link.id = id;
+      link.rel = "preload";
+      link.as = "image";
+      document.head.appendChild(link);
+    }
+    if (link.href !== href) {
+      link.href = href;
+      link.setAttribute("fetchpriority", "high");
+    }
+    return () => {
+      link?.remove();
+    };
+  }, [product?.images, selectedImage]);
   
   // For multiple items with different variants
   interface ItemVariant {
@@ -1146,6 +1168,10 @@ const LandingPage = () => {
                     alt={product.name}
                     className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
                     loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    width={800}
+                    height={800}
                   />
                   <div className="absolute bottom-3 left-3 bg-[#0f172a]/70 backdrop-blur-md text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 border border-white/10">
                     <ZoomIn className="w-4 h-4" />
@@ -1169,7 +1195,15 @@ const LandingPage = () => {
                         : "border-slate-200/80 hover:border-slate-300 hover:scale-102 shadow-sm"
                     }`}
                   >
-                    <img src={image} alt="" className="w-full h-full object-contain p-1" />
+                    <img
+                      src={image}
+                      alt=""
+                      className="w-full h-full object-contain p-1"
+                      loading="lazy"
+                      decoding="async"
+                      width={80}
+                      height={80}
+                    />
                   </button>
                 ))}
               </div>

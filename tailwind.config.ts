@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        cairo: ["IBM Plex Sans Arabic", "Inter", "system-ui", "sans-serif"],
+        cairo: ["Cairo", "system-ui", "sans-serif"],
         display: ["Fraunces", "IBM Plex Sans Arabic", "Georgia", "serif"],
         sans: ["IBM Plex Sans Arabic", "Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
