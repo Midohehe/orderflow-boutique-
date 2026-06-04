@@ -1,5 +1,7 @@
 import type { ThemePackage } from "./types";
 import {
+  buildFashionProductLandingLayout,
+  buildFashionStoreHomeLayout,
   buildFlashSaleLanding,
   buildProductLandingLayout,
   buildStoreHomeLayout,
@@ -18,6 +20,108 @@ const BASE_CSS = `
   box-shadow: var(--store-shadow);
 }
 `.trim();
+
+const AURA_FASHION_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap');
+.store-theme-scope h1, .store-theme-scope h2, .store-theme-scope h3, .store-theme-scope .store-heading {
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+.store-theme-scope .store-card, .store-theme-scope .product-card {
+  border-radius: var(--store-section-radius);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid hsl(var(--store-border));
+  overflow: hidden;
+}
+.store-theme-scope .product-card:hover, .store-theme-scope .store-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 32px hsl(var(--store-accent) / 0.15);
+  border-color: transparent;
+}
+.store-theme-scope .store-btn-primary {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.store-theme-scope .store-btn-primary:hover {
+  background: hsl(var(--store-accent)) !important;
+  transform: translateY(-3px) scale(1.02);
+  filter: brightness(1.1);
+}
+.store-theme-scope .store-btn-outline:hover {
+  background: hsl(var(--store-primary) / 0.1);
+  transform: translateY(-2px);
+}
+.store-theme-scope .fashion-category-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+.store-theme-scope .fashion-category-pill {
+  background: hsl(var(--store-primary) / 0.05);
+  border-radius: 1rem;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.store-theme-scope .fashion-category-pill:hover {
+  background: hsl(var(--store-primary));
+  color: hsl(var(--store-primary-fg));
+}
+.store-theme-scope .fashion-category-pill:hover .fashion-category-count,
+.store-theme-scope .fashion-category-pill:hover .fashion-category-label {
+  color: hsl(var(--store-primary-fg));
+}
+.store-theme-scope .fashion-category-count {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: hsl(var(--store-primary));
+  line-height: 1.2;
+}
+.store-theme-scope .fashion-category-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--store-muted-fg));
+  margin-top: 0.25rem;
+}
+@keyframes aura-fade-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.store-theme-scope [class*="fade-in"], .store-theme-scope .animate-fade-in {
+  animation: aura-fade-in 0.8s ease-out forwards;
+}
+`.trim();
+
+const AURA_FASHION_TOKENS = {
+  preset: "aura-fashion",
+  primary: "250 85% 60%",
+  primaryForeground: "0 0% 100%",
+  accent: "340 82% 52%",
+  secondary: "45 93% 60%",
+  background: "0 0% 99%",
+  foreground: "230 25% 15%",
+  card: "0 0% 100%",
+  cardForeground: "230 25% 15%",
+  muted: "250 30% 96%",
+  mutedForeground: "230 15% 45%",
+  border: "220 15% 90%",
+  headerBg: "0 0% 100%",
+  buttonRadius: "2rem",
+  sectionRadius: "1.5rem",
+  fontFamily: "'Outfit', Cairo, system-ui, sans-serif",
+  headingFont: "'Outfit', Cairo, system-ui, sans-serif",
+  buttonStyle: "solid" as const,
+  headerStyle: "blur" as const,
+  shadow: "medium" as const,
+};
 
 function pkg(
   partial: Omit<ThemePackage, "version" | "storeHome" | "productLanding"> & {
@@ -191,6 +295,42 @@ export const THEME_CATALOG: ThemePackage[] = [
       promoText: "🥬 منتجات طازجة — توصيل يومي",
       heroTitle: "من المزرعة إلى بابك",
     },
+  }),
+  pkg({
+    id: "aura-fashion",
+    name: "Aura Fashion",
+    nameAr: "أورا فاشن",
+    description: "بنفسجي ووردي عصري — للأزياء والموضة مع هيرو كامل و بطاقات منتجات أنيقة",
+    category: "fashion",
+    tags: ["أزياء", "موضة", "أورا"],
+    previewGradient: "linear-gradient(135deg, hsl(250,85%,60%) 0%, hsl(340,82%,52%) 100%)",
+    tokens: AURA_FASHION_TOKENS,
+    customCss: AURA_FASHION_CSS,
+    storeHome: buildFashionStoreHomeLayout(AURA_FASHION_TOKENS, {
+      promoText: "✨ ربيع / صيف 2026 — تشكيلة جديدة",
+      heroTitle: "اكتشفي أناقتك",
+      heroSubtitle: "تشكيلة نابضة بالحياة — جريئة وعصرية ومصممة لتبرزي",
+      seasonLabel: "أزياء مستدامة",
+    }),
+    productLanding: buildFashionProductLandingLayout(AURA_FASHION_TOKENS, {
+      heroTitle: "قطعة تليق بأناقتك",
+      accentWord: "هذا المنتج",
+    }),
+    extraLanding: [
+      {
+        name: "قالب منتج — أورا فاشن",
+        description: "صفحة هبوط منتج بأسلوب AURA",
+        puckData: buildFashionProductLandingLayout(AURA_FASHION_TOKENS, {
+          heroTitle: "اطلبي الآن — عرض حصري",
+        }),
+        isDefault: true,
+      },
+      {
+        name: "تخفيضات — أورا فاشن",
+        description: "صفحة عروض سريعة",
+        puckData: buildFlashSaleLanding(AURA_FASHION_TOKENS),
+      },
+    ],
   }),
   pkg({
     id: "street-fashion",
