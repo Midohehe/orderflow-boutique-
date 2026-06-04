@@ -150,10 +150,15 @@ $$;
 DO $$
 DECLARE _t text;
 DECLARE _tables text[] := ARRAY(
-  SELECT table_name
-  FROM information_schema.columns
-  WHERE table_schema = 'public' AND column_name = 'store_id'
-    AND table_name NOT IN ('stores', 'store_member_stores', 'store_order_counters', 'store_sku_counters')
+  SELECT c.table_name
+  FROM information_schema.columns c
+  JOIN information_schema.columns o
+    ON o.table_schema = c.table_schema
+   AND o.table_name = c.table_name
+   AND o.column_name = 'owner_id'
+  WHERE c.table_schema = 'public'
+    AND c.column_name = 'store_id'
+    AND c.table_name NOT IN ('stores', 'store_member_stores', 'store_order_counters', 'store_sku_counters')
 );
 BEGIN
   FOREACH _t IN ARRAY _tables LOOP

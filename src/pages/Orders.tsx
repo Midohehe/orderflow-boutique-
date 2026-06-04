@@ -30,6 +30,7 @@ import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useUserContext } from "@/hooks/useUserContext";
 import { ShippingOptionsDialog, getShippingOptionsDefaults, type ShippingOptionsValue } from "@/components/ShippingOptionsDialog";
 import {
   fetchOrdersPage,
@@ -133,6 +134,7 @@ const statusColors: Record<Order["status"], string> = {
 
 const Orders = () => {
   const { activeStoreId } = useStoreContext();
+  const { effectiveOwnerId } = useUserContext();
   const queryClient = useQueryClient();
   const [orders, setOrders] = useState<Order[]>([]);
   // Server-side counts (authoritative — independent of how many rows are loaded).
@@ -318,7 +320,7 @@ const Orders = () => {
     setCreating(true);
     try {
       const { data: userRes } = await supabase.auth.getUser();
-      const uid = userRes.user?.id;
+      const uid = effectiveOwnerId || userRes.user?.id;
       if (!uid) {
         toast({ title: "خطأ", description: "يجب تسجيل الدخول", variant: "destructive" });
         return;
@@ -501,30 +503,33 @@ const Orders = () => {
   const tabPage = getPage(orderTab);
 
   const ordersQuery = useQuery({
-    queryKey: ["orders-page", activeStoreId, orderTab, tabPage, tabFilters],
+    queryKey: ["orders-page", activeStoreId, effectiveOwnerId, orderTab, tabPage, tabFilters],
     enabled: !!activeStoreId,
     queryFn: async () => {
-      const { data: userRes } = await supabase.auth.getUser();
-      const uid = userRes.user?.id;
+      const uid = effectiveOwnerId;
       const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, confirmCountsRes] = await Promise.all([
         fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters)
           .then(({ rows, total }) => ({ data: rows, total, error: null as any }))
           .catch((error) => ({ data: null, total: 0, error })),
-        (uid
-          ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
-          : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
+        supabase
+          .from("store_settings")
+          .select("currency_symbol")
+          .eq("store_id", activeStoreId!)
+          .maybeSingle(),
         supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
         supabase.from("products").select("id, name").eq("store_id", activeStoreId!),
-        uid
-          ? supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle()
-          : Promise.resolve({ data: null } as any),
+        supabase
+          .from("sticker_settings")
+          .select("*")
+          .eq("store_id", activeStoreId!)
+          .maybeSingle(),
         supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId!).maybeSingle(),
         uid
           ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
           : Promise.resolve({ data: null } as any),
         supabase.rpc("orders_status_counts", { _store_id: activeStoreId! }),
         supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId! }),
-        supabase.rpc("orders_confirmation_counts", { _store_id: activeStoreId! }).catch(() => ({ data: null, error: null })),
+        supabase.rpc("orders_confirmation_counts", { _store_id: activeStoreId! }),
       ]);
       if (ordersRes.error) throw ordersRes.error;
       return { ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, confirmCountsRes, uid };
@@ -537,7 +542,8 @@ const Orders = () => {
     if (ordersQuery.isLoading) { setLoading(true); return; }
     if (ordersQuery.error) {
       console.error("Error fetching orders:", ordersQuery.error);
-      toast({ title: "خطأ", description: "حدث خطأ أثناء تحميل الطلبات", variant: "destructive" });
+      const msg = ordersQuery.error instanceof Error ? ordersQuery.error.message : "حدث خطأ أثناء تحميل الطلبات";
+      toast({ title: "خطأ", description: msg, variant: "destructive" });
       setLoading(false);
       return;
     }
@@ -649,10 +655,12 @@ const Orders = () => {
 
   const fetchCurrencySettings = async () => {
     try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const uid = userRes.user?.id;
-      const q = supabase.from("store_settings").select("currency_symbol");
-      const { data, error } = await (uid ? q.eq("owner_id", uid).maybeSingle() : q.limit(1).maybeSingle());
+      if (!activeStoreId) return;
+      const { data, error } = await supabase
+        .from("store_settings")
+        .select("currency_symbol")
+        .eq("store_id", activeStoreId)
+        .maybeSingle();
       if (error) throw error;
       if (data) setCurrencySymbol(data.currency_symbol);
     } catch (error) {
@@ -1106,6 +1114,15 @@ const Orders = () => {
     new Set(Object.values(productsMap).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
 
+  /** Shipped orders for current tab (before client-side carrier filter). */
+  const allShipped = orderTab === "shipped" ? orders : [];
+  /** Pending orders for current tab (before client-side confirmation filter). */
+  const allPending = orderTab === "pending" ? orders : [];
+  const pendingConfirmationTotal =
+    Object.values(confirmationCounts).reduce((s, n) => s + (Number(n) || 0), 0) ||
+    serverStatusCounts.pending ||
+    allPending.length;
+
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
   const shippedCarrierOptions = (() => {
     const byLabel = new Map<string, string>();
@@ -1216,6 +1233,14 @@ const Orders = () => {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!activeStoreId) {
+    return (
+      <div className="space-y-4 p-6 text-center text-muted-foreground">
+        <p>اختر متجراً من القائمة أعلاه لعرض الطلبات.</p>
       </div>
     );
   }
@@ -1846,7 +1871,7 @@ const Orders = () => {
                         <SelectValue placeholder="فلتر حسب التأكيد" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">كل حالات التأكيد ({allPending.length})</SelectItem>
+                        <SelectItem value="all">كل حالات التأكيد ({pendingConfirmationTotal})</SelectItem>
                         <SelectItem value="unconfirmed">بانتظار التأكيد ({confirmationCounts.unconfirmed})</SelectItem>
                         <SelectItem value="confirmed">مؤكد ({confirmationCounts.confirmed})</SelectItem>
                         <SelectItem value="no_answer">لم يرد ({confirmationCounts.no_answer})</SelectItem>
