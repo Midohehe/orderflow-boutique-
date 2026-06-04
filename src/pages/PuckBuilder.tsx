@@ -129,7 +129,7 @@ const PuckBuilder = () => {
   }
 
   const previewUrl = isLandingMode && landingMeta
-    ? `/p/${activeStore?.slug || ""}/${landingMeta.slug}`
+    ? `/p/${activeStore?.slug || ""}/${landingMeta.slug}?preview=1`
     : `/store/${activeStore?.slug || ""}`;
   const headerTitle = isTemplateMode
     ? `محرر القالب — ${templateName}`
