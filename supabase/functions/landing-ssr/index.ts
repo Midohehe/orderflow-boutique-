@@ -8,6 +8,7 @@ import {
   puckHasRenderableContent,
   renderPuckToHtml,
 } from "../_shared/puck-ssr-html.ts";
+import { landingHeroPreloadHref, optimizeLandingImageUrl } from "../_shared/landing-image-url.ts";
 import { parseThemeTokens, themeTokensToSsrCssFromTokens } from "../_shared/theme-ssr.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -68,9 +69,10 @@ function buildHead(product: any, currency: string, pageUrl: string, platformName
   const desc = escapeHtml(stripTags(product.description || product.name).slice(0, 160));
   const img = product.images?.[0] || "";
   const price = product.price;
+  const lcpImg = img ? landingHeroPreloadHref(img) : "";
 
-  const preloadImg = img
-    ? `<link rel="preload" as="image" href="${escapeHtml(img)}" fetchpriority="high" />`
+  const preloadImg = lcpImg
+    ? `<link rel="preload" as="image" href="${escapeHtml(lcpImg)}" fetchpriority="high" />`
     : "";
 
   const productJsonLd = JSON.stringify({
@@ -93,8 +95,6 @@ function buildHead(product: any, currency: string, pageUrl: string, platformName
 <link rel="canonical" href="${escapeHtml(pageUrl)}" />
 <link rel="preconnect" href="${SUPABASE_URL}" crossorigin />
 <link rel="dns-prefetch" href="${SUPABASE_URL}" />
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="dns-prefetch" href="https://connect.facebook.net" />
 <link rel="dns-prefetch" href="https://analytics.tiktok.com" />
 <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
@@ -116,8 +116,9 @@ function buildAboveFold(product: any, currency: string, puckHero?: { title?: str
   const name = puckHero?.title || product.name;
   const subtitle = puckHero?.subtitle || "الدفع عند الاستلام";
   const img = puckHero?.image || product.images?.[0] || "";
-  // Inline above-the-fold content so LCP paints immediately. React will
-  // mount into #root and replace this when it hydrates.
+  const heroSrc = img
+    ? optimizeLandingImageUrl(img, { width: 800, height: 800, format: "webp" })
+    : "";
   return `
 <div id="ssr-shell" style="font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;direction:rtl;background:hsl(220 20% 97%);min-height:100vh">
   <div style="background:linear-gradient(135deg,hsl(217 91% 50%),hsl(217 91% 40%));color:#fff;padding:24px 16px;text-align:center">
@@ -125,7 +126,7 @@ function buildAboveFold(product: any, currency: string, puckHero?: { title?: str
     <div style="opacity:.9;font-size:14px">${escapeHtml(subtitle)}</div>
   </div>
   <div style="max-width:960px;margin:0 auto;padding:16px">
-    ${img ? `<div style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(img)}" alt="${escapeHtml(name)}" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></div>` : ""}
+    ${heroSrc ? `<figure style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(heroSrc)}" alt="${escapeHtml(name)}" width="800" height="800" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></figure>` : ""}
     <div style="text-align:center;margin-top:16px">
       <span style="font-size:28px;font-weight:800;color:hsl(217 91% 50%)">${product.price} ${escapeHtml(currency)}</span>
       ${product.original_price ? `<span style="margin-right:10px;color:#94a3b8;text-decoration:line-through">${product.original_price} ${escapeHtml(currency)}</span>` : ""}

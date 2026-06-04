@@ -1,7 +1,8 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
+import "@/styles/landing-fonts.css";
 
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const StoreFront = lazy(() => import("@/pages/StoreFront"));
@@ -15,6 +16,10 @@ const PageFallback = () => (
 
 /** Minimal shell for conversion pages — no AuthProvider, StoreProvider, or PWA. */
 export default function PublicRoutes() {
+  useEffect(() => {
+    document.documentElement.dataset.landingFonts = "1";
+  }, []);
+
   return (
     <>
       <Toaster />

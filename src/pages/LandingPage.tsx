@@ -26,6 +26,8 @@ import {
   resolveOrderFields,
   validateOrderPayload,
 } from "@/lib/landingOrderForm";
+import { LandingImage } from "@/components/LandingImage";
+import { landingHeroPreloadHref } from "@/lib/landingImageUrl";
 
 const PuckRender = lazy(() =>
   import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
@@ -305,6 +307,7 @@ const LandingPage = () => {
   useEffect(() => {
     const href = product?.images?.[selectedImage] ?? product?.images?.[0];
     if (!href) return;
+    const optimized = landingHeroPreloadHref(href);
     const id = "landing-lcp-preload";
     let link = document.getElementById(id) as HTMLLinkElement | null;
     if (!link) {
@@ -314,8 +317,8 @@ const LandingPage = () => {
       link.as = "image";
       document.head.appendChild(link);
     }
-    if (link.href !== href) {
-      link.href = href;
+    if (link.href !== optimized) {
+      link.href = optimized;
       link.setAttribute("fetchpriority", "high");
     }
     return () => {
@@ -1278,62 +1281,61 @@ const LandingPage = () => {
   );
   const productImagesSlot = (
     <>
-            <div className="aspect-[4/5] sm:aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.12)] mb-4 relative border border-slate-100 group gpu">
-              <div className="absolute top-3 right-3 z-10 bg-[#0f172a]/80 backdrop-blur-md text-amber-400 text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full border border-amber-500/20">
-                ⭐ الأكثر مبيعاً في ليبيا
-              </div>
-              {product.images && product.images.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setLightboxOpen(true)}
-                  className="relative w-full h-full flex items-center justify-center cursor-zoom-in"
-                  aria-label="تكبير تفاصيل المنتج"
-                >
-                  <img
-                    src={product.images[selectedImage]}
-                    alt={product.name}
-                    className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
-                    loading="eager"
-                    fetchPriority="high"
-                    decoding="async"
-                    width={800}
-                    height={800}
-                  />
-                  <div className="absolute bottom-3 left-3 bg-[#0f172a]/70 backdrop-blur-md text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 border border-white/10">
-                    <ZoomIn className="w-4 h-4" />
-                  </div>
-                </button>
-              ) : (
-                <Skeleton className="w-full h-full" />
-              )}
-            </div>
+      <figure className="aspect-[4/5] sm:aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-[0_15px_40px_-15px_rgba(0,0,0,0.12)] mb-4 relative border border-slate-100 group gpu">
+        <span className="absolute top-3 right-3 z-10 bg-[#0f172a]/80 backdrop-blur-md text-amber-400 text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full border border-amber-500/20">
+          ⭐ الأكثر مبيعاً في ليبيا
+        </span>
+        {product.images && product.images.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="relative w-full h-full flex items-center justify-center cursor-zoom-in"
+            aria-label="تكبير تفاصيل المنتج"
+          >
+            <LandingImage
+              src={product.images[selectedImage]}
+              alt={product.name}
+              width={800}
+              height={800}
+              priority
+              sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 480px"
+              className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+            />
+            <span className="absolute bottom-3 left-3 bg-[#0f172a]/70 backdrop-blur-md text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 border border-white/10">
+              <ZoomIn className="w-4 h-4" />
+            </span>
+          </button>
+        ) : (
+          <Skeleton className="w-full h-full" />
+        )}
+      </figure>
 
-            {/* مؤشرات الصور المصغرة بحدود متفاعلة وراقية */}
-            {product.images && product.images.length > 1 && (
-              <div className="flex gap-2.5 sm:gap-4 justify-center flex-wrap">
-                {product.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 bg-white transition-all duration-300 transform active:scale-95 ${
-                      selectedImage === index
-                        ? "border-amber-500 ring-4 ring-amber-500/15 shadow-md scale-105"
-                        : "border-slate-200/80 hover:border-slate-300 hover:scale-102 shadow-sm"
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt=""
-                      className="w-full h-full object-contain p-1"
-                      loading="lazy"
-                      decoding="async"
-                      width={80}
-                      height={80}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
+      {product.images && product.images.length > 1 && (
+        <ul className="flex gap-2.5 sm:gap-4 justify-center flex-wrap list-none p-0 m-0">
+          {product.images.map((image, index) => (
+            <li key={index}>
+              <button
+                type="button"
+                onClick={() => setSelectedImage(index)}
+                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 bg-white transition-all duration-300 transform active:scale-95 ${
+                  selectedImage === index
+                    ? "border-amber-500 ring-4 ring-amber-500/15 shadow-md scale-105"
+                    : "border-slate-200/80 hover:border-slate-300 shadow-sm"
+                }`}
+              >
+                <LandingImage
+                  src={image}
+                  alt=""
+                  width={80}
+                  height={80}
+                  sizes="80px"
+                  className="w-full h-full object-contain p-1"
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
   const orderFormSlot = (
@@ -1812,9 +1814,12 @@ const LandingPage = () => {
           >
             <X className="w-6 h-6" />
           </button>
-          <img
+          <LandingImage
             src={product.images[selectedImage]}
             alt={product.name}
+            width={1200}
+            height={1200}
+            sizes="100vw"
             className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl p-2"
             onClick={(e) => e.stopPropagation()}
           />

@@ -20,6 +20,7 @@
     "migration:lovable": "node scripts/migrate-from-lovable.mjs --confirm"
   },
   "dependencies": {
+    "@fontsource/cairo": "^5.2.7",
     "@hookform/resolvers": "^3.10.0",
     "@measured/puck": "^0.20.2",
     "@radix-ui/react-accordion": "^1.2.11",
