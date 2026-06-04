@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save, Paintbrush } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save, Paintbrush, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +26,11 @@ import { useStoreContext } from "@/hooks/useStoreContext";
 import { isolateLatin } from "@/lib/bidi";
 import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
 import { purgeLandingCache } from "@/lib/purgeLandingCache";
+import {
+  parseStoreExportFile,
+  importProductsFromExport,
+  importLandingPagesFromExport,
+} from "@/lib/storeExportImport";
 
 const ProductForm = lazy(() => import("@/components/ProductForm"));
 
@@ -129,6 +134,10 @@ const Products = () => {
   const [isSavingLp, setIsSavingLp] = useState(false);
   const [deleteLpTarget, setDeleteLpTarget] = useState<LandingPage | null>(null);
   const [lpTemplates, setLpTemplates] = useState<Array<{ id: string; name: string; is_default: boolean; puck_data: any }>>([]);
+  const productImportRef = useRef<HTMLInputElement>(null);
+  const landingImportRef = useRef<HTMLInputElement>(null);
+  const [isImportingProducts, setIsImportingProducts] = useState(false);
+  const [isImportingLanding, setIsImportingLanding] = useState(false);
 
   // عداد صفحات الهبوط لكل منتج
   const lpCountByProduct = landingPages.reduce<Record<string, number>>((acc, lp) => {
@@ -1040,6 +1049,147 @@ const Products = () => {
     }
   };
 
+  const refreshProductsList = async () => {
+    if (!activeStoreId) return;
+    const { data: metaData } = await supabase
+      .from("products")
+      .select("id, name, slug, price, original_price, is_visible, category_id")
+      .eq("store_id", activeStoreId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    const { data: costsData } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+    const costMap = new Map<string, number>((costsData || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
+    const baseList: Product[] = (metaData || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: String(p.price),
+      original_price: p.original_price ? String(p.original_price) : undefined,
+      purchase_price: String(costMap.get(p.id) ?? 0),
+      description: "",
+      images: [],
+      product_codes: [],
+      colors: [],
+      sizes: [],
+      is_visible: p.is_visible ?? true,
+      category_id: p.category_id ?? null,
+    }));
+    setProducts(baseList);
+    const { data: imgData } = await supabase
+      .from("products")
+      .select("id, images")
+      .eq("store_id", activeStoreId)
+      .is("deleted_at", null);
+    if (imgData) {
+      const imgMap = new Map<string, string[]>(imgData.map((r: any) => [r.id as string, (r.images as string[]) || []]));
+      setProducts((prev) => prev.map((p) => ({ ...p, images: imgMap.get(p.id) || [] })));
+    }
+  };
+
+  const refreshLandingPagesList = async () => {
+    if (!activeStoreId) return;
+    const { data } = await supabase
+      .from("landing_pages")
+      .select("id, product_id, slug, title, subtitle, is_visible")
+      .eq("store_id", activeStoreId)
+      .order("created_at", { ascending: false });
+    setLandingPages((data || []) as LandingPage[]);
+  };
+
+  const handleImportProductsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!activeStoreId || !effectiveOwnerId) {
+      toast({ title: "خطأ", description: "يرجى اختيار متجر أولاً", variant: "destructive" });
+      return;
+    }
+    setIsImportingProducts(true);
+    try {
+      const payload = parseStoreExportFile(JSON.parse(await file.text()));
+      if (!payload.products?.length) {
+        toast({ title: "تنبيه", description: "الملف لا يحتوي على منتجات", variant: "destructive" });
+        return;
+      }
+      const result = await importProductsFromExport(payload, {
+        ownerId: effectiveOwnerId,
+        storeId: activeStoreId,
+        existingProductSlugs: new Set(products.map((p) => p.slug)),
+        existingLandingSlugs: new Set(landingPages.map((lp) => lp.slug)),
+      });
+      await refreshProductsList();
+      const parts = [`تم استيراد ${result.imported} منتج`];
+      if (result.skipped) parts.push(`تخطّي ${result.skipped}`);
+      toast({ title: "تم الاستيراد", description: parts.join("، ") });
+      if (result.errors.length) {
+        toast({
+          title: "ملاحظات",
+          description: result.errors.slice(0, 5).join("\n"),
+          variant: result.imported ? "default" : "destructive",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "فشل الاستيراد",
+        description: err instanceof Error ? err.message : "تعذر قراءة الملف",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingProducts(false);
+    }
+  };
+
+  const handleImportLandingFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!activeStoreId || !effectiveOwnerId) {
+      toast({ title: "خطأ", description: "يرجى اختيار متجر أولاً", variant: "destructive" });
+      return;
+    }
+    setIsImportingLanding(true);
+    try {
+      const payload = parseStoreExportFile(JSON.parse(await file.text()));
+      if (!payload.landing_pages?.length) {
+        toast({ title: "تنبيه", description: "الملف لا يحتوي على صفحات هبوط", variant: "destructive" });
+        return;
+      }
+      const { data: storeProducts } = await supabase
+        .from("products")
+        .select("id, slug")
+        .eq("store_id", activeStoreId)
+        .is("deleted_at", null);
+      const result = await importLandingPagesFromExport(payload, {
+        ownerId: effectiveOwnerId,
+        storeId: activeStoreId,
+        existingProductSlugs: new Set(products.map((p) => p.slug)),
+        existingLandingSlugs: new Set(landingPages.map((lp) => lp.slug)),
+        productSlugToId: new Map((storeProducts || []).map((r) => [r.slug as string, r.id as string])),
+      });
+      await refreshLandingPagesList();
+      const parts = [`تم استيراد ${result.imported} صفحة هبوط`];
+      if (result.skipped) parts.push(`تخطّي ${result.skipped}`);
+      toast({ title: "تم الاستيراد", description: parts.join("، ") });
+      if (result.errors.length) {
+        toast({
+          title: "ملاحظات",
+          description: result.errors.slice(0, 5).join("\n"),
+          variant: result.imported ? "default" : "destructive",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "فشل الاستيراد",
+        description: err instanceof Error ? err.message : "تعذر قراءة الملف",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingLanding(false);
+    }
+  };
+
   const openEditLp = async (lp: LandingPage) => {
     setEditingLpId(lp.id);
     setIsLpEditOpen(true);
@@ -1254,66 +1404,102 @@ const Products = () => {
             {strictStock ? "تتبع المخزون الدقيق: مفعّل" : "تتبع المخزون الدقيق"}
           </Button>
           {activeTab === "products" ? (
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
-                  <Plus className="w-4 h-4" />
-                  إضافة منتج
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-                <DialogHeader>
-                  <DialogTitle>إضافة منتج جديد</DialogTitle>
-                </DialogHeader>
-                <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-                  <ProductForm
-                    mode="product"
-                    product={newProduct}
-                    onProductChange={setNewProduct}
-                    onSubmit={handleAddProduct}
-                    submitText="إضافة المنتج"
-                    isLoading={isSaving}
-                    categories={categories}
+            <>
+              <input
+                ref={productImportRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleImportProductsFile}
+              />
+              <Button
+                variant="outline"
+                className="gap-2 w-full sm:w-auto"
+                disabled={isImportingProducts}
+                onClick={() => productImportRef.current?.click()}
+              >
+                {isImportingProducts ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                استيراد
+              </Button>
+              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
+                    <Plus className="w-4 h-4" />
+                    إضافة منتج
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                  <DialogHeader>
+                    <DialogTitle>إضافة منتج جديد</DialogTitle>
+                  </DialogHeader>
+                  <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+                    <ProductForm
+                      mode="product"
+                      product={newProduct}
+                      onProductChange={setNewProduct}
+                      onSubmit={handleAddProduct}
+                      submitText="إضافة المنتج"
+                      isLoading={isSaving}
+                      categories={categories}
+                    />
+                  </Suspense>
+                </DialogContent>
+              </Dialog>
+            </>
+          ) : activeTab === "landing" ? (
+            <>
+              <input
+                ref={landingImportRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleImportLandingFile}
+              />
+              <Button
+                variant="outline"
+                className="gap-2 w-full sm:w-auto"
+                disabled={isImportingLanding}
+                onClick={() => landingImportRef.current?.click()}
+              >
+                {isImportingLanding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                استيراد
+              </Button>
+              <Dialog open={isLpAddOpen} onOpenChange={(o) => {
+                setIsLpAddOpen(o);
+                if (o) {
+                  const def = lpTemplates.find((t) => t.is_default);
+                  if (def && !newLp.templateId) setNewLp((prev) => ({ ...prev, templateId: def.id }));
+                } else {
+                  setNewLp(emptyLandingPageData);
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
+                    <Plus className="w-4 h-4" />
+                    إنشاء صفحة هبوط
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+                  <DialogHeader>
+                    <DialogTitle>إنشاء صفحة هبوط جديدة</DialogTitle>
+                  </DialogHeader>
+                  <LandingPageForm
+                    data={newLp}
+                    onChange={setNewLp}
+                    onSubmit={handleAddLp}
+                    submitText="إنشاء الصفحة"
+                    isLoading={isSavingLp}
+                    ownerId={effectiveOwnerId}
+                    storeId={activeStoreId}
+                    products={products.map((p) => ({
+                      id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
+                    }))}
+                    templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
                   />
-                </Suspense>
-              </DialogContent>
-            </Dialog>
-          ) : (
-            <Dialog open={isLpAddOpen} onOpenChange={(o) => {
-              setIsLpAddOpen(o);
-              if (o) {
-                const def = lpTemplates.find((t) => t.is_default);
-                if (def && !newLp.templateId) setNewLp((prev) => ({ ...prev, templateId: def.id }));
-              } else {
-                setNewLp(emptyLandingPageData);
-              }
-            }}>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary text-primary-foreground gap-2 w-full sm:w-auto">
-                  <Plus className="w-4 h-4" />
-                  إنشاء صفحة هبوط
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-                <DialogHeader>
-                  <DialogTitle>إنشاء صفحة هبوط جديدة</DialogTitle>
-                </DialogHeader>
-                <LandingPageForm
-                  data={newLp}
-                  onChange={setNewLp}
-                  onSubmit={handleAddLp}
-                  submitText="إنشاء الصفحة"
-                  isLoading={isSavingLp}
-                  ownerId={effectiveOwnerId}
-                  storeId={activeStoreId}
-                  products={products.map((p) => ({
-                    id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
-                  }))}
-                  templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
-                />
-              </DialogContent>
-            </Dialog>
-          )}
+                </DialogContent>
+              </Dialog>
+            </>
+          ) : null}
         </div>
       </div>
 
