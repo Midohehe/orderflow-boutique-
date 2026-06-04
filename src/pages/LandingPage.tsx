@@ -619,25 +619,29 @@ const LandingPage = () => {
               .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
           : Promise.resolve({ data: null, error: null } as any);
 
-        const formQ = supabase.from("order_form_fields").select("id, field_key, label, placeholder, field_type, required").eq("enabled", true);
-        if (ownerForSettings) formQ.eq("owner_id", ownerForSettings);
-        if (storeForSettings) formQ.eq("store_id", storeForSettings);
-        const formFieldsPromise = formQ.order("sort_order", { ascending: true });
+        const formFieldsPromise: Promise<{ data: FormField[] | null; error: unknown }> = ownerForSettings
+          ? (supabase as any)
+              .rpc("get_public_order_form_fields", {
+                _owner_id: ownerForSettings,
+                _store_id: storeForSettings || null,
+              })
+              .then((res: { data: FormField[] | null; error: unknown }) => ({
+                data: (res.data || []) as FormField[],
+                error: res.error,
+              }))
+          : Promise.resolve({ data: [], error: null });
 
         const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text, theme_tokens, theme_custom_css");
         if (ownerForSettings) storeQ.eq("owner_id", ownerForSettings);
         if (storeForSettings) storeQ.eq("store_id", storeForSettings);
         const storePromise = storeQ.maybeSingle();
 
-        const catalogPromise = supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true);
-
-        Promise.all([pixelPromise, formFieldsPromise, storePromise, catalogPromise]).then(([pixelResult, formFieldsResult, storeSettingsResult, catalogResult]) => {
-          if (formFieldsResult.data) {
-            const allowed = new Set((catalogResult.data || []).map((c: any) => c.field_key));
-            const filtered = (formFieldsResult.data as FormField[]).filter(f => allowed.size === 0 || allowed.has(f.field_key));
-            setFormFields(filtered);
-            setToCache(formKey, filtered);
-            setFormData((prev) => ensureFormFieldKeys(prev, filtered));
+        Promise.all([pixelPromise, formFieldsPromise, storePromise]).then(([pixelResult, formFieldsResult, storeSettingsResult]) => {
+          if (formFieldsResult.data?.length) {
+            const fields = formFieldsResult.data as FormField[];
+            setFormFields(fields);
+            setToCache(formKey, fields);
+            setFormData((prev) => ensureFormFieldKeys(prev, fields));
           }
 
           if (storeSettingsResult.data) {

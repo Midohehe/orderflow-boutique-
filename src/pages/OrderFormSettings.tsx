@@ -51,10 +51,15 @@ const OrderFormSettings = () => {
         if (!user || !effectiveOwnerId || !activeStoreId) return;
         setLoading(true);
 
+        await supabase.rpc("seed_store_defaults", {
+          _owner_id: effectiveOwnerId,
+          _store_id: activeStoreId,
+        });
+
         const [{ data: cat }, { data: existing }, { data: storeRow }] = await Promise.all([
           supabase.from("form_field_catalog").select("*").order("sort_order"),
           supabase.from("order_form_fields").select("*").eq("store_id", activeStoreId).order("sort_order"),
-          supabase.from("store_settings").select("button_text, success_message").eq("owner_id", effectiveOwnerId).maybeSingle(),
+          supabase.from("store_settings").select("button_text, success_message").eq("owner_id", effectiveOwnerId).eq("store_id", activeStoreId).maybeSingle(),
         ]);
 
         if (storeRow) {
@@ -67,25 +72,7 @@ const OrderFormSettings = () => {
         const catalogRows = (cat || []) as CatalogItem[];
         setCatalog(catalogRows);
 
-        let rows = existing || [];
-        // Auto-seed any missing catalog fields for this owner
-        const existingKeys = new Set(rows.map((r: any) => r.field_key));
-        const missing = catalogRows.filter(c => !existingKeys.has(c.field_key));
-        if (missing.length > 0) {
-          const { data: inserted } = await supabase.from("order_form_fields")
-            .insert(missing.map(c => ({
-              owner_id: effectiveOwnerId,
-              store_id: activeStoreId,
-              field_key: c.field_key,
-              label: c.label,
-              placeholder: c.default_placeholder,
-              field_type: c.field_type,
-              required: c.default_required,
-              enabled: c.default_required,
-              sort_order: c.sort_order,
-            }))).select();
-          if (inserted) rows = [...rows, ...inserted];
-        }
+        const rows = existing || [];
 
         setFormFields(rows.map((f: any) => ({
           id: f.id, field_key: f.field_key, label: f.label, placeholder: f.placeholder,
@@ -140,10 +127,11 @@ const OrderFormSettings = () => {
           })
           .eq("id", f.id);
       }
-      if (effectiveOwnerId) {
+      if (effectiveOwnerId && activeStoreId) {
         await supabase.from("store_settings")
           .update({ button_text: settings.buttonText, success_message: settings.successMessage })
-          .eq("owner_id", effectiveOwnerId);
+          .eq("owner_id", effectiveOwnerId)
+          .eq("store_id", activeStoreId);
       }
       toast({ title: "تم الحفظ", description: "تم حفظ إعدادات نموذج الطلب" });
     } catch (e) {
