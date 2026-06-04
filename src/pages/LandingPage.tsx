@@ -13,6 +13,12 @@ import StoreHeader from "@/components/StoreHeader";
 import { StoreThemeScope } from "@/components/StoreThemeScope";
 import { parseThemeTokens, type StoreThemeTokens } from "@/lib/themeTokens";
 import {
+  resolveAttributionFromUrl,
+  getAnalyticsSessionId,
+  hasTrackedPageView,
+  markPageViewTracked,
+} from "@/lib/analyticsAttribution";
+import {
   autocompleteForField,
   inputTypeForField,
   mapCreateOrderError,
@@ -269,6 +275,7 @@ const LandingPage = () => {
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
   const checkoutTrackedRef = useRef(false);
+  const pageViewTrackedRef = useRef(false);
   const formFieldsRef = useRef<FormField[]>([]);
   const productRef = useRef<Product | null>(null);
   const storeSettingsRef = useRef(storeSettings);
@@ -325,39 +332,25 @@ const LandingPage = () => {
   const [itemVariants, setItemVariants] = useState<ItemVariant[]>([{ color: "", size: "", productCode: "" }]);
   
   
-  // Get UTM source from URL params
-  const getUtmSource = () => {
-    const utmSource = searchParams.get("utm_source");
-    if (utmSource) return utmSource;
-    
-    // Try to detect from referrer
-    const referrer = document.referrer;
-    if (referrer.includes("facebook.com") || referrer.includes("fb.com")) return "facebook";
-    if (referrer.includes("instagram.com")) return "instagram";
-    if (referrer.includes("tiktok.com")) return "tiktok";
-    if (referrer.includes("google.com")) return "google";
-    if (referrer.includes("twitter.com") || referrer.includes("x.com")) return "twitter";
-    if (referrer.includes("snapchat.com")) return "snapchat";
-    
-    return "direct";
-  };
+  const getAttribution = useCallback(() => {
+    return resolveAttributionFromUrl(searchParams, typeof document !== "undefined" ? document.referrer : "");
+  }, [searchParams]);
 
-  // Full UTM + FB attribution captured from URL
-  const getAttribution = () => {
-    const fbclid = searchParams.get("fbclid") || "";
-    const inferredSource = (fbclid && !searchParams.get("utm_source")) ? "facebook" : getUtmSource();
-    return {
-      utm_source: inferredSource,
-      utm_medium: searchParams.get("utm_medium") || (fbclid ? "paid" : null),
-      utm_campaign: searchParams.get("utm_campaign") || null,
-      utm_content: searchParams.get("utm_content") || null,
-      utm_term: searchParams.get("utm_term") || null,
-      fb_campaign_id: searchParams.get("fb_campaign_id") || searchParams.get("utm_campaign") || null,
-      fb_adset_id: searchParams.get("fb_adset_id") || searchParams.get("utm_term") || null,
-      fb_ad_id: searchParams.get("fb_ad_id") || searchParams.get("utm_content") || null,
-      fbclid: fbclid || null,
-    };
-  };
+  const trackAnalyticsEvent = useCallback(
+    (eventType: "page_view" | "checkout_start" | "purchase", productSlug: string, owner: string | null, store: string | null) => {
+      const sessionId = getAnalyticsSessionId();
+      const attr = getAttribution();
+      return supabase.from("analytics_events").insert({
+        event_type: eventType,
+        product_slug: productSlug,
+        owner_id: owner,
+        store_id: store,
+        session_id: sessionId,
+        ...attr,
+      } as any);
+    },
+    [getAttribution]
+  );
 
   useEffect(() => {
     const ac = new AbortController();
@@ -660,16 +653,16 @@ const LandingPage = () => {
             setToCache(pixelKey, pixelResult.data);
           }
 
-          // Track page view in background (non-blocking)
-          if (loadedProduct) {
-            const attr = getAttribution();
-            supabase.from("analytics_events").insert({
-              event_type: "page_view",
-              product_slug: slug,
-              owner_id: ownerForSettings || null,
-              store_id: storeForSettings || null,
-              ...attr,
-            } as any).then(() => {});
+          // Track one page view per session (deduped)
+          if (loadedProduct && slug && !pageViewTrackedRef.current) {
+            const sessionId = getAnalyticsSessionId();
+            if (!hasTrackedPageView(slug, sessionId)) {
+              pageViewTrackedRef.current = true;
+              markPageViewTracked(slug, sessionId);
+              trackAnalyticsEvent("page_view", slug, ownerForSettings || null, storeForSettings || null).then(({ error }) => {
+                if (error) console.error("page_view tracking:", error);
+              });
+            }
           }
 
           // Initialize tracking pixels when browser is idle
@@ -689,6 +682,7 @@ const LandingPage = () => {
     };
 
     loadData();
+    pageViewTrackedRef.current = false;
     return () => ac.abort();
   }, [slug, username, isPreviewMode]);
 
@@ -804,14 +798,12 @@ const LandingPage = () => {
         }
       }
 
-      const attr = getAttribution();
-      supabase.from("analytics_events").insert({
-        event_type: "checkout_start",
-        product_slug: slugRef.current,
-        owner_id: ownerIdRef.current || null,
-        store_id: storeIdRef.current || null,
-        ...attr,
-      } as any).then(({ error }) => {
+      trackAnalyticsEvent(
+        "checkout_start",
+        slugRef.current || slug || "",
+        ownerIdRef.current || null,
+        storeIdRef.current || null
+      ).then(({ error }) => {
         if (error) console.error("Error tracking checkout start:", error);
       });
     }
@@ -1064,14 +1056,7 @@ const LandingPage = () => {
     if (!checkoutTrackedRef.current) {
       checkoutTrackedRef.current = true;
       try {
-        const attr = getAttribution();
-        supabase.from("analytics_events").insert({
-          event_type: "checkout_start",
-          product_slug: slug,
-          owner_id: ownerId || null,
-          store_id: storeId || null,
-          ...attr,
-        } as any).then(({ error }) => {
+        trackAnalyticsEvent("checkout_start", slug || "", ownerId || null, storeId || null).then(({ error }) => {
           if (error) console.error("Error tracking checkout start (submit):", error);
         });
       } catch (err) {
@@ -1177,8 +1162,11 @@ const LandingPage = () => {
         throw new Error(mapCreateOrderError(String((data as { error: string }).error)));
       }
 
-      // Track purchase event
+      // Track purchase event (pixels + internal analytics)
       trackPurchaseEvent();
+      trackAnalyticsEvent("purchase", slug || "", ownerId || null, storeId || null).then(({ error }) => {
+        if (error) console.error("purchase tracking:", error);
+      });
 
       const orderPrice =
         selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
