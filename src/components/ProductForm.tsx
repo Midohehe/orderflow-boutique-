@@ -235,13 +235,22 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
   const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null }>>([]);
   const [eoProducts, setEoProducts] = useState<Array<{ external_id: string; name: string | null; sku: string | null; variants: any }>>([]);
   useEffect(() => {
-    supabase.from("shipping_warehouse_products").select("external_id, code, name").order("name").then(({ data }) => {
-      setWhProducts(data || []);
-    });
+    if (!activeStoreId) {
+      setWhProducts([]);
+      return;
+    }
+    supabase
+      .from("shipping_warehouse_products")
+      .select("external_id, code, name")
+      .eq("store_id", activeStoreId)
+      .order("name")
+      .then(({ data }) => {
+        setWhProducts(data || []);
+      });
     supabase.from("easyorders_products").select("external_id, name, sku, variants").order("name").then(({ data }) => {
       setEoProducts((data || []) as any);
     });
-  }, []);
+  }, [activeStoreId]);
 
   const selectedEoProduct = eoProducts.find((p) => p.external_id === product.easyOrdersProductId);
   const eoVariants: Array<{ id: string; name: string | null; sku: string | null; props: any[] }> = Array.isArray(selectedEoProduct?.variants)

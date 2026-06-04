@@ -458,6 +458,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
         return {
           order_id: orderId,
           owner_id: data.owner_id,
+          store_id: data.store_id,
           product_id: it.product_id,
           product_name: it.product_name,
           selected_color: it.selected_color,

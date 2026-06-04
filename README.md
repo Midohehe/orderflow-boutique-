@@ -150,7 +150,7 @@ Landing-page SSR (`landing-ssr`) fetches the SPA shell from `APP_ORIGIN` (or `SI
 1. Build the frontend: `npm run build`
 2. Deploy `dist/` to any static host (Cloudflare Pages, Netlify, nginx, etc.)
 3. Deploy Supabase edge functions: `supabase functions deploy`
-4. Optionally use `cloudflare-worker/worker.js` to route `/p/*` to SSR and everything else to your SPA
+4. Landing SSR: on **Vercel**, `middleware.ts` routes `/p/*` to `landing-ssr` automatically (set `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` in the project). On **Cloudflare**, use `cloudflare-worker/worker.js` instead.
 
 ## License
 

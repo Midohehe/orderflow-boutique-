@@ -239,6 +239,7 @@ const LandingPage = () => {
   const { slug, username } = useParams<{ slug: string; username?: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isPreviewMode = searchParams.get("preview") === "1";
   const [product, setProduct] = useState<Product | null>(null);
   const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -396,11 +397,14 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart")
+          .select("id, product_id, store_id, owner_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart")
           .eq("slug", slug)
           .maybeSingle();
 
         const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
+        if ((landingRes as any).error) {
+          console.error("landing_pages fetch:", (landingRes as any).error);
+        }
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
         const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
@@ -416,7 +420,10 @@ const LandingPage = () => {
 
         const productRes = await productPromise;
 
-        if (ac.signal.aborted) return;
+        if (ac.signal.aborted) {
+          setLoading(false);
+          return;
+        }
         let resolvedOwnerId: string | null = null;
         let resolvedStoreId: string | null = storeBySlug?.id || landingPage?.store_id || null;
         if (storeBySlug) {
@@ -431,12 +438,41 @@ const LandingPage = () => {
         if (resolvedStoreId) setStoreId(resolvedStoreId);
 
         if (productRes.error) throw productRes.error;
-        const rows = (productRes.data as any[]) || [];
+        const rows = Array.isArray(productRes.data)
+          ? productRes.data
+          : productRes.data
+            ? [productRes.data]
+            : [];
         const matched = resolvedOwnerId ? rows.find((r) => r.owner_id === resolvedOwnerId) : rows[0];
 
-        // إذا كانت الصفحة مخفية أو المنتج مخفي، أوقف
-        if (landingPage && landingPage.is_visible === false) { setLoading(false); return; }
-        if (matched && matched.is_visible === false && !landingPage) { setLoading(false); return; }
+        // Dashboard preview (?preview=1): allow hidden pages for authenticated store owners
+        let allowHiddenPreview = false;
+        if (isPreviewMode) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const pageOwnerId = landingPage?.owner_id || matched?.owner_id;
+            if (pageOwnerId === user.id) {
+              allowHiddenPreview = true;
+            } else if (pageOwnerId) {
+              const { data: effectiveOwnerId } = await (supabase as any).rpc("get_effective_owner_id", {
+                _uid: user.id,
+              });
+              if (effectiveOwnerId && pageOwnerId === effectiveOwnerId) {
+                allowHiddenPreview = true;
+              }
+            }
+          }
+        }
+
+        // إذا كانت الصفحة مخفية أو المنتج مخفي، أوقف (ما لم تكن معاينة للمالك)
+        if (landingPage && landingPage.is_visible === false && !allowHiddenPreview) {
+          setLoading(false);
+          return;
+        }
+        if (matched && matched.is_visible === false && !landingPage && !allowHiddenPreview) {
+          setLoading(false);
+          return;
+        }
 
         let loadedProduct: Product | null = null;
         if (matched) {
@@ -455,6 +491,7 @@ const LandingPage = () => {
           const lpHasUpsell = lp ? lp.upsell_enabled : null;
           loadedProduct = {
             id: matched.id,
+            owner_id: matched.owner_id,
             name: matched.name,
             slug: lp?.slug || matched.slug,
             price: String(lp?.price ?? matched.price),
@@ -653,7 +690,7 @@ const LandingPage = () => {
 
     loadData();
     return () => ac.abort();
-  }, [slug, username]);
+  }, [slug, username, isPreviewMode]);
 
   // Sanitize description in background, after main render
   useEffect(() => {
@@ -761,6 +798,17 @@ const LandingPage = () => {
       });
     }
   }, []);
+
+  const puckHasContent = !!(puckData && Array.isArray(puckData?.content) && puckData.content.length > 0);
+  const puckCtx = useMemo(
+    () => ({
+      ownerId: product?.owner_id || ownerId || undefined,
+      storeId: storeId || undefined,
+      username,
+      currencySymbol: storeSettings.currency_symbol,
+    }),
+    [product?.owner_id, ownerId, storeId, username, storeSettings.currency_symbol]
+  );
 
   const initializePixels = (settings: PixelSettings, productData: Product | null, currencyCode: string) => {
     // Facebook Pixel
@@ -1672,16 +1720,6 @@ const LandingPage = () => {
           </section>
         )}
     </>
-  );
-  const puckHasContent = !!(puckData && Array.isArray(puckData?.content) && puckData.content.length > 0);
-  const puckCtx = useMemo(
-    () => ({
-      ownerId: product?.owner_id || ownerId || undefined,
-      storeId: storeId || undefined,
-      username,
-      currencySymbol: storeSettings.currency_symbol,
-    }),
-    [product?.owner_id, ownerId, storeId, username, storeSettings.currency_symbol]
   );
 
   return (

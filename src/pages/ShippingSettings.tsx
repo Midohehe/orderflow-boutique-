@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, CheckCircle2, AlertCircle } from "lucide-react";
 import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 
 interface ShippingSettings {
   id?: string;
@@ -302,22 +303,39 @@ const ShippingSettingsPage = () => {
   };
 
   const loadCount = async () => {
-    const { count } = await supabase.from("shipping_warehouse_products").select("*", { count: "exact", head: true });
+    if (!activeStoreId) {
+      setWhCount(0);
+      return;
+    }
+    const { count } = await supabase
+      .from("shipping_warehouse_products")
+      .select("*", { count: "exact", head: true })
+      .eq("store_id", activeStoreId);
     setWhCount(count || 0);
   };
-  useEffect(() => { loadCount(); }, []);
+  useEffect(() => {
+    loadCount();
+    setShowCompare(false);
+    setWhProducts([]);
+  }, [activeStoreId]);
 
   const loadComparison = async () => {
+    if (!activeStoreId) {
+      toast({ title: "اختر متجراً", description: "يجب اختيار متجر قبل عرض منتجات المخزن", variant: "destructive" });
+      return;
+    }
     setCompareLoading(true);
     try {
       const [{ data: wh }, { data: prods }] = await Promise.all([
         supabase
           .from("shipping_warehouse_products")
           .select("external_id, code, name, stock, synced_at")
+          .eq("store_id", activeStoreId)
           .order("name"),
         supabase
           .from("products")
-          .select("id, name, variant_warehouse_codes, variant_stock, stock"),
+          .select("id, name, variant_warehouse_codes, variant_stock, stock")
+          .eq("store_id", activeStoreId),
       ]);
       setWhProducts((wh || []) as any);
       setLocalProducts((prods || []) as any);
@@ -408,10 +426,16 @@ const ShippingSettingsPage = () => {
   }, []);
 
   const handleSyncProducts = async () => {
+    if (!activeStoreId) {
+      toast({ title: "اختر متجراً", description: "يجب اختيار متجر قبل مزامنة منتجات المخزن", variant: "destructive" });
+      return;
+    }
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-warehouse-products");
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke("sync-warehouse-products", {
+        body: { store_id: activeStoreId },
+      });
+      if (error) throw new Error(await getEdgeFunctionErrorMessage(error, data));
       if ((data as any)?.error) throw new Error((data as any).error);
       toast({ title: "تمت المزامنة", description: `تم جلب ${(data as any)?.count ?? 0} منتج من مخزن الشركة` });
       await loadCount();
