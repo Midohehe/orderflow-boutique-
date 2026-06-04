@@ -63,8 +63,8 @@ function absolutizeAssets(html: string): string {
   return html;
 }
 
-function buildHead(product: any, currency: string, pageUrl: string): string {
-  const title = escapeHtml(product.name);
+function buildHead(product: any, currency: string, pageUrl: string, platformName: string): string {
+  const title = escapeHtml(`${product.name} | ${platformName}`);
   const desc = escapeHtml(stripTags(product.description || product.name).slice(0, 160));
   const img = product.images?.[0] || "";
   const price = product.price;
@@ -134,6 +134,14 @@ function buildAboveFold(product: any, currency: string, puckHero?: { title?: str
   </div>
 </div>
 `;
+}
+
+const DEFAULT_PLATFORM_NAME = "منصة وصلة";
+
+async function getPlatformName(): Promise<string> {
+  const { data } = await supabase.from("app_settings").select("system_name").limit(1).maybeSingle();
+  const name = String(data?.system_name ?? "").trim();
+  return name || DEFAULT_PLATFORM_NAME;
 }
 
 async function getStoreCurrency(ownerId: string | null): Promise<string> {
@@ -268,7 +276,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const currency = await getStoreCurrency(product.owner_id);
+    const [currency, platformName] = await Promise.all([
+      getStoreCurrency(product.owner_id),
+      getPlatformName(),
+    ]);
     const { tokens: themeTokens, customCss: themeCustomCss } = await getStoreTheme(
       product.owner_id,
       (product as { store_id?: string }).store_id ?? null
@@ -277,7 +288,7 @@ Deno.serve(async (req) => {
     const pageUrl = `https://${publicHost}${targetPath}`;
     const shell = absolutizeAssets(await getShell());
     const themeCss = themeTokensToSsrCssFromTokens(themeTokens, "#root", themeCustomCss);
-    const headInjection = buildHead(product, currency, pageUrl) + `<style id="ssr-theme">${themeCss}</style>`;
+    const headInjection = buildHead(product, currency, pageUrl, platformName) + `<style id="ssr-theme">${themeCss}</style>`;
     const bodyInjection = puckHasRenderableContent(puckData)
       ? renderPuckToHtml(puckData)
       : buildAboveFold(product, currency, puckHero);

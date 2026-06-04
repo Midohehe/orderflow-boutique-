@@ -692,6 +692,24 @@ const LandingPage = () => {
     return () => ac.abort();
   }, [slug, username, isPreviewMode]);
 
+  useEffect(() => {
+    if (!product?.name) return;
+    let cancelled = false;
+    supabase
+      .from("app_settings")
+      .select("system_name")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const platform = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
+        document.title = `${product.name} | ${platform}`;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [product?.name]);
+
   // Sanitize description in background, after main render
   useEffect(() => {
     if (!product?.description) {
