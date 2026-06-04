@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { useStoreContext } from "@/hooks/useStoreContext";
 
-interface Safe { id: string; name: string; balance: number; }
+interface Safe { id: string; name: string; balance: number; allow_negative_balance?: boolean; }
 interface ExpenseType { id: string; name: string; }
 interface Expense {
   id: string; amount: number; notes: string | null; created_at: string;
@@ -42,7 +42,7 @@ const Expenses = () => {
     if (!activeStoreId) { setSafes([]); setTypes([]); setExpenses([]); setLoading(false); return; }
     setLoading(true);
     const [sa, ty, ex] = await Promise.all([
-      supabase.from("safes").select("id, name, balance").eq("store_id", activeStoreId).order("created_at"),
+      supabase.from("safes").select("id, name, balance, allow_negative_balance").eq("store_id", activeStoreId).order("created_at"),
       supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId).order("created_at"),
       supabase.from("expenses").select("id, amount, notes, created_at, safe_id, expense_type_id").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
     ]);
@@ -56,6 +56,15 @@ const Expenses = () => {
   const submit = async () => {
     const amt = Number(amount);
     if (!amt || amt <= 0 || !safeId) return;
+    const safe = safes.find((s) => s.id === safeId);
+    if (safe && !safe.allow_negative_balance && Number(safe.balance) < amt) {
+      toast({
+        title: "رصيد غير كافٍ",
+        description: `الرصيد الحالي ${Number(safe.balance).toFixed(2)} — المطلوب ${amt.toFixed(2)}`,
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { data: inserted, error } = await supabase.from("expenses").insert({
@@ -63,12 +72,17 @@ const Expenses = () => {
       notes: notes || null, owner_id: user!.id, store_id: activeStoreId,
     }).select("id").single();
     if (error || !inserted) { toast({ title: "خطأ", description: error?.message, variant: "destructive" }); setSaving(false); return; }
-    // Safe balance is updated automatically by sync_safe_balance trigger
-    await supabase.from("safe_movements").insert({
+    const { error: movErr } = await supabase.from("safe_movements").insert({
       safe_id: safeId, amount: -amt, movement_type: "expense",
       reference_id: inserted.id,
       notes: notes || (typeId ? types.find(t => t.id === typeId)?.name : null), owner_id: user!.id, store_id: activeStoreId,
     });
+    if (movErr) {
+      await supabase.from("expenses").delete().eq("id", inserted.id);
+      toast({ title: "خطأ", description: movErr.message, variant: "destructive" });
+      setSaving(false);
+      return;
+    }
     toast({ title: "تمت إضافة المصروف" });
     setAmount(""); setTypeId(""); setSafeId(""); setNotes(""); setAddOpen(false); setSaving(false);
     load();

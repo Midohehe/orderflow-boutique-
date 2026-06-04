@@ -1,0 +1,7 @@
+{
+  "_instructions": "Copy this file to VALIDATION_APPROVED.json and fill in values after reviewing MIGRATION_PLAN.md and MIGRATION_REPORT.md. Do NOT commit secrets.",
+  "approved_by": "",
+  "approved_at": "",
+  "new_project_ref": "",
+  "notes": ""
+}

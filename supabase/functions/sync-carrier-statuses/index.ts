@@ -2,6 +2,7 @@
 // Turbo / Accurate GraphQL `shipment(id)` for each order's shipping_id.
 // Returns the distinct status codes encountered so the user can label them.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { carrierCodeToOrderStatus } from "../_shared/carrier-order-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -238,16 +239,9 @@ Deno.serve(async (req) => {
         updatePayload.carrier_notes = String(sh.notes);
       }
       const upper = String(composite).toUpperCase();
-      // Auto-transition order.status based on carrier status code:
-      //   RTRN / RCV -> returned_received
-      //   UPKBD / UKDB / UPKBL -> unpacked
-      // NOTE: DTR* (delivered by carrier) does NOT change local status.
-      // Local "delivered" is set only via financial settlements tab.
-      if (upper === "UPKBD" || upper === "UKDB" || upper === "UPKBL") {
-        updatePayload.status = "unpacked";
-      } else if (upper === "RTRN" || upper === "RCV") {
-        updatePayload.status = "returned_received";
-      }
+      const autoDeliver = settings.auto_mark_delivered !== false;
+      const nextStatus = carrierCodeToOrderStatus(upper, autoDeliver);
+      if (nextStatus) updatePayload.status = nextStatus;
       const { error: uErr } = await admin.from("orders").update(updatePayload).eq("id", o.id);
       if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); return; }
       updated++;

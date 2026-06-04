@@ -7,6 +7,7 @@
 // {city:"الصين", area:"بنغازي"} just because "بنغازي" exists as a sub-zone of
 // a China-shipping service zone.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { chatCompletions, getAiConfig, getAiModel } from "../_shared/ai-client.ts";
 import { defaultCityAreas } from "../_shared/defaultCityAreas.ts";
 
 const corsHeaders = {
@@ -344,7 +345,7 @@ function pickArea(city: CityCatalog, inputTokens: string[], inputNorm: string): 
 }
 
 // ============= AI fallback: city only =============
-async function aiPickCity(catalog: CityCatalog[], city: string, address: string, apiKey: string): Promise<string | null> {
+async function aiPickCity(catalog: CityCatalog[], city: string, address: string): Promise<string | null> {
   const cityList = catalog.map((c) => c.canonical).join("، ");
   const prompt = `أنت خبير بجغرافيا ليبيا. لديك القائمة التالية من المدن المتاحة للشحن:
 
@@ -379,17 +380,12 @@ ${cityList}
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "user", content: prompt }],
-        tools: [tool],
-        tool_choice: { type: "function", function: { name: "pick_city" } },
-      }),
-      signal: ctrl.signal,
-    });
+    const res = await chatCompletions({
+      model: getAiModel("google/gemini-2.5-flash"),
+      messages: [{ role: "user", content: prompt }],
+      tools: [tool],
+      tool_choice: { type: "function", function: { name: "pick_city" } },
+    }, { signal: ctrl.signal });
     if (!res.ok) {
       console.error("aiPickCity status", res.status, await res.text().catch(() => ""));
       return null;
@@ -505,10 +501,9 @@ Deno.serve(async (req) => {
       || ((cityPick as any).uncertain && cityPick.score <= 90);
 
     if (needsAi) {
-      // AI fallback (city only)
-      const apiKey = Deno.env.get("LOVABLE_API_KEY");
+      const { apiKey } = getAiConfig();
       if (apiKey) {
-        const aiCity = await aiPickCity(catalog, cityInput, addrInput, apiKey);
+        const aiCity = await aiPickCity(catalog, cityInput, addrInput);
         if (aiCity) {
           const key = norm(aiCity);
           const found = catalog.find((c) => c.norm === key);

@@ -1,4 +1,4 @@
-project_id = "iyqooryhmshlajuhabmc"
+project_id = "sukehkrhvasfnoheyvvx"
 
 [functions]
   [functions.apply-order-stock]
@@ -11,6 +11,8 @@ project_id = "iyqooryhmshlajuhabmc"
     verify_jwt = false
   [functions.landing-ssr]
     verify_jwt = false
+  [functions.purge-landing-cache]
+    verify_jwt = true
   [functions.match-city]
     verify_jwt = false
   [functions.process-email-queue]

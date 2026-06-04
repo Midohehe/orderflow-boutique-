@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, KeyRound, Users, Save } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
+import { parsePlanLimitError, planLimitMessage } from "@/lib/planLimits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -78,7 +78,12 @@ const StoreMembers = () => {
       setForm({ email: "", password: "", display_name: "", group_id: "", extra_permissions: new Set() });
       refresh();
     } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+      const limit = parsePlanLimitError(e.message || "");
+      toast({
+        title: limit ? "حد الخطة" : "خطأ",
+        description: limit ? planLimitMessage(limit.metric, limit.limit) : e.message,
+        variant: "destructive",
+      });
     } finally { setCreating(false); }
   };
 

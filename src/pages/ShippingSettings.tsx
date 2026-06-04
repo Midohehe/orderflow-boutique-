@@ -16,6 +16,7 @@ interface ShippingSettings {
   password: string;
   endpoint: string;
   enabled: boolean;
+  auto_mark_delivered: boolean;
 }
 
 const DEFAULT: ShippingSettings = {
@@ -23,6 +24,7 @@ const DEFAULT: ShippingSettings = {
   password: "",
   endpoint: "https://turboex.ly:8001/graphql",
   enabled: false,
+  auto_mark_delivered: true,
 };
 
 const ShippingSettingsPage = () => {
@@ -431,8 +433,14 @@ const ShippingSettingsPage = () => {
         .eq("store_id", activeStoreId)
         .order("updated_at", { ascending: false })
         .limit(1);
-      if (data && data.length > 0) setSettings(data[0] as ShippingSettings);
-      else setSettings(DEFAULT);
+      if (data && data.length > 0) {
+        const row = data[0] as ShippingSettings;
+        setSettings({
+          ...DEFAULT,
+          ...row,
+          auto_mark_delivered: row.auto_mark_delivered !== false,
+        });
+      } else setSettings(DEFAULT);
       setLoading(false);
     })();
   }, [activeStoreId]);
@@ -467,6 +475,7 @@ const ShippingSettingsPage = () => {
       password: settings.password,
       endpoint: settings.endpoint.trim(),
       enabled: settings.enabled,
+      auto_mark_delivered: settings.auto_mark_delivered,
     };
     const { error } = settings.id
       ? await supabase.from("shipping_settings").update(payload).eq("id", settings.id)
@@ -519,6 +528,19 @@ const ShippingSettingsPage = () => {
             <Switch
               checked={settings.enabled}
               onCheckedChange={(v) => setSettings({ ...settings, enabled: v })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div>
+              <Label className="font-medium">تحديث «تم الاستلام» تلقائياً</Label>
+              <p className="text-xs text-muted-foreground">
+                عند وصول أكواد DTR من شركة الشحن (تم التسليم)، يُحدَّث حالة الطلب إلى «تم الاستلام» تلقائياً
+              </p>
+            </div>
+            <Switch
+              checked={settings.auto_mark_delivered}
+              onCheckedChange={(v) => setSettings({ ...settings, auto_mark_delivered: v })}
             />
           </div>
 

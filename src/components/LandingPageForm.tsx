@@ -105,9 +105,22 @@ interface LandingPageFormProps {
   /** عند التعديل: لا نسمح بتغيير المنتج المرتبط */
   lockProduct?: boolean;
   templates?: Array<{ id: string; name: string; is_default?: boolean }>;
+  ownerId?: string | null;
+  storeId?: string | null;
 }
 
-const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, products, lockProduct, templates }: LandingPageFormProps) => {
+const LandingPageForm = ({
+  data,
+  onChange,
+  onSubmit,
+  submitText,
+  isLoading,
+  products,
+  lockProduct,
+  templates,
+  ownerId,
+  storeId,
+}: LandingPageFormProps) => {
   const update = <K extends keyof LandingPageFormData>(field: K, value: LandingPageFormData[K]) => {
     onChange({ ...data, [field]: value });
   };
@@ -203,6 +216,8 @@ const LandingPageForm = ({ data, onChange, onSubmit, submitText, isLoading, prod
           images={data.images}
           onImagesChange={(images) => update("images", images)}
           maxImages={5}
+          ownerId={ownerId}
+          storeId={storeId}
         />
       </SectionCard>
 

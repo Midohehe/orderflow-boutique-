@@ -161,6 +161,7 @@ async function handleWati(supabase: any, ownerId: string, settings: any, payload
     if (intent) {
       await supabase.from("orders").update({
         confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+        ...(intent === "cancel" ? { status: "cancelled" } : {}),
         confirmed_at: new Date().toISOString(),
       }).eq("id", convOrderId).eq("owner_id", ownerId);
 
@@ -372,6 +373,7 @@ async function handleWhatChimp(supabase: any, ownerId: string, settings: any, pa
     if (intent && canUseAutoConfirm) {
       await supabase.from("orders").update({
         confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+        ...(intent === "cancel" ? { status: "cancelled" } : {}),
         confirmed_at: new Date().toISOString(),
       }).eq("id", convOrderId).eq("owner_id", ownerId);
 

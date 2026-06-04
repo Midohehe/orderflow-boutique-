@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save } from "lucide-react";
+import { Plus, Eye, EyeOff, Trash2, Package, Edit, Copy, ExternalLink, Loader2, Layout, Link2, ShieldCheck, ShieldOff, FolderTree, Save, Paintbrush } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +25,7 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { isolateLatin } from "@/lib/bidi";
 import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
+import { purgeLandingCache } from "@/lib/purgeLandingCache";
 
 const ProductForm = lazy(() => import("@/components/ProductForm"));
 
@@ -102,8 +103,8 @@ const Products = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState<ProductFormData>(emptyFormData);
   const [editProduct, setEditProduct] = useState<ProductFormData>(emptyFormData);
-  const { isAdmin, loading: userLoading } = useUserContext();
-  const { activeStoreId, loading: storeLoading } = useStoreContext();
+  const { isAdmin, loading: userLoading, effectiveOwnerId } = useUserContext();
+  const { activeStoreId, activeStore, loading: storeLoading } = useStoreContext();
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ" });
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1029,6 +1030,7 @@ const Products = () => {
       setLandingPages((prev) => [data as any, ...prev]);
       setNewLp(emptyLandingPageData);
       setIsLpAddOpen(false);
+      await purgeLandingCache(newLp.slug.trim(), activeStore?.slug);
       toast({ title: "تم", description: "تم إنشاء صفحة الهبوط" });
     } catch (e) {
       console.error(e);
@@ -1161,6 +1163,7 @@ const Products = () => {
       } : lp));
       setIsLpEditOpen(false);
       setEditingLpId(null);
+      await purgeLandingCache(editLp.slug.trim(), activeStore?.slug);
       toast({ title: "تم", description: "تم تحديث صفحة الهبوط" });
     } catch (e) {
       console.error(e);
@@ -1301,6 +1304,8 @@ const Products = () => {
                   onSubmit={handleAddLp}
                   submitText="إنشاء الصفحة"
                   isLoading={isSavingLp}
+                  ownerId={effectiveOwnerId}
+                  storeId={activeStoreId}
                   products={products.map((p) => ({
                     id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
                   }))}
@@ -1355,6 +1360,8 @@ const Products = () => {
               submitText="حفظ التعديلات"
               isLoading={isSavingLp}
               lockProduct
+              ownerId={effectiveOwnerId}
+              storeId={activeStoreId}
               products={products.map((p) => ({
                 id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
               }))}
@@ -1600,6 +1607,15 @@ const Products = () => {
                         <Eye className="w-3 h-3" />
                         معاينة
                         <ExternalLink className="w-2.5 h-2.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        onClick={() => navigate(`/dashboard/page-builder?landing=${lp.id}`)}
+                      >
+                        <Paintbrush className="w-3 h-3" />
+                        التصميم
                       </Button>
                       <Button
                         size="sm"

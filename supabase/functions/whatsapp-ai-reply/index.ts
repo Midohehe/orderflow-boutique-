@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { chatCompletions, getAiConfig, getAiModel } from "../_shared/ai-client.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -319,9 +320,9 @@ ${priceListText || "(لم تُعدّ بعد)"}
 ${customInstructionsBlock}${qaBlock}
 `;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    const { apiKey } = getAiConfig();
+    if (!apiKey) {
+      console.error("AI_API_KEY not configured");
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -616,21 +617,17 @@ ${customInstructionsBlock}${qaBlock}
     let createOrderSucceeded = false;
     let nudgedForCreateOrder = false;
     for (let i = 0; i < 6; i++) {
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: chatMessages,
-          tools,
-          temperature: 0.5,
-        }),
+      const aiRes = await chatCompletions({
+        model: getAiModel("google/gemini-2.5-flash"),
+        messages: chatMessages,
+        tools,
+        temperature: 0.5,
       });
       if (!aiRes.ok) {
         const text = await aiRes.text();
         console.error("AI gateway error:", aiRes.status, text);
         let errMsg = "AI gateway error";
-        if (aiRes.status === 402) errMsg = "رصيد الذكاء الاصطناعي منتهٍ — يرجى شحن رصيد Lovable AI";
+        if (aiRes.status === 402) errMsg = "رصيد الذكاء الاصطناعي منتهٍ — يرجى شحن الرصيد";
         else if (aiRes.status === 429) errMsg = "تم تجاوز حد المعدّل، حاول لاحقاً";
         return new Response(JSON.stringify({ error: errMsg, status: aiRes.status, detail: text.slice(0, 300) }), {
           status: aiRes.status === 402 || aiRes.status === 429 ? aiRes.status : 500,

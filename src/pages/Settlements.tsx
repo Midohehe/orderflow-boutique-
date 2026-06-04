@@ -75,7 +75,7 @@ const Settlements = () => {
     const [ordersRes, safesRes] = await Promise.all([
       supabase.from("orders").select("id, order_code, customer_name, phone, city, product_name, price, quantity, created_at")
         .eq("store_id", activeStoreId)
-        .eq("status", "pending")
+        .eq("status", "delivered")
         .eq("is_deleted", false)
         .eq("settlement_received", false)
         .order("created_at", { ascending: false }),
@@ -119,36 +119,26 @@ const Settlements = () => {
     setSubmitting(true);
     try {
       const ids = Array.from(selectedIds);
-      const { data: ordersData, error: oErr } = await supabase
-        .from("orders").select("id, owner_id, store_id, price, quantity, order_code")
-        .in("id", ids);
-      if (oErr) throw oErr;
-      const ownerId = ordersData?.[0]?.owner_id;
-      const storeId = ordersData?.[0]?.store_id;
-      const total = (ordersData || []).reduce(
-        (s, o: any) => s + Number(o.price || 0) * Number(o.quantity || 1), 0,
-      );
-      const nowIso = new Date().toISOString();
+      const total = pendingOrders
+        .filter(o => selectedIds.has(o.id))
+        .reduce((s, o) => s + Number(o.price || 0) * Number(o.quantity || 1), 0);
 
-      const { error: updErr } = await supabase.from("orders").update({
-        status: "settled",
-        settlement_received: true,
-        settlement_received_at: nowIso,
-      }).in("id", ids);
-      if (updErr) throw updErr;
-
-      const { error: movErr } = await supabase.from("safe_movements").insert({
-        safe_id: selectedSafeId,
-        amount: total,
-        movement_type: "deposit",
-        reference_id: crypto.randomUUID(),
-        notes: `تسوية داخلية - ${ids.length} طلب`,
-        owner_id: ownerId,
-        store_id: storeId,
+      const { data, error } = await supabase.rpc("settle_orders_into_safe", {
+        _order_ids: ids,
+        _safe_id: selectedSafeId,
+        _amount: total,
+        _notes: `تسوية داخلية - ${ids.length} طلب`,
       });
-      if (movErr) throw movErr;
+      if (error) throw error;
+      const result = data as { success?: boolean; error?: string; updated?: number };
+      if (!result?.success) {
+        throw new Error(result?.error || "فشلت التسوية");
+      }
 
-      toast({ title: "تمت التسوية", description: `${ids.length} طلب بقيمة ${total.toFixed(2)}` });
+      toast({
+        title: "تمت التسوية",
+        description: `${result.updated ?? ids.length} طلب بقيمة ${total.toFixed(2)}`,
+      });
       setSelectedSafeId("");
       await loadInternal();
     } catch (e: any) {
@@ -325,7 +315,7 @@ const Settlements = () => {
         <TabsContent value="internal" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>تسوية داخلية للطلبات قيد الانتظار</CardTitle>
+              <CardTitle>تسوية داخلية للطلبات «تم الاستلام»</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
@@ -353,7 +343,7 @@ const Settlements = () => {
               {pendingLoading ? (
                 <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
               ) : pendingOrders.length === 0 ? (
-                <div className="py-10 text-center text-muted-foreground">لا توجد طلبات قيد الانتظار.</div>
+                <div className="py-10 text-center text-muted-foreground">لا توجد طلبات بحالة «تم الاستلام» جاهزة للتسوية.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>

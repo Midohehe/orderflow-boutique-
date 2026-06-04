@@ -64,16 +64,9 @@ RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path = public AS
 $$;
 
 -- =====================================================
--- 3. ASSIGN CURRENT USER AS ADMIN + create profile
--- =====================================================
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('8d7d67e4-7813-459c-8061-bd1b6dc0a6bd', 'admin');
-
-INSERT INTO public.profiles (user_id, username, full_name, subscription_ends_at)
-VALUES ('8d7d67e4-7813-459c-8061-bd1b6dc0a6bd', 'admin', 'Admin', NULL);
-
--- =====================================================
--- 4. ADD owner_id TO ALL TABLES
+-- 3. ADD owner_id TO ALL TABLES
+-- Admin/profile bootstrap is NOT done here — run supabase/scripts/post-install-assign-admin.sql
+-- after the first user signs up (see FRESH_START.md).
 -- =====================================================
 ALTER TABLE public.products       ADD COLUMN owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE public.orders         ADD COLUMN owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
@@ -86,28 +79,15 @@ ALTER TABLE public.pixel_settings  ADD COLUMN owner_id UUID REFERENCES auth.user
 ALTER TABLE public.order_form_fields ADD COLUMN owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE public.analytics_events ADD COLUMN owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 
--- backfill all existing data to current admin
-UPDATE public.products       SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.orders         SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.purchases      SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.shipping_settings SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.shipping_zones SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.header_settings SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.store_settings  SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.pixel_settings  SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.order_form_fields SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-UPDATE public.analytics_events SET owner_id = '8d7d67e4-7813-459c-8061-bd1b6dc0a6bd' WHERE owner_id IS NULL;
-
--- enforce NOT NULL going forward (analytics can stay nullable for legacy public events)
+-- enforce NOT NULL only on tables with no pre-existing rows; seed rows in
+-- header_settings, store_settings, and order_form_fields stay nullable until
+-- post-install assigns the first admin and backfills owner_id
 ALTER TABLE public.products       ALTER COLUMN owner_id SET NOT NULL;
 ALTER TABLE public.orders         ALTER COLUMN owner_id SET NOT NULL;
 ALTER TABLE public.purchases      ALTER COLUMN owner_id SET NOT NULL;
 ALTER TABLE public.shipping_settings ALTER COLUMN owner_id SET NOT NULL;
 ALTER TABLE public.shipping_zones ALTER COLUMN owner_id SET NOT NULL;
-ALTER TABLE public.header_settings ALTER COLUMN owner_id SET NOT NULL;
-ALTER TABLE public.store_settings  ALTER COLUMN owner_id SET NOT NULL;
 ALTER TABLE public.pixel_settings  ALTER COLUMN owner_id SET NOT NULL;
-ALTER TABLE public.order_form_fields ALTER COLUMN owner_id SET NOT NULL;
 
 CREATE INDEX idx_products_owner ON public.products(owner_id);
 CREATE INDEX idx_orders_owner ON public.orders(owner_id);
@@ -116,7 +96,7 @@ CREATE INDEX idx_shipping_zones_owner ON public.shipping_zones(owner_id);
 CREATE INDEX idx_analytics_owner ON public.analytics_events(owner_id);
 
 -- =====================================================
--- 5. REPLACE RLS POLICIES (per-owner + admin)
+-- 4. REPLACE RLS POLICIES (per-owner + admin)
 -- =====================================================
 
 -- PRODUCTS

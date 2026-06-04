@@ -28,6 +28,9 @@ import {
 import { Plus, Edit, Trash2, Loader2, Store as StoreIcon, Check, Copy } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import StorePushToggle from "@/components/StorePushToggle";
+import { parsePlanLimitError, planLimitMessage } from "@/lib/planLimits";
+import { usePlanUsage } from "@/hooks/usePlanUsage";
+import { Link } from "react-router-dom";
 
 const sanitizeSlug = (s: string) =>
   s.toLowerCase().trim().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -35,6 +38,7 @@ const sanitizeSlug = (s: string) =>
 const MyStores = () => {
   const { user } = useAuth();
   const { stores, activeStoreId, setActiveStoreId, refresh } = useStoreContext();
+  const { plan, usage } = usePlanUsage();
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{ id: string; name: string; slug: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -64,6 +68,15 @@ const MyStores = () => {
       if (error) {
         if (error.code === "23505") {
           toast({ title: "خطأ", description: "الرابط مستخدم مسبقاً", variant: "destructive" });
+          return;
+        }
+        const limit = parsePlanLimitError(error.message);
+        if (limit) {
+          toast({
+            title: "حد الخطة",
+            description: planLimitMessage(limit.metric, limit.limit),
+            variant: "destructive",
+          });
           return;
         }
         throw error;
@@ -132,6 +145,14 @@ const MyStores = () => {
         <div>
           <h1 className="text-2xl font-bold">متاجري</h1>
           <p className="text-sm text-muted-foreground">كل متجر مستقل ببياناته من منتجات وطلبات ومالية وشحن.</p>
+          {plan && usage && (
+            <p className="text-xs text-muted-foreground mt-1">
+              المتاجر: {usage.stores} —{" "}
+              <Link to="/dashboard/my-plan" className="text-primary hover:underline">
+                خطتي ({plan.name})
+              </Link>
+            </p>
+          )}
         </div>
         <Dialog open={addOpen} onOpenChange={(v) => { setAddOpen(v); if (!v) resetForm(); }}>
           <DialogTrigger asChild>

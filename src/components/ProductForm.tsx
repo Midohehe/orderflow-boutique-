@@ -197,7 +197,7 @@ const TagsField = ({
 
 const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
-  const { activeStoreId } = useStoreContext();
+  const { activeStoreId, activeStore } = useStoreContext();
   const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
@@ -591,6 +591,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
           images={product.images}
           onImagesChange={(images) => updateField("images", images)}
           maxImages={5}
+          ownerId={activeStore?.owner_id}
+          storeId={activeStoreId}
         />
       </SectionCard>
 

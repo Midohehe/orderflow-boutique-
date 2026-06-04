@@ -265,6 +265,7 @@ async function pollOwner(supabase: any, s: any) {
           if (intent) {
             await supabase.from("orders").update({
               confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+              ...(intent === "cancel" ? { status: "cancelled" } : {}),
               confirmed_at: new Date().toISOString(),
               needs_manual_review: false,
             }).eq("id", messageOrderId).eq("owner_id", s.owner_id);

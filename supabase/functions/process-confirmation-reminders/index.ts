@@ -1,4 +1,4 @@
-// Cron-triggered: finds orders with pending confirmation that haven't been
+// Cron-triggered: finds orders with unconfirmed confirmation that haven't been
 // answered within reminder_minutes, sends a follow-up WhatsApp prompt,
 // and after reminder_max attempts flags them for manual review.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     const { data: candidates, error } = await supabase
       .from("orders")
       .select("id, owner_id, phone, customer_name, product_name, price, last_confirm_prompt_at, confirmation_attempts, needs_manual_review, confirmation_status, status")
-      .eq("confirmation_status", "pending")
+      .eq("confirmation_status", "unconfirmed")
       .eq("needs_manual_review", false)
       .not("last_confirm_prompt_at", "is", null)
       .gte("last_confirm_prompt_at", since)

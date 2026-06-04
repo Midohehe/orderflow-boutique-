@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowRight, ExternalLink, Package, ShoppingCart, Wallet } from "lucide-react";
+import { Loader2, ArrowRight, ExternalLink, Package, ShoppingCart, Wallet, Crown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { isolateLatin } from "@/lib/bidi";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface Profile {
   user_id: string;
@@ -14,6 +16,12 @@ interface Profile {
   full_name: string | null;
   is_active: boolean;
   subscription_ends_at: string | null;
+  plan_id: string | null;
+}
+interface PlanOption {
+  id: string;
+  slug: string;
+  name: string;
 }
 interface Product {
   id: string; name: string; slug: string; price: number; is_visible: boolean; images: string[];
@@ -30,6 +38,8 @@ const AdminStoreDetail = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [plans, setPlans] = useState<PlanOption[]>([]);
+  const [assigningPlan, setAssigningPlan] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,17 +47,19 @@ const AdminStoreDetail = () => {
     if (!isAdmin || !userId) { setLoading(false); return; }
     (async () => {
       try {
-        const [profRes, prodRes, ordRes, walletRes] = await Promise.all([
-          supabase.from("profiles").select("user_id, username, full_name, is_active, subscription_ends_at").eq("user_id", userId).maybeSingle(),
+        const [profRes, prodRes, ordRes, walletRes, plansRes] = await Promise.all([
+          supabase.from("profiles").select("user_id, username, full_name, is_active, subscription_ends_at, plan_id").eq("user_id", userId).maybeSingle(),
           supabase.from("products").select("id, name, slug, price, is_visible, images").eq("owner_id", userId).is("deleted_at", null).order("created_at", { ascending: false }),
           supabase.from("orders").select("id, customer_name, phone, city, status, price, created_at").eq("owner_id", userId).order("created_at", { ascending: false }).limit(50),
           supabase.from("wallets").select("balance").eq("user_id", userId).maybeSingle(),
+          supabase.from("subscription_plans" as never).select("id, slug, name").order("sort_order"),
         ]);
         if (profRes.error) throw profRes.error;
-        setProfile(profRes.data as any);
-        setProducts((prodRes.data || []) as any);
-        setOrders((ordRes.data || []) as any);
+        setProfile(profRes.data as Profile);
+        setProducts((prodRes.data || []) as Product[]);
+        setOrders((ordRes.data || []) as Order[]);
         setWalletBalance(walletRes.data?.balance ?? 0);
+        setPlans((plansRes.data || []) as PlanOption[]);
       } catch (e) {
         console.error(e);
         toast({ title: "خطأ", description: "تعذر تحميل بيانات المتجر", variant: "destructive" });
@@ -66,6 +78,31 @@ const AdminStoreDetail = () => {
   if (!profile) {
     return <div className="p-6 text-center text-muted-foreground">المتجر غير موجود.</div>;
   }
+
+  const currentPlanSlug = plans.find((p) => p.id === profile.plan_id)?.slug || "free";
+
+  const handleAssignPlan = async (slug: string) => {
+    if (!userId) return;
+    setAssigningPlan(true);
+    try {
+      const { error } = await supabase.rpc("admin_assign_plan", {
+        _user_id: userId,
+        _plan_slug: slug,
+      });
+      if (error) throw error;
+      const plan = plans.find((p) => p.slug === slug);
+      setProfile((p) => (p ? { ...p, plan_id: plan?.id ?? null } : p));
+      toast({ title: "تم", description: `تم تعيين خطة ${plan?.name || slug}` });
+    } catch (e: unknown) {
+      toast({
+        title: "خطأ",
+        description: e instanceof Error ? e.message : "تعذر تعيين الخطة",
+        variant: "destructive",
+      });
+    } finally {
+      setAssigningPlan(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
@@ -90,6 +127,34 @@ const AdminStoreDetail = () => {
         <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">رصيد المحفظة</p><p className="text-xl font-bold">{(walletBalance ?? 0).toFixed(2)}</p></div></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">الحالة</p><p className={`text-sm font-semibold ${profile.is_active ? "text-green-600" : "text-muted-foreground"}`}>{profile.is_active ? "نشط" : "موقوف"}</p>{profile.subscription_ends_at && (<p className="text-xs text-muted-foreground mt-1">ينتهي: {new Date(profile.subscription_ends_at).toLocaleDateString("ar")}</p>)}</CardContent></Card>
       </div>
+
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-end gap-4">
+          <div className="flex items-center gap-2 text-primary">
+            <Crown className="w-5 h-5" />
+            <span className="font-semibold">خطة الاشتراك</span>
+          </div>
+          <div className="space-y-1 min-w-[200px]">
+            <Label>الخطة</Label>
+            <Select
+              value={currentPlanSlug}
+              onValueChange={handleAssignPlan}
+              disabled={assigningPlan}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {plans.map((p) => (
+                  <SelectItem key={p.id} value={p.slug}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-4 space-y-3">

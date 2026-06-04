@@ -1,71 +1,55 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { compressImageToBlob, isDataUrl, uploadProductImage } from "@/lib/imageStorage";
 
 interface ImageUploadProps {
   images: string[];
   onImagesChange: (images: string[]) => void;
   maxImages?: number;
+  /** When set, new uploads go to Supabase Storage instead of base64 in DB. */
+  ownerId?: string | null;
+  storeId?: string | null;
 }
 
-const ImageUpload = ({ images, onImagesChange, maxImages = 5 }: ImageUploadProps) => {
+const ImageUpload = ({ images, onImagesChange, maxImages = 5, ownerId, storeId }: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const compressImage = (file: File): Promise<string> => {
+  const fileToUrl = async (file: File): Promise<string> => {
+    if (ownerId) {
+      return uploadProductImage(file, ownerId, storeId);
+    }
+    const blob = await compressImageToBlob(file);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const MAX = 800;
-          let { width, height } = img;
-          if (width > MAX || height > MAX) {
-            if (width > height) {
-              height = Math.round((height * MAX) / width);
-              width = MAX;
-            } else {
-              width = Math.round((width * MAX) / height);
-              height = MAX;
-            }
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return reject(new Error("canvas"));
-          ctx.drawImage(img, 0, 0, width, height);
-          // Lower-quality WebP for faster landing page load; fallback to JPEG
-          let dataUrl = canvas.toDataURL("image/webp", 0.6);
-          if (!dataUrl.startsWith("data:image/webp")) {
-            dataUrl = canvas.toDataURL("image/jpeg", 0.65);
-          }
-          resolve(dataUrl);
-        };
-        img.onerror = reject;
-        img.src = e.target?.result as string;
-      };
+      reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(blob);
     });
   };
 
   const handleFileSelect = async (files: FileList | null) => {
-    if (!files) return;
+    if (!files || uploading) return;
     const remainingSlots = maxImages - images.length;
     const filesToProcess = Array.from(files).slice(0, remainingSlots);
-    const compressed: string[] = [];
-    for (const file of filesToProcess) {
-      if (!file.type.startsWith("image/")) continue;
-      try {
-        const dataUrl = await compressImage(file);
-        compressed.push(dataUrl);
-      } catch (err) {
-        console.error("Image compression failed:", err);
+    setUploading(true);
+    const uploaded: string[] = [];
+    try {
+      for (const file of filesToProcess) {
+        if (!file.type.startsWith("image/")) continue;
+        try {
+          uploaded.push(await fileToUrl(file));
+        } catch (err) {
+          console.error("Image upload failed:", err);
+        }
       }
+      if (uploaded.length) onImagesChange([...images, ...uploaded]);
+    } finally {
+      setUploading(false);
     }
-    if (compressed.length) onImagesChange([...images, ...compressed]);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -90,9 +74,8 @@ const ImageUpload = ({ images, onImagesChange, maxImages = 5 }: ImageUploadProps
 
   return (
     <div className="space-y-4">
-      {/* Upload Area */}
       <div
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !uploading && fileInputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -101,7 +84,7 @@ const ImageUpload = ({ images, onImagesChange, maxImages = 5 }: ImageUploadProps
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-muted/50",
-          images.length >= maxImages && "opacity-50 cursor-not-allowed"
+          (images.length >= maxImages || uploading) && "opacity-50 cursor-not-allowed"
         )}
       >
         <input
@@ -111,27 +94,34 @@ const ImageUpload = ({ images, onImagesChange, maxImages = 5 }: ImageUploadProps
           multiple
           onChange={(e) => handleFileSelect(e.target.files)}
           className="hidden"
-          disabled={images.length >= maxImages}
+          disabled={images.length >= maxImages || uploading}
         />
-        <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-        <p className="text-foreground font-medium">اسحب الصور هنا أو انقر للرفع</p>
+        {uploading ? (
+          <Loader2 className="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin" />
+        ) : (
+          <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
+        )}
+        <p className="text-foreground font-medium">
+          {uploading ? "جارِ رفع الصور…" : "اسحب الصور هنا أو انقر للرفع"}
+        </p>
         <p className="text-muted-foreground text-sm mt-1">
           PNG, JPG, WEBP حتى {maxImages} صور
+          {ownerId ? " — تُرفع على CDN" : ""}
         </p>
       </div>
 
-      {/* Preview Grid */}
       {images.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {images.map((image, index) => (
             <div
-              key={index}
+              key={`${image.slice(0, 32)}-${index}`}
               className="relative group aspect-square rounded-lg overflow-hidden bg-muted"
             >
               <img
                 src={image}
                 alt={`صورة ${index + 1}`}
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
               <div className="absolute inset-0 bg-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Button
@@ -150,6 +140,11 @@ const ImageUpload = ({ images, onImagesChange, maxImages = 5 }: ImageUploadProps
               {index === 0 && (
                 <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded">
                   رئيسية
+                </span>
+              )}
+              {isDataUrl(image) && (
+                <span className="absolute bottom-1 left-1 bg-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded">
+                  محلي
                 </span>
               )}
             </div>

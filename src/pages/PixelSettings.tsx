@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { useUserContext } from "@/hooks/useUserContext";
 
 interface PixelSettings {
   id?: string;
@@ -23,6 +24,7 @@ interface PixelSettings {
 
 const PixelSettingsPage = () => {
   const { activeStoreId } = useStoreContext();
+  const { effectiveOwnerId } = useUserContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
@@ -39,81 +41,126 @@ const PixelSettingsPage = () => {
 
   useEffect(() => {
     loadSettings();
-  }, [activeStoreId]);
+  }, [activeStoreId, effectiveOwnerId]);
+
+  const emptyPixels = (): PixelSettings => ({
+    facebook_pixel_id: "",
+    facebook_enabled: false,
+    tiktok_pixel_id: "",
+    tiktok_enabled: false,
+    google_analytics_id: "",
+    google_enabled: false,
+    snapchat_pixel_id: "",
+    snapchat_enabled: false,
+  });
 
   const loadSettings = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !activeStoreId) { setLoading(false); setSettingsId(null); setPixels({ facebook_pixel_id: "", facebook_enabled: false, tiktok_pixel_id: "", tiktok_enabled: false, google_analytics_id: "", google_enabled: false, snapchat_pixel_id: "", snapchat_enabled: false }); return; }
+      if (!activeStoreId || !effectiveOwnerId) {
+        setLoading(false);
+        setSettingsId(null);
+        setPixels(emptyPixels());
+        return;
+      }
       const { data, error } = await supabase
         .from("pixel_settings")
         .select("*")
         .eq("store_id", activeStoreId)
-        .limit(1)
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(1);
 
       if (error) throw error;
 
-      if (data) {
-        setSettingsId(data.id);
+      const row = data?.[0];
+      if (row) {
+        setSettingsId(row.id);
         setPixels({
-          facebook_pixel_id: data.facebook_pixel_id || "",
-          facebook_enabled: data.facebook_enabled || false,
-          tiktok_pixel_id: data.tiktok_pixel_id || "",
-          tiktok_enabled: data.tiktok_enabled || false,
-          google_analytics_id: data.google_analytics_id || "",
-          google_enabled: data.google_enabled || false,
-          snapchat_pixel_id: data.snapchat_pixel_id || "",
-          snapchat_enabled: data.snapchat_enabled || false,
+          facebook_pixel_id: row.facebook_pixel_id || "",
+          facebook_enabled: row.facebook_enabled || false,
+          tiktok_pixel_id: row.tiktok_pixel_id || "",
+          tiktok_enabled: row.tiktok_enabled || false,
+          google_analytics_id: row.google_analytics_id || "",
+          google_enabled: row.google_enabled || false,
+          snapchat_pixel_id: row.snapchat_pixel_id || "",
+          snapchat_enabled: row.snapchat_enabled || false,
         });
       } else {
         setSettingsId(null);
+        setPixels(emptyPixels());
       }
     } catch (error) {
       console.error("Error loading pixel settings:", error);
+      toast({
+        title: "خطأ",
+        description: "تعذر تحميل إعدادات البيكسل",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const validatePixels = (): string | null => {
+    const trim = (s: string) => s.trim();
+    if (pixels.facebook_enabled && !trim(pixels.facebook_pixel_id)) {
+      return "أدخل معرف Facebook Pixel أو عطّل المنصة";
+    }
+    if (pixels.tiktok_enabled && !trim(pixels.tiktok_pixel_id)) {
+      return "أدخل معرف TikTok Pixel أو عطّل المنصة";
+    }
+    if (pixels.google_enabled && !trim(pixels.google_analytics_id)) {
+      return "أدخل معرف Google Analytics أو عطّل المنصة";
+    }
+    if (pixels.snapchat_enabled && !trim(pixels.snapchat_pixel_id)) {
+      return "أدخل معرف Snapchat Pixel أو عطّل المنصة";
+    }
+    if (pixels.facebook_enabled && !/^\d{5,20}$/.test(trim(pixels.facebook_pixel_id))) {
+      return "معرف Facebook Pixel يجب أن يكون أرقاماً فقط (15 رقم تقريباً)";
+    }
+    if (pixels.google_enabled && !/^G-[A-Z0-9]+$/i.test(trim(pixels.google_analytics_id))) {
+      return "معرف Google Analytics يجب أن يبدأ بـ G-";
+    }
+    return null;
+  };
+
   const handleSave = async () => {
+    if (!activeStoreId || !effectiveOwnerId) {
+      toast({ title: "خطأ", description: "اختر متجراً أولاً", variant: "destructive" });
+      return;
+    }
+    const validationError = validatePixels();
+    if (validationError) {
+      toast({ title: "خطأ", description: validationError, variant: "destructive" });
+      return;
+    }
+
+    const payload = {
+      owner_id: effectiveOwnerId,
+      store_id: activeStoreId,
+      facebook_pixel_id: pixels.facebook_pixel_id.trim() || null,
+      facebook_enabled: pixels.facebook_enabled,
+      tiktok_pixel_id: pixels.tiktok_pixel_id.trim() || null,
+      tiktok_enabled: pixels.tiktok_enabled,
+      google_analytics_id: pixels.google_analytics_id.trim() || null,
+      google_enabled: pixels.google_enabled,
+      snapchat_pixel_id: pixels.snapchat_pixel_id.trim() || null,
+      snapchat_enabled: pixels.snapchat_enabled,
+    };
+
     setSaving(true);
     try {
       if (settingsId) {
-        // Update existing settings
         const { error } = await supabase
           .from("pixel_settings")
-          .update({
-            facebook_pixel_id: pixels.facebook_pixel_id,
-            facebook_enabled: pixels.facebook_enabled,
-            tiktok_pixel_id: pixels.tiktok_pixel_id,
-            tiktok_enabled: pixels.tiktok_enabled,
-            google_analytics_id: pixels.google_analytics_id,
-            google_enabled: pixels.google_enabled,
-            snapchat_pixel_id: pixels.snapchat_pixel_id,
-            snapchat_enabled: pixels.snapchat_enabled,
-          })
+          .update(payload)
           .eq("id", settingsId);
 
         if (error) throw error;
       } else {
-        // Insert new settings
-        const { data: { user } } = await supabase.auth.getUser();
         const { data, error } = await supabase
           .from("pixel_settings")
-          .insert({
-            owner_id: user!.id,
-            store_id: activeStoreId,
-            facebook_pixel_id: pixels.facebook_pixel_id,
-            facebook_enabled: pixels.facebook_enabled,
-            tiktok_pixel_id: pixels.tiktok_pixel_id,
-            tiktok_enabled: pixels.tiktok_enabled,
-            google_analytics_id: pixels.google_analytics_id,
-            google_enabled: pixels.google_enabled,
-            snapchat_pixel_id: pixels.snapchat_pixel_id,
-            snapchat_enabled: pixels.snapchat_enabled,
-          })
-          .select()
+          .insert(payload)
+          .select("id")
           .single();
 
         if (error) throw error;
@@ -122,13 +169,13 @@ const PixelSettingsPage = () => {
 
       toast({
         title: "تم الحفظ",
-        description: "تم حفظ إعدادات البيكسل بنجاح",
+        description: "تم حفظ إعدادات البيكسل — ستُطبَّق على صفحات الهبوط فوراً",
       });
     } catch (error) {
       console.error("Error saving pixel settings:", error);
       toast({
         title: "خطأ",
-        description: "حدث خطأ أثناء حفظ الإعدادات",
+        description: error instanceof Error ? error.message : "حدث خطأ أثناء حفظ الإعدادات",
         variant: "destructive",
       });
     } finally {
@@ -140,6 +187,14 @@ const PixelSettingsPage = () => {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!activeStoreId) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        اختر متجراً من القائمة أعلاه لإعداد البيكسل.
       </div>
     );
   }

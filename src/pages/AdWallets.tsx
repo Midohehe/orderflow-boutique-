@@ -111,15 +111,14 @@ const AdWallets = () => {
     });
     if (e1) { toast({ title: "خطأ", description: e1.message, variant: "destructive" }); setTSaving(false); return; }
 
-    // 2) Update safe balance
-    await supabase.from("safes").update({ balance: Number(safe.balance) - amountLocal }).eq("id", tSafe);
-    // 3) Safe movement
-    await supabase.from("safe_movements").insert({
+    // 2) Safe movement (balance updated via sync_safe_balance trigger)
+    const { error: e2 } = await supabase.from("safe_movements").insert({
       safe_id: tSafe, amount: -amountLocal, movement_type: "ad_topup",
       notes: `شحن محفظة إعلانات: ${wallet.name} (${amt} ${wallet.currency} @ ${rate})`,
       owner_id: user!.id, store_id: activeStoreId,
     });
-    // 4) Update wallet balance + weighted avg cost rate
+    if (e2) { toast({ title: "خطأ", description: e2.message, variant: "destructive" }); setTSaving(false); return; }
+    // 3) Update wallet balance + weighted avg cost rate
     const oldBal = Number(wallet.balance);
     const oldAvg = Number(wallet.avg_cost_rate) || 0;
     const newBal = oldBal + amt;

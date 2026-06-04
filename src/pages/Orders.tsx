@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +31,12 @@ import { isolateLatin } from "@/lib/bidi";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { ShippingOptionsDialog, getShippingOptionsDefaults, type ShippingOptionsValue } from "@/components/ShippingOptionsDialog";
+import {
+  fetchOrdersPage,
+  fetchAllOrdersForExport,
+  type OrderTab,
+  type OrdersPageFilters,
+} from "@/lib/ordersQuery";
 
 interface Order {
   id: string;
@@ -91,28 +97,6 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
 };
 
 const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
-
-// Supabase caps a single query at 1000 rows. Stores can easily exceed that, and
-// truncated results made tabs/dropdown counters under-report (e.g. "تم التسليم"
-// dropdown only showed orders from the most recent 1000 rows). Paginate to load
-// every order for the active store.
-const ORDERS_PAGE_SIZE = 1000;
-async function fetchAllOrdersForStore(storeId: string) {
-  const all: any[] = [];
-  for (let from = 0; ; from += ORDERS_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("orders")
-      .select(ORDER_SELECT_COLS)
-      .eq("store_id", storeId)
-      .order("created_at", { ascending: false })
-      .range(from, from + ORDERS_PAGE_SIZE - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    all.push(...data);
-    if (data.length < ORDERS_PAGE_SIZE) break;
-  }
-  return all;
-}
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -197,6 +181,11 @@ const Orders = () => {
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [orderTab, setOrderTab] = useState<OrderTab>("pending");
+  const [tabTotal, setTabTotal] = useState(0);
+  const [confirmationCounts, setConfirmationCounts] = useState<Record<ConfirmationStatus, number>>({
+    unconfirmed: 0, confirmed: 0, no_answer: 0, postponed: 0, cancelled: 0,
+  });
   const [stickerSettings, setStickerSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
   const [storeName, setStoreName] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -204,7 +193,13 @@ const Orders = () => {
   const [pageMap, setPageMap] = useState<Record<string, number>>({});
   const getPage = (key: string) => pageMap[key] || 1;
   const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
-  const paginate = <T,>(arr: T[], key: string) => {
+  const paginate = <T,>(arr: T[], key: string, serverTotal?: number) => {
+    if (serverTotal !== undefined) {
+      const totalPages = Math.max(1, Math.ceil(serverTotal / PAGE_SIZE));
+      let page = getPage(key);
+      if (page > totalPages) page = totalPages;
+      return { items: arr, page, totalPages, total: serverTotal, key };
+    }
     const total = arr.length;
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     let page = getPage(key);
@@ -465,14 +460,56 @@ const Orders = () => {
     }
   };
 
+  const tabFilters: OrdersPageFilters = useMemo(() => {
+    if (orderTab === "pending") {
+      return {
+        productName: productFilter,
+        confirmationStatus: confirmationFilter,
+        prepStatus: prepFilter,
+        dateFrom: pendingDateFrom || undefined,
+        dateTo: pendingDateTo || undefined,
+      };
+    }
+    if (orderTab === "shipped") {
+      return {
+        search: shippedSearch || undefined,
+        productName: shippedProductFilter,
+      };
+    }
+    if (orderTab === "unpacked") {
+      return {
+        search: unpackedSearch || undefined,
+        dateFrom: unpackedDateFrom || undefined,
+        dateTo: unpackedDateTo || undefined,
+      };
+    }
+    return {};
+  }, [
+    orderTab,
+    productFilter,
+    confirmationFilter,
+    prepFilter,
+    pendingDateFrom,
+    pendingDateTo,
+    shippedSearch,
+    shippedProductFilter,
+    unpackedSearch,
+    unpackedDateFrom,
+    unpackedDateTo,
+  ]);
+
+  const tabPage = getPage(orderTab);
+
   const ordersQuery = useQuery({
-    queryKey: ["orders-page", activeStoreId],
+    queryKey: ["orders-page", activeStoreId, orderTab, tabPage, tabFilters],
     enabled: !!activeStoreId,
     queryFn: async () => {
       const { data: userRes } = await supabase.auth.getUser();
       const uid = userRes.user?.id;
-      const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes] = await Promise.all([
-        fetchAllOrdersForStore(activeStoreId!).then((data) => ({ data, error: null as any })).catch((error) => ({ data: null, error })),
+      const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, confirmCountsRes] = await Promise.all([
+        fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters)
+          .then(({ rows, total }) => ({ data: rows, total, error: null as any }))
+          .catch((error) => ({ data: null, total: 0, error })),
         (uid
           ? supabase.from("store_settings").select("currency_symbol").eq("owner_id", uid).maybeSingle()
           : supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle()),
@@ -487,9 +524,10 @@ const Orders = () => {
           : Promise.resolve({ data: null } as any),
         supabase.rpc("orders_status_counts", { _store_id: activeStoreId! }),
         supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId! }),
+        supabase.rpc("orders_confirmation_counts", { _store_id: activeStoreId! }).catch(() => ({ data: null, error: null })),
       ]);
       if (ordersRes.error) throw ordersRes.error;
-      return { ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, uid };
+      return { ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, confirmCountsRes, uid };
     },
   });
 
@@ -506,6 +544,17 @@ const Orders = () => {
     const d = ordersQuery.data;
     if (!d) return;
     setOrders((d.ordersRes.data || []) as Order[]);
+    setTabTotal(Number((d.ordersRes as { total?: number }).total) || 0);
+    if (d.confirmCountsRes?.data) {
+      const c: Record<ConfirmationStatus, number> = {
+        unconfirmed: 0, confirmed: 0, no_answer: 0, postponed: 0, cancelled: 0,
+      };
+      (d.confirmCountsRes.data as any[]).forEach((r) => {
+        const k = (r.confirmation_status || "unconfirmed") as ConfirmationStatus;
+        if (k in c) c[k] = Number(r.cnt) || 0;
+      });
+      setConfirmationCounts(c);
+    }
     if (d.statusCountsRes?.data) {
       const sc: Record<string, number> = {};
       (d.statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
@@ -945,8 +994,19 @@ const Orders = () => {
     return `${date} • ${time}`;
   };
 
-  const exportPendingOrders = () => {
-    if (pendingOrders.length === 0) {
+  const exportPendingOrders = async () => {
+    if (!activeStoreId) return;
+    setExtracting(true);
+    try {
+      const exportFilters: OrdersPageFilters = {
+        productName: productFilter,
+        confirmationStatus: confirmationFilter,
+        prepStatus: prepFilter,
+        dateFrom: pendingDateFrom || undefined,
+        dateTo: pendingDateTo || undefined,
+      };
+      const pendingExport = (await fetchAllOrdersForExport(activeStoreId, "pending", exportFilters)) as Order[];
+      if (pendingExport.length === 0) {
       toast({
         title: "تنبيه",
         description: "لا توجد طلبات قيد الانتظار للتصدير",
@@ -954,7 +1014,7 @@ const Orders = () => {
       });
       return;
     }
-    const lockedCount = pendingOrders.filter((o) => o.locked_insufficient_balance).length;
+    const lockedCount = pendingExport.filter((o) => o.locked_insufficient_balance).length;
     if (lockedCount > 0 || (walletBalance !== null && walletBalance < 0)) {
       toast({
         title: "تنبيه",
@@ -965,7 +1025,7 @@ const Orders = () => {
     }
 
     // تنسيق ملف الإكسل المطلوب من شركة الشحن
-    const excelData = pendingOrders.map((order, index) => {
+    const excelData = pendingExport.map((order, index) => {
       const cityCorrected = (order as any).matched_zone_name || order.city;
       const areaCorrected = (order as any).matched_area_name || (order as any).matched_zone_name || order.city;
       const productName = isolateLatin(order.product_name);
@@ -1023,89 +1083,39 @@ const Orders = () => {
 
     toast({
       title: "تم التصدير",
-      description: `تم تصدير ${pendingOrders.length} طلب بنجاح`,
+      description: `تم تصدير ${pendingExport.length} طلب بنجاح`,
     });
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const displayProductName = (o: Order): string =>
     (o.product_id && productsMap[o.product_id]) || o.product_name || "";
   // Local sequential code per order: assigned in creation order (oldest = 01)
   const localCodeMap: Record<string, string> = (() => {
-    const sorted = [...orders].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
     const map: Record<string, string> = {};
-    sorted.forEach((o, i) => {
-      map[o.id] = String(i + 1).padStart(2, "0");
+    orders.forEach((o, i) => {
+      map[o.id] =
+        o.order_code ||
+        String((tabPage - 1) * PAGE_SIZE + i + 1).padStart(2, "0");
     });
     return map;
   })();
   const productNames = Array.from(
-    new Set(orders.map(displayProductName).filter(Boolean))
+    new Set(Object.values(productsMap).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, "ar"));
-  // Foreign orders (country_code present and not LY) get their own tab so
-  // the user can review them before shipping. Anything without a code or
-  // explicitly LY stays in the regular Pending flow.
-  const isForeign = (o: any) => {
-    const cc = (o.country_code || "").toUpperCase();
-    return cc && cc !== "LY";
-  };
-  const allPending = orders.filter(
-    (o) => o.status === "pending" && !o.is_deleted && !isForeign(o)
-  );
-  const foreignOrders = orders.filter(
-    (o) => !o.is_deleted && isForeign(o)
-  );
-  const pendingOrders = allPending.filter((o) => {
-    if (productFilter !== "all" && displayProductName(o) !== productFilter) return false;
-    if (confirmationFilter !== "all") {
-      const cs = (o.confirmation_status as ConfirmationStatus | null) || "unconfirmed";
-      if (cs !== confirmationFilter) return false;
-    }
-    if (prepFilter !== "all") {
-      const ps = (o.prep_status as any) || "pending";
-      if (ps !== prepFilter) return false;
-    }
-    if (pendingDateFrom) {
-      const from = new Date(pendingDateFrom);
-      from.setHours(0, 0, 0, 0);
-      if (new Date(o.created_at) < from) return false;
-    }
-    if (pendingDateTo) {
-      const to = new Date(pendingDateTo);
-      to.setHours(23, 59, 59, 999);
-      if (new Date(o.created_at) > to) return false;
-    }
-    return true;
-  });
-  const confirmationCounts = (() => {
-    const c: Record<ConfirmationStatus, number> = {
-      unconfirmed: 0, confirmed: 0, no_answer: 0, postponed: 0, cancelled: 0,
-    };
-    allPending.forEach((o) => {
-      const k = ((o.confirmation_status as ConfirmationStatus | null) || "unconfirmed");
-      c[k] = (c[k] || 0) + 1;
-    });
-    return c;
-  })();
-  const allShipped = orders.filter((o) => o.status === "shipped" && !o.is_deleted);
+
   const shippedSearchNorm = shippedSearch.trim().toLowerCase();
-  // Group by displayed label so codes that share the same custom_label
-  // (merged in shipping settings) appear as a single filter option.
   const shippedCarrierOptions = (() => {
-    const byLabel = new Map<string, string>(); // label -> first code seen
-    let hasNone = false;
-    for (const o of allShipped) {
-      const code = extractStatusCode(o);
-      const label = getCarrierFilterLabel(o);
-      if (label) {
-        if (!byLabel.has(label)) byLabel.set(label, code || `label:${label}`);
-      } else {
-        hasNone = true;
+    const byLabel = new Map<string, string>();
+    Object.keys(serverCarrierCounts).forEach((label) => {
+      if (label && label !== "null" && label !== "undefined") {
+        if (!byLabel.has(label)) byLabel.set(label, `label:${label}`);
       }
-    }
+    });
     const opts = Array.from(byLabel.entries()).map(([label, code]) => ({
-      code: `label:${label}`,
+      code,
       label,
       matchCode: code,
     }));
@@ -1117,57 +1127,37 @@ const Orders = () => {
       if (bo !== undefined) return 1;
       return a.label.localeCompare(b.label, "ar");
     });
-    if (hasNone) opts.push({ code: "__none__", label: "بدون حالة", matchCode: "" });
+    if (serverCarrierCounts[""] || serverCarrierCounts["null"]) {
+      opts.push({ code: "__none__", label: "بدون حالة", matchCode: "" });
+    }
     return opts;
   })();
-  const shippedOrders = allShipped.filter((o) => {
-    if (shippedSearchNorm) {
-      const matches =
-        (o.shipping_reference || "").toLowerCase().includes(shippedSearchNorm) ||
-        (o.phone || "").toLowerCase().includes(shippedSearchNorm);
-      if (!matches) return false;
-    }
-    if (shippedCarrierFilter !== "all") {
-      const code = extractStatusCode(o);
-      const label = getCarrierFilterLabel(o);
-      if (shippedCarrierFilter === "__none__") {
-        if (label) return false;
-      } else if (shippedCarrierFilter.startsWith("label:")) {
-        const wanted = shippedCarrierFilter.slice("label:".length);
-        if (label !== wanted) return false;
-      } else if (code !== shippedCarrierFilter) {
-        return false;
-      }
-    }
-    if (shippedProductFilter !== "all" && displayProductName(o) !== shippedProductFilter) return false;
-    return true;
-  });
-  const deliveredOrders = orders.filter((o) => (o.status === "delivered" || o.status === "settled") && !o.is_deleted);
-  const cancelledOrders = orders.filter((o) => o.status === "cancelled" && !o.is_deleted);
-  const returnedReceivedOrders = orders.filter((o) => o.status === "returned_received" && !o.is_deleted);
-  const deletedOrders = orders.filter((o) => !!o.is_deleted);
-  const unpackedSearchNorm = unpackedSearch.trim().toLowerCase();
-  const unpackedOrders = orders.filter((o) => {
-    if (o.status !== "unpacked" || o.is_deleted) return false;
-    if (unpackedSearchNorm) {
-      const matches =
-        (o.shipping_reference || "").toLowerCase().includes(unpackedSearchNorm) ||
-        (o.phone || "").toLowerCase().includes(unpackedSearchNorm) ||
-        (o.customer_name || "").toLowerCase().includes(unpackedSearchNorm);
-      if (!matches) return false;
-    }
-    if (unpackedDateFrom) {
-      const from = new Date(unpackedDateFrom);
-      from.setHours(0, 0, 0, 0);
-      if (new Date(o.created_at) < from) return false;
-    }
-    if (unpackedDateTo) {
-      const to = new Date(unpackedDateTo);
-      to.setHours(23, 59, 59, 999);
-      if (new Date(o.created_at) > to) return false;
-    }
-    return true;
-  });
+
+  const pendingOrders = orderTab === "pending" ? orders : [];
+  const foreignOrders = orderTab === "foreign" ? orders : [];
+  const shippedOrders =
+    orderTab === "shipped"
+      ? orders.filter((o) => {
+          if (shippedCarrierFilter !== "all") {
+            const code = extractStatusCode(o);
+            const label = getCarrierFilterLabel(o);
+            if (shippedCarrierFilter === "__none__") {
+              if (label) return false;
+            } else if (shippedCarrierFilter.startsWith("label:")) {
+              const wanted = shippedCarrierFilter.slice("label:".length);
+              if (label !== wanted) return false;
+            } else if (code !== shippedCarrierFilter) {
+              return false;
+            }
+          }
+          return true;
+        })
+      : [];
+  const deliveredOrders = orderTab === "delivered" ? orders : [];
+  const cancelledOrders = orderTab === "cancelled" ? orders : [];
+  const returnedReceivedOrders = orderTab === "returned_received" ? orders : [];
+  const deletedOrders = orderTab === "deleted" ? orders : [];
+  const unpackedOrders = orderTab === "unpacked" ? orders : [];
 
   // Delivery rate by confirmation status — only orders that were sent to shipping
   const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
@@ -1763,7 +1753,14 @@ const Orders = () => {
       </>
       )}
 
-      <Tabs defaultValue="pending" className="w-full">
+      <Tabs
+        value={orderTab}
+        onValueChange={(v) => {
+          setOrderTab(v as OrderTab);
+          setPage(v, 1);
+        }}
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-9 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
           <TabsTrigger value="pending" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Clock className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -1984,7 +1981,7 @@ const Orders = () => {
               "لا توجد طلبات قيد الانتظار"
             )
           ) : (() => {
-            const p = paginate(pendingOrders, "pending");
+            const p = paginate(pendingOrders, "pending", orderTab === "pending" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
@@ -2009,7 +2006,7 @@ const Orders = () => {
               "لا توجد طلبات من خارج ليبيا"
             )
           ) : (() => {
-            const p = paginate(foreignOrders, "foreign");
+            const p = paginate(foreignOrders, "foreign", orderTab === "foreign" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
@@ -2160,7 +2157,7 @@ const Orders = () => {
               shippedSearchNorm ? "لا توجد نتائج مطابقة" : "لا توجد طلبات جاري توصيلها"
             )
           ) : (() => {
-            const p = paginate(shippedOrders, "shipped");
+            const p = paginate(shippedOrders, "shipped", orderTab === "shipped" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order, true))}
@@ -2177,7 +2174,7 @@ const Orders = () => {
               "لا توجد طلبات مستلمة"
             )
           ) : (() => {
-            const p = paginate(deliveredOrders, "delivered");
+            const p = paginate(deliveredOrders, "delivered", orderTab === "delivered" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order))}
@@ -2238,7 +2235,7 @@ const Orders = () => {
               unpackedSearch.trim() ? "لا توجد نتائج مطابقة" : "لا توجد طلبات تم تفريغها"
             )
           ) : (() => {
-            const p = paginate(unpackedOrders, "unpacked");
+            const p = paginate(unpackedOrders, "unpacked", orderTab === "unpacked" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order))}
@@ -2302,7 +2299,7 @@ const Orders = () => {
                 </CardContent>
               </Card>
               {(() => {
-                const p = paginate(cancelledOrders, "cancelled");
+                const p = paginate(cancelledOrders, "cancelled", orderTab === "cancelled" ? tabTotal : undefined);
                 return (
                   <div className="space-y-4">
                     {p.items.map((order) => renderOrderCard(order, true))}
@@ -2320,7 +2317,7 @@ const Orders = () => {
               "لا توجد مرتجعات مؤكدة"
             )
           ) : (() => {
-            const p = paginate(returnedReceivedOrders, "returned");
+            const p = paginate(returnedReceivedOrders, "returned", orderTab === "returned_received" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order))}
@@ -2385,7 +2382,7 @@ const Orders = () => {
                 </CardContent>
               </Card>
               {(() => {
-                const p = paginate(deletedOrders, "deleted");
+                const p = paginate(deletedOrders, "deleted", orderTab === "deleted" ? tabTotal : undefined);
                 return (
                   <div className="space-y-4">
                     {p.items.map((order) => renderOrderCard(order, true))}

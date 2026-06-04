@@ -1,8 +1,14 @@
 // Edge SSR for landing pages — returns pre-rendered HTML so LCP paints
 // before React hydrates. Designed to be invoked by a Cloudflare Worker
 // on the custom domain (e.g. was-la.com) that routes /p/* here and
-// proxies everything else to the Lovable origin.
+// proxies everything else to the deployed SPA origin.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  extractPuckHero,
+  puckHasRenderableContent,
+  renderPuckToHtml,
+} from "../_shared/puck-ssr-html.ts";
+import { parseThemeTokens, themeTokensToSsrCssFromTokens } from "../_shared/theme-ssr.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -11,25 +17,29 @@ const corsHeaders: Record<string, string> = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_ORIGIN = "https://was-la.lovable.app";
+const APP_ORIGIN = (Deno.env.get("APP_ORIGIN") || Deno.env.get("SITE_URL") || "").replace(/\/$/, "");
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
 
-// Cache the upstream index.html very briefly to avoid hitting it on every
-// request, but short enough that new deploys (which rotate /assets/*.js
-// hashes) are picked up quickly — otherwise the SSR HTML references a
-// stale JS file that 404s and React never hydrates.
 let shellCache: { html: string; ts: number } | null = null;
-const SHELL_TTL = 60_000; // 60s
+const SHELL_TTL = 60_000;
+
+function minimalShell(): string {
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="icon" href="/favicon.ico" /></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>`;
+}
 
 async function getShell(): Promise<string> {
   if (shellCache && Date.now() - shellCache.ts < SHELL_TTL) return shellCache.html;
-  const r = await fetch(LOVABLE_ORIGIN + "/index.html", {
+  if (!APP_ORIGIN) {
+    shellCache = { html: minimalShell(), ts: Date.now() };
+    return shellCache.html;
+  }
+  const r = await fetch(APP_ORIGIN + "/index.html", {
     headers: { "user-agent": "landing-ssr" },
   });
-  const html = await r.text();
+  const html = r.ok ? await r.text() : minimalShell();
   shellCache = { html, ts: Date.now() };
   return html;
 }
@@ -47,10 +57,8 @@ function stripTags(s: string): string {
   return String(s ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Keep asset URLs RELATIVE so the browser fetches them from the
-// custom domain (was-la.com). The Cloudflare Worker proxies anything
-// that isn't /p/* back to the Lovable origin — this keeps the assets
-// same-origin and avoids CORS failures on `<script crossorigin>` tags.
+// Keep asset URLs relative so the browser fetches them from the
+// custom domain. The Cloudflare Worker proxies non-/p/* routes to SPA_ORIGIN.
 function absolutizeAssets(html: string): string {
   return html;
 }
@@ -104,18 +112,20 @@ ${preloadImg}
 `;
 }
 
-function buildAboveFold(product: any, currency: string): string {
-  const img = product.images?.[0] || "";
+function buildAboveFold(product: any, currency: string, puckHero?: { title?: string; subtitle?: string; image?: string } | null): string {
+  const name = puckHero?.title || product.name;
+  const subtitle = puckHero?.subtitle || "الدفع عند الاستلام";
+  const img = puckHero?.image || product.images?.[0] || "";
   // Inline above-the-fold content so LCP paints immediately. React will
   // mount into #root and replace this when it hydrates.
   return `
 <div id="ssr-shell" style="font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;direction:rtl;background:hsl(220 20% 97%);min-height:100vh">
   <div style="background:linear-gradient(135deg,hsl(217 91% 50%),hsl(217 91% 40%));color:#fff;padding:24px 16px;text-align:center">
-    <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;line-height:1.3">${escapeHtml(product.name)}</h1>
-    <div style="opacity:.9;font-size:14px">الدفع عند الاستلام</div>
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;line-height:1.3">${escapeHtml(name)}</h1>
+    <div style="opacity:.9;font-size:14px">${escapeHtml(subtitle)}</div>
   </div>
   <div style="max-width:960px;margin:0 auto;padding:16px">
-    ${img ? `<div style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(img)}" alt="${escapeHtml(product.name)}" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></div>` : ""}
+    ${img ? `<div style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(img)}" alt="${escapeHtml(name)}" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></div>` : ""}
     <div style="text-align:center;margin-top:16px">
       <span style="font-size:28px;font-weight:800;color:hsl(217 91% 50%)">${product.price} ${escapeHtml(currency)}</span>
       ${product.original_price ? `<span style="margin-right:10px;color:#94a3b8;text-decoration:line-through">${product.original_price} ${escapeHtml(currency)}</span>` : ""}
@@ -124,6 +134,34 @@ function buildAboveFold(product: any, currency: string): string {
   </div>
 </div>
 `;
+}
+
+async function getStoreCurrency(ownerId: string | null): Promise<string> {
+  if (!ownerId) return "د.ل";
+  const { data } = await supabase
+    .from("store_settings")
+    .select("currency_symbol")
+    .eq("owner_id", ownerId)
+    .limit(1)
+    .maybeSingle();
+  return data?.currency_symbol || "د.ل";
+}
+
+async function getStoreTheme(
+  ownerId: string | null,
+  storeId: string | null
+): Promise<{ tokens: ReturnType<typeof parseThemeTokens>; customCss: string | null }> {
+  if (!ownerId) return { tokens: parseThemeTokens(null), customCss: null };
+  let q = supabase
+    .from("store_settings")
+    .select("theme_tokens, theme_custom_css")
+    .eq("owner_id", ownerId);
+  if (storeId) q = q.eq("store_id", storeId);
+  const { data } = await q.limit(1).maybeSingle();
+  return {
+    tokens: parseThemeTokens(data?.theme_tokens),
+    customCss: (data as { theme_custom_css?: string })?.theme_custom_css ?? null,
+  };
 }
 
 function notFoundHtml(): string {
@@ -179,7 +217,7 @@ Deno.serve(async (req) => {
     // First, try a landing_page with this slug (custom landing pages).
     const landingQuery = supabase
       .from("landing_pages")
-      .select("product_id, title, description, images, price, original_price, owner_id, is_visible")
+      .select("product_id, title, description, images, price, original_price, owner_id, is_visible, puck_data")
       .eq("slug", slug)
       .eq("is_visible", true);
     if (ownerId) landingQuery.eq("owner_id", ownerId);
@@ -187,19 +225,18 @@ Deno.serve(async (req) => {
     const landing = landingRows?.[0];
 
     let product: any = null;
-    let settingsRes: any;
+    let puckData: unknown = null;
+    let puckHero: ReturnType<typeof extractPuckHero> = null;
 
     if (landing) {
-      const [{ data: prod }, sRes] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id, name, slug, price, original_price, description, images, owner_id")
-          .eq("id", landing.product_id)
-          .is("deleted_at", null)
-          .maybeSingle(),
-        supabase.from("store_settings").select("currency_symbol, owner_id").limit(50),
-      ]);
-      settingsRes = sRes;
+      puckData = landing.puck_data;
+      puckHero = extractPuckHero(puckData);
+      const { data: prod } = await supabase
+        .from("products")
+        .select("id, name, slug, price, original_price, description, images, owner_id")
+        .eq("id", landing.product_id)
+        .is("deleted_at", null)
+        .maybeSingle();
       if (prod) {
         const lpImages = Array.isArray(landing.images) ? landing.images : [];
         product = {
@@ -220,11 +257,7 @@ Deno.serve(async (req) => {
         .eq("is_visible", true)
         .limit(1);
       if (ownerId) productQuery.eq("owner_id", ownerId);
-      const [{ data: products }, sRes] = await Promise.all([
-        productQuery,
-        supabase.from("store_settings").select("currency_symbol, owner_id").limit(50),
-      ]);
-      settingsRes = sRes;
+      const { data: products } = await productQuery;
       product = products?.[0];
     }
 
@@ -235,15 +268,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const currency =
-      settingsRes.data?.find((s: any) => s.owner_id === product.owner_id)?.currency_symbol ||
-      settingsRes.data?.[0]?.currency_symbol ||
-      "د.ل";
+    const currency = await getStoreCurrency(product.owner_id);
+    const { tokens: themeTokens, customCss: themeCustomCss } = await getStoreTheme(
+      product.owner_id,
+      (product as { store_id?: string }).store_id ?? null
+    );
 
     const pageUrl = `https://${publicHost}${targetPath}`;
     const shell = absolutizeAssets(await getShell());
-    const headInjection = buildHead(product, currency, pageUrl);
-    const bodyInjection = buildAboveFold(product, currency);
+    const themeCss = themeTokensToSsrCssFromTokens(themeTokens, "#root", themeCustomCss);
+    const headInjection = buildHead(product, currency, pageUrl) + `<style id="ssr-theme">${themeCss}</style>`;
+    const bodyInjection = puckHasRenderableContent(puckData)
+      ? renderPuckToHtml(puckData)
+      : buildAboveFold(product, currency, puckHero);
 
     let html = shell.replace(/<title>[\s\S]*?<\/title>/i, "");
     // Strip any static OG tags from the shell so ours win for crawlers.

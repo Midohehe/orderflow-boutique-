@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowRight, CheckCircle2, Loader2, RefreshCw, Link2, Link2Off, Undo2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, RefreshCw, Link2, Link2Off, Undo2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -113,9 +113,15 @@ const SettlementDetail = () => {
         body: { settlement_id: id, received, safe_id: safeId || null },
       });
       if (error) throw error;
+      const recon = (data as any)?.reconciliation;
+      let description = `تم تحديث ${data?.updated_orders ?? 0} طلب`;
+      if (received && recon && !recon.ok) {
+        description = `تم التحديث مع تنبيه: فرق ${Number(recon.delta).toFixed(2)} بين مبلغ التسوية (${Number(recon.payment_amount).toFixed(2)}) ومجموع الشحنات المرتبطة (${Number(recon.linked_shipments_sum).toFixed(2)})`;
+      }
       toast({
         title: received ? "تم تأكيد الاستلام" : "تم التراجع",
-        description: `تم تحديث ${data?.updated_orders ?? 0} طلب`,
+        description,
+        variant: received && recon && !recon.ok ? "destructive" : undefined,
       });
       setConfirmOpen(false);
       setSelectedSafeId("");
@@ -133,6 +139,13 @@ const SettlementDetail = () => {
   }, [id]);
 
   const linkedCount = rows.filter((r) => r.order_id).length;
+  const linkedPaidSum = rows
+    .filter((r) => r.order_id)
+    .reduce((s, r) => s + Number(r.paid_amount || 0), 0);
+  const paymentAmount = Number(settlement?.payment_amount || 0);
+  const reconDelta = paymentAmount - linkedPaidSum;
+  const reconOk = paymentAmount === 0 || linkedPaidSum === 0
+    || Math.abs(reconDelta) <= Math.max(1, paymentAmount * 0.02);
 
   if (loading) {
     return (
@@ -212,7 +225,12 @@ const SettlementDetail = () => {
                     </Select>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    سيتم إيداع {Number(settlement.payment_amount).toFixed(2)} في الخزينة المختارة.
+                    سيتم إيداع {paymentAmount.toFixed(2)} في الخزينة المختارة.
+                    {linkedPaidSum > 0 && (
+                      <> مجموع الشحنات المرتبطة: {linkedPaidSum.toFixed(2)}
+                        {!reconOk && ` (فرق ${reconDelta.toFixed(2)})`}
+                      </>
+                    )}
                   </p>
                 </div>
                 <AlertDialogFooter>
@@ -230,10 +248,14 @@ const SettlementDetail = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">المبلغ المستحق</p>
-          <p className="text-lg font-bold">{Number(settlement.payment_amount).toFixed(2)}</p>
+          <p className="text-lg font-bold">{paymentAmount.toFixed(2)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <p className="text-xs text-muted-foreground">مجموع الشحنات المرتبطة</p>
+          <p className={`text-lg font-bold ${reconOk ? "" : "text-amber-600"}`}>{linkedPaidSum.toFixed(2)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">رسوم الشحن</p>
@@ -248,6 +270,16 @@ const SettlementDetail = () => {
           <p className="text-lg font-bold">{linkedCount} / {rows.length}</p>
         </CardContent></Card>
       </div>
+
+      {!reconOk && !settlement.received && (
+        <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <span>
+            تنبيه مطابقة: فرق {reconDelta.toFixed(2)} بين مبلغ التسوية ومجموع المدفوع في الشحنات المرتبطة.
+            راجع الشحنات قبل التأكيد.
+          </span>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

@@ -1,73 +1,157 @@
-# Welcome to your Lovable project
+# Orderflow Boutique (وصلة)
 
-## Project info
+Arabic e-commerce and order-management platform built with React, Vite, and Supabase.
 
-**URL**: https://lovable.dev/projects/59c9e61e-7ad2-447d-a5d7-e9d864fefd15
+## Local development
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/59c9e61e-7ad2-447d-a5d7-e9d864fefd15) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Requirements: Node.js 18+ and npm.
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+git clone https://github.com/aramstore/orderflow-boutique.git
+cd orderflow-boutique
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The dev server runs at http://localhost:8080.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Copy `.env` from `.env.example` with your Supabase credentials:
 
-**Use GitHub Codespaces**
+```
+VITE_SUPABASE_PROJECT_ID=your-project-ref
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Connect a new Supabase project
 
-## What technologies are used for this project?
+Use this when moving from the old Lovable/hosted project to your own Supabase account.
 
-This project is built with:
+### 1. Create the project
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+1. Go to [supabase.com/dashboard](https://supabase.com/dashboard) and create a **new project**.
+2. Open **Project Settings → API** and copy:
+   - **Project URL**
+   - **Project ref** (subdomain, e.g. `abcdefghijklmnop`)
+   - **anon public** key
 
-## How can I deploy this project?
+### 2. Point the app at the new project
 
-Simply open [Lovable](https://lovable.dev/projects/59c9e61e-7ad2-447d-a5d7-e9d864fefd15) and click on Share -> Publish.
+**Option A — script (Windows):**
 
-## Can I connect a custom domain to my Lovable project?
+```powershell
+cd orderflow-boutique
+.\scripts\connect-supabase.ps1
+```
 
-Yes, you can!
+**Option B — manual:** edit `.env` and set `supabase/config.toml` → `project_id` to your new ref.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Restart the dev server after changing `.env`.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### 3. Apply the database schema
+
+Install/login/link with the Supabase CLI, then push all migrations:
+
+```powershell
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase db push
+```
+
+This creates all tables, RLS policies, triggers, and RPCs (~165 migration files).
+
+### 4. Deploy edge functions
+
+```powershell
+npx supabase functions deploy
+```
+
+Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` automatically in the cloud.
+
+### 5. Configure secrets (Dashboard → Edge Functions → Secrets)
+
+| Secret | Required for |
+|--------|----------------|
+| `AI_API_KEY` | WhatsApp AI, city matching, image extraction |
+| `AI_API_BASE_URL` | Optional. Default: OpenRouter |
+| `SITE_URL` | Auth emails, OAuth redirects |
+| `AUTH_HOOK_SECRET` | Auth email hook |
+| `RESEND_API_KEY` | Sending auth emails |
+| `APP_ORIGIN` | Landing page SSR |
+
+### 6. Auth email hook (optional but recommended)
+
+In **Authentication → Hooks**, set **Send Email** to:
+
+```
+https://YOUR_PROJECT_REF.supabase.co/functions/v1/auth-email-hook
+```
+
+Add header `Authorization: Bearer YOUR_AUTH_HOOK_SECRET`.
+
+### 7. First admin user
+
+After signing up in the app, promote your user in the SQL editor:
+
+```sql
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'admin' FROM auth.users WHERE email = 'you@example.com'
+ON CONFLICT DO NOTHING;
+```
+
+(Adjust table/column names if your schema uses a different admin pattern.)
+
+### 8. Verify
+
+```powershell
+npm run dev
+```
+
+Sign up / log in and confirm data loads. Webhook URLs in **Integrations** and **Shipping Settings** will automatically use the new `VITE_SUPABASE_URL`.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+
+## Stack
+
+- Vite + React 18 + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (auth, database, edge functions)
+- TanStack Query, React Router, PWA support
+
+## Supabase edge functions
+
+AI features (WhatsApp replies, city matching, order image extraction) use an **OpenAI-compatible API**. Set these secrets in your Supabase project:
+
+| Secret | Description |
+|--------|-------------|
+| `AI_API_KEY` | API key (OpenAI, OpenRouter, etc.) |
+| `AI_API_BASE_URL` | Optional. Defaults to `https://openrouter.ai/api/v1` |
+| `AI_MODEL` | Optional default model override |
+
+Auth emails use a **Send Email Hook** (`auth-email-hook`) with standard Supabase payload format:
+
+| Secret | Description |
+|--------|-------------|
+| `AUTH_HOOK_SECRET` | Bearer token for hook verification |
+| `RESEND_API_KEY` | Send via [Resend](https://resend.com), or use `EMAIL_SEND_URL` |
+| `SITE_URL` | Public app URL for email links |
+
+Landing-page SSR (`landing-ssr`) fetches the SPA shell from `APP_ORIGIN` (or `SITE_URL`). Set this to your deployed frontend URL.
+
+## Deployment
+
+1. Build the frontend: `npm run build`
+2. Deploy `dist/` to any static host (Cloudflare Pages, Netlify, nginx, etc.)
+3. Deploy Supabase edge functions: `supabase functions deploy`
+4. Optionally use `cloudflare-worker/worker.js` to route `/p/*` to SSR and everything else to your SPA
+
+## License
+
+Private project.

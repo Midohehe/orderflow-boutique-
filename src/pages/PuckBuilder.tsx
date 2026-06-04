@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Eye, Loader2, ArrowLeft } from "lucide-react";
 import { buildPuckConfig, EMPTY_PUCK_DATA, LANDING_PAGE_STARTER_PUCK_DATA, type PuckContext } from "@/lib/puck/config";
+import { purgeLandingCache } from "@/lib/purgeLandingCache";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const PuckBuilder = () => {
@@ -98,6 +99,9 @@ const PuckBuilder = () => {
         .update({ puck_data: puckData } as any)
         .eq("id", rowId);
       if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
+      if (landingMeta?.slug) {
+        await purgeLandingCache(landingMeta.slug, activeStore?.slug);
+      }
       toast({ title: publish ? "تم النشر ✓" : "تم الحفظ" });
       return;
     }

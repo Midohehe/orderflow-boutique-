@@ -2,18 +2,19 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { initTheme } from "./hooks/useTheme";
+import { isPublicPerformancePath } from "./lib/publicPaths";
 
 initTheme();
 createRoot(document.getElementById("root")!).render(<App />);
 
-// PWA service worker registration — guarded against iframes and Lovable preview hosts
+// PWA service worker — skip on conversion pages (faster first load) and in iframes
 (() => {
   const inIframe = (() => {
     try { return window.self !== window.top; } catch { return true; }
   })();
-  const host = window.location.hostname;
-  const isPreview = host.includes("lovableproject.com") || host.includes("lovable.app") && host.includes("id-preview");
-  if (inIframe || isPreview) {
+  const skipPwa = inIframe || isPublicPerformancePath(window.location.pathname);
+  if (skipPwa) {
+    if (!inIframe) return;
     (async () => {
       try {
         const rs = await navigator.serviceWorker?.getRegistrations();

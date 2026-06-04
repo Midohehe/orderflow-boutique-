@@ -1,6 +1,6 @@
 // Classifies a customer's WhatsApp reply intent (confirm / cancel / other)
-// using Lovable AI. Used by mazbot-poll when literal keyword matching fails.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// using an OpenAI-compatible API. Used by mazbot-poll when literal keyword matching fails.
+import { chatCompletions, getAiConfig, getAiModel } from "../_shared/ai-client.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,8 +18,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const { apiKey } = getAiConfig();
+    if (!apiKey) {
       return new Response(JSON.stringify({ intent: "other", reason: "no_api_key" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -33,33 +33,29 @@ Deno.serve(async (req) => {
 
 استخدم الأداة classify_intent دائماً.`;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        temperature: 0,
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: `سياق آخر رسالة تأكيد:\n${String(prompt_context || "(لا يوجد)")}\n\nرد الزبون:\n${message}` },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "classify_intent",
-            description: "صنّف نية الزبون",
-            parameters: {
-              type: "object",
-              properties: {
-                intent: { type: "string", enum: ["confirm", "cancel", "other"] },
-                confidence: { type: "number", minimum: 0, maximum: 1 },
-              },
-              required: ["intent"],
+    const aiRes = await chatCompletions({
+      model: getAiModel("google/gemini-2.5-flash-lite"),
+      temperature: 0,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: `سياق آخر رسالة تأكيد:\n${String(prompt_context || "(لا يوجد)")}\n\nرد الزبون:\n${message}` },
+      ],
+      tools: [{
+        type: "function",
+        function: {
+          name: "classify_intent",
+          description: "صنّف نية الزبون",
+          parameters: {
+            type: "object",
+            properties: {
+              intent: { type: "string", enum: ["confirm", "cancel", "other"] },
+              confidence: { type: "number", minimum: 0, maximum: 1 },
             },
+            required: ["intent"],
           },
-        }],
-        tool_choice: { type: "function", function: { name: "classify_intent" } },
-      }),
+        },
+      }],
+      tool_choice: { type: "function", function: { name: "classify_intent" } },
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();

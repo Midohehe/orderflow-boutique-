@@ -12,9 +12,22 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Env files (secrets)
+.env
+.env.*
+!.env.example
+
+# Editor / local tooling
 .vscode/*
 !.vscode/extensions.json
+.cursor/
+.agents/
+skills-lock.json
+
+# Supabase CLI temp
+supabase/.temp/
+
+# Editor directories and files
 .idea
 .DS_Store
 *.suo

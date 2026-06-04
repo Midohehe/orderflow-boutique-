@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Wallet, Plus, Loader2, History, ArrowDownCircle, Filter } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
@@ -18,6 +19,7 @@ interface Safe {
   name: string;
   balance: number;
   notes: string | null;
+  allow_negative_balance?: boolean;
 }
 
 interface Movement {
@@ -62,7 +64,7 @@ const Safes = () => {
     if (!activeStoreId) { setSafes([]); setLoading(false); return; }
     setLoading(true);
     const { data, error } = await supabase
-      .from("safes").select("id, name, balance, notes").eq("store_id", activeStoreId).order("created_at");
+      .from("safes").select("id, name, balance, notes, allow_negative_balance").eq("store_id", activeStoreId).order("created_at");
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     setSafes((data as Safe[]) || []);
     setLoading(false);
@@ -135,6 +137,18 @@ const Safes = () => {
     setFilteredMovements(list);
   }, [movements, movFilterType, movFilterDateFrom, movFilterDateTo]);
 
+  const toggleNegative = async (safe: Safe, allowed: boolean) => {
+    const { error } = await supabase
+      .from("safes")
+      .update({ allow_negative_balance: allowed })
+      .eq("id", safe.id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSafes((prev) => prev.map((s) => s.id === safe.id ? { ...s, allow_negative_balance: allowed } : s));
+  };
+
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
@@ -166,6 +180,13 @@ const Safes = () => {
                   <p className={`text-2xl font-bold ${Number(s.balance) >= 0 ? "text-green-600" : "text-red-500"}`}>
                     {Number(s.balance).toFixed(2)}
                   </p>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">السماح بالرصيد السالب</span>
+                  <Switch
+                    checked={!!s.allow_negative_balance}
+                    onCheckedChange={(v) => toggleNegative(s, v)}
+                  />
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <Button size="sm" onClick={() => { setDepositSafe(s); setDepositOpen(true); }}>

@@ -1,16 +1,29 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck } from "lucide-react";
+import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
 import StoreHeader from "@/components/StoreHeader";
-import { PuckRender } from "@/components/PuckRender";
+import { StoreThemeScope } from "@/components/StoreThemeScope";
+import { parseThemeTokens, type StoreThemeTokens } from "@/lib/themeTokens";
+import {
+  autocompleteForField,
+  inputTypeForField,
+  mapCreateOrderError,
+  normalizeLibyanPhone,
+  resolveOrderFields,
+  validateOrderPayload,
+} from "@/lib/landingOrderForm";
+
+const PuckRender = lazy(() =>
+  import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
+);
 
 // Lazy-load DOMPurify only when description is rendered
 let DOMPurifyModule: typeof import("dompurify") | null = null;
@@ -76,6 +89,8 @@ interface StoreSettings {
   currency_symbol: string;
   currency_code: string;
   button_text?: string;
+  theme_tokens?: StoreThemeTokens;
+  theme_custom_css?: string | null;
 }
 
 // Declare fbq for TypeScript
@@ -171,12 +186,20 @@ const LandingPage = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
-  const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.ل", currency_code: "LYD", button_text: "اطلب الآن - الدفع عند الاستلام" });
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>({
+    currency_symbol: "د.ل",
+    currency_code: "LYD",
+    button_text: "اطلب الآن - الدفع عند الاستلام",
+    theme_tokens: parseThemeTokens(null),
+  });
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
+  const [checkoutTracked, setCheckoutTracked] = useState(false);
+  const [puckData, setPuckData] = useState<any>(null);
+  const [puckLoading, setPuckLoading] = useState(false);
   
   // Force light mode — landing pages should always look the same regardless of dashboard theme
   useEffect(() => {
@@ -269,13 +292,12 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart, puck_data")
+          .select("id, product_id, store_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart")
           .eq("slug", slug)
           .maybeSingle();
 
         const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
-        if (landingPage && landingPage.puck_data) setPuckData(landingPage.puck_data);
         const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
         // إن وُجدت صفحة هبوط: نأخذ المنتج بمعرّفه. وإلا نرجع للسلوك القديم (slug في products).
@@ -382,6 +404,21 @@ const LandingPage = () => {
             ? supabase.from("landing_pages").select("description").eq("id", lp.id).maybeSingle()
             : Promise.resolve({ data: null } as any);
 
+          const puckPromise = lp?.id
+            ? supabase.from("landing_pages").select("puck_data").eq("id", lp.id).maybeSingle()
+            : Promise.resolve({ data: null } as any);
+
+          if (lp?.id) {
+            setPuckLoading(true);
+            puckPromise.then(({ data: puckRow }: any) => {
+              const pd = puckRow?.puck_data;
+              if (pd && Array.isArray(pd?.content) && pd.content.length > 0) {
+                setPuckData(pd);
+              }
+              setPuckLoading(false);
+            });
+          }
+
           Promise.all([heavyProductPromise, heavyLandingPromise]).then(([prodHeavy, landingHeavy]: any[]) => {
             const prodData = prodHeavy?.data || {};
             const landingDesc = landingHeavy?.data?.description;
@@ -428,6 +465,20 @@ const LandingPage = () => {
           setFormData((prev) => ({ ...initialFormData, ...prev }));
         }
 
+        if (cachedPixelSettings) {
+          const runCachedPixels = () =>
+            initializePixels(
+              cachedPixelSettings as PixelSettings,
+              loadedProduct,
+              loadedCurrency || storeSettings.currency_code
+            );
+          if (typeof (window as any).requestIdleCallback === "function") {
+            (window as any).requestIdleCallback(runCachedPixels, { timeout: 1500 });
+          } else {
+            setTimeout(runCachedPixels, 400);
+          }
+        }
+
         // Stale-while-revalidate: ALWAYS fetch fresh so admin edits show up.
         const pixelPromise: any = ownerForSettings
           ? (supabase as any)
@@ -440,9 +491,10 @@ const LandingPage = () => {
         if (storeForSettings) formQ.eq("store_id", storeForSettings);
         const formFieldsPromise = formQ.order("sort_order", { ascending: true });
 
-        const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text");
+        const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text, theme_tokens, theme_custom_css");
         if (ownerForSettings) storeQ.eq("owner_id", ownerForSettings);
-        const storePromise = storeQ.limit(1).maybeSingle();
+        if (storeForSettings) storeQ.eq("store_id", storeForSettings);
+        const storePromise = storeQ.maybeSingle();
 
         const catalogPromise = supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true);
 
@@ -465,6 +517,8 @@ const LandingPage = () => {
               currency_symbol: storeSettingsResult.data.currency_symbol,
               currency_code: storeSettingsResult.data.currency_code,
               button_text: (storeSettingsResult.data as any).button_text || "اطلب الآن - الدفع عند الاستلام",
+              theme_tokens: parseThemeTokens((storeSettingsResult.data as { theme_tokens?: unknown }).theme_tokens),
+              theme_custom_css: (storeSettingsResult.data as { theme_custom_css?: string }).theme_custom_css ?? null,
             });
             setToCache(storeKey, storeSettingsResult.data);
           }
@@ -503,7 +557,7 @@ const LandingPage = () => {
 
     loadData();
     return () => ac.abort();
-  }, [slug]);
+  }, [slug, username]);
 
   // Sanitize description in background, after main render
   useEffect(() => {
@@ -544,13 +598,11 @@ const LandingPage = () => {
   }, [product?.description]);
 
   // Track checkout start when user starts filling the form
-  const [checkoutTracked, setCheckoutTracked] = useState(false);
-  const [puckData, setPuckData] = useState<any>(null);
-
   const handleInputChange = (fieldKey: string, value: string) => {
     let cleanedValue = value;
     // Phone field: strip everything except digits and optional leading +
-    const isPhoneField = formFields.find(f => f.field_key === fieldKey)?.field_type === "phone";
+    const fieldMeta = formFields.find((f) => f.field_key === fieldKey);
+    const isPhoneField = fieldMeta?.field_type === "phone";
     if (isPhoneField) {
       cleanedValue = value.replace(/[^0-9+]/g, "");
       if (cleanedValue.startsWith("+")) {
@@ -559,7 +611,7 @@ const LandingPage = () => {
         cleanedValue = cleanedValue.replace(/[^0-9]/g, "");
       }
     }
-    setFormData({ ...formData, [fieldKey]: cleanedValue });
+    setFormData((prev) => ({ ...prev, [fieldKey]: cleanedValue }));
 
     // Track checkout start on first input
     if (!checkoutTracked && value.length > 0) {
@@ -676,7 +728,7 @@ const LandingPage = () => {
         content_ids: [productData.id],
         content_type: 'product',
         value: parseFloat(productData.price),
-        currency: currencyCode || 'AED',
+        currency: toISOCurrency(currencyCode, storeSettings.currency_symbol),
       });
     }
   };
@@ -779,7 +831,10 @@ const LandingPage = () => {
 
   const trackPurchaseEvent = () => {
     const currencyCode = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
-    const productValue = parseFloat(product?.price || "0") * quantity;
+    const productValue =
+      selectedUpsellIndex !== null && product?.upsell_offers?.[selectedUpsellIndex]
+        ? Number(product.upsell_offers[selectedUpsellIndex].price)
+        : parseFloat(product?.price || "0") * quantity;
     const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     // Persist for thank-you page fallback dedup
     try {
@@ -864,52 +919,30 @@ const LandingPage = () => {
       }
     }
 
-    // Check required fields
-    const requiredFields = formFields.filter(f => f.required);
-    const missingFields = requiredFields.filter(f => !formData[f.field_key]);
-    
-    if (missingFields.length > 0) {
-      showToast("خطأ", "يرجى ملء جميع الحقول المطلوبة", "destructive");
+    // Merge DOM values (browser autofill may skip React onChange)
+    const mergedFormData = { ...formData };
+    const formEl = document.getElementById("order-form");
+    if (formEl) {
+      formEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]").forEach((el) => {
+        if (el.name) mergedFormData[el.name] = el.value;
+      });
+    }
+
+    const validationError = validateOrderPayload(formFields, mergedFormData);
+    if (validationError) {
+      showToast("خطأ", validationError, "destructive");
       return;
     }
 
-    // Validate phone number: 9-10 digits only
-    const phoneField = formFields.find(f => f.field_type === "phone");
-    if (phoneField) {
-      const phoneValue = formData[phoneField.field_key] || "";
-      // Strip +218 / 00218 country code if present, then check length
-      const digitsOnly = phoneValue.replace(/\D/g, "").replace(/^(00)?218/, "");
-      if (digitsOnly.length < 9 || digitsOnly.length > 10) {
-        showToast("خطأ", "رقم الهاتف يجب أن يكون بين 9 و 10 أرقام", "destructive");
-        return;
-      }
-    }
-
-    // Extra safety: re-extract phone the same way we send it to the server,
-    // and reject if it's empty or invalid (covers forms whose phone field
-    // isn't typed as "phone" but is still labeled "هاتف/جوال/tel").
-    {
-      const findFieldEarly = (...keywords: string[]) => {
-        const f = formFields.find((fld) => {
-          const hay = `${fld.label || ""} ${fld.field_key || ""}`.toLowerCase();
-          return keywords.some((k) => hay.includes(k.toLowerCase()));
-        });
-        return f ? (formData[f.field_key] || "") : "";
-      };
-      const phoneCandidate = (formData.phone || findFieldEarly("phone", "tel", "هاتف", "رقم", "جوال", "موبايل") || "").toString();
-      const digits = phoneCandidate.replace(/\D/g, "").replace(/^(00)?218/, "");
-      if (digits.length < 9 || digits.length > 10) {
-        showToast("خطأ", "يرجى إدخال رقم هاتف صحيح (9 إلى 10 أرقام)", "destructive");
-        return;
-      }
-    }
+    const { customer_name, phone, city, address } = resolveOrderFields(formFields, mergedFormData);
+    const normalizedPhone = normalizeLibyanPhone(phone);
 
     // Validate per-piece variants: if product has variants, each piece must have its selections
     const hasColors = !!(product?.colors && product.colors.length > 0);
     const hasSizes = !!(product?.sizes && product.sizes.length > 0);
     if (hasColors || hasSizes) {
-      for (let i = 0; i < itemVariants.length; i++) {
-        const v = itemVariants[i];
+      for (let i = 0; i < quantity; i++) {
+        const v = itemVariants[i] || { color: "", size: "", productCode: "" };
         if ((hasColors && !v.color) || (hasSizes && !v.size)) {
           toast({
             title: "خطأ",
@@ -928,20 +961,23 @@ const LandingPage = () => {
       const singleCode = product?.product_codes && product.product_codes.length > 0
         ? product.product_codes[0]
         : null;
-      // Keep per-piece alignment: do NOT filter, so colors/sizes/codes pair by index
-      const colorsArray = itemVariants.map(v => v.color || "");
-      const sizesArray = itemVariants.map(v => v.size || "");
-      const codesArray = itemVariants.map(v => v.productCode || singleCode || "");
-      // Build items array for proper order_items rows on the server.
-      // Group consecutive pieces that share the same variant (color/size/code)
-      // into a single line with quantity = N instead of N separate rows.
+      // Pad variants to match quantity
+      const variantsForSubmit = [...itemVariants];
+      while (variantsForSubmit.length < quantity) {
+        variantsForSubmit.push({ color: "", size: "", productCode: singleCode || "" });
+      }
+      const activeVariants = variantsForSubmit.slice(0, quantity);
+
+      const colorsArray = activeVariants.map((v) => v.color || "");
+      const sizesArray = activeVariants.map((v) => v.size || "");
+      const codesArray = activeVariants.map((v) => v.productCode || singleCode || "");
       const itemsPayload: Array<{
         color: string | null;
         size: string | null;
         product_code: string | null;
         quantity: number;
       }> = [];
-      for (const v of itemVariants) {
+      for (const v of activeVariants) {
         const color = v.color || null;
         const size = v.size || null;
         const product_code = (v.productCode || singleCode) || null;
@@ -958,35 +994,7 @@ const LandingPage = () => {
         }
       }
 
-      // Map dynamic field_keys (e.g. custom_123) → standard fields by label/key keywords.
-      const findField = (...keywords: string[]) => {
-        const f = formFields.find((fld) => {
-          const hay = `${fld.label || ""} ${fld.field_key || ""}`.toLowerCase();
-          return keywords.some((k) => hay.includes(k.toLowerCase()));
-        });
-        return f ? (formData[f.field_key] || "") : "";
-      };
-      const customer_name =
-        formData.name || findField("name", "اسم");
-      const phone =
-        formData.phone || findField("phone", "tel", "هاتف", "رقم", "جوال", "موبايل");
-      // Normalize Libyan phone: strip +218/00218 country code, ensure leading 0
-      const normalizePhone = (raw: string) => {
-        let d = (raw || "").toString().replace(/\D/g, "");
-        d = d.replace(/^(00)?218/, "");
-        if (d.length === 9 && d.startsWith("9")) d = "0" + d;
-        return d;
-      };
-      const normalizedPhone = normalizePhone(phone);
-      const city =
-        formData.city ||
-        findField("city", "مدينة", "محافظة", "محافضة", "ولاية", "منطقة");
-      const address =
-        formData.address ||
-        findField("address", "منطقة", "عنوان", "حي", "شارع");
-
-      // Price is recomputed server-side to prevent client-side tampering
-      const { error } = await supabase.functions.invoke("create-order", {
+      const { data, error } = await supabase.functions.invoke("create-order", {
         body: {
           customer_name,
           phone: normalizedPhone,
@@ -1005,16 +1013,23 @@ const LandingPage = () => {
       });
 
       if (error) throw error;
+      if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+        throw new Error(mapCreateOrderError(String((data as { error: string }).error)));
+      }
 
       // Track purchase event
       trackPurchaseEvent();
 
-      // Navigate to thank you page with order data
+      const orderPrice =
+        selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
+          ? product.upsell_offers[selectedUpsellIndex].price
+          : parseFloat(String(product?.price || 0)) * quantity;
+
       navigate("/thank-you", {
         state: {
           orderData: {
             productName: product?.name,
-            price: product?.price,
+            price: orderPrice,
             currencySymbol: storeSettings.currency_symbol,
             currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
             productId: product?.id,
@@ -1029,7 +1044,13 @@ const LandingPage = () => {
       });
     } catch (error) {
       console.error("Error submitting order:", error);
-      showToast("خطأ", "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى", "destructive");
+      const msg =
+        error instanceof Error && error.message.includes("يرجى")
+          ? error.message
+          : error instanceof Error
+            ? mapCreateOrderError(error.message)
+            : "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى";
+      showToast("خطأ", msg, "destructive");
     } finally {
       setIsSubmitting(false);
     }
@@ -1436,20 +1457,24 @@ const LandingPage = () => {
                       </Label>
                       {field.field_type === "textarea" ? (
                         <Textarea
+                          name={field.field_key}
                           value={formData[field.field_key] || ""}
                           onChange={(e) => handleInputChange(field.field_key, e.target.value)}
                           placeholder={field.placeholder}
                           rows={3}
                           required={field.required}
+                          autoComplete={autocompleteForField(field)}
                           className="text-base shadow-sm focus:shadow-md"
                         />
                       ) : (
                         <Input
+                          name={field.field_key}
                           value={formData[field.field_key] || ""}
                           onChange={(e) => handleInputChange(field.field_key, e.target.value)}
                           placeholder={field.placeholder}
-                          type={field.field_type === "phone" ? "tel" : "text"}
-                          inputMode={field.field_type === "phone" ? "tel" : "text"}
+                          type={inputTypeForField(field)}
+                          inputMode={field.field_type === "phone" ? "tel" : field.field_type === "email" ? "email" : "text"}
+                          autoComplete={autocompleteForField(field)}
                           dir={field.field_type === "phone" ? "ltr" : "rtl"}
                           required={field.required}
                           className="text-base h-12 shadow-sm focus:shadow-md"
@@ -1582,9 +1607,11 @@ const LandingPage = () => {
   const puckHasContent = !!(puckData && Array.isArray(puckData?.content) && puckData.content.length > 0);
 
   return (
+    <StoreThemeScope tokens={storeSettings.theme_tokens} customCss={storeSettings.theme_custom_css}>
     <div
-      className="min-h-screen w-full bg-[#fdfdfd] text-slate-900 font-cairo overflow-x-hidden pb-[calc(7rem+env(safe-area-inset-bottom))]"
+      className="min-h-screen w-full text-slate-900 font-cairo overflow-x-hidden pb-[calc(7rem+env(safe-area-inset-bottom))]"
       dir="rtl"
+      style={{ background: "hsl(var(--store-bg))", color: "hsl(var(--store-fg))" }}
     >
       {/* خلفية تزيينية راقية من الإضاءات الخفيفة والناعمة */}
       <div className="absolute top-0 right-0 left-0 h-[600px] bg-gradient-to-b from-amber-500/5 via-primary/5 to-transparent -z-10 pointer-events-none" />
@@ -1614,9 +1641,16 @@ const LandingPage = () => {
       {!puckHasContent && heroSlot}
 
       {puckHasContent ? (
-        <PuckRender
-          data={puckData}
-          ctx={{
+        <Suspense
+          fallback={
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          }
+        >
+          <PuckRender
+            data={puckData}
+            ctx={{
             ownerId: product?.owner_id || ownerId || undefined,
             storeId: storeId || undefined,
             username,
@@ -1631,6 +1665,7 @@ const LandingPage = () => {
             productFaq: productFaqSlot,
           }}
         />
+        </Suspense>
       ) : (
       <main className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
@@ -1769,6 +1804,7 @@ const LandingPage = () => {
         </div>
       </div>
     </div>
+    </StoreThemeScope>
   );
 };
 

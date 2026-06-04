@@ -85,6 +85,26 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Reconciliation: compare settlement header amount vs linked shipment lines
+    const { data: allShipments } = await admin
+      .from("settlement_shipments")
+      .select("order_id, paid_amount")
+      .eq("settlement_id", settlement.id);
+    const linkedSum = (allShipments || [])
+      .filter((s: any) => s.order_id)
+      .reduce((sum: number, s: any) => sum + Number(s.paid_amount || 0), 0);
+    const paymentAmount = Number(settlement.payment_amount) || 0;
+    const reconciliation = {
+      payment_amount: paymentAmount,
+      linked_shipments_sum: linkedSum,
+      linked_count: (allShipments || []).filter((s: any) => s.order_id).length,
+      total_shipments: (allShipments || []).length,
+      delta: paymentAmount - linkedSum,
+      ok: paymentAmount === 0 || linkedSum === 0
+        ? true
+        : Math.abs(paymentAmount - linkedSum) <= Math.max(1, paymentAmount * 0.02),
+    };
+
     const ownerIdSettlement = settlement.owner_id;
     const ts = received ? new Date().toISOString() : null;
 
@@ -175,7 +195,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, updated_orders: orderIds.length }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      updated_orders: orderIds.length,
+      reconciliation,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

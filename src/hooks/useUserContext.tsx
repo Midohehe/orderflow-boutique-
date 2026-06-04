@@ -33,12 +33,12 @@ export const useUserContext = () => {
       return;
     }
     (async () => {
-      const [{ data: prof }, { data: roles }, { data: member }] = await Promise.all([
+      const [{ data: prof }, { data: adminFlag }, { data: member }] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", user.id),
+        supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }),
         supabase.from("store_members").select("id, owner_id, group_id").eq("member_user_id", user.id).maybeSingle(),
       ]);
-      const admin = !!roles?.some((r: any) => r.role === "admin");
+      const admin = adminFlag === true;
       setIsAdmin(admin);
 
       if (member) {

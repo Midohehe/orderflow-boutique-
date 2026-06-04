@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const AdminCards = lazy(() => import("./AdminCards"));
 const AdminStores = lazy(() => import("./AdminStores"));
+const AdminPlans = lazy(() => import("./AdminPlans"));
 const PermissionGroups = lazy(() => import("./PermissionGroups"));
 
 interface ManagedUser {
@@ -169,6 +170,7 @@ const Settings = () => {
           <TabsTrigger value="users">المستخدمون</TabsTrigger>
           <TabsTrigger value="cards">كروت الشحن</TabsTrigger>
           <TabsTrigger value="stores">المتاجر</TabsTrigger>
+          <TabsTrigger value="plans">خطط الاشتراك</TabsTrigger>
           <TabsTrigger value="permissions">الصلاحيات</TabsTrigger>
         </TabsList>
 
@@ -309,6 +311,11 @@ const Settings = () => {
         <TabsContent value="stores" className="mt-4">
           <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
             <AdminStores />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="plans" className="mt-4">
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+            <AdminPlans />
           </Suspense>
         </TabsContent>
         <TabsContent value="permissions" className="mt-4">

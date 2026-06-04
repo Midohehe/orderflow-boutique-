@@ -1,6 +1,7 @@
-// Reads an order screenshot/image and extracts fields using Lovable AI (Gemini vision),
+// Reads an order screenshot/image and extracts fields using vision AI,
 // then inserts a new order. Admin-only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { chatCompletions, getAiConfig, getAiModel } from "../_shared/ai-client.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,15 +58,16 @@ Deno.serve(async (req) => {
       return `- "${p.name}" | السعر الافتراضي: ${p.price} | الألوان: [${colors}] | المقاسات: [${sizes}]`;
     }).join("\n");
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
+    const { apiKey } = getAiConfig();
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "AI not configured" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const aiRes = await chatCompletions({
+      model: getAiModel("google/gemini-2.5-flash"),
+      messages: [
           {
             role: "system",
             content: `أنت مساعد لاستخراج طلب من صورة بالعربية. الصورة قد تحتوي على عدة منتجات، لكل منتج عدة متغيرات (لون/مقاس) بكميات وأسعار مختلفة، ثم بيانات الزبون (اسم/هاتف/مدينة/منطقة).
@@ -138,7 +140,6 @@ ${productHints || "(لا يوجد)"}`,
           },
         }],
         tool_choice: { type: "function", function: { name: "save_order" } },
-      }),
     });
 
     if (!aiRes.ok) {

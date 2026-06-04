@@ -1,14 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, ShoppingBag } from "lucide-react";
+import { ExternalLink, ShoppingBag, Loader2 } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
+import { StoreThemeScope } from "@/components/StoreThemeScope";
+import { parseThemeTokens, type StoreThemeTokens } from "@/lib/themeTokens";
 import { isolateLatin } from "@/lib/bidi";
 import { SectionRenderer } from "@/components/home-sections/SectionRenderer";
 import type { HomeSectionRow } from "@/lib/homeSections";
-import { PuckRender } from "@/components/PuckRender";
+
+const PuckRender = lazy(() =>
+  import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
+);
 
 interface Product {
   id: string;
@@ -33,6 +38,8 @@ const StoreFront = () => {
   const [sections, setSections] = useState<HomeSectionRow[]>([]);
   const [hasBuilder, setHasBuilder] = useState(false);
   const [puckData, setPuckData] = useState<any>(null);
+  const [themeTokens, setThemeTokens] = useState<StoreThemeTokens>(parseThemeTokens(null));
+  const [themeCustomCss, setThemeCustomCss] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,8 +85,9 @@ const StoreFront = () => {
       if (resolvedStoreId) productsQuery.eq('store_id', resolvedStoreId);
 
       const settingsQuery = supabase
-        .from('store_settings').select('currency_symbol').limit(1);
+        .from('store_settings').select('currency_symbol, theme_tokens, theme_custom_css');
       if (resolvedOwnerId) settingsQuery.eq('owner_id', resolvedOwnerId);
+      if (resolvedStoreId) settingsQuery.eq('store_id', resolvedStoreId);
 
       const sectionsQuery = resolvedStoreId
         ? supabase.from('home_page_sections').select('*').eq('store_id', resolvedStoreId).eq('is_visible', true).order('position')
@@ -99,7 +107,11 @@ const StoreFront = () => {
       if (productsRes.data) {
         setProducts(productsRes.data.map((p: any) => ({ ...p, images: p.images || [] })));
       }
-      if (settingsRes.data) setStoreSettings({ currency_symbol: settingsRes.data.currency_symbol });
+      if (settingsRes.data) {
+        setStoreSettings({ currency_symbol: settingsRes.data.currency_symbol });
+        setThemeTokens(parseThemeTokens((settingsRes.data as { theme_tokens?: unknown }).theme_tokens));
+        setThemeCustomCss((settingsRes.data as { theme_custom_css?: string }).theme_custom_css ?? null);
+      }
       const secs = (sectionsRes?.data || []) as HomeSectionRow[];
       setSections(secs);
       const pd = (layoutRes as any)?.data?.puck_data || null;
@@ -129,11 +141,14 @@ const StoreFront = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6" dir="rtl">
+    <StoreThemeScope tokens={themeTokens} customCss={themeCustomCss}>
+    <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6 min-h-screen" dir="rtl">
       <StoreHeader ownerId={ownerId || undefined} />
 
       {puckData && ownerId && storeId && (
-        <PuckRender data={puckData} ctx={{ ownerId, storeId, username, currencySymbol: storeSettings.currency_symbol }} />
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+          <PuckRender data={puckData} ctx={{ ownerId, storeId, username, currencySymbol: storeSettings.currency_symbol }} />
+        </Suspense>
       )}
 
       {!puckData && sections.length > 0 && ownerId && storeId && (
@@ -193,6 +208,7 @@ const StoreFront = () => {
         </div>
       ) : null}
     </div>
+    </StoreThemeScope>
   );
 };
 
