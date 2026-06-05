@@ -28,6 +28,8 @@ import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
 import { isolateLatin } from "@/lib/bidi";
+import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { extractTextFromImage } from "@/lib/imageOcr";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { useUserContext } from "@/hooks/useUserContext";
@@ -366,7 +368,16 @@ const Orders = () => {
     let success = 0;
     let failed = 0;
     const corrections: string[] = [];
+    const failures: string[] = [];
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      let token = session?.access_token;
+      if (!token) {
+        toast({ title: "خطأ", description: "يجب تسجيل الدخول أولاً", variant: "destructive" });
+        return;
+      }
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed.session?.access_token) token = refreshed.session.access_token;
       for (const file of images) {
         try {
           const dataUrl: string = await new Promise((resolve, reject) => {
@@ -375,34 +386,62 @@ const Orders = () => {
             r.onerror = reject;
             r.readAsDataURL(file);
           });
+          toast({ title: "جاري قراءة الصورة...", description: file.name });
+          const ocrText = await extractTextFromImage(dataUrl);
+          if (!ocrText || ocrText.length < 8) {
+            throw new Error("لم يُستخرج نص كافٍ من الصورة — جرّب صورة أوضح");
+          }
           const { data, error } = await supabase.functions.invoke("extract-order-from-image", {
-            body: { image: dataUrl, store_id: activeStoreId },
+            body: { text: ocrText, store_id: activeStoreId },
+            ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
           });
-          if (error) throw error;
+          if (error) {
+            const msg = await getEdgeFunctionErrorMessage(error, data);
+            throw new Error(msg);
+          }
+          if ((data as any)?.error) throw new Error(String((data as any).error));
           success++;
           const ord = (data as any)?.order;
           const ext = (data as any)?.extracted;
+          const unmatched = (data as any)?.unmatched_products as string[] | undefined;
           if (ord) {
             const origCity = ext?.city || "—";
             const origAddr = ext?.address || "—";
             const newCity = ord.matched_zone_name || ord.city || "—";
             const newArea = ord.matched_area_name || "—";
             const changed = newCity !== origCity || newArea !== origAddr;
+            const productNote = unmatched?.length
+              ? ` — منتج غير مرتبط: ${unmatched.join("، ")}`
+              : ord.product_id ? " — مرتبط بمنتج محلي ✓" : "";
             corrections.push(
-              `• ${ord.customer_name || "بدون اسم"}: ${origCity} / ${origAddr} ← ${newCity} / ${newArea}${changed ? " ✓" : ""}`
+              `• ${ord.product_name || "—"} | ${ord.phone || "—"}: ${newCity} / ${newArea}${changed ? " ✓" : ""}${productNote}`
             );
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("Extract failed for", file.name, err);
           failed++;
+          const msg = err instanceof Error ? err.message : "خطأ غير معروف";
+          failures.push(`${file.name}: ${msg}`);
         }
       }
       toast({
-        title: `تم إنشاء ${success} طلب${failed ? ` — فشل ${failed}` : ""}`,
-        description: corrections.length
+        title: failed && !success
+          ? `فشل إنشاء الطلب${failures[0] ? `: ${failures[0].split(": ").slice(1).join(": ")}` : ""}`
+          : `تم إنشاء ${success} طلب${failed ? ` — فشل ${failed}` : ""}`,
+        description: (corrections.length || failures.length)
           ? ((<div className="text-xs space-y-1 mt-1 max-h-48 overflow-y-auto" dir="rtl">
-              <div className="font-semibold">المعلومات بعد التصحيح:</div>
-              {corrections.map((c, i) => <div key={i}>{c}</div>)}
+              {corrections.length > 0 && (
+                <>
+                  <div className="font-semibold">الطلبات المستخرجة:</div>
+                  {corrections.map((c, i) => <div key={`ok-${i}`}>{c}</div>)}
+                </>
+              )}
+              {failures.length > 0 && (
+                <>
+                  <div className="font-semibold text-destructive mt-2">أخطاء:</div>
+                  {failures.map((f, i) => <div key={`err-${i}`} className="text-destructive">{f}</div>)}
+                </>
+              )}
             </div>) as any)
           : undefined,
         variant: failed && !success ? "destructive" : "default",

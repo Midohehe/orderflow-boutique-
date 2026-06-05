@@ -82,7 +82,7 @@ const StockMovements = () => {
       .eq("owner_id", effectiveOwnerId)
       .limit(1000);
     if (activeStoreId) {
-      smQ = smQ.eq("store_id", activeStoreId);
+      smQ = smQ.or(`store_id.eq.${activeStoreId},store_id.is.null`);
       prQ = prQ.eq("store_id", activeStoreId);
     }
     const [smRes, prRes] = await Promise.all([

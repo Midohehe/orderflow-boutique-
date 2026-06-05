@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ShoppingBag, Plus, Loader2, Trash2 } from "lucide-react";
+import { ShoppingBag, Plus, Loader2, Trash2, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
@@ -35,6 +36,8 @@ const Purchases = () => {
       supabase.from("safes").select("id, name, balance, allow_negative_balance").eq("store_id", activeStoreId).order("created_at"),
       supabase.from("purchases").select("id, amount, notes, created_at, safe_id").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
     ]);
+    if (sa.error) toast({ title: "خطأ", description: sa.error.message, variant: "destructive" });
+    if (pu.error) toast({ title: "خطأ", description: pu.error.message, variant: "destructive" });
     setSafes((sa.data as Safe[]) || []);
     setPurchases((pu.data as Purchase[]) || []);
     setLoading(false);
@@ -100,6 +103,23 @@ const Purchases = () => {
           </Button>
         }
       />
+
+      {safes.length === 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Wallet className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-foreground">لا توجد خزينة لهذا المتجر</p>
+                <p className="text-sm text-muted-foreground">المشتريات تُخصم من الخزينة — أنشئ خزينة أولاً ثم أضف عمليات الشراء.</p>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="shrink-0">
+              <Link to="/dashboard/safes">إنشاء خزينة</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">

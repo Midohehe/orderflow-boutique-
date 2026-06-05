@@ -161,6 +161,7 @@ const Inventory = () => {
 
       const movementsPayload = entries.map((e) => ({
         owner_id: effectiveOwnerId,
+        store_id: activeStoreId,
         product_id: prod.id,
         product_name: prod.name,
         variant_key: e.variantKey,

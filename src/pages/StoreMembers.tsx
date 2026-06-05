@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
 import { Loader2, Plus, Trash2, KeyRound, Users, Save } from "lucide-react";
 import { parsePlanLimitError, planLimitMessage } from "@/lib/planLimits";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -36,8 +37,23 @@ const StoreMembers = () => {
   const [resetPwd, setResetPwd] = useState<{ id: string; password: string } | null>(null);
 
   const callApi = async (action: string, payload: any = {}) => {
-    const { data, error } = await supabase.functions.invoke("store-create-member", { body: { action, ...payload } });
-    if (error) throw new Error(error.message);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const { data, error } = await supabase.functions.invoke("store-create-member", {
+      body: { action, ...payload },
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    });
+    if (error) {
+      let msg = error.message;
+      try {
+        const ctx = (error as any)?.context;
+        if (ctx && typeof ctx.json === "function") {
+          const j = await ctx.json();
+          if (j?.error) msg = j.error;
+        }
+      } catch { /* ignore */ }
+      throw new Error(msg);
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   };

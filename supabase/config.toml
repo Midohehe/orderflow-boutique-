@@ -39,3 +39,5 @@ project_id = "sukehkrhvasfnoheyvvx"
     verify_jwt = false
   [functions.whatsapp-classify-intent]
     verify_jwt = false
+  [functions.extract-order-from-image]
+    verify_jwt = true

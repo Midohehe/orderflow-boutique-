@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: oErr } = await admin
       .from("orders")
-      .select("id, owner_id, product_id, product_name, quantity, selected_color, selected_size, selected_product_code")
+      .select("id, owner_id, store_id, product_id, product_name, quantity, selected_color, selected_size, selected_product_code")
       .eq("id", body.order_id).maybeSingle();
     if (oErr || !order) {
       return new Response(JSON.stringify({ error: "Order not found" }), {
@@ -189,6 +189,7 @@ Deno.serve(async (req) => {
       // Insert ledger row (idempotent via unique index)
       const { error: insErr } = await admin.from("stock_movements").insert({
         owner_id: (order as any).owner_id,
+        store_id: (order as any).store_id ?? null,
         product_id: line.product_id,
         product_name: line.product_name,
         variant_key: line.variant_key,

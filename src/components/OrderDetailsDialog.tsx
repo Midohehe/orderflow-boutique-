@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { isolateLatin } from "@/lib/bidi";
+import { resolveEasyOrdersVariantId, resolveWarehouseCode } from "@/lib/variantWarehouse";
 
 interface Props {
   orderId: string | null;
@@ -166,6 +167,15 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
       }
       setProducts(filteredProducts as ProductLite[]);
       const list = (it.data || []) as any[];
+
+      const hydrateItem = (row: ItemRow): ItemRow => {
+        const prod = filteredProducts.find((p) => p.id === row.product_id);
+        return {
+          ...row,
+          warehouse_code: row.warehouse_code || resolveWarehouseCode(prod, row),
+        };
+      };
+
       // If no order_items yet, seed with the order's main product so the user can edit it
       if (list.length === 0 && o.data) {
         const splitVals = (v: any): string[] => {
@@ -179,18 +189,37 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
         const qty = Number(o.data.quantity) || 1;
         const unitPrice = qty > 0 ? (Number(o.data.price) || 0) / qty : Number(o.data.price) || 0;
         const count = Math.max(qty, colors.length, sizes.length, codes.length, 1);
-        const seeded: ItemRow[] = Array.from({ length: count }).map((_, i) => ({
-          product_id: o.data.product_id || null,
-          product_name: o.data.product_name || "",
-          selected_color: colors[i] ?? colors[0] ?? null,
-          selected_size: sizes[i] ?? sizes[0] ?? null,
-          selected_product_code: codes[i] ?? codes[0] ?? null,
-          quantity: 1,
-          price: unitPrice,
-        }));
-        setItems(seeded);
+        const seeded: ItemRow[] = Array.from({ length: count }).map((_, i) => {
+          const row: ItemRow = {
+            product_id: o.data.product_id || null,
+            product_name: o.data.product_name || "",
+            selected_color: colors[i] ?? colors[0] ?? null,
+            selected_size: sizes[i] ?? sizes[0] ?? null,
+            selected_product_code: codes[i] ?? codes[0] ?? null,
+            quantity: 1,
+            price: unitPrice,
+          };
+          const prod = filteredProducts.find((p) => p.id === row.product_id);
+          row.warehouse_code = resolveWarehouseCode(prod, row);
+          return row;
+        });
+        setItems(seeded.map(hydrateItem));
       } else {
-        setItems(list as ItemRow[]);
+        // Ensure order product is in catalog even if store filter excluded it
+        const missingIds = [...new Set(list.map((x) => x.product_id).filter(Boolean))].filter(
+          (pid) => !filteredProducts.some((p) => p.id === pid),
+        );
+        if (missingIds.length) {
+          const { data: extras } = await supabase
+            .from("products")
+            .select("id, name, price, colors, sizes, product_codes, variant_warehouse_codes, variant_easyorders_ids, easyorders_product_id, store_id, owner_id")
+            .in("id", missingIds);
+          if (extras?.length) {
+            filteredProducts.push(...extras);
+            setProducts([...filteredProducts] as ProductLite[]);
+          }
+        }
+        setItems((list as ItemRow[]).map(hydrateItem));
       }
       setLoading(false);
     })();
@@ -245,8 +274,10 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
         "selected_product_code" in patch ||
         "product_id" in patch;
       if (variantChanged) {
-        next.warehouse_code = null;
         next.easyorders_variant_id = null;
+        const prod = products.find((p) => p.id === next.product_id);
+        next.warehouse_code = resolveWarehouseCode(prod, next);
+        next.easyorders_variant_id = resolveEasyOrdersVariantId(prod, next);
       }
       return next;
     }));
@@ -419,14 +450,13 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     const newLinkErrors: string[] = [];
     for (const it of items) {
       const prod = products.find((p) => p.id === it.product_id);
-      const key = `${it.selected_color || ""} - ${it.selected_size || ""}`;
-      const wh = prod?.variant_warehouse_codes?.[key] || it.warehouse_code || null;
-      const eoVar = prod?.variant_easyorders_ids?.[key] || it.easyorders_variant_id || null;
+      const wh = resolveWarehouseCode(prod, it);
+      const eoVar = resolveEasyOrdersVariantId(prod, it);
       const name = it.product_name || "منتج";
       if (!it.product_id) {
         newLinkErrors.push(`المنتج "${name}" (EO: ${it.easyorders_product_id || "—"}) غير مرتبط بأي منتج محلي`);
-      } else if (eoVar && !wh) {
-        newLinkErrors.push(`متغير المنتج "${name}" (متغير EO: ${eoVar}) غير مرتبط بكود مخزن شركة الشحن`);
+      } else if (!wh) {
+        newLinkErrors.push(`متغير المنتج "${name}"${eoVar ? ` (متغير EO: ${eoVar})` : ""} غير مرتبط بكود مخزن شركة الشحن`);
       }
     }
     payload.link_error = newLinkErrors.length > 0 ? newLinkErrors.join(" | ") : null;
@@ -451,10 +481,8 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
     if (items.length > 0) {
       const rows = items.map((it) => {
         const prod = products.find((p) => p.id === it.product_id);
-        const key = [it.selected_color, it.selected_size].filter(Boolean).join(" - ")
-          || it.selected_color || it.selected_size || it.selected_product_code || "";
-        const wh = prod?.variant_warehouse_codes?.[key] || it.warehouse_code || null;
-        const eoVar = prod?.variant_easyorders_ids?.[key] || it.easyorders_variant_id || null;
+        const wh = resolveWarehouseCode(prod, it);
+        const eoVar = resolveEasyOrdersVariantId(prod, it);
         return {
           order_id: orderId,
           owner_id: data.owner_id,
@@ -603,9 +631,8 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                   const cs = prod?.colors || [];
                   const ss = prod?.sizes || [];
                   const cds = prod?.product_codes || [];
-                  const variantKey = `${it.selected_color || ""} - ${it.selected_size || ""}`;
-                  const resolvedWh = prod?.variant_warehouse_codes?.[variantKey] || it.warehouse_code || null;
-                  const resolvedEoVar = prod?.variant_easyorders_ids?.[variantKey] || it.easyorders_variant_id || null;
+                  const resolvedWh = resolveWarehouseCode(prod, it);
+                  const resolvedEoVar = resolveEasyOrdersVariantId(prod, it);
                   return (
                     <div key={idx} className="border rounded p-3 bg-background space-y-2">
                       <div className="flex items-center justify-between gap-2">

@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Lock, Mail, Rocket, User, AtSign, CheckCircle2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { clearSavedLogin, loadSavedLogin, saveLogin } from "@/lib/loginRemember";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
@@ -40,6 +42,7 @@ const Login = () => {
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
   const { user, loading, signIn, signUp } = useAuth();
 
@@ -47,6 +50,15 @@ const Login = () => {
     supabase.from("app_settings").select("system_name").limit(1).maybeSingle().then(({ data }) => {
       if (data?.system_name) setSystemName(data.system_name);
     });
+  }, []);
+
+  useEffect(() => {
+    const saved = loadSavedLogin();
+    if (saved) {
+      setEmail(saved.email);
+      setPassword(saved.password);
+      setRememberMe(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -72,6 +84,8 @@ const Login = () => {
         }
         toast({ title: "خطأ", description: message, variant: "destructive" });
       } else {
+        if (rememberMe) saveLogin(email, password);
+        else clearSavedLogin();
         toast({ title: "تم تسجيل الدخول بنجاح", description: "مرحباً بك في لوحة التحكم" });
         navigate("/dashboard");
       }
@@ -260,6 +274,20 @@ const Login = () => {
                         {showPassword ? <EyeOff className="lucide lucide-eye-off w-4 h-4 text-right" /> : <Eye className="lucide lucide-eye w-4 h-4 text-right" />}
                       </button>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember-me"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => {
+                        const on = checked === true;
+                        setRememberMe(on);
+                        if (!on) clearSavedLogin();
+                      }}
+                    />
+                    <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer">
+                      حفظ البريد الإلكتروني وكلمة المرور
+                    </Label>
                   </div>
                   <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={isLoading}>
                     {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
