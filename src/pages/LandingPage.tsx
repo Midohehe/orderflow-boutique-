@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck, Loader2 } from "lucide-react";
+import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck, Loader2, Gift } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/analyticsAttribution";
 import {
   autocompleteForField,
+  fetchPublicOrderFormFields,
   inputTypeForField,
   mapCreateOrderError,
   normalizeLibyanPhone,
@@ -28,6 +29,13 @@ import {
 } from "@/lib/landingOrderForm";
 import { LandingImage } from "@/components/LandingImage";
 import { landingHeroPreloadHref } from "@/lib/landingImageUrl";
+import {
+  getProductVariantKeys,
+  getSingleVariantSelection,
+  parseVariantKey,
+  productHasVariants,
+  productUsesColorOrSize,
+} from "@/lib/productVariants";
 
 const PuckRender = lazy(() =>
   import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
@@ -265,6 +273,7 @@ const LandingPage = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [formFieldsLoaded, setFormFieldsLoaded] = useState(false);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
     currency_symbol: "د.ل",
     currency_code: "LYD",
@@ -333,8 +342,55 @@ const LandingPage = () => {
     productCode: string;
   }
   const [itemVariants, setItemVariants] = useState<ItemVariant[]>([{ color: "", size: "", productCode: "" }]);
-  
-  
+
+  const variantKeys = useMemo(() => getProductVariantKeys(product), [product]);
+  const showVariantPickers = productHasVariants(product);
+  const showVariantPickersUI = showVariantPickers && variantKeys.length > 1;
+  const useColorSizePickers = productUsesColorOrSize(product);
+  const useCodeVariantPickers = showVariantPickers && !useColorSizePickers;
+  const defaultItemVariant = useMemo((): ItemVariant => {
+    const single = getSingleVariantSelection(product);
+    return single ?? { color: "", size: "", productCode: "" };
+  }, [product]);
+
+  useEffect(() => {
+    setItemVariants([{ ...defaultItemVariant }]);
+  }, [product?.id, defaultItemVariant]);
+
+  const hasUpsellOffers = !!(
+    product?.upsell_enabled &&
+    Array.isArray(product?.upsell_offers) &&
+    product.upsell_offers.length > 0
+  );
+
+  const syncItemVariantsForQuantity = useCallback(
+    (qty: number) => {
+      setItemVariants((prev) => {
+        const next = [...prev];
+        while (next.length < qty) next.push({ ...defaultItemVariant });
+        return next.slice(0, qty);
+      });
+    },
+    [defaultItemVariant],
+  );
+
+  const matchUpsellIndexForQuantity = useCallback(
+    (qty: number): number | null => {
+      if (!hasUpsellOffers || !product?.upsell_offers) return null;
+      const idx = product.upsell_offers.findIndex((o) => Number(o.quantity) === qty);
+      return idx >= 0 ? idx : null;
+    },
+    [hasUpsellOffers, product?.upsell_offers],
+  );
+
+  const orderTotalDisplay = useMemo(() => {
+    if (selectedUpsellIndex !== null && product?.upsell_offers?.[selectedUpsellIndex]) {
+      return Number(product.upsell_offers[selectedUpsellIndex].price);
+    }
+    return parseFloat(String(product?.price || 0)) * quantity;
+  }, [selectedUpsellIndex, product?.upsell_offers, product?.price, quantity]);
+
+  const activeFormFields = formFields;
   const getAttribution = useCallback(() => {
     return resolveAttributionFromUrl(searchParams, typeof document !== "undefined" ? document.referrer : "");
   }, [searchParams]);
@@ -364,6 +420,9 @@ const LandingPage = () => {
       }
 
       try {
+        setFormFields([]);
+        setFormFieldsLoaded(false);
+
         // Owner-scoped caches will be read after we resolve the product owner.
         let loadedCurrency = "AED";
 
@@ -596,6 +655,7 @@ const LandingPage = () => {
         if (cachedFormFields) {
           setFormFields(cachedFormFields);
           setFormData((prev) => ensureFormFieldKeys(prev, cachedFormFields as FormField[]));
+          setFormFieldsLoaded(true);
         }
 
         if (cachedPixelSettings) {
@@ -620,15 +680,9 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         const formFieldsPromise: Promise<{ data: FormField[] | null; error: unknown }> = ownerForSettings
-          ? (supabase as any)
-              .rpc("get_public_order_form_fields", {
-                _owner_id: ownerForSettings,
-                _store_id: storeForSettings || null,
-              })
-              .then((res: { data: FormField[] | null; error: unknown }) => ({
-                data: (res.data || []) as FormField[],
-                error: res.error,
-              }))
+          ? fetchPublicOrderFormFields(supabase, ownerForSettings, storeForSettings || null).then(
+              ({ fields, error }) => ({ data: fields, error })
+            )
           : Promise.resolve({ data: [], error: null });
 
         const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text, theme_tokens, theme_custom_css");
@@ -636,13 +690,17 @@ const LandingPage = () => {
         if (storeForSettings) storeQ.eq("store_id", storeForSettings);
         const storePromise = storeQ.maybeSingle();
 
-        Promise.all([pixelPromise, formFieldsPromise, storePromise]).then(([pixelResult, formFieldsResult, storeSettingsResult]) => {
-          if (formFieldsResult.data?.length) {
-            const fields = formFieldsResult.data as FormField[];
+        Promise.all([pixelPromise, formFieldsPromise, storePromise])
+          .then(([pixelResult, formFieldsResult, storeSettingsResult]) => {
+          if (!formFieldsResult.error) {
+            const fields = (formFieldsResult.data || []) as FormField[];
             setFormFields(fields);
             setToCache(formKey, fields);
             setFormData((prev) => ensureFormFieldKeys(prev, fields));
+          } else {
+            console.error("order form fields:", formFieldsResult.error);
           }
+          setFormFieldsLoaded(true);
 
           if (storeSettingsResult.data) {
             loadedCurrency = storeSettingsResult.data.currency_code;
@@ -681,7 +739,11 @@ const LandingPage = () => {
               setTimeout(runPixels, 800);
             }
           }
-        });
+        })
+          .catch((err) => {
+            console.error("landing settings fetch:", err);
+            setFormFieldsLoaded(true);
+          });
       } catch (error) {
         console.error("Error loading data:", error);
         setLoading(false);
@@ -1080,21 +1142,31 @@ const LandingPage = () => {
       });
     }
 
-    const validationError = validateOrderPayload(formFields, mergedFormData);
+    if (!formFieldsRef.current.length) {
+      showToast("خطأ", "جاري تحميل نموذج الطلب، يرجى المحاولة بعد لحظات", "destructive");
+      return;
+    }
+
+    const validationError = validateOrderPayload(activeFormFields, mergedFormData);
     if (validationError) {
       showToast("خطأ", validationError, "destructive");
       return;
     }
 
-    const { customer_name, phone, city, address } = resolveOrderFields(formFields, mergedFormData);
+    const { customer_name, phone, city, address } = resolveOrderFields(activeFormFields, mergedFormData);
     const normalizedPhone = normalizeLibyanPhone(phone);
 
-    // Validate per-piece variants: if product has variants, each piece must have its selections
+    // Validate per-piece variants when product has colors, sizes, or named codes
     const hasColors = !!(product?.colors && product.colors.length > 0);
     const hasSizes = !!(product?.sizes && product.sizes.length > 0);
-    if (hasColors || hasSizes) {
+    const hasCodeVariants = useCodeVariantPickers;
+    if (showVariantPickersUI && (hasColors || hasSizes || hasCodeVariants)) {
       for (let i = 0; i < quantity; i++) {
         const v = itemVariants[i] || { color: "", size: "", productCode: "" };
+        if (hasCodeVariants && !v.productCode) {
+          showToast("خطأ", `يرجى اختيار المتغير للقطعة ${i + 1}`, "destructive");
+          return;
+        }
         if ((hasColors && !v.color) || (hasSizes && !v.size)) {
           toast({
             title: "خطأ",
@@ -1109,14 +1181,15 @@ const LandingPage = () => {
     setIsSubmitting(true);
 
     try {
-      // SKU is hidden from landing page; auto-use the first code if any exist
-      const singleCode = product?.product_codes && product.product_codes.length > 0
-        ? product.product_codes[0]
-        : null;
+      // Auto-use single code when variants are not shown (single variant or no picker)
+      const singleCode =
+        !showVariantPickersUI && product?.product_codes && product.product_codes.length === 1
+          ? product.product_codes[0]
+          : null;
       // Pad variants to match quantity
       const variantsForSubmit = [...itemVariants];
       while (variantsForSubmit.length < quantity) {
-        variantsForSubmit.push({ color: "", size: "", productCode: singleCode || "" });
+        variantsForSubmit.push({ ...defaultItemVariant });
       }
       const activeVariants = variantsForSubmit.slice(0, quantity);
 
@@ -1404,7 +1477,7 @@ const LandingPage = () => {
 
               {/* فورم الطلب */}
               <form id="order-form" onSubmit={handleSubmitOrder} className="space-y-5">
-                {/* خيار تعديل الكمية بتصميم راقي وسهل التفاعل */}
+                {/* 1) الكمية */}
                 {product.show_quantity !== false && (
                   <div className="space-y-2">
                     <Label className="text-sm font-bold text-slate-800">تعديل كمية طلبك</Label>
@@ -1412,19 +1485,10 @@ const LandingPage = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          const base = selectedUpsellIndex !== null ? 1 : quantity;
-                          const newQty = Math.max(1, base - 1);
+                          const newQty = Math.max(1, quantity - 1);
                           setQuantity(newQty);
-                          setItemVariants((prev) => {
-                            const next = [...prev];
-                            while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
-                            return next.slice(0, newQty);
-                          });
-                          const matchIdx =
-                            product.upsell_enabled && Array.isArray(product.upsell_offers)
-                              ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
-                              : -1;
-                          setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
+                          syncItemVariantsForQuantity(newQty);
+                          setSelectedUpsellIndex(matchUpsellIndexForQuantity(newQty));
                         }}
                         className="w-12 h-12 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-xl font-bold hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
                       >
@@ -1434,20 +1498,10 @@ const LandingPage = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          const base = selectedUpsellIndex !== null ? 1 : quantity;
-                          const newQty = base + 1;
+                          const newQty = quantity + 1;
                           setQuantity(newQty);
-                          setItemVariants((prev) => {
-                            const next =
-                              selectedUpsellIndex !== null ? [{ color: "", size: "", productCode: "" }] : [...prev];
-                            while (next.length < newQty) next.push({ color: "", size: "", productCode: "" });
-                            return next.slice(0, newQty);
-                          });
-                          const matchIdx =
-                            product.upsell_enabled && Array.isArray(product.upsell_offers)
-                              ? product.upsell_offers.findIndex((o) => Number(o.quantity) === newQty)
-                              : -1;
-                          setSelectedUpsellIndex(matchIdx >= 0 ? matchIdx : null);
+                          syncItemVariantsForQuantity(newQty);
+                          setSelectedUpsellIndex(matchUpsellIndexForQuantity(newQty));
                         }}
                         className="w-12 h-12 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-xl font-bold hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
                       >
@@ -1456,27 +1510,27 @@ const LandingPage = () => {
                     </div>
                     {(quantity > 1 || selectedUpsellIndex !== null) && (
                       <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
-                        💰 الإجمالي المستحق للطلب:{" "}
-                        {selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
-                          ? product.upsell_offers[selectedUpsellIndex].price.toFixed(2)
-                          : (parseFloat(product.price) * quantity).toFixed(2)}{" "}
+                        💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
                         {storeSettings.currency_symbol}
                       </p>
                     )}
                   </div>
                 )}
 
-                {/* باقات العروض الخاصة وتخفيضات الكمية الفخمة */}
-                {product.upsell_enabled && product.upsell_offers && product.upsell_offers.length > 0 && (
+                {/* 2) عروض Upsell */}
+                {hasUpsellOffers && (
                   <div className="space-y-3 p-4 rounded-2xl border-2 border-amber-500/20 bg-amber-500/[0.02] shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 bg-amber-500 text-[#0f172a] text-[9px] font-black px-3 py-1 rounded-br-xl uppercase tracking-wider">
                       موصى به
                     </div>
-                    <Label className="text-sm font-black text-amber-700 block mt-1">
-                      {product.upsell_title || "🎁 عروض وهدايا حصرية"}
-                    </Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Gift className="w-4 h-4 text-amber-600 shrink-0" />
+                      <Label className="text-sm font-black text-amber-700">
+                        {product.upsell_title || "🎁 عروض خاصة"}
+                      </Label>
+                    </div>
                     <div className="space-y-2.5">
-                      {product.upsell_offers.map((offer, idx) => {
+                      {product.upsell_offers!.map((offer, idx) => {
                         const selected = selectedUpsellIndex === idx;
                         return (
                           <button
@@ -1485,25 +1539,22 @@ const LandingPage = () => {
                             onClick={() => {
                               if (selected) {
                                 setSelectedUpsellIndex(null);
+                                setQuantity(1);
+                                syncItemVariantsForQuantity(1);
                               } else {
                                 setSelectedUpsellIndex(idx);
-                                setQuantity(offer.quantity);
-                                setItemVariants((prev) => {
-                                  const next = [...prev];
-                                  while (next.length < offer.quantity)
-                                    next.push({ color: "", size: "", productCode: "" });
-                                  return next.slice(0, offer.quantity);
-                                });
+                                setQuantity(Number(offer.quantity) || 1);
+                                syncItemVariantsForQuantity(Number(offer.quantity) || 1);
                               }
                             }}
                             className={`w-full text-right p-3.5 rounded-xl border-2 transition-all duration-300 flex items-center justify-between gap-3 ${
                               selected
-                                ? "border-amber-500 bg-amber-500 text-slate-950 shadow-md transform scale-[1.01]"
+                                ? "border-amber-500 bg-amber-500 text-slate-950 shadow-md"
                                 : "border-slate-200 bg-white hover:border-amber-500/50 hover:bg-amber-500/[0.01]"
                             }`}
                           >
                             <div
-                              className={`w-6 h-6 rounded-full flex items-center justify-center border ${
+                              className={`w-6 h-6 rounded-full flex items-center justify-center border shrink-0 ${
                                 selected
                                   ? "bg-[#0f172a] text-amber-400 border-[#0f172a]"
                                   : "border-slate-300 bg-white text-transparent"
@@ -1522,7 +1573,7 @@ const LandingPage = () => {
                               </div>
                             </div>
                             <div
-                              className={`text-base sm:text-xl font-black ${selected ? "text-slate-950" : "text-amber-600"}`}
+                              className={`text-base sm:text-xl font-black shrink-0 ${selected ? "text-slate-950" : "text-amber-600"}`}
                             >
                               {offer.price} {storeSettings.currency_symbol}
                             </div>
@@ -1533,27 +1584,52 @@ const LandingPage = () => {
                   </div>
                 )}
 
-                {/* خيارات القطع بالتفصيل */}
-                {itemVariants.map((item, index) => {
-                  const hasVariants =
-                    (product.colors && product.colors.length > 0) || (product.sizes && product.sizes.length > 0);
-
-                  if (!hasVariants) return null;
-
-                  return (
+                {/* 3) تخصيص المتغير لكل قطعة — أسفل العروض */}
+                {showVariantPickersUI &&
+                  itemVariants.map((item, index) => (
                     <div
                       key={index}
                       className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3.5 shadow-sm"
                     >
-                      {quantity > 1 && (
-                        <div className="text-xs font-black text-amber-600 uppercase tracking-widest">
-                          تخصيص القطعة {index + 1}:
+                      <div className="text-sm font-bold text-slate-800">
+                        {quantity > 1 ? `تخصيص القطعة ${index + 1}` : "اختر المتغير"}
+                      </div>
+
+                      {useCodeVariantPickers && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold text-slate-600">اسم المتغير:</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {variantKeys.map((key) => {
+                              const selected = item.productCode === key;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => {
+                                    const parsed = parseVariantKey(key, product);
+                                    const newVariants = [...itemVariants];
+                                    newVariants[index] = parsed;
+                                    setItemVariants(newVariants);
+                                  }}
+                                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all duration-200 ${
+                                    selected
+                                      ? "border-amber-500 bg-amber-500/10 text-amber-800 ring-2 ring-amber-500/20"
+                                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                                  }`}
+                                >
+                                  {key}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
 
-                      {product.colors && product.colors.length > 0 && (
+                      {useColorSizePickers && product.colors && product.colors.length > 0 && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-slate-600">اللون المفضل للقطعة:</Label>
+                          <Label className="text-xs font-bold text-slate-600">
+                            {quantity > 1 ? "اللون المفضل للقطعة" : "اللون:"}
+                          </Label>
                           <div className="flex flex-wrap gap-2">
                             {product.colors.map((color) => (
                               <button
@@ -1577,9 +1653,11 @@ const LandingPage = () => {
                         </div>
                       )}
 
-                      {product.sizes && product.sizes.length > 0 && (
+                      {useColorSizePickers && product.sizes && product.sizes.length > 0 && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-slate-600">المقاس المناسب للقطعة:</Label>
+                          <Label className="text-xs font-bold text-slate-600">
+                            {quantity > 1 ? "المقاس المناسب للقطعة" : "المقاس:"}
+                          </Label>
                           <div className="flex flex-wrap gap-2">
                             {product.sizes.map((size) => (
                               <button
@@ -1603,15 +1681,16 @@ const LandingPage = () => {
                         </div>
                       )}
                     </div>
-                  );
-                })}
+                  ))}
 
-                {/* حقول نموذج البيانات للزبون */}
-                <LandingOrderFormFields
-                  fields={formFields}
-                  values={formData}
-                  onChange={handleInputChange}
-                />
+                {/* حقول نموذج البيانات للزبون — فقط الحقول المفعّلة في إعدادات المتجر */}
+                {formFieldsLoaded && activeFormFields.length > 0 && (
+                  <LandingOrderFormFields
+                    fields={activeFormFields}
+                    values={formData}
+                    onChange={handleInputChange}
+                  />
+                )}
 
                 {/* زر الإرسال الملكي */}
                 <Button

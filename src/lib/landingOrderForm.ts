@@ -1,5 +1,7 @@
 /** Landing page order form — field resolution aligned with form_field_catalog keys. */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 export interface OrderFormField {
   id: string;
   field_key: string;
@@ -174,6 +176,71 @@ export function inputTypeForField(field: OrderFormField): string {
   if (field.field_type === "email") return "email";
   return "text";
 }
+
+/** Load enabled order-form fields for a public landing page (RPC + table fallback). */
+export async function fetchPublicOrderFormFields(
+  supabase: SupabaseClient,
+  ownerId: string,
+  storeId: string | null
+): Promise<{ fields: OrderFormField[]; error: unknown }> {
+  const { data, error } = await supabase.rpc("get_public_order_form_fields", {
+    _owner_id: ownerId,
+    _store_id: storeId,
+  });
+
+  if (!error && Array.isArray(data)) {
+    return { fields: data as OrderFormField[], error: null };
+  }
+
+  const [{ data: catalog }, fieldsQuery] = await Promise.all([
+    supabase.from("form_field_catalog").select("field_key").eq("admin_enabled", true),
+    (() => {
+      let q = supabase
+        .from("order_form_fields")
+        .select("id, field_key, label, placeholder, field_type, required")
+        .eq("owner_id", ownerId)
+        .eq("enabled", true)
+        .order("sort_order");
+      if (storeId) q = q.eq("store_id", storeId);
+      return q;
+    })(),
+  ]);
+
+  const allowed = new Set((catalog || []).map((c) => c.field_key));
+  const fields = ((fieldsQuery.data || []) as OrderFormField[]).filter((f) =>
+    allowed.has(f.field_key)
+  );
+
+  return { fields, error: error ?? fieldsQuery.error ?? null };
+}
+
+/** @deprecated Do not use as UI fallback — always load fields via get_public_order_form_fields. */
+export const DEFAULT_LANDING_FORM_FIELDS: OrderFormField[] = [
+  {
+    id: "default-phone",
+    field_key: "phone",
+    label: "رقم الهاتف",
+    placeholder: "09XXXXXXXX",
+    field_type: "phone",
+    required: true,
+  },
+  {
+    id: "default-government",
+    field_key: "government",
+    label: "المدينة",
+    placeholder: "طرابلس، بنغازي...",
+    field_type: "text",
+    required: true,
+  },
+  {
+    id: "default-address",
+    field_key: "address",
+    label: "العنوان / المنطقة",
+    placeholder: "اسم الحي أو المنطقة",
+    field_type: "text",
+    required: true,
+  },
+];
 
 export function autocompleteForField(field: OrderFormField): string | undefined {
   switch (field.field_key) {
