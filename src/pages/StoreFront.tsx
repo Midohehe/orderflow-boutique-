@@ -7,6 +7,7 @@ import { ExternalLink, ShoppingBag, Loader2 } from "lucide-react";
 import StoreHeader from "@/components/StoreHeader";
 import { StoreThemeScope } from "@/components/StoreThemeScope";
 import { parseThemeTokens, type StoreThemeTokens } from "@/lib/themeTokens";
+import { isFashionStoreTheme } from "@/lib/themes/fashionTheme";
 import { isolateLatin } from "@/lib/bidi";
 import { SectionRenderer } from "@/components/home-sections/SectionRenderer";
 import type { HomeSectionRow } from "@/lib/homeSections";
@@ -140,14 +141,27 @@ const StoreFront = () => {
     );
   }
 
+  const isFashionTheme = isFashionStoreTheme(themeTokens.preset);
+
   return (
-    <StoreThemeScope tokens={themeTokens} customCss={themeCustomCss}>
-    <div className="space-y-6 animate-fade-in container mx-auto px-4 py-6 min-h-screen" dir="rtl">
-      <StoreHeader ownerId={ownerId || undefined} />
+    <StoreThemeScope
+      tokens={themeTokens}
+      customCss={themeCustomCss}
+      className={isFashionTheme ? "fashion-store-layout" : undefined}
+    >
+    <div className={`min-h-screen animate-fade-in ${isFashionTheme ? "" : "container mx-auto px-4 py-6 space-y-6"}`} dir="rtl">
+      <StoreHeader
+        ownerId={ownerId || undefined}
+        storeId={storeId || undefined}
+        variant={isFashionTheme ? "fashion" : "default"}
+        themePreset={themeTokens.preset}
+      />
 
       {puckData && ownerId && storeId && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
-          <PuckRender data={puckData} ctx={{ ownerId, storeId, username, currencySymbol: storeSettings.currency_symbol }} />
+          <div className={isFashionTheme ? "container mx-auto px-4 md:px-8 py-0 space-y-0" : ""}>
+            <PuckRender data={puckData} ctx={{ ownerId, storeId, username, currencySymbol: storeSettings.currency_symbol }} />
+          </div>
         </Suspense>
       )}
 

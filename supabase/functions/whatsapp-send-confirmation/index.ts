@@ -1,6 +1,6 @@
 // Sends the order confirmation WhatsApp message. Service-role; called from create-order or manually.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { sendText, sendConfirmationTemplate, isConfigured, getProvider } from "../_shared/wa-providers.ts";
+import { sendText, sendConfirmationTemplate, isConfigured, getProvider, resolveSendSettings } from "../_shared/wa-providers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,8 +38,12 @@ Deno.serve(async (req) => {
       status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-    const { data: settings } = await supabase.from("whatsapp_settings")
-      .select("*").eq("owner_id", order.owner_id).maybeSingle();
+    // Resolve which WhatsApp integration to use. The order owner's own
+    // (store-aware) settings take priority; otherwise we fall back to an
+    // integration another merchant has shared with this owner. Messages are
+    // still logged under order.owner_id regardless of the sending source.
+    const resolved = await resolveSendSettings(supabase, order.owner_id, order.store_id ?? null);
+    const settings = resolved.settings;
     if (!isConfigured(settings)) {
       return new Response(JSON.stringify({ skipped: true, reason: "wa_disabled" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -95,18 +99,27 @@ Deno.serve(async (req) => {
     }).select("id").single();
 
     const provider = getProvider(settings);
-    // For Wati we always use template (24h window applies, business-initiated).
-    // For WhatChimp respect whatchimp_use_template flag.
+    // Business-initiated confirmations are usually outside the 24h customer
+    // service window, so a template is required to reach a new customer.
+    //  - Wati:     wati_use_template + wati_template_name
+    //  - MazBot:   mazbot_use_template + mazbot_template_id (session messages
+    //              fail with 422 outside the 24h window, so default to template
+    //              whenever a template id is configured)
+    //  - WhatChimp: whatchimp_use_template + template id/name
     const useTemplate = provider === "wati"
       ? !!settings.wati_use_template && !!settings.wati_template_name
-      : !!settings.whatchimp_use_template && (!!settings.whatchimp_template_id || !!settings.whatchimp_template_name);
+      : provider === "mazbot"
+        ? (settings.mazbot_use_template !== false) && !!settings.mazbot_template_id
+        : !!settings.whatchimp_use_template && (!!settings.whatchimp_template_id || !!settings.whatchimp_template_name);
 
     const result = useTemplate
       ? await sendConfirmationTemplate(settings, phone, {
           customer_name: order.customer_name || "عميلنا",
           order_id: String(order.order_code || order.id).slice(0, 8),
           products: productsLine,
-          total: `${order.price} ${store?.currency_symbol || ""}`.trim(),
+          // Bare number: WhatsApp templates usually hardcode the currency unit
+          // after the {{total}} placeholder, so adding it here would duplicate it.
+          total: String(order.price),
         })
       : await sendText(settings, phone, text);
     const providerOk = result.ok;
@@ -132,8 +145,17 @@ Deno.serve(async (req) => {
       await supabase.from("whatsapp_messages").update({
         status: "failed", error: JSON.stringify(providerData).slice(0, 500),
       }).eq("id", msg!.id);
-      const providerMessage = String(providerData?.message || "");
-      const templateWindowError = providerMessage.toLowerCase().includes("outside 24 hour window");
+      // Detect "must use a template" situations across providers. MazBot returns
+      // HTTP 422 for session messages sent outside the 24h customer-service window
+      // (nested under raw.body / raw.status), while Wati/WhatChimp use a message string.
+      const providerMessage = `${providerData?.message || ""} ${providerData?.body?.message || ""}`.toLowerCase();
+      const mazbotWindow = provider === "mazbot" && (
+        providerData?.status === 422 || providerData?.body?.success === false
+      ) && !useTemplate;
+      const templateWindowError = providerMessage.includes("outside 24 hour window")
+        || providerMessage.includes("24-hour")
+        || providerMessage.includes("session")
+        || mazbotWindow;
       if (templateWindowError) {
         return new Response(JSON.stringify({
           skipped: true,

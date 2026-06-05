@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Phone, Mail, Instagram, Facebook, Music2, MessageCircle } from "lucide-react";
+import { Phone, Mail, Instagram, Facebook, Music2, MessageCircle, ShoppingBag, Search, Heart } from "lucide-react";
 
 export interface HeaderSettings {
   logo_text: string;
@@ -29,9 +29,25 @@ const DEFAULTS: HeaderSettings = {
 interface StoreHeaderProps {
   ownerId?: string;
   storeId?: string;
+  variant?: "default" | "fashion";
+  themePreset?: string | null;
 }
 
-const StoreHeader = ({ ownerId, storeId }: StoreHeaderProps = {}) => {
+const FASHION_NAV_MENS = [
+  { href: "#products", label: "تسوق" },
+  { href: "#products", label: "التشكيلات" },
+  { href: "#editorial", label: "افتتاحية" },
+  { href: "#editorial", label: "من نحن" },
+];
+
+const FASHION_NAV_DEFAULT = [
+  { href: "#products", label: "تسوق" },
+  { href: "#editorial", label: "المجموعات" },
+  { href: "#products", label: "وصل حديثاً" },
+  { href: "#editorial", label: "من نحن" },
+];
+
+const StoreHeader = ({ ownerId, storeId, variant = "default", themePreset }: StoreHeaderProps = {}) => {
   const [settings, setSettings] = useState<HeaderSettings>(DEFAULTS);
 
   useEffect(() => {
@@ -55,10 +71,49 @@ const StoreHeader = ({ ownerId, storeId }: StoreHeaderProps = {}) => {
   const hasContact = settings.phone || settings.email;
   const hasSocial =
     settings.instagram_url || settings.facebook_url || settings.whatsapp_url || settings.tiktok_url;
+  const brandName = settings.logo_text || "متجرنا";
+  const brandInitial = brandName.trim().charAt(0) || "م";
+
+  if (variant === "fashion") {
+    const navLinks = themePreset === "aura-mens-store" ? FASHION_NAV_MENS : FASHION_NAV_DEFAULT;
+    return (
+      <header className="fashion-store-header w-full mb-0" dir="rtl">
+        <div className="container mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 min-w-0">
+            {settings.logo_image ? (
+              <img src={settings.logo_image} alt={brandName} className="w-9 h-9 rounded-full object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-lg shrink-0">
+                {brandInitial}
+              </div>
+            )}
+            <span className="text-xl md:text-2xl font-black tracking-tight truncate">{brandName}</span>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-8 font-bold text-sm">
+            {navLinks.map((link) => (
+              <a key={link.label} href={link.href} className="hover:text-primary transition-colors">{link.label}</a>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-4 md:gap-6 shrink-0">
+            <button type="button" className="hover:text-primary transition-colors" aria-label="بحث">
+              <Search className="w-5 h-5" />
+            </button>
+            <button type="button" className="hover:text-primary transition-colors hidden sm:inline-flex" aria-label="المفضلة">
+              <Heart className="w-5 h-5" />
+            </button>
+            <a href="#products" className="relative hover:text-primary transition-colors" aria-label="السلة">
+              <ShoppingBag className="w-5 h-5" />
+            </a>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="w-full bg-gradient-to-l from-primary/10 via-background to-primary/5 border-b border-border mb-6 rounded-lg overflow-hidden" dir="rtl">
-      {/* Top contact bar */}
       {(hasContact || hasSocial) && (
         <div className="bg-foreground/95 text-background text-xs sm:text-sm">
           <div className="container mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-3">
@@ -109,7 +164,6 @@ const StoreHeader = ({ ownerId, storeId }: StoreHeaderProps = {}) => {
         </div>
       )}
 
-      {/* Main header */}
       <div className="container mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {settings.logo_image && (

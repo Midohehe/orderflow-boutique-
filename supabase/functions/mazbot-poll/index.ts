@@ -65,6 +65,25 @@ function parseConfirmIntent(text: string): "confirm" | "cancel" | null {
   return null;
 }
 
+// Resolve message direction across MazBot response variants.
+// Per docs, `type` is the direction key: 2 = inbound (from customer), 1 = outbound.
+// Older/alternate builds expose `is_contact_msg` / `is_outgoing` / `direction` instead.
+function resolveMazbotDirection(m: any): "in" | "out" {
+  const t = m?.type;
+  if (t === 2 || t === "2") return "in";
+  if (t === 1 || t === "1") return "out";
+  if (m?.is_contact_msg === true) return "in";
+  if (m?.is_contact_msg === false) return "out";
+  if (m?.is_outgoing === true || m?.outgoing === true) return "out";
+  if (m?.is_outgoing === false || m?.outgoing === false) return "in";
+  const d = String(m?.direction || "").toLowerCase();
+  if (d === "in" || d === "inbound" || d === "incoming" || d === "received") return "in";
+  if (d === "out" || d === "outbound" || d === "outgoing" || d === "sent") return "out";
+  // Conservative default: treat unknown as outbound so we never auto-confirm
+  // (or auto-cancel) an order off our own messages when the shape is unexpected.
+  return "out";
+}
+
 function normalizeMazbotMessageType(rawType: string, mediaUrl: string | null): string {
   const t = String(rawType || "text").toLowerCase();
   if (["text", "image", "file", "audio", "video", "sticker", "location", "contact", "system"].includes(t)) {
@@ -86,12 +105,89 @@ async function mazbotLogin(s: any): Promise<string | null> {
   return d?.data?.token || null;
 }
 
-async function pollOwner(supabase: any, s: any) {
+// Determine which merchant a given customer phone belongs to. A single MazBot
+// account can serve multiple merchants when the integration is shared, so each
+// inbound conversation must be routed to the owner who actually has an order /
+// confirmation prompt for that phone. Falls back to the integration owner.
+async function resolveEffectiveOwner(
+  supabase: any,
+  ownerIds: string[],
+  phone: string,
+): Promise<string> {
+  if (ownerIds.length <= 1) return ownerIds[0];
+  // 1) Owner with the most recent outbound confirmation prompt for this phone.
+  const { data: convs } = await supabase
+    .from("whatsapp_conversations")
+    .select("id, owner_id")
+    .in("owner_id", ownerIds)
+    .eq("phone", phone);
+  if (convs && convs.length) {
+    const convIds = convs.map((c: any) => c.id);
+    const { data: prompt } = await supabase
+      .from("whatsapp_messages")
+      .select("conversation_id, created_at")
+      .in("conversation_id", convIds)
+      .eq("direction", "out")
+      .or("raw->>kind.eq.confirmation_prompt,content.ilike.*للتأكيد أرسل*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const owner = prompt?.conversation_id
+      ? convs.find((c: any) => c.id === prompt.conversation_id)?.owner_id
+      : null;
+    if (owner) return owner;
+  }
+  // 2) Owner with the most recent order from this phone.
+  const { data: ord } = await supabase
+    .from("orders")
+    .select("owner_id")
+    .in("owner_id", ownerIds)
+    .ilike("phone", `%${phone.slice(-9)}%`)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (ord?.owner_id) return ord.owner_id;
+  // 3) Default to the integration owner.
+  return ownerIds[0];
+}
+
+// Resolve auto-confirm / AI auto-reply flags for the effective owner. The MazBot
+// credentials belong to the integration owner (`s`), but the behavior toggles
+// should follow the merchant who owns the order/conversation.
+async function getOwnerFlags(
+  supabase: any,
+  ownerId: string,
+  s: any,
+  cache: Map<string, any>,
+): Promise<{ auto_confirm_enabled: boolean; ai_auto_reply_enabled: boolean }> {
+  if (ownerId === s.owner_id) {
+    return {
+      auto_confirm_enabled: !!s.auto_confirm_enabled,
+      ai_auto_reply_enabled: !!s.ai_auto_reply_enabled,
+    };
+  }
+  if (cache.has(ownerId)) return cache.get(ownerId);
+  const { data } = await supabase
+    .from("whatsapp_settings")
+    .select("auto_confirm_enabled, ai_auto_reply_enabled")
+    .eq("owner_id", ownerId);
+  const rows = data || [];
+  const pick = rows.find((r: any) => r.auto_confirm_enabled) || rows[0] || {};
+  const flags = {
+    auto_confirm_enabled: !!pick.auto_confirm_enabled,
+    ai_auto_reply_enabled: !!pick.ai_auto_reply_enabled,
+  };
+  cache.set(ownerId, flags);
+  return flags;
+}
+
+async function pollOwner(supabase: any, s: any, ownerIds: string[]) {
   const jwt = await mazbotLogin(s);
   if (!jwt) return { owner: s.owner_id, error: "login_failed" };
   const base = normBase(s.mazbot_base_url);
   const headers = { apikey: s.mazbot_api_key, Authorization: `Bearer ${jwt}`, Accept: "application/json" };
   const since = s.mazbot_last_polled_at ? new Date(s.mazbot_last_polled_at).getTime() : 0;
+  const flagsCache = new Map<string, any>();
 
   // 1) chat rooms
   const roomsRes = await fetch(`${base}/chat-rooms`, { headers });
@@ -110,13 +206,25 @@ async function pollOwner(supabase: any, s: any) {
     const name = rawName && !/^\+?\d+$/.test(String(rawName).trim()) ? rawName : null;
     if (!roomId || !phone) continue;
 
-    // 2) messages for the room
+    // Route this conversation to the merchant who owns it (handles shared
+    // integrations where one MazBot account serves multiple merchants).
+    const effectiveOwner = await resolveEffectiveOwner(supabase, ownerIds, phone);
+    const flags = await getOwnerFlags(supabase, effectiveOwner, s, flagsCache);
+
+    // 2) messages for the room — endpoint per docs: GET /message/{chat_room_id}.
+    // Response shape varies between deployments, so handle all known forms:
+    //   a) docs: data = [ {id, type, message, ...}, ... ]              (flat array)
+    //   b) some builds: data.messages = [ {id, ...}, ... ]            (flat under messages)
+    //   c) older builds: data.messages = [ {date, messages:[...]} ]   (grouped by date)
     const msgRes = await fetch(`${base}/message/${roomId}`, { headers });
     const msgData = await msgRes.json().catch(() => ({}));
-    // MazBot returns messages grouped by date: data.messages = [{date, messages:[...]}].
-    const groups: any[] = msgData?.data?.messages || [];
-    const msgs: any[] = Array.isArray(groups)
-      ? groups.flatMap((g: any) => Array.isArray(g?.messages) ? g.messages : (g?.id ? [g] : []))
+    const rawMsgContainer = Array.isArray(msgData?.data)
+      ? msgData.data
+      : (msgData?.data?.messages ?? msgData?.messages ?? []);
+    const msgs: any[] = Array.isArray(rawMsgContainer)
+      ? rawMsgContainer.flatMap((g: any) =>
+          Array.isArray(g?.messages) ? g.messages : (g && (g.id != null || g.message != null) ? [g] : []),
+        )
       : [];
     if (!msgs.length) continue;
 
@@ -125,7 +233,7 @@ async function pollOwner(supabase: any, s: any) {
       .from("whatsapp_conversations")
       .upsert(
         {
-          owner_id: s.owner_id,
+          owner_id: effectiveOwner,
           phone,
           ...(name ? { customer_name: name } : {}),
           last_message_at: new Date(updatedAt || Date.now()).toISOString(),
@@ -140,7 +248,7 @@ async function pollOwner(supabase: any, s: any) {
     let convOrderId: string | null = (conv as any).order_id ?? null;
     if (!convOrderId) {
       const { data: linkedOrder } = await supabase
-        .from("orders").select("id").eq("owner_id", s.owner_id)
+        .from("orders").select("id").eq("owner_id", effectiveOwner)
         .ilike("phone", `%${phone.slice(-9)}%`)
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (linkedOrder?.id) {
@@ -153,13 +261,16 @@ async function pollOwner(supabase: any, s: any) {
     let lastPreview: string | null = null;
     let unreadInc = 0;
     // Pull most recent outgoing confirmation prompt (if any) so we only
-    // honor confirm/cancel replies that arrive AFTER it.
+    // honor confirm/cancel replies that arrive AFTER it. The confirmation
+    // message is tagged with raw.kind = 'confirmation_prompt' (set by
+    // whatsapp-send-confirmation), which is reliable regardless of the
+    // merchant's template text. We keep the legacy phrase match as a fallback.
     const { data: lastPrompt } = await supabase
       .from("whatsapp_messages")
       .select("created_at, order_id")
       .eq("conversation_id", conv.id)
       .eq("direction", "out")
-      .ilike("content", "%للتأكيد أرسل%")
+      .or("raw->>kind.eq.confirmation_prompt,content.ilike.*للتأكيد أرسل*")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -181,12 +292,12 @@ async function pollOwner(supabase: any, s: any) {
         const { data: existing } = await supabase
           .from("whatsapp_messages")
           .select("id")
-          .eq("owner_id", s.owner_id)
+          .eq("owner_id", effectiveOwner)
           .in("green_message_id", providerIds)
           .maybeSingle();
         if (existing) continue;
 
-        const direction = m?.is_contact_msg === true ? "in" : "out";
+        const direction = resolveMazbotDirection(m);
         const buttonText = Array.isArray(m?.buttons) && m.buttons.length > 0
           ? (m.buttons[0]?.text || m.buttons[0]?.title || null) : null;
         const rawContent = m?.value || buttonText || m?.message || m?.text || null;
@@ -212,7 +323,7 @@ async function pollOwner(supabase: any, s: any) {
           const { data: promptMsg } = await supabase
             .from("whatsapp_messages")
             .select("order_id, created_at")
-            .eq("owner_id", s.owner_id)
+            .eq("owner_id", effectiveOwner)
             .eq("conversation_id", conv.id)
             .in("green_message_id", [contextId, `mazbot:${contextId}`])
             .order("created_at", { ascending: false })
@@ -223,7 +334,7 @@ async function pollOwner(supabase: any, s: any) {
         }
 
         await supabase.from("whatsapp_messages").insert({
-          owner_id: s.owner_id,
+          owner_id: effectiveOwner,
           conversation_id: conv.id,
           order_id: messageOrderId,
           direction,
@@ -246,7 +357,7 @@ async function pollOwner(supabase: any, s: any) {
         ).getTime();
         if (
           direction === "in" && mtype === "text" && messageOrderId &&
-          s.auto_confirm_enabled && matchedPromptAt > 0 && msgAt >= matchedPromptAt
+          flags.auto_confirm_enabled && matchedPromptAt > 0 && msgAt >= matchedPromptAt
         ) {
           let intent = parseConfirmIntent(content || "");
           // Fallback to AI classifier when literal match fails.
@@ -263,12 +374,26 @@ async function pollOwner(supabase: any, s: any) {
             } catch (e) { console.error("ai-intent failed", e); }
           }
           if (intent) {
-            await supabase.from("orders").update({
-              confirmation_status: intent === "confirm" ? "confirmed" : "cancelled",
+            const result = intent === "confirm" ? "confirmed" : "cancelled";
+            const { data: updatedOrder } = await supabase.from("orders").update({
+              confirmation_status: result,
               ...(intent === "cancel" ? { status: "cancelled" } : {}),
               confirmed_at: new Date().toISOString(),
+              last_attempt_at: new Date().toISOString(),
               needs_manual_review: false,
-            }).eq("id", messageOrderId).eq("owner_id", s.owner_id);
+            }).eq("id", messageOrderId).eq("owner_id", effectiveOwner)
+              .select("store_id").maybeSingle();
+
+            // Audit trail (consistent with the manual Confirmation Center flow).
+            try {
+              await supabase.from("order_confirmation_attempts").insert({
+                order_id: messageOrderId,
+                owner_id: effectiveOwner,
+                store_id: (updatedOrder as any)?.store_id ?? null,
+                result,
+                notes: `WhatsApp auto (MazBot): "${(content || "").slice(0, 80)}"`,
+              });
+            } catch (e) { console.error("mazbot attempt log failed", e); }
 
             const replyText = intent === "confirm"
               ? "✅ تم تأكيد طلبك بنجاح، سيتم تجهيزه للشحن قريباً. شكراً لك!"
@@ -277,21 +402,21 @@ async function pollOwner(supabase: any, s: any) {
               await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
-                body: JSON.stringify({ phone, text: replyText, order_id: messageOrderId, owner_id: s.owner_id }),
+                body: JSON.stringify({ phone, text: replyText, order_id: messageOrderId, owner_id: effectiveOwner }),
               }).catch(() => {});
             } catch (e) { console.error("mazbot auto-reply failed", e); }
             continue;
           }
         }
 
-        if (direction === "in" && mtype === "text" && s.ai_auto_reply_enabled && !aiTriggered) {
+        if (direction === "in" && mtype === "text" && flags.ai_auto_reply_enabled && !aiTriggered) {
           aiTriggered = true;
           try {
-            console.log(`[mazbot-poll] triggering ai-reply owner=${s.owner_id} conv=${conv.id} phone=${phone}`);
+            console.log(`[mazbot-poll] triggering ai-reply owner=${effectiveOwner} conv=${conv.id} phone=${phone}`);
             const aiRes = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-ai-reply`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
-              body: JSON.stringify({ owner_id: s.owner_id, conversation_id: conv.id, phone }),
+              body: JSON.stringify({ owner_id: effectiveOwner, conversation_id: conv.id, phone }),
             });
             const aiText = await aiRes.text();
             console.log(`[mazbot-poll] ai-reply status=${aiRes.status} body=${aiText.slice(0, 300)}`);
@@ -301,7 +426,7 @@ async function pollOwner(supabase: any, s: any) {
         }
       } catch (e) {
         console.error("mazbot message sync failed", {
-          owner_id: s.owner_id,
+          owner_id: effectiveOwner,
           message_id: m?.id ?? m?.message_id ?? null,
           error: e instanceof Error ? e.message : String(e),
         });
@@ -343,7 +468,18 @@ Deno.serve(async (req) => {
     for (const s of settingsList || []) {
       if (!s.mazbot_api_key || !s.mazbot_email || !s.mazbot_password) continue;
       try {
-        results.push(await pollOwner(supabase, s));
+        // Shared integrations: this MazBot account may also serve merchants this
+        // owner granted access to. Their customers' replies arrive here too, so
+        // include them as candidate owners for routing inbound conversations.
+        const { data: shares } = await supabase
+          .from("whatsapp_shares")
+          .select("shared_with_user_id")
+          .eq("owner_id", s.owner_id)
+          .eq("status", "active")
+          .eq("recipient_active", true);
+        const ownerIds = [s.owner_id, ...((shares || []).map((r: any) => r.shared_with_user_id))]
+          .filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i);
+        results.push(await pollOwner(supabase, s, ownerIds));
       } catch (e: any) {
         results.push({ owner: s.owner_id, error: e?.message || String(e) });
       }

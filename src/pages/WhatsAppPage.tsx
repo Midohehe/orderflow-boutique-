@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +62,7 @@ const StatusIcon = ({ status }: { status: string }) => {
 export default function WhatsAppPage() {
   const { profile } = useUserContext();
   const ownerId = profile?.user_id;
+  const { activeStoreId } = useStoreContext();
   const navigate = useNavigate();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -77,6 +79,10 @@ export default function WhatsAppPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
   const [tokenStores, setTokenStores] = useState<Record<string, any[]>>({});
+  const [sharesOut, setSharesOut] = useState<any[]>([]);
+  const [sharesIn, setSharesIn] = useState<any[]>([]);
+  const [shareEmail, setShareEmail] = useState("");
+  const [sharing, setSharing] = useState(false);
 
   const active = useMemo(() => conversations.find((c) => c.id === activeId) || null, [conversations, activeId]);
 
@@ -85,6 +91,7 @@ export default function WhatsAppPage() {
     loadConversations();
     loadSettings();
     loadTokens();
+    loadShares();
     checkAdmin();
 
     const ch = supabase
@@ -99,6 +106,14 @@ export default function WhatsAppPage() {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [ownerId]);
+
+  // Re-attempt loading/creating settings once the active store is resolved
+  // (strict RLS needs a valid store_id to create the row).
+  useEffect(() => {
+    if (!ownerId || !activeStoreId || settings) return;
+    loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerId, activeStoreId]);
 
   async function checkAdmin() {
     const { data } = await supabase.from("user_roles").select("role").eq("user_id", ownerId).eq("role", "admin").maybeSingle();
@@ -204,16 +219,21 @@ export default function WhatsAppPage() {
   }
   async function loadSettings() {
     if (!ownerId) return;
-    const { data, error } = await supabase
+    const { data: rows, error } = await supabase
       .from("whatsapp_settings")
       .select("*")
-      .eq("owner_id", ownerId)
-      .maybeSingle();
+      .eq("owner_id", ownerId);
     if (error) {
       console.error("loadSettings error", error);
       toast({ title: "تعذر تحميل الإعدادات", description: error.message, variant: "destructive" });
       return;
     }
+    // Settings are scoped per-store under strict RLS. Prefer the row for the
+    // active store, then any legacy row without a store_id, then the first row.
+    const data = (rows || []).find((r: any) => activeStoreId && r.store_id === activeStoreId)
+      || (rows || []).find((r: any) => !r.store_id)
+      || (rows || [])[0]
+      || null;
     if (data) {
       setSettings({
         ...data,
@@ -223,9 +243,12 @@ export default function WhatsAppPage() {
         whatchimp_conversation_endpoint: normalizeEndpoint((data as any).whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
       });
     } else {
+      // Strict RLS requires a store_id that belongs to the owner. Wait until the
+      // active store is resolved before attempting to create the row.
+      if (!activeStoreId) return;
       const { data: created, error: insErr } = await supabase
         .from("whatsapp_settings")
-        .insert({ owner_id: ownerId })
+        .insert({ owner_id: ownerId, store_id: activeStoreId })
         .select("*")
         .single();
       if (insErr) {
@@ -270,6 +293,7 @@ export default function WhatsAppPage() {
       mazbot_password: settings.mazbot_password || "",
       mazbot_template_id: settings.mazbot_template_id || "",
       mazbot_use_template: settings.mazbot_use_template !== false,
+      mazbot_template_vars: (settings.mazbot_template_vars || "order_id,products,total").trim(),
       auto_confirm_enabled: settings.auto_confirm_enabled,
       ai_auto_reply_enabled: settings.ai_auto_reply_enabled,
       confirm_template: settings.confirm_template,
@@ -278,6 +302,66 @@ export default function WhatsAppPage() {
     const { error } = await supabase.from("whatsapp_settings").update(payload).eq("id", settings.id);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     else { toast({ title: "تم الحفظ" }); setSettingsOpen(false); }
+  }
+
+  async function loadShares() {
+    if (!ownerId) return;
+    const db = supabase as any;
+    const [{ data: out }, { data: incoming }] = await Promise.all([
+      db.from("whatsapp_shares").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }),
+      db.from("whatsapp_shares").select("*").eq("shared_with_user_id", ownerId).order("created_at", { ascending: false }),
+    ]);
+    setSharesOut((out as any[]) || []);
+    setSharesIn((incoming as any[]) || []);
+  }
+
+  async function addShare() {
+    const email = shareEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      toast({ title: "بريد إلكتروني غير صالح", variant: "destructive" });
+      return;
+    }
+    setSharing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const { data, error } = await supabase.functions.invoke("whatsapp-share", {
+        body: { action: "create", email },
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      });
+      if (error) {
+        // Surface the function's JSON error body (FunctionsHttpError hides it).
+        let msg = error.message;
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx && typeof ctx.json === "function") {
+            const j = await ctx.json();
+            if (j?.error) msg = j.error;
+          }
+        } catch (_) { /* ignore */ }
+        throw new Error(msg);
+      }
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({ title: "تمت المشاركة", description: `تمت مشاركة الواتساب مع ${(data as any)?.shared_with_email || email}` });
+      setShareEmail("");
+      loadShares();
+    } catch (e: any) {
+      toast({ title: "تعذرت المشاركة", description: e.message, variant: "destructive" });
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function removeShare(id: string) {
+    const { error } = await (supabase as any).from("whatsapp_shares").delete().eq("id", id);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else { toast({ title: "تم الإلغاء" }); loadShares(); }
+  }
+
+  async function toggleIncomingShare(id: string, active: boolean) {
+    const { error } = await (supabase as any).from("whatsapp_shares").update({ recipient_active: active }).eq("id", id);
+    if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
+    else loadShares();
   }
 
   async function sendMessage() {
@@ -324,7 +408,7 @@ export default function WhatsAppPage() {
             <DialogHeader>
               <DialogTitle>إعدادات WhatsApp</DialogTitle>
               <DialogDescription>
-                اختر المزوّد (Wati أو WhatChimp)، اضبط مفاتيح الحساب، القوالب، والويب هوك.
+                اختر المزوّد (Wati أو WhatChimp أو MazBot)، اضبط مفاتيح الحساب والقوالب، أو شارك واتسابك مع تاجر آخر.
               </DialogDescription>
             </DialogHeader>
             {!settings && (
@@ -465,7 +549,20 @@ export default function WhatsAppPage() {
                         placeholder="مثال: 42"
                         dir="ltr"
                       />
-                      <p className="text-[11px] text-muted-foreground mt-1">يجب أن يحوي القالب 4 متغيرات بالترتيب: {`{{1}}=اسم العميل، {{2}}=رقم الطلب، {{3}}=المنتجات، {{4}}=الإجمالي`}.</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">رقم القالب المسجَّل في لوحة MazBot.</p>
+                    </div>
+                    <div>
+                      <Label>ترتيب متغيرات القالب</Label>
+                      <Input
+                        value={settings.mazbot_template_vars ?? "order_id,products,total"}
+                        onChange={(e) => setSettings({ ...settings, mazbot_template_vars: e.target.value })}
+                        placeholder="order_id,products,total"
+                        dir="ltr"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        اكتب الرموز مفصولة بفواصل بنفس ترتيب ظهور المتغيرات في القالب. الرموز المدعومة: <span className="font-mono" dir="ltr">customer_name</span>، <span className="font-mono" dir="ltr">order_id</span>، <span className="font-mono" dir="ltr">products</span>، <span className="font-mono" dir="ltr">total</span>.
+                        مثال لقالبك (رقم الطلب، المنتج، الإجمالي): <span className="font-mono" dir="ltr">order_id,products,total</span>.
+                      </p>
                     </div>
                     <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-1">
                       <div>إرسال القالب: <span className="font-mono" dir="ltr">POST /api/whatsapp/send-template</span></div>
@@ -633,6 +730,66 @@ export default function WhatsAppPage() {
                   <Label>قالب رسالة التأكيد</Label>
                   <Textarea rows={8} value={settings.confirm_template || ""} onChange={(e) => setSettings({ ...settings, confirm_template: e.target.value })} />
                   <p className="text-xs text-muted-foreground mt-1">المتغيرات: {`{customer_name} {order_id} {products} {total} {currency}`}</p>
+                </div>
+
+                <div className="space-y-3 p-4 border rounded-md bg-muted/20">
+                  <div>
+                    <div className="text-sm font-semibold">مشاركة الواتساب مع تاجر آخر</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      شارك تكامل الواتساب الخاص بك مع تاجر آخر ليتمكن من إرسال تأكيدات طلباته عبر حسابك. اكتب بريده الإلكتروني المسجّل في المنصة.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      value={shareEmail}
+                      onChange={(e) => setShareEmail(e.target.value)}
+                      placeholder="merchant@example.com"
+                      dir="ltr"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addShare(); } }}
+                    />
+                    <Button type="button" onClick={addShare} disabled={sharing} className="shrink-0 gap-1">
+                      <Plus className="w-4 h-4" /> مشاركة
+                    </Button>
+                  </div>
+                  {sharesOut.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">التجار الذين شاركت معهم:</div>
+                      {sharesOut.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between gap-2 p-2 border rounded-md bg-background">
+                          <div className="min-w-0">
+                            <div className="text-sm truncate" dir="ltr">{s.shared_with_email || s.shared_with_user_id}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {s.recipient_active ? "مُفعّل لدى التاجر" : "غير مُفعّل لدى التاجر"}
+                            </div>
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => removeShare(s.id)} aria-label="إلغاء المشاركة">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {sharesIn.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="text-xs font-medium text-muted-foreground">واتساب مشارك معك من تجار آخرين:</div>
+                      {sharesIn.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between gap-2 p-2 border rounded-md bg-background">
+                          <div className="min-w-0">
+                            <div className="text-sm truncate" dir="ltr">{s.owner_email || s.owner_id}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {s.status !== "active" ? "أوقفها المالك" : "استخدمه لإرسال تأكيداتك عند عدم وجود واتساب خاص بك"}
+                            </div>
+                          </div>
+                          <Switch
+                            checked={!!s.recipient_active && s.status === "active"}
+                            disabled={s.status !== "active"}
+                            onCheckedChange={(v) => toggleIncomingShare(s.id, v)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 // Send a WhatsApp message via WhatChimp. Authenticated only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { sendText, sendImage, isConfigured } from "../_shared/wa-providers.ts";
+import { sendText, sendImage, isConfigured, resolveSendSettings } from "../_shared/wa-providers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,19 +75,12 @@ Deno.serve(async (req) => {
     // Resolve owner_id (admin can pass owner_id, otherwise self)
     const ownerId = body.owner_id && user.id !== body.owner_id ? String(body.owner_id) : user.id;
 
-    const { data: settings } = await supabase
-      .from("whatsapp_settings")
-      .select("*")
-      .eq("owner_id", ownerId)
-      .maybeSingle();
-
-    if (!settings || !settings.enabled) {
-      return new Response(JSON.stringify({ error: "WhatsApp not configured" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Resolve which integration to send through: the owner's own config wins,
+    // otherwise fall back to an integration another merchant shared with them.
+    const resolved = await resolveSendSettings(supabase, ownerId, body.store_id ?? null);
+    const settings = resolved.settings;
     if (!isConfigured(settings)) {
-      return new Response(JSON.stringify({ error: "WhatsApp provider not configured" }), {
+      return new Response(JSON.stringify({ error: "WhatsApp not configured" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
