@@ -414,6 +414,7 @@ const Products = () => {
             if (q > 0) {
               openingRows.push({
                 owner_id: user!.id,
+                store_id: activeStoreId,
                 product_id: data.id,
                 product_name: newProduct.name,
                 variant_key: k,
@@ -428,6 +429,7 @@ const Products = () => {
         } else if (stockNum > 0) {
           openingRows.push({
             owner_id: user!.id,
+            store_id: activeStoreId,
             product_id: data.id,
             product_name: newProduct.name,
             variant_key: null,

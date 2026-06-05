@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Receipt, Plus, Loader2, Trash2, Tag } from "lucide-react";
+import { Receipt, Plus, Loader2, Trash2, Tag, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/PageHeader";
@@ -46,6 +47,9 @@ const Expenses = () => {
       supabase.from("expense_types").select("id, name").eq("store_id", activeStoreId).order("created_at"),
       supabase.from("expenses").select("id, amount, notes, created_at, safe_id, expense_type_id").eq("store_id", activeStoreId).order("created_at", { ascending: false }),
     ]);
+    if (sa.error) toast({ title: "خطأ", description: sa.error.message, variant: "destructive" });
+    if (ty.error) toast({ title: "خطأ", description: ty.error.message, variant: "destructive" });
+    if (ex.error) toast({ title: "خطأ", description: ex.error.message, variant: "destructive" });
     setSafes((sa.data as Safe[]) || []);
     setTypes((ty.data as ExpenseType[]) || []);
     setExpenses((ex.data as Expense[]) || []);
@@ -122,6 +126,23 @@ const Expenses = () => {
         description="إدارة المصروفات وأنواعها"
         iconGradient="from-rose-500 to-red-600"
       />
+
+      {safes.length === 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Wallet className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-foreground">لا توجد خزينة لهذا المتجر</p>
+                <p className="text-sm text-muted-foreground">المصروفات تُخصم من الخزينة — أنشئ خزينة أولاً ثم أضف المصروفات.</p>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="shrink-0">
+              <Link to="/dashboard/safes">إنشاء خزينة</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="list">
         <TabsList>

@@ -92,6 +92,16 @@ Deno.serve(async (req) => {
         return json({ error: mErr.message }, 400);
       }
 
+      const { data: ownerStores } = await admin
+        .from("stores")
+        .select("id")
+        .eq("owner_id", callerId);
+      if (ownerStores?.length) {
+        await admin.from("store_member_stores").insert(
+          ownerStores.map((s: { id: string }) => ({ member_id: member.id, store_id: s.id })),
+        );
+      }
+
       if (Array.isArray(extra_permissions) && extra_permissions.length) {
         await admin.from("store_member_permissions").insert(
           extra_permissions.map((k: string) => ({ member_id: member.id, permission_key: k }))
