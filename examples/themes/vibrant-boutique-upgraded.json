@@ -1,0 +1,703 @@
+{
+  "version": 1,
+  "exportedAt": "2026-06-04T23:15:49.815Z",
+  "name": "fasion",
+  "packageId": "vibrant-boutique",
+  "tokens": {
+    "preset": "vibrant-boutique",
+    "primary": "280 85% 58%",
+    "primaryForeground": "0 0% 100%",
+    "accent": "340 88% 55%",
+    "secondary": "168 72% 42%",
+    "background": "270 45% 98%",
+    "foreground": "260 28% 12%",
+    "card": "0 0% 100%",
+    "cardForeground": "260 28% 12%",
+    "muted": "270 35% 95%",
+    "mutedForeground": "260 15% 42%",
+    "border": "270 20% 90%",
+    "headerBg": "0 0% 100%",
+    "buttonRadius": "1.25rem",
+    "sectionRadius": "1.5rem",
+    "fontFamily": "Cairo, 'Outfit', system-ui, sans-serif",
+    "headingFont": "Cairo, 'Outfit', system-ui, sans-serif",
+    "buttonStyle": "gradient",
+    "headerStyle": "blur",
+    "shadow": "medium"
+  },
+  "customCss": "@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Outfit:wght@400;600;700;800&display=swap');\n.store-theme-scope {\n  letter-spacing: -0.01em;\n}\n.store-theme-scope h1, .store-theme-scope h2, .store-theme-scope h3, .store-theme-scope .store-heading {\n  letter-spacing: -0.03em;\n  font-weight: 800;\n}\n.store-theme-scope .fashion-btn-primary,\n.store-theme-scope a.fashion-btn-primary,\n.store-theme-scope button.fashion-btn-primary,\n.store-theme-scope .store-btn-gradient {\n  background: linear-gradient(135deg, hsl(var(--store-primary)), hsl(var(--store-accent))) !important;\n  color: hsl(var(--store-primary-fg)) !important;\n  border-radius: var(--store-radius);\n  box-shadow: 0 10px 28px hsl(var(--store-primary) / 0.25);\n  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);\n  font-weight: 700;\n  border: none;\n}\n.store-theme-scope .fashion-btn-primary:hover,\n.store-theme-scope .store-btn-gradient:hover {\n  transform: translateY(-3px) scale(1.02);\n  box-shadow: 0 16px 40px hsl(var(--store-accent) / 0.35);\n  filter: brightness(1.05);\n}\n.store-theme-scope .fashion-btn-secondary,\n.store-theme-scope a.fashion-btn-secondary {\n  background: hsl(var(--store-card));\n  color: hsl(var(--store-primary));\n  border: 2px solid hsl(var(--store-primary) / 0.35);\n  border-radius: var(--store-radius);\n  transition: all 0.35s ease;\n  font-weight: 700;\n  text-decoration: none;\n}\n.store-theme-scope .fashion-btn-secondary:hover {\n  background: hsl(var(--store-primary) / 0.08);\n  border-color: hsl(var(--store-primary));\n  transform: translateY(-2px);\n}\n.store-theme-scope .fashion-btn-glass,\n.store-theme-scope a.fashion-btn-glass {\n  background: rgba(255,255,255,0.12);\n  backdrop-filter: blur(16px);\n  color: #fff;\n  border: 1px solid rgba(255,255,255,0.35);\n  border-radius: var(--store-radius);\n  transition: all 0.3s ease;\n}\n.store-theme-scope .fashion-btn-glass:hover {\n  background: rgba(255,255,255,0.22);\n  transform: translateY(-2px);\n}\n.store-theme-scope .product-card, .store-theme-scope .fashion-product-card, .store-theme-scope .store-card {\n  border-radius: var(--store-section-radius);\n  border: 1px solid hsl(var(--store-border));\n  background: hsl(var(--store-card));\n  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;\n  overflow: hidden;\n}\n.store-theme-scope .product-card:hover, .store-theme-scope .fashion-product-card:hover {\n  transform: translateY(-10px);\n  box-shadow: 0 20px 48px hsl(var(--store-primary) / 0.18);\n  border-color: hsl(var(--store-accent) / 0.3);\n}\n.store-theme-scope .product-image {\n  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);\n}\n.store-theme-scope .product-card:hover .product-image {\n  transform: scale(1.06);\n}\n.store-theme-scope .fashion-category-pill {\n  background: linear-gradient(145deg, hsl(var(--store-primary) / 0.06), hsl(var(--store-accent) / 0.04));\n  border: 1px solid hsl(var(--store-border));\n  border-radius: 1.25rem;\n  transition: all 0.35s ease;\n}\n.store-theme-scope .fashion-category-pill:hover {\n  background: linear-gradient(135deg, hsl(var(--store-primary)), hsl(var(--store-accent)));\n  color: #fff;\n  transform: translateY(-4px);\n  box-shadow: 0 12px 32px hsl(var(--store-primary) / 0.25);\n}\n.store-theme-scope .fashion-hero-highlight {\n  background: linear-gradient(90deg, hsl(var(--store-accent)), hsl(var(--store-secondary)), hsl(var(--store-primary)));\n  -webkit-background-clip: text;\n  background-clip: text;\n  color: transparent;\n}\n.store-theme-scope .fashion-footer {\n  background: linear-gradient(165deg, hsl(var(--store-fg)), hsl(260 28% 18%));\n}\n@keyframes vibrant-rise {\n  from { opacity: 0; transform: translateY(24px); }\n  to { opacity: 1; transform: translateY(0); }\n}\n.store-theme-scope .animate-fade-in, .store-theme-scope [class*=\"fade-in\"] {\n  animation: vibrant-rise 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;\n}",
+  "storeHome": {
+    "content": [
+      {
+        "type": "PromoBar",
+        "props": {
+          "id": "PromoBar-z1nn53",
+          "text": "🎨 تشكيلة 2026 — ألوان جريئة وتصاميم عصرية",
+          "bg": "#b239ef",
+          "color": "#ffffff",
+          "padding_top": 0,
+          "padding_bottom": 0,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "full",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "none",
+          "custom_class": "",
+          "custom_id": "",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "Hero",
+        "props": {
+          "id": "Hero-bfiaxj",
+          "image": "https://images.unsplash.com/photo-1445205170230-053b83016050?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80",
+          "eyebrow": "وصل حديثاً — 2026",
+          "title": "أسلوبك",
+          "title_highlight": "بلمسة عصرية",
+          "subtitle": "متجر عصري بألوان حيوية وتجربة تسوق سلسة — منتجات مختارة، توصيل سريع، ودفع عند الاستلام.",
+          "button_text": "تسوق الآن",
+          "button_link": "#products",
+          "button_text_2": "استكشف المجموعة",
+          "button_link_2": "#editorial",
+          "text_color": "#ffffff",
+          "overlay": 0.3,
+          "min_height": 720,
+          "max_width": "full",
+          "bg_gradient": "linear-gradient(to top, #b239ef55, transparent)",
+          "padding_top": 0,
+          "padding_bottom": 0,
+          "animation": "fade-in",
+          "custom_class": "fashion-hero"
+        }
+      },
+      {
+        "type": "HtmlBlock",
+        "props": {
+          "id": "Categories-ajb4to",
+          "html": "<div class=\"fashion-category-row\"><div class=\"fashion-category-pill\"><span class=\"fashion-category-count\">150+</span><span class=\"fashion-category-label\">منتج جديد</span></div><div class=\"fashion-category-pill\"><span class=\"fashion-category-count\">24h</span><span class=\"fashion-category-label\">شحن سريع</span></div><div class=\"fashion-category-pill\"><span class=\"fashion-category-count\">COD</span><span class=\"fashion-category-label\">دفع عند الاستلام</span></div><div class=\"fashion-category-pill\"><span class=\"fashion-category-count\">30%</span><span class=\"fashion-category-label\">عروض الأسبوع</span></div></div>",
+          "css": "",
+          "padding_top": 64,
+          "padding_bottom": 64,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "container",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "#ffffff",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "ProductsGrid",
+        "props": {
+          "id": "Products-hj15h7",
+          "eyebrow": "الأكثر مبيعاً",
+          "title": "منتجات مميزة",
+          "limit": 8,
+          "columns": 4,
+          "card_style": "fashion",
+          "view_all_text": "عرض كل المنتجات",
+          "view_all_link": "#products",
+          "padding_top": 48,
+          "padding_bottom": 64,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "container",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "products",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "Columns",
+        "props": {
+          "id": "Editorial-gf3zht",
+          "count": 2,
+          "gap": 48,
+          "col1": "<img src=\"https://images.unsplash.com/photo-1469334031218-e382a71b716b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80\" alt=\"أزياء\" style=\"width:100%;border-radius:1.5rem;box-shadow:0 16px 48px rgba(0,0,0,0.12);aspect-ratio:4/5;object-fit:cover;\" />",
+          "col2": "<p style=\"color:#b239ef;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;font-size:0.875rem;margin-bottom:0.5rem;\">تصميم عصري</p><h2 style=\"font-size:2.5rem;font-weight:900;line-height:1.15;margin-bottom:1.5rem;\">تجربة تسوق<br/><span style=\"color:#b239ef\">بلا حدود.</span></h2><p style=\"color:#4b5563;line-height:1.75;margin-bottom:2rem;\">نصمم متجرك ليكون سريعاً، واضحاً، وجذاباً — مساحات بيضاء سخية، بطاقات ناعمة، وأزرار تحفّز على الشراء من أول نظرة.</p><ul style=\"list-style:none;padding:0;margin:0 0 2rem;display:flex;flex-direction:column;gap:1rem;\"><li style=\"display:flex;align-items:center;gap:0.75rem;\"><span style=\"width:1.5rem;height:1.5rem;border-radius:9999px;background:#b239ef15;color:#b239ef;display:inline-flex;align-items:center;justify-content:center;\">✓</span><span>واجهة عصرية متجاوبة</span></li><li style=\"display:flex;align-items:center;gap:0.75rem;\"><span style=\"width:1.5rem;height:1.5rem;border-radius:9999px;background:#b239ef15;color:#b239ef;display:inline-flex;align-items:center;justify-content:center;\">✓</span><span>بطاقات منتجات تفاعلية</span></li><li style=\"display:flex;align-items:center;gap:0.75rem;\"><span style=\"width:1.5rem;height:1.5rem;border-radius:9999px;background:#b239ef15;color:#b239ef;display:inline-flex;align-items:center;justify-content:center;\">✓</span><span>CTA واضحة في كل قسم</span></li><li style=\"display:flex;align-items:center;gap:0.75rem;\"><span style=\"width:1.5rem;height:1.5rem;border-radius:9999px;background:#b239ef15;color:#b239ef;display:inline-flex;align-items:center;justify-content:center;\">✓</span><span>متوافق مع صفحات الهبوط</span></li></ul><a href=\"#editorial\" class=\"fashion-btn-primary\" style=\"display:inline-block;padding:1rem 2rem;text-decoration:none;\">اقرأ قصتنا</a>",
+          "padding_top": 72,
+          "padding_bottom": 72,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "container",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "#ffffff",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "editorial",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "Features",
+        "props": {
+          "id": "Features-2os4ae",
+          "title": "لماذا نحن؟",
+          "items": [
+            {
+              "icon": "🚚",
+              "title": "شحن سريع",
+              "desc": "توصيل لكل مدن ليبيا"
+            },
+            {
+              "icon": "💵",
+              "title": "الدفع عند الاستلام",
+              "desc": "ادفع عند استلام طلبك"
+            },
+            {
+              "icon": "✨",
+              "title": "جودة فاخرة",
+              "desc": "خامات مختارة بعناية"
+            },
+            {
+              "icon": "💬",
+              "title": "دعم واتساب",
+              "desc": "فريقنا جاهز لمساعدتك"
+            }
+          ],
+          "padding_top": 56,
+          "padding_bottom": 56,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "container",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "#faf8fc",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "Reviews",
+        "props": {
+          "id": "Reviews-t8m7dd",
+          "title": "آراء العملاء",
+          "items": [
+            {
+              "name": "سارة",
+              "text": "جودة رائعة وتصميم عصري!",
+              "rating": 5
+            },
+            {
+              "name": "خالد",
+              "text": "التوصيل سريع والمقاسات مضبوطة.",
+              "rating": 5
+            },
+            {
+              "name": "نور",
+              "text": "أنصح بكل تشكيلاتهم.",
+              "rating": 5
+            }
+          ],
+          "padding_top": 48,
+          "padding_bottom": 48,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "container",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "SocialIcons",
+        "props": {
+          "id": "Social-2cbe09",
+          "facebook": "",
+          "instagram": "",
+          "whatsapp": "",
+          "tiktok": "",
+          "youtube": "",
+          "email": "",
+          "size": 28,
+          "color": "#b239ef",
+          "padding_top": 24,
+          "padding_bottom": 24,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "container",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      },
+      {
+        "type": "HtmlBlock",
+        "props": {
+          "id": "Footer-56omvm",
+          "html": "<footer class=\"fashion-footer\">\n  <div class=\"fashion-footer-grid\">\n    <div>\n      <div class=\"fashion-footer-brand\">\n        <span class=\"fashion-footer-logo\">ب</span>\n        <span class=\"fashion-footer-name\">بوتيك</span>\n      </div>\n      <p class=\"fashion-footer-desc\">متجر عصري — أزياء ومنتجات مختارة بعناية لتجربة تسوق استثنائية.</p>\n      <div class=\"fashion-footer-socials\">\n        <span>IG</span><span>TW</span><span>FB</span>\n      </div>\n    </div>\n    <div>\n      <h4 class=\"fashion-footer-heading\">تسوق</h4>\n      <ul class=\"fashion-footer-links\">\n        <li><a href=\"#products\">الأكثر مبيعاً</a></li><li><a href=\"#products\">وصل حديثاً</a></li><li><a href=\"#products\">عروض</a></li><li><a href=\"#products\">إكسسوارات</a></li>\n      </ul>\n    </div>\n    <div>\n      <h4 class=\"fashion-footer-heading\">الشركة</h4>\n      <ul class=\"fashion-footer-links\">\n        <li><a href=\"#editorial\">من نحن</a></li>\n        <li><a href=\"#editorial\">الاستدامة</a></li>\n        <li><a href=\"#\">اتصل بنا</a></li>\n      </ul>\n    </div>\n    <div>\n      <h4 class=\"fashion-footer-heading\">النشرة البريدية</h4>\n      <p class=\"fashion-footer-desc\">اشترك للحصول على عروض حصرية وخصومات أسبوعية.</p>\n      <div class=\"fashion-footer-newsletter\">\n        <input type=\"email\" placeholder=\"أدخل بريدك الإلكتروني\" dir=\"rtl\" />\n        <button type=\"button\" class=\"fashion-btn-primary fashion-footer-submit\" aria-label=\"اشتراك\">←</button>\n      </div>\n    </div>\n  </div>\n  <div class=\"fashion-footer-bottom\">\n    <p>© 2026 بوتيك. جميع الحقوق محفوظة.</p>\n    <div class=\"fashion-footer-legal\">\n      <a href=\"#\">سياسة الخصوصية</a>\n      <a href=\"#\">شروط الخدمة</a>\n    </div>\n  </div>\n</footer>",
+          "css": "",
+          "padding_top": 0,
+          "padding_bottom": 0,
+          "padding_left": 0,
+          "padding_right": 0,
+          "margin_top": 0,
+          "margin_bottom": 0,
+          "max_width": "full",
+          "min_height": 0,
+          "text_align": "center",
+          "bg_color": "",
+          "bg_gradient": "",
+          "bg_image": "",
+          "bg_size": "cover",
+          "border_width": 0,
+          "border_color": "",
+          "border_radius": 0,
+          "shadow": "none",
+          "animation": "fade-up",
+          "custom_class": "",
+          "custom_id": "",
+          "hide_mobile": false,
+          "hide_tablet": false,
+          "hide_desktop": false
+        }
+      }
+    ],
+    "root": {
+      "props": {}
+    }
+  },
+  "landingTemplates": [
+    {
+      "name": "قالب منتج — بوتيك عصري",
+      "description": "صفحة هبوط منتج بأسلوب عصري",
+      "isDefault": true,
+      "puckData": {
+        "content": [
+          {
+            "type": "PromoBar",
+            "props": {
+              "id": "Promo-449dqy",
+              "text": "⚡ عرض محدود — اطلب قبل نفاد الكمية",
+              "bg": "#b239ef",
+              "color": "#ffffff",
+              "padding_top": 0,
+              "padding_bottom": 0,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "full",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "none",
+              "custom_class": "",
+              "custom_id": "",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          },
+          {
+            "type": "Hero",
+            "props": {
+              "id": "Hero-ozflu0",
+              "image": "https://images.unsplash.com/photo-1445205170230-053b83016050?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80",
+              "eyebrow": "عرض حصري",
+              "title": "منتج",
+              "title_highlight": "يستحق التجربة",
+              "subtitle": "جودة • شحن سريع • الدفع عند الاستلام",
+              "button_text": "اطلب الآن",
+              "button_link": "#order-form",
+              "button_text_2": "التفاصيل",
+              "button_link_2": "#product-desc",
+              "text_color": "#ffffff",
+              "overlay": 0.4,
+              "min_height": 480,
+              "max_width": "full",
+              "bg_gradient": "linear-gradient(160deg, #b239ef 0%, #f1276b 100%)",
+              "padding_top": 0,
+              "padding_bottom": 0,
+              "animation": "fade-in",
+              "custom_class": "fashion-hero"
+            }
+          },
+          {
+            "type": "ProductImages",
+            "props": {
+              "id": "Images-kzvjbw",
+              "padding_top": 24,
+              "padding_bottom": 24,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "container",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "fade-up",
+              "custom_class": "",
+              "custom_id": "",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          },
+          {
+            "type": "Features",
+            "props": {
+              "id": "Features-nykfjt",
+              "title": "لماذا هذا المنتج؟",
+              "items": [
+                {
+                  "icon": "✨",
+                  "title": "خامات فاخرة",
+                  "desc": "جودة عالية وتفاصيل دقيقة"
+                },
+                {
+                  "icon": "🚚",
+                  "title": "توصيل سريع",
+                  "desc": "2-4 أيام لمعظم المدن"
+                },
+                {
+                  "icon": "💵",
+                  "title": "COD",
+                  "desc": "ادفع عند الاستلام"
+                },
+                {
+                  "icon": "🔄",
+                  "title": "استبدال",
+                  "desc": "سياسة استبدال مرنة"
+                }
+              ],
+              "padding_top": 40,
+              "padding_bottom": 40,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "container",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "fade-up",
+              "custom_class": "",
+              "custom_id": "",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          },
+          {
+            "type": "OrderForm",
+            "props": {
+              "id": "OrderForm-2851dp",
+              "padding_top": 16,
+              "padding_bottom": 16,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "container",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "fade-up",
+              "custom_class": "",
+              "custom_id": "order-form",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          },
+          {
+            "type": "ProductDescription",
+            "props": {
+              "id": "Desc-kpaqgs",
+              "padding_top": 24,
+              "padding_bottom": 24,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "container",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "fade-up",
+              "custom_class": "",
+              "custom_id": "product-desc",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          },
+          {
+            "type": "Reviews",
+            "props": {
+              "id": "Reviews-dsenm0",
+              "title": "ماذا يقول عملاؤنا",
+              "items": [
+                {
+                  "name": "أحمد",
+                  "text": "منتج ممتاز أنصح به!",
+                  "rating": 5
+                },
+                {
+                  "name": "فاطمة",
+                  "text": "وصلني بسرعة والتغليف رائع.",
+                  "rating": 5
+                },
+                {
+                  "name": "محمد",
+                  "text": "تجربة شراء مميزة.",
+                  "rating": 5
+                }
+              ],
+              "padding_top": 40,
+              "padding_bottom": 40,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "container",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "fade-up",
+              "custom_class": "",
+              "custom_id": "",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          },
+          {
+            "type": "Faq",
+            "props": {
+              "id": "Faq-3eti40",
+              "title": "الأسئلة الشائعة",
+              "items": [
+                {
+                  "q": "هل الدفع عند الاستلام؟",
+                  "a": "نعم، تدفع للمندوب عند الاستلام."
+                },
+                {
+                  "q": "كم يستغرق التوصيل؟",
+                  "a": "2-4 أيام حسب المدينة."
+                },
+                {
+                  "q": "هل يمكن الاستبدال؟",
+                  "a": "نعم خلال 7 أيام بالحالة الأصلية."
+                }
+              ],
+              "padding_top": 30,
+              "padding_bottom": 48,
+              "padding_left": 0,
+              "padding_right": 0,
+              "margin_top": 0,
+              "margin_bottom": 0,
+              "max_width": "narrow",
+              "min_height": 0,
+              "text_align": "center",
+              "bg_color": "",
+              "bg_gradient": "",
+              "bg_image": "",
+              "bg_size": "cover",
+              "border_width": 0,
+              "border_color": "",
+              "border_radius": 0,
+              "shadow": "none",
+              "animation": "fade-up",
+              "custom_class": "",
+              "custom_id": "",
+              "hide_mobile": false,
+              "hide_tablet": false,
+              "hide_desktop": false
+            }
+          }
+        ],
+        "root": {
+          "props": {}
+        }
+      }
+    },
+    {
+      "name": "تخفيضات — بوتيك",
+      "description": "صفحة عروض",
+      "puckData": {
+        "content": [
+          {
+            "type": "Heading",
+            "props": {
+              "id": "vib-h1",
+              "text": "🔥 عروض الأسبوع",
+              "tag": "h1",
+              "size": 42,
+              "weight": 800,
+              "color": "hsl(280 85% 58%)",
+              "letter_spacing": -1,
+              "line_height": 1.2,
+              "padding_top": 48,
+              "padding_bottom": 16,
+              "text_align": "center",
+              "max_width": "container"
+            }
+          },
+          {
+            "type": "ProductsGrid",
+            "props": {
+              "id": "vib-pg",
+              "title": "منتجات العرض",
+              "limit": 8,
+              "columns": 4,
+              "card_style": "fashion",
+              "eyebrow": "خصومات حتى 30%",
+              "view_all_text": "المزيد",
+              "view_all_link": "#products",
+              "padding_top": 32,
+              "padding_bottom": 48,
+              "custom_id": "products"
+            }
+          }
+        ],
+        "root": {
+          "props": {}
+        }
+      }
+    }
+  ]
+}

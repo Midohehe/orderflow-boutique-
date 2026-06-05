@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Star, ShoppingBag, ChevronDown, Facebook, Instagram, Twitter, Youtube, Send, Phone, Mail } from "lucide-react";
+import { Star, ShoppingBag, ChevronDown, Facebook, Instagram, Twitter, Youtube, Send, Phone, Mail, Heart, ArrowRight } from "lucide-react";
 import { useLandingSlot, SlotPlaceholder } from "@/components/landing/LandingSlots";
 
 export type PuckContext = {
@@ -167,8 +167,24 @@ const pickStyle = (p: any): StyleProps => ({
 
 /* ---------- Products grid (live data) ---------- */
 const ProductsGrid = ({
-  title, limit, columns, ctx,
-}: { title: string; limit: number; columns: number; ctx?: PuckContext }) => {
+  title,
+  limit,
+  columns,
+  card_style,
+  eyebrow,
+  view_all_text,
+  view_all_link,
+  ctx,
+}: {
+  title: string;
+  limit: number;
+  columns: number;
+  card_style?: "default" | "fashion";
+  eyebrow?: string;
+  view_all_text?: string;
+  view_all_link?: string;
+  ctx?: PuckContext;
+}) => {
   const [products, setProducts] = useState<any[]>([]);
   useEffect(() => {
     if (!ctx?.ownerId || !ctx?.storeId) return;
@@ -189,36 +205,110 @@ const ProductsGrid = ({
     : columns === 3 ? "sm:grid-cols-2 md:grid-cols-3"
     : "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
 
+  const productHref = (slug: string) =>
+    ctx?.username ? `/p/${ctx.username}/${slug}` : `/p/${slug}`;
+
+  const isFashion = card_style === "fashion";
+
   return (
-    <section className="my-6" id="products">
-      {title && <h2 className="text-2xl font-bold text-center mb-5">{title}</h2>}
-      <div className={`grid grid-cols-1 ${gridCls} gap-4`}>
+    <section className={`my-6 ${isFashion ? "fashion-products-section" : ""}`} id="products">
+      {(eyebrow || title || view_all_text) && (
+        <div className={`mb-8 ${isFashion ? "flex flex-col md:flex-row md:items-end md:justify-between gap-4" : ""}`}>
+          <div className={isFashion ? "max-w-2xl" : ""}>
+            {eyebrow && (
+              <span className={`block mb-2 ${isFashion ? "text-primary font-bold tracking-wider uppercase text-sm" : "text-muted-foreground text-sm"}`}>
+                {eyebrow}
+              </span>
+            )}
+            {title && (
+              <h2 className={`${isFashion ? "text-3xl md:text-5xl font-black text-foreground" : "text-2xl font-bold text-center mb-5"}`}>
+                {title}
+              </h2>
+            )}
+          </div>
+          {view_all_text && (
+            <a
+              href={view_all_link || "#products"}
+              className={`hidden md:inline-flex items-center gap-2 font-semibold text-primary hover:text-accent transition-colors ${!isFashion ? "sr-only" : ""}`}
+            >
+              {view_all_text} <ArrowRight className="w-4 h-4" />
+            </a>
+          )}
+        </div>
+      )}
+      <div className={`grid grid-cols-1 ${gridCls} ${isFashion ? "gap-8" : "gap-4"}`}>
         {products.length === 0 && (
           <div className="col-span-full text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
             ستظهر المنتجات هنا في المتجر
           </div>
         )}
-        {products.map((p) => (
-          <a key={p.id} href={ctx?.username ? `/p/${ctx.username}/${p.slug}` : `/p/${p.slug}`} target="_blank" rel="noopener">
-            <Card className="group overflow-hidden hover:shadow-lg transition cursor-pointer">
-              <div className="aspect-square bg-muted overflow-hidden">
-                {p.images?.[0]
-                  ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                  : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-12 h-12 text-muted-foreground" /></div>}
-              </div>
-              <CardContent className="p-3 space-y-2">
-                <h3 className="font-semibold line-clamp-2 text-sm">{p.name}</h3>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-primary">{p.price} {ctx?.currencySymbol || ""}</span>
-                  {p.original_price && p.original_price > p.price && (
-                    <span className="text-xs text-muted-foreground line-through">{p.original_price}</span>
-                  )}
+        {products.map((p, idx) => {
+          const href = productHref(p.slug);
+          const rating = (4.5 + (idx % 5) * 0.1).toFixed(1);
+          if (isFashion) {
+            return (
+              <div key={p.id} className="group product-card fashion-product-card cursor-pointer p-3">
+                <div className="relative rounded-2xl mb-4 aspect-[3/4] bg-muted product-image-container overflow-hidden">
+                  <a href={href} target="_blank" rel="noopener" className="block w-full h-full">
+                    {p.images?.[0]
+                      ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover product-image" />
+                      : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-12 h-12 text-muted-foreground" /></div>}
+                  </a>
+                  <div className="absolute bottom-4 left-0 right-0 px-4 translate-y-full opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                    <a href={href} target="_blank" rel="noopener" className="fashion-btn-primary w-full py-3 text-sm flex items-center justify-center gap-2">
+                      <ShoppingBag className="w-4 h-4" /> إضافة سريعة
+                    </a>
+                  </div>
+                  <button type="button" className="absolute top-4 start-4 w-10 h-10 bg-white rounded-full flex items-center justify-center text-gray-500 hover:text-accent shadow-sm z-10" aria-label="المفضلة">
+                    <Heart className="w-[18px] h-[18px]" />
+                  </button>
                 </div>
-              </CardContent>
-            </Card>
-          </a>
-        ))}
+                <div className="flex justify-between items-start px-2 pb-2">
+                  <div>
+                    <h3 className="font-bold text-foreground text-lg leading-tight mb-1 group-hover:text-primary transition-colors line-clamp-2">
+                      <a href={href} target="_blank" rel="noopener">{p.name}</a>
+                    </h3>
+                    <div className="flex items-center gap-1 text-secondary">
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <span className="text-sm font-medium text-muted-foreground">{rating}</span>
+                    </div>
+                  </div>
+                  <span className="font-black text-lg shrink-0 mr-2">
+                    {p.price} {ctx?.currencySymbol || ""}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <a key={p.id} href={href} target="_blank" rel="noopener">
+              <Card className="group overflow-hidden hover:shadow-lg transition cursor-pointer product-card">
+                <div className="aspect-square bg-muted overflow-hidden product-image-container">
+                  {p.images?.[0]
+                    ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover product-image group-hover:scale-105 transition" />
+                    : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-12 h-12 text-muted-foreground" /></div>}
+                </div>
+                <CardContent className="p-3 space-y-2">
+                  <h3 className="font-semibold line-clamp-2 text-sm">{p.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary">{p.price} {ctx?.currencySymbol || ""}</span>
+                    {p.original_price && p.original_price > p.price && (
+                      <span className="text-xs text-muted-foreground line-through">{p.original_price}</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </a>
+          );
+        })}
       </div>
+      {view_all_text && isFashion && (
+        <div className="mt-10 flex justify-center md:hidden">
+          <a href={view_all_link || "#products"} className="fashion-btn-secondary px-8 py-3 font-semibold w-full sm:w-auto text-center">
+            {view_all_text}
+          </a>
+        </div>
+      )}
     </section>
   );
 };
@@ -262,9 +352,29 @@ const CountdownWidget = ({ title, target, color }: { title: string; target: stri
 };
 
 export type PuckProps = {
-  Hero: StyleProps & { image: string; title: string; subtitle: string; button_text: string; button_link: string; text_color: string; overlay: number };
+  Hero: StyleProps & {
+    image: string;
+    title: string;
+    title_highlight?: string;
+    subtitle: string;
+    eyebrow?: string;
+    button_text: string;
+    button_link: string;
+    button_text_2?: string;
+    button_link_2?: string;
+    text_color: string;
+    overlay: number;
+  };
   Banner: StyleProps & { image: string; link: string; alt: string };
-  ProductsGrid: StyleProps & { title: string; limit: number; columns: number };
+  ProductsGrid: StyleProps & {
+    title: string;
+    limit: number;
+    columns: number;
+    card_style?: "default" | "fashion";
+    eyebrow?: string;
+    view_all_text?: string;
+    view_all_link?: string;
+  };
   CategoriesGrid: StyleProps & { title: string; items: { label: string; image: string; link: string }[] };
   RichText: StyleProps & { html: string; align: "right" | "center" | "left" };
   Video: StyleProps & { title: string; url: string };
@@ -296,26 +406,75 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
       label: "بانر رئيسي (Hero)",
       fields: {
         image: { type: "text", label: "رابط الصورة" },
+        eyebrow: { type: "text", label: "نص علوي صغير (مثلاً: ربيع 2026)" },
         title: { type: "text", label: "العنوان" },
+        title_highlight: { type: "text", label: "جزء العنوان الملوّن (اختياري)" },
         subtitle: { type: "text", label: "العنوان الفرعي" },
-        button_text: { type: "text", label: "نص الزر" },
-        button_link: { type: "text", label: "رابط الزر" },
+        button_text: { type: "text", label: "نص الزر الأساسي" },
+        button_link: { type: "text", label: "رابط الزر الأساسي" },
+        button_text_2: { type: "text", label: "نص الزر الثانوي (اختياري)" },
+        button_link_2: { type: "text", label: "رابط الزر الثانوي" },
         text_color: { type: "text", label: "لون النص (hex)" },
         overlay: { type: "number", label: "شفافية التظليل 0-1", min: 0, max: 1 },
         ...STYLE_FIELDS,
       },
-      defaultProps: { image: "", title: "أهلاً بك في متجرنا", subtitle: "أفضل المنتجات بأفضل الأسعار", button_text: "تسوّق الآن", button_link: "#products", text_color: "#ffffff", overlay: 0.4, ...STYLE_DEFAULTS, min_height: 420, max_width: "full", padding_top: 0, padding_bottom: 0 },
+      defaultProps: { image: "", eyebrow: "", title: "أهلاً بك في متجرنا", title_highlight: "", subtitle: "أفضل المنتجات بأفضل الأسعار", button_text: "تسوّق الآن", button_link: "#products", button_text_2: "", button_link_2: "", text_color: "#ffffff", overlay: 0.4, ...STYLE_DEFAULTS, min_height: 420, max_width: "full", padding_top: 0, padding_bottom: 0 },
       render: (p) => {
-        const { image, title, subtitle, button_text, button_link, text_color, overlay } = p as any;
+        const {
+          image, eyebrow, title, title_highlight, subtitle,
+          button_text, button_link, button_text_2, button_link_2,
+          text_color, overlay, custom_class,
+        } = p as any;
+        const isFashion = String(custom_class || "").includes("fashion-hero");
+        const sectionCls = isFashion
+          ? "relative w-full overflow-hidden flex items-center justify-center fashion-hero"
+          : "relative w-full rounded-xl overflow-hidden flex items-center justify-center";
         return (
         <StyleWrap s={pickStyle(p)}>
-        <section className="relative w-full rounded-xl overflow-hidden flex items-center justify-center"
-          style={{ backgroundImage: image ? `url(${image})` : undefined, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: image ? undefined : "hsl(var(--muted))" }}>
+        <section className={sectionCls}
+          style={{ backgroundImage: image ? `url(${image})` : undefined, backgroundSize: "cover", backgroundPosition: isFashion ? "center top" : "center", backgroundColor: image ? undefined : "hsl(var(--muted))" }}>
           {image && <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${overlay ?? 0.4})` }} />}
-          <div className="relative z-10 text-center px-6 py-12 max-w-3xl" style={{ color: text_color || "#fff" }}>
-            {title && <h2 className="text-3xl sm:text-5xl font-extrabold mb-3 drop-shadow">{title}</h2>}
-            {subtitle && <p className="text-lg sm:text-xl mb-6 opacity-95 drop-shadow">{subtitle}</p>}
-            {button_text && <a href={button_link || "#"}><Button size="lg" className="font-bold">{button_text}</Button></a>}
+          {isFashion && image && <div className="absolute inset-0 fashion-hero-gradient" aria-hidden />}
+          <div className={`relative z-10 text-center px-6 max-w-4xl ${isFashion ? "py-24 sm:py-32 mt-16" : "py-12 max-w-3xl"}`} style={{ color: text_color || "#fff" }}>
+            {eyebrow && (
+              <span className={`block mb-4 font-bold tracking-widest uppercase text-sm opacity-90 ${isFashion ? "animate-fade-in" : ""}`}>
+                {eyebrow}
+              </span>
+            )}
+            {title && (
+              <h2 className={`font-extrabold mb-3 drop-shadow ${isFashion ? "text-4xl sm:text-6xl lg:text-7xl leading-tight" : "text-3xl sm:text-5xl"}`}>
+                {title}
+                {title_highlight && (
+                  <>
+                    <br />
+                    <span className="fashion-hero-highlight">{title_highlight}</span>
+                  </>
+                )}
+              </h2>
+            )}
+            {subtitle && <p className={`mb-6 opacity-95 drop-shadow ${isFashion ? "text-lg md:text-xl max-w-2xl mx-auto" : "text-lg sm:text-xl"}`}>{subtitle}</p>}
+            {(button_text || button_text_2) && (
+              <div className={`flex flex-col sm:flex-row gap-4 justify-center ${isFashion ? "animate-fade-in" : ""}`}>
+                {button_text && (
+                  isFashion ? (
+                    <a href={button_link || "#"} className="fashion-btn-primary px-8 py-4 font-bold text-lg inline-flex items-center justify-center gap-2">
+                      {button_text} <ArrowRight className="w-5 h-5" />
+                    </a>
+                  ) : (
+                    <a href={button_link || "#"}><Button size="lg" className="font-bold">{button_text}</Button></a>
+                  )
+                )}
+                {button_text_2 && (
+                  isFashion ? (
+                    <a href={button_link_2 || "#"} className="fashion-btn-glass px-8 py-4 font-bold text-lg inline-flex items-center justify-center">
+                      {button_text_2}
+                    </a>
+                  ) : (
+                    <a href={button_link_2 || "#"}><Button size="lg" variant="outline" className="font-bold bg-white/10 border-white/30 text-inherit">{button_text_2}</Button></a>
+                  )
+                )}
+              </div>
+            )}
           </div>
         </section>
         </StyleWrap>
@@ -346,11 +505,15 @@ export const buildPuckConfig = (ctx: PuckContext): Config<PuckProps> => ({
       label: "شبكة المنتجات",
       fields: {
         title: { type: "text", label: "العنوان" },
+        eyebrow: { type: "text", label: "نص علوي صغير (اختياري)" },
         limit: { type: "number", label: "عدد المنتجات", min: 1, max: 50 },
         columns: { type: "select", label: "الأعمدة", options: [{ label: "2", value: 2 }, { label: "3", value: 3 }, { label: "4", value: 4 }] },
+        card_style: { type: "select", label: "نمط البطاقة", options: [{ label: "افتراضي", value: "default" }, { label: "أزياء (Fashion)", value: "fashion" }] },
+        view_all_text: { type: "text", label: "نص «عرض الكل» (اختياري)" },
+        view_all_link: { type: "text", label: "رابط «عرض الكل»" },
         ...STYLE_FIELDS,
       },
-      defaultProps: { title: "منتجاتنا", limit: 8, columns: 4, ...STYLE_DEFAULTS },
+      defaultProps: { title: "منتجاتنا", eyebrow: "", limit: 8, columns: 4, card_style: "default", view_all_text: "", view_all_link: "#products", ...STYLE_DEFAULTS },
       render: (props) => <StyleWrap s={pickStyle(props)}><ProductsGrid {...(props as any)} ctx={ctx} /></StyleWrap>,
     },
     CategoriesGrid: {

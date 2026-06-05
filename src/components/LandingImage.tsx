@@ -47,8 +47,11 @@ export function LandingImage({
     });
     const fallbackSrc = optimizeLandingImageUrl(src, { width, height, format: "origin" });
 
+    // `display: contents` makes the <picture> wrapper layout-transparent so the
+    // inner <img>'s sizing classes (e.g. w-full h-full) resolve against the
+    // actual parent container instead of collapsing to the inline <picture>.
     return (
-      <picture>
+      <picture style={{ display: "contents" }}>
         <source type="image/webp" srcSet={webpSrcSet} sizes={sizes} />
         <img src={fallbackSrc} {...imgProps} />
       </picture>

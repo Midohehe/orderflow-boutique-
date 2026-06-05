@@ -55,6 +55,52 @@ export function isConfigured(settings: any): boolean {
   return !!(settings.whatchimp_api_key && settings.whatchimp_phone_number_id);
 }
 
+// Pick the best whatsapp_settings row for an owner (store-aware) from a list.
+function pickSettingsRow(rows: any[] | null | undefined, storeId: string | null): any | null {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return (storeId && rows.find((r: any) => r.store_id === storeId))
+    ?? rows.find((r: any) => r.enabled)
+    ?? rows[0];
+}
+
+export type ResolvedSettings = {
+  settings: any | null;
+  source: "own" | "shared" | "none";
+  sourceOwnerId: string | null;
+};
+
+// Resolve which WhatsApp settings to USE for sending on behalf of `ownerId`.
+// The owner's own configured integration always wins; otherwise fall back to an
+// active integration shared with them by another merchant (whatsapp_shares).
+// Messages/conversations should still be logged under the original `ownerId`.
+export async function resolveSendSettings(
+  supabase: any,
+  ownerId: string,
+  storeId: string | null = null,
+): Promise<ResolvedSettings> {
+  const { data: ownRows } = await supabase.from("whatsapp_settings")
+    .select("*").eq("owner_id", ownerId);
+  const own = pickSettingsRow(ownRows, storeId);
+  if (isConfigured(own)) return { settings: own, source: "own", sourceOwnerId: ownerId };
+
+  // Fall back to a shared integration (most recently granted first).
+  const { data: shares } = await supabase.from("whatsapp_shares")
+    .select("owner_id, created_at")
+    .eq("shared_with_user_id", ownerId)
+    .eq("status", "active")
+    .eq("recipient_active", true)
+    .order("created_at", { ascending: false });
+  for (const sh of shares ?? []) {
+    const { data: srcRows } = await supabase.from("whatsapp_settings")
+      .select("*").eq("owner_id", sh.owner_id);
+    const src = (srcRows ?? []).find((r: any) => r.enabled) ?? (srcRows ?? [])[0];
+    if (isConfigured(src)) {
+      return { settings: src, source: "shared", sourceOwnerId: sh.owner_id };
+    }
+  }
+  return { settings: own ?? null, source: "none", sourceOwnerId: null };
+}
+
 // ============ MazBot helpers ============
 function mazbotBase(settings: any): string {
   return normalizeBaseUrl(settings.mazbot_base_url, "https://mazbot.net/api");
@@ -331,9 +377,32 @@ export async function sendConfirmationTemplate(
     const base = mazbotBase(settings);
     const fd = new FormData();
     fd.set("template_id", templateId);
-    fd.set("mobile", phone);
-    // Indexes MUST start at 1 per Mazbot docs.
-    const values = [vars.customer_name, vars.order_id, vars.products, vars.total];
+    // Docs require clean international digits with no '+'.
+    fd.set("mobile", String(phone || "").replace(/\D+/g, ""));
+    // MazBot binds body_values[1..n] positionally to the placeholders in the
+    // order they appear in the template body. The variable order is merchant-
+    // configurable via settings.mazbot_template_vars (comma-separated tokens) so
+    // it matches the actual registered template (e.g. some templates use only
+    // order_id/products/total without a name). Indexes MUST start at 1.
+    const tokenMap: Record<string, string> = {
+      name: vars.customer_name,
+      customer_name: vars.customer_name,
+      customer: vars.customer_name,
+      order: vars.order_id,
+      order_id: vars.order_id,
+      ordernumber: vars.order_id,
+      order_number: vars.order_id,
+      oredernumber: vars.order_id, // tolerate common MazBot template typo
+      product: vars.products,
+      products: vars.products,
+      total: vars.total,
+      price: vars.total,
+    };
+    const configured = String(settings.mazbot_template_vars || "").trim();
+    const order = configured
+      ? configured.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+      : ["order_id", "products", "total"];
+    const values = order.map((tok) => tokenMap[tok] ?? "");
     values.forEach((v, i) => {
       const idx = i + 1;
       fd.set(`body_matchs[${idx}]`, "input_value");
