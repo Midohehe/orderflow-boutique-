@@ -111,7 +111,7 @@ const Wallet = () => {
               <div className="flex items-center gap-3">
                 {t.amount >= 0 ? <ArrowUpCircle className="w-5 h-5 text-success" /> : <ArrowDownCircle className="w-5 h-5 text-destructive" />}
                 <div>
-                  <p className="text-sm">{t.notes || (t.type === "recharge" ? "شحن" : t.type === "order_fee" ? "رسوم طلب" : t.type)}</p>
+                  <p className="text-sm">{t.notes || (t.type === "recharge" ? "شحن" : t.type === "order_fee" ? "رسوم طلب" : t.type === "plan_subscription" ? "اشتراك خطة" : t.type)}</p>
                   <p className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString("ar")}</p>
                 </div>
               </div>

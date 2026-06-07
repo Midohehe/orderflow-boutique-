@@ -1,17 +1,30 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanUsage } from "@/hooks/usePlanUsage";
 import { useUserContext } from "@/hooks/useUserContext";
+import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Crown, Store, Package, Users, ShoppingCart, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
+import { Loader2, Crown, Store, Package, Users, ShoppingCart, Check, AlertTriangle, Wallet } from "lucide-react";
 import { formatLimit, isUnlimited, usagePercent } from "@/lib/planLimits";
+import { subscribePlanErrorMessage, subscribeToPlan } from "@/lib/subscribePlan";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
 
 interface PublicPlan {
   id: string;
@@ -25,6 +38,7 @@ interface PublicPlan {
   price_monthly: number;
   currency: string;
   features: string[];
+  sort_order: number;
 }
 
 function UsageRow({
@@ -57,8 +71,12 @@ function UsageRow({
 }
 
 const MyPlan = () => {
-  const { isSubUser, isAdmin, loading: ctxLoading } = useUserContext();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { isSubUser, loading: ctxLoading } = useUserContext();
   const { plan, usage, isLoading, error } = usePlanUsage();
+  const [pendingPlan, setPendingPlan] = useState<PublicPlan | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
 
   const { data: publicPlans = [] } = useQuery({
     queryKey: ["public-plans"],
@@ -76,6 +94,66 @@ const MyPlan = () => {
       })) as PublicPlan[];
     },
   });
+
+  const { data: walletBalance = 0 } = useQuery({
+    queryKey: ["wallet-balance", user?.id],
+    enabled: !!user?.id && !isSubUser,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("wallets").select("balance").eq("user_id", user!.id).maybeSingle();
+      return Number(data?.balance ?? 0);
+    },
+  });
+
+  const currentMeta = publicPlans.find((p) => p.slug === plan?.slug);
+  const currentSortOrder = currentMeta?.sort_order ?? 0;
+  const displayCurrency = currentMeta?.currency || plan?.currency || "LYD";
+
+  const canSubscribeTo = (p: PublicPlan) => {
+    if (p.slug === plan?.slug) return Number(p.price_monthly) > 0;
+    return p.sort_order > currentSortOrder;
+  };
+
+  const subscribeLabel = (p: PublicPlan) => {
+    if (p.slug === plan?.slug) return "تجديد الاشتراك";
+    return "اشتراك";
+  };
+
+  const handleConfirmSubscribe = async () => {
+    if (!pendingPlan) return;
+    setSubscribing(true);
+    try {
+      const res = await subscribeToPlan(pendingPlan.slug);
+      if (!res.success) {
+        toast({
+          title: "تعذر الاشتراك",
+          description: subscribePlanErrorMessage(res),
+          variant: "destructive",
+        });
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["merchant-usage"] }),
+        queryClient.invalidateQueries({ queryKey: ["wallet-balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-plans"] }),
+      ]);
+      toast({
+        title: res.renewal ? "تم التجديد" : "تم الاشتراك",
+        description: res.renewal
+          ? `تم تجديد «${res.plan_name}» — الرصيد المتبقي ${res.balance} ${displayCurrency}`
+          : `تم تفعيل «${res.plan_name}» — خُصم ${res.amount} ${displayCurrency}`,
+      });
+      setPendingPlan(null);
+    } catch (e: unknown) {
+      toast({
+        title: "خطأ",
+        description: e instanceof Error ? e.message : "تعذر إتمام الاشتراك",
+        variant: "destructive",
+      });
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   if (ctxLoading || isLoading) {
     return (
@@ -109,9 +187,26 @@ const MyPlan = () => {
       <PageHeader
         icon={Crown}
         title="خطتي"
-        description="استخدامك الحالي وحدود اشتراكك"
+        description="استخدامك الحالي — ترقِ خطتك من رصيد المحفظة"
         iconGradient="from-amber-500 to-orange-600"
       />
+
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Wallet className="w-8 h-8 text-primary" />
+            <div>
+              <p className="text-sm text-muted-foreground">رصيد المحفظة</p>
+              <p className="text-2xl font-bold text-primary tabular-nums">
+                {walletBalance.toLocaleString()} <span className="text-sm font-normal">{displayCurrency}</span>
+              </p>
+            </div>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/dashboard/wallet">شحن المحفظة</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {ordersAtLimit && (
         <Card className="border-destructive/40 bg-destructive/5">
@@ -121,16 +216,10 @@ const MyPlan = () => {
               <div>
                 <p className="font-semibold text-foreground">وصلت إلى حد طلبات الشهر</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  لا يمكن استقبال طلبات جديدة من صفحات الهبوط حتى ترقية الخطة. تواصل مع الإدارة
-                  أو اطلب ترقية حسابك إلى Starter أو Pro.
+                  اختر خطة أعلى أدناه واضغط «اشتراك» — يُخصم المبلغ من محفظتك فوراً.
                 </p>
               </div>
             </div>
-            {isAdmin && (
-              <Button asChild variant="outline" size="sm" className="shrink-0">
-                <Link to="/dashboard/settings">تعيين الخطة من الإعدادات</Link>
-              </Button>
-            )}
           </CardContent>
         </Card>
       )}
@@ -158,6 +247,9 @@ const MyPlan = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {publicPlans.map((p) => {
             const current = p.slug === plan.slug;
+            const showSubscribe = canSubscribeTo(p);
+            const price = Number(p.price_monthly);
+            const canAfford = price <= 0 || walletBalance >= price;
             return (
               <Card
                 key={p.id}
@@ -169,13 +261,13 @@ const MyPlan = () => {
                     {current && <Badge>خطتك</Badge>}
                   </CardTitle>
                   <p className="text-2xl font-bold text-primary">
-                    {Number(p.price_monthly) === 0 ? "مجاني" : `${p.price_monthly} ${p.currency}`}
-                    {Number(p.price_monthly) > 0 && (
+                    {price === 0 ? "مجاني" : `${price} ${p.currency}`}
+                    {price > 0 && (
                       <span className="text-xs font-normal text-muted-foreground"> / شهر</span>
                     )}
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm">
+                <CardContent className="space-y-3 text-sm">
                   <ul className="space-y-1.5">
                     {(p.features.length ? p.features : [
                       `${formatLimit(p.max_stores)} متجر`,
@@ -189,11 +281,25 @@ const MyPlan = () => {
                       </li>
                     ))}
                   </ul>
-                  {!current && (
-                    <p className="text-xs text-muted-foreground pt-2 border-t">
-                      {isAdmin
-                        ? "لتغيير خطة أي تاجر: الإعدادات → المستخدمون أو المتاجر → عرض البيانات."
-                        : "لترقية خطتك تواصل مع الإدارة — التفعيل يتم من لوحة الأدمن."}
+                  {showSubscribe ? (
+                    <Button
+                      className="w-full"
+                      disabled={!canAfford && price > 0}
+                      onClick={() => setPendingPlan(p)}
+                    >
+                      {subscribeLabel(p)}
+                    </Button>
+                  ) : current ? null : (
+                    <p className="text-xs text-muted-foreground pt-1 border-t">
+                      للتخفيض تواصل مع الإدارة
+                    </p>
+                  )}
+                  {showSubscribe && price > 0 && !canAfford && (
+                    <p className="text-xs text-destructive text-center">
+                      الرصيد غير كافٍ —{" "}
+                      <Link to="/dashboard/wallet" className="underline">
+                        شحن المحفظة
+                      </Link>
                     </p>
                   )}
                 </CardContent>
@@ -202,6 +308,43 @@ const MyPlan = () => {
           })}
         </div>
       </div>
+
+      <AlertDialog open={!!pendingPlan} onOpenChange={(open) => !open && !subscribing && setPendingPlan(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingPlan?.slug === plan.slug ? "تجديد الاشتراك" : "تأكيد الاشتراك"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {pendingPlan && (
+                  <>
+                    <p>
+                      {pendingPlan.slug === plan.slug
+                        ? `سيتم تجديد خطة «${pendingPlan.name}» لمدة شهر إضافي.`
+                        : `سيتم تفعيل خطة «${pendingPlan.name}» فوراً.`}
+                    </p>
+                    <p className="font-semibold text-foreground">
+                      المبلغ: {Number(pendingPlan.price_monthly)} {pendingPlan.currency}
+                    </p>
+                    <p>
+                      رصيدك بعد الخصم:{" "}
+                      {(walletBalance - Number(pendingPlan.price_monthly)).toLocaleString()}{" "}
+                      {pendingPlan.currency}
+                    </p>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel disabled={subscribing}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction disabled={subscribing} onClick={(e) => { e.preventDefault(); handleConfirmSubscribe(); }}>
+              {subscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : "تأكيد الاشتراك"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
