@@ -21,6 +21,10 @@
   ],
   "rewrites": [
     {
+      "source": "/cdn/img",
+      "destination": "/api/cdn-img"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
