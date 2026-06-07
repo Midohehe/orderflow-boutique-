@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Save, Printer, ArrowUp, ArrowDown, RefreshCw, Sticker } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -40,6 +41,7 @@ const SAMPLE_ORDER: StickerOrder = {
 };
 
 const StickerDesigner = () => {
+  const { activeStoreId } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<StickerSettings>(DEFAULT_STICKER_SETTINGS);
@@ -52,10 +54,15 @@ const StickerDesigner = () => {
         const { data: userRes } = await supabase.auth.getUser();
         const uid = userRes.user?.id;
         if (!uid) return;
+        const storeQ = supabase.from("store_settings").select("currency_symbol");
+        if (activeStoreId) storeQ.eq("store_id", activeStoreId);
+        const headerQ = activeStoreId
+          ? supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId).maybeSingle()
+          : supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle();
         const [stk, currency, header] = await Promise.all([
-          supabase.from("sticker_settings").select("*").eq("owner_id", uid).maybeSingle(),
-          supabase.from("store_settings").select("currency_symbol").maybeSingle(),
-          supabase.from("header_settings").select("logo_text").eq("owner_id", uid).maybeSingle(),
+          supabase.from("sticker_settings").select("page_width_mm, page_height_mm, font_size, header_text, footer_text, show_barcode, show_logo, fields").eq("owner_id", uid).maybeSingle(),
+          storeQ.maybeSingle(),
+          headerQ,
         ]);
         if (stk.data) {
           // Merge saved fields with any newly-added catalog fields so the UI shows them all.
@@ -84,7 +91,7 @@ const StickerDesigner = () => {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [activeStoreId]);
 
   const handleSave = async () => {
     setSaving(true);

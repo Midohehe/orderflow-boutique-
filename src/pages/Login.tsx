@@ -10,6 +10,7 @@ import { Lock, Mail, Rocket, User, AtSign, CheckCircle2, Eye, EyeOff, ArrowRight
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { clearSavedLogin, loadSavedLogin, saveLogin } from "@/lib/loginRemember";
+import { fetchAppSettings } from "@/lib/appSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
@@ -47,9 +48,9 @@ const Login = () => {
   const { user, loading, signIn, signUp } = useAuth();
 
   useEffect(() => {
-    supabase.from("app_settings").select("system_name").limit(1).maybeSingle().then(({ data }) => {
+    fetchAppSettings().then((data) => {
       if (data?.system_name) setSystemName(data.system_name);
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

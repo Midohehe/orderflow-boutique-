@@ -180,9 +180,10 @@ export default function ConfirmationCenter() {
       const { data: msgs } = await supabase
         .from("whatsapp_messages")
         .select("order_id,status,created_at")
-        .in("order_id", orderIds)
         .eq("direction", "out")
-        .order("created_at", { ascending: false });
+        .in("order_id", orderIds)
+        .order("created_at", { ascending: false })
+        .limit(Math.min(orderIds.length * 3, 1500));
       const map: Record<string, WaMsgInfo> = {};
       for (const m of (msgs as any[]) || []) {
         if (m.order_id && !map[m.order_id]) {

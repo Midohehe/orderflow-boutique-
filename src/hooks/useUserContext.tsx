@@ -34,7 +34,7 @@ export const useUserContext = () => {
     }
     (async () => {
       const [{ data: prof }, { data: adminFlag }, { data: member }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("id, user_id, username, full_name, subscription_starts_at, subscription_ends_at, is_active").eq("user_id", user.id).maybeSingle(),
         supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }),
         supabase.from("store_members").select("id, owner_id, group_id").eq("member_user_id", user.id).maybeSingle(),
       ]);

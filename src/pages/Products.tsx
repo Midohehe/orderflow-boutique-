@@ -230,11 +230,13 @@ const Products = () => {
     loadProducts();
 
     // Currency in background (non-blocking)
-    supabase.from("store_settings").select("currency_symbol").limit(1).maybeSingle().then(({ data }) => {
-      if (!cancelled && data) {
-        setStoreSettings({ currency_symbol: data.currency_symbol });
-      }
-    });
+    if (activeStoreId) {
+      supabase.from("store_settings").select("currency_symbol").eq("store_id", activeStoreId).maybeSingle().then(({ data }) => {
+        if (!cancelled && data) {
+          setStoreSettings({ currency_symbol: data.currency_symbol });
+        }
+      });
+    }
 
     // Load strict-stock toggle for current user
     supabase.auth.getUser().then(({ data: { user } }) => {

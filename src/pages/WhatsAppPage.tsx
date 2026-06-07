@@ -74,6 +74,8 @@ export default function WhatsAppPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const convReloadTimer = useRef<ReturnType<typeof setTimeout>>();
+  const loadConversationsRef = useRef<() => Promise<void>>(async () => {});
   const [tokens, setTokens] = useState<any[]>([]);
   const [newTokenLabel, setNewTokenLabel] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -86,6 +88,11 @@ export default function WhatsAppPage() {
 
   const active = useMemo(() => conversations.find((c) => c.id === activeId) || null, [conversations, activeId]);
 
+  const scheduleLoadConversations = () => {
+    clearTimeout(convReloadTimer.current);
+    convReloadTimer.current = setTimeout(() => { void loadConversationsRef.current(); }, 700);
+  };
+
   useEffect(() => {
     if (!ownerId) return;
     loadConversations();
@@ -96,15 +103,25 @@ export default function WhatsAppPage() {
 
     const ch = supabase
       .channel("wa-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_conversations", filter: `owner_id=eq.${ownerId}` }, () => loadConversations())
+      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_conversations", filter: `owner_id=eq.${ownerId}` }, () => scheduleLoadConversations())
       .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_messages", filter: `owner_id=eq.${ownerId}` }, (payload) => {
-        const m = (payload.new || payload.old) as Message;
-        if (m && activeIdRef.current && m.conversation_id === activeIdRef.current) {
-          loadMessages(activeIdRef.current);
+        const m = (payload.new || payload.old) as Message | undefined;
+        if (!m) return;
+        if (activeIdRef.current && m.conversation_id === activeIdRef.current && payload.new) {
+          const row = payload.new as Message;
+          if (payload.eventType === "INSERT") {
+            setMessages((prev) => (prev.some((x) => x.id === row.id) ? prev : [...prev, row]));
+          } else if (payload.eventType === "UPDATE") {
+            setMessages((prev) => prev.map((x) => (x.id === row.id ? { ...x, ...row } : x)));
+          }
         }
+        scheduleLoadConversations();
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      clearTimeout(convReloadTimer.current);
+      supabase.removeChannel(ch);
+    };
   }, [ownerId]);
 
   // Re-attempt loading/creating settings once the active store is resolved
@@ -203,44 +220,43 @@ export default function WhatsAppPage() {
   async function loadConversations() {
     const { data } = await supabase
       .from("whatsapp_conversations")
-      .select("*")
+      .select("id, phone, customer_name, order_id, last_message_at, last_message_preview, unread_count")
+      .eq("owner_id", ownerId!)
       .order("last_message_at", { ascending: false })
       .limit(200);
-    setConversations((data as any) || []);
+    setConversations((data as Conversation[]) || []);
   }
+  loadConversationsRef.current = loadConversations;
+
   async function loadMessages(convId: string) {
     const { data } = await supabase
       .from("whatsapp_messages")
-      .select("*")
+      .select("id, conversation_id, direction, message_type, content, media_url, media_mime, status, created_at")
       .eq("conversation_id", convId)
       .order("created_at", { ascending: true })
-      .limit(500);
-    setMessages((data as any) || []);
+      .limit(200);
+    setMessages((data as Message[]) || []);
   }
   async function loadSettings() {
     if (!ownerId) return;
-    const { data: rows, error } = await supabase
+    let q = supabase
       .from("whatsapp_settings")
-      .select("*")
+      .select("id, owner_id, store_id, provider, enabled, ai_enabled, whatchimp_api_url, whatchimp_api_key, whatchimp_phone_number_id, whatchimp_business_account_id, whatchimp_send_endpoint, whatchimp_template_endpoint, whatchimp_conversation_endpoint, wati_api_endpoint, wati_api_key, wati_phone_number, template_name, template_language")
       .eq("owner_id", ownerId);
+    if (activeStoreId) q = q.eq("store_id", activeStoreId);
+    const { data: row, error } = await q.maybeSingle();
     if (error) {
       console.error("loadSettings error", error);
       toast({ title: "تعذر تحميل الإعدادات", description: error.message, variant: "destructive" });
       return;
     }
-    // Settings are scoped per-store under strict RLS. Prefer the row for the
-    // active store, then any legacy row without a store_id, then the first row.
-    const data = (rows || []).find((r: any) => activeStoreId && r.store_id === activeStoreId)
-      || (rows || []).find((r: any) => !r.store_id)
-      || (rows || [])[0]
-      || null;
-    if (data) {
+    if (row) {
       setSettings({
-        ...data,
-        whatchimp_api_url: normalizeEndpoint(data.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
-        whatchimp_send_endpoint: normalizeEndpoint((data as any).whatchimp_send_endpoint, DEFAULT_WHATCHIMP_SEND_ENDPOINT),
-        whatchimp_template_endpoint: normalizeEndpoint((data as any).whatchimp_template_endpoint, DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT),
-        whatchimp_conversation_endpoint: normalizeEndpoint((data as any).whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
+        ...row,
+        whatchimp_api_url: normalizeEndpoint(row.whatchimp_api_url, DEFAULT_WHATCHIMP_BASE_URL),
+        whatchimp_send_endpoint: normalizeEndpoint((row as any).whatchimp_send_endpoint, DEFAULT_WHATCHIMP_SEND_ENDPOINT),
+        whatchimp_template_endpoint: normalizeEndpoint((row as any).whatchimp_template_endpoint, DEFAULT_WHATCHIMP_TEMPLATE_ENDPOINT),
+        whatchimp_conversation_endpoint: normalizeEndpoint((row as any).whatchimp_conversation_endpoint, DEFAULT_WHATCHIMP_CONVERSATION_ENDPOINT),
       });
     } else {
       // Strict RLS requires a store_id that belongs to the owner. Wait until the

@@ -15,21 +15,13 @@ import { useStoreContext } from "@/hooks/useStoreContext";
 import { toast } from "@/hooks/use-toast";
 import { isolateLatin } from "@/lib/bidi";
 import { PageHeader } from "@/components/PageHeader";
+import {
+  computeMovementTotals,
+  fetchStoreStockMovements,
+  type StockMovementRow,
+} from "@/lib/stockMovements";
 
-interface MovementRow {
-  id: string;
-  product_id: string | null;
-  product_name: string | null;
-  variant_key: string | null;
-  warehouse_code: string | null;
-  qty: number;
-  unit_price: number | null;
-  reason: string;
-  order_id: string | null;
-  return_id: string | null;
-  notes: string | null;
-  created_at: string;
-}
+interface MovementRow extends StockMovementRow {}
 
 interface ProductPrice {
   id: string;
@@ -70,29 +62,26 @@ const StockMovements = () => {
     const { data: ownerRow } = await (supabase as any)
       .rpc("get_effective_owner_id", { _uid: userData.user.id });
     const effectiveOwnerId = (ownerRow as string) || userData.user.id;
-    let smQ = (supabase as any)
-      .from("stock_movements")
-      .select("*")
-      .eq("owner_id", effectiveOwnerId)
-      .order("created_at", { ascending: false })
-      .limit(1000);
-    let prQ = (supabase as any)
-      .from("products")
-      .select("id, price")
-      .eq("owner_id", effectiveOwnerId)
-      .limit(1000);
-    if (activeStoreId) {
-      smQ = smQ.or(`store_id.eq.${activeStoreId},store_id.is.null`);
-      prQ = prQ.eq("store_id", activeStoreId);
+    try {
+      const [movementRows, prRes] = await Promise.all([
+        fetchStoreStockMovements(effectiveOwnerId, activeStoreId),
+        (() => {
+          let prQ = (supabase as any)
+            .from("products")
+            .select("id, price")
+            .eq("owner_id", effectiveOwnerId)
+            .limit(1000);
+          if (activeStoreId) prQ = prQ.eq("store_id", activeStoreId);
+          return prQ;
+        })(),
+      ]);
+      setRows(movementRows as MovementRow[]);
+      if (prRes.error) toast({ title: "خطأ", description: prRes.error.message, variant: "destructive" });
+      else setProducts((prRes.data as ProductPrice[]) || []);
+    } catch (err: any) {
+      toast({ title: "خطأ", description: err?.message || "تعذر تحميل حركة المنتجات", variant: "destructive" });
+      setRows([]);
     }
-    const [smRes, prRes] = await Promise.all([
-      smQ,
-      prQ,
-    ]);
-    if (smRes.error) toast({ title: "خطأ", description: smRes.error.message, variant: "destructive" });
-    else setRows((smRes.data as MovementRow[]) || []);
-    if (prRes.error) toast({ title: "خطأ", description: prRes.error.message, variant: "destructive" });
-    else setProducts((prRes.data as ProductPrice[]) || []);
     setLoading(false);
   };
 
@@ -156,7 +145,8 @@ const StockMovements = () => {
     for (const r of filtered) {
       const key = r.product_id || r.product_name || "—";
       const cur = map.get(key) || { product_name: r.product_name || "—", inQty: 0, outQty: 0, net: 0, count: 0 };
-      if (r.qty > 0) cur.inQty += r.qty; else cur.outQty += -r.qty;
+      if (r.qty > 0) cur.inQty += r.qty;
+      else if (r.qty < 0) cur.outQty += -r.qty;
       cur.net = cur.inQty - cur.outQty;
       cur.count++;
       map.set(key, cur);
@@ -164,13 +154,7 @@ const StockMovements = () => {
     return Array.from(map.values()).sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
   }, [filtered]);
 
-  const totals = useMemo(() => {
-    let inQty = 0, outQty = 0;
-    for (const r of filtered) {
-      if (r.qty > 0) inQty += r.qty; else outQty += -r.qty;
-    }
-    return { inQty, outQty, net: inQty - outQty };
-  }, [filtered]);
+  const totals = useMemo(() => computeMovementTotals(filtered), [filtered]);
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
@@ -186,7 +170,7 @@ const StockMovements = () => {
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-red-500/10 rounded-lg"><ArrowDown className="w-5 h-5 text-red-500" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">إجمالي الخارج</p>
+              <p className="text-xs text-muted-foreground">إجمالي الخارج (وحدات)</p>
               <p className="text-lg font-bold">{totals.outQty}</p>
             </div>
           </CardContent>
@@ -195,7 +179,7 @@ const StockMovements = () => {
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-green-500/10 rounded-lg"><ArrowUp className="w-5 h-5 text-green-500" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">إجمالي الداخل</p>
+              <p className="text-xs text-muted-foreground">إجمالي الداخل (وحدات)</p>
               <p className="text-lg font-bold">{totals.inQty}</p>
             </div>
           </CardContent>
@@ -204,7 +188,7 @@ const StockMovements = () => {
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg"><Boxes className="w-5 h-5 text-primary" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">الصافي</p>
+              <p className="text-xs text-muted-foreground">الصافي (وحدات)</p>
               <p className="text-lg font-bold">{totals.net}</p>
             </div>
           </CardContent>
