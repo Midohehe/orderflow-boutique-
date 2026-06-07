@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fetchAppSettings } from "@/lib/appSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -33,11 +34,11 @@ const Wallet = () => {
     const [w, t, s] = await Promise.all([
       supabase.from("wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("wallet_transactions").select("id, amount, type, notes, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-      supabase.from("app_settings").select("subscription_currency").limit(1).maybeSingle(),
+      fetchAppSettings(),
     ]);
     setBalance(Number(w.data?.balance ?? 0));
     setTxs((t.data as Tx[]) || []);
-    if (s.data?.subscription_currency) setCurrency(s.data.subscription_currency);
+    if (s?.subscription_currency) setCurrency(s.subscription_currency);
     setLoading(false);
   };
 

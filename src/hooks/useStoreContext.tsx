@@ -52,14 +52,14 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         .select("store_id")
         .eq("member_id", member.id);
       const grantedIds = (granted || []).map((g: any) => g.store_id);
-      let q = supabase.from("stores").select("*").eq("owner_id", member.owner_id);
+      let q = supabase.from("stores").select("id, owner_id, name, slug, is_default, push_enabled").eq("owner_id", member.owner_id);
       if (grantedIds.length > 0) q = q.in("id", grantedIds);
       const { data } = await q.order("is_default", { ascending: false }).order("created_at");
       list = (data || []) as Store[];
     } else {
       const { data } = await supabase
         .from("stores")
-        .select("*")
+        .select("id, owner_id, name, slug, is_default, push_enabled")
         .eq("owner_id", user.id)
         .order("is_default", { ascending: false })
         .order("created_at");

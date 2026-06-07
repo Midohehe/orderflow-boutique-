@@ -20,7 +20,7 @@ import { EasyOrdersEnabledProvider } from "@/hooks/useEasyOrdersEnabled";
 
 import ProtectedRoute from "@/components/ProtectedRoute";
 
-import { supabase } from "@/integrations/supabase/client";
+import { fetchAppSettings } from "@/lib/appSettings";
 
 import Login from "./pages/Login";
 
@@ -338,11 +338,9 @@ const AppShell = () => {
 
     if (publicPerf) return;
 
-    supabase.from("app_settings").select("system_name").limit(1).maybeSingle().then(({ data }) => {
-
+    fetchAppSettings().then((data) => {
       document.title = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
-
-    });
+    }).catch(() => {});
 
   }, [publicPerf]);
 

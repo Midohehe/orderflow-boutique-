@@ -40,6 +40,7 @@ import {
   type OrderTab,
   type OrdersPageFilters,
 } from "@/lib/ordersQuery";
+import { fetchOrdersPageMeta } from "@/lib/ordersPageMeta";
 
 interface Order {
   id: string;
@@ -141,6 +142,7 @@ const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   // Server-side counts (authoritative — independent of how many rows are loaded).
   const [serverStatusCounts, setServerStatusCounts] = useState<Record<string, number>>({});
+  const [deletedCount, setDeletedCount] = useState(0);
   const [serverCarrierCounts, setServerCarrierCounts] = useState<Record<string, number>>({});
   const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
@@ -541,39 +543,32 @@ const Orders = () => {
 
   const tabPage = getPage(orderTab);
 
-  const ordersQuery = useQuery({
-    queryKey: ["orders-page", activeStoreId, effectiveOwnerId, orderTab, tabPage, tabFilters],
+  const ordersMetaQuery = useQuery({
+    queryKey: ["orders-page-meta", activeStoreId, effectiveOwnerId],
     enabled: !!activeStoreId,
-    queryFn: async () => {
-      const uid = effectiveOwnerId;
-      const [ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, confirmCountsRes] = await Promise.all([
-        fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters)
-          .then(({ rows, total }) => ({ data: rows, total, error: null as any }))
-          .catch((error) => ({ data: null, total: 0, error })),
-        supabase
-          .from("store_settings")
-          .select("currency_symbol")
-          .eq("store_id", activeStoreId!)
-          .maybeSingle(),
-        supabase.from("carrier_status_mappings").select("status_code, custom_label, color, sort_order, category"),
-        supabase.from("products").select("id, name").eq("store_id", activeStoreId!),
-        supabase
-          .from("sticker_settings")
-          .select("*")
-          .eq("store_id", activeStoreId!)
-          .maybeSingle(),
-        supabase.from("header_settings").select("logo_text").eq("store_id", activeStoreId!).maybeSingle(),
-        uid
-          ? supabase.from("wallets").select("balance").eq("user_id", uid).maybeSingle()
-          : Promise.resolve({ data: null } as any),
-        supabase.rpc("orders_status_counts", { _store_id: activeStoreId! }),
-        supabase.rpc("orders_shipped_carrier_counts", { _store_id: activeStoreId! }),
-        supabase.rpc("orders_confirmation_counts", { _store_id: activeStoreId! }),
-      ]);
-      if (ordersRes.error) throw ordersRes.error;
-      return { ordersRes, currencyRes, mapRes, productsRes, stickerRes, headerRes, walletRes, statusCountsRes, carrierCountsRes, confirmCountsRes, uid };
-    },
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchOrdersPageMeta(activeStoreId!, effectiveOwnerId),
   });
+
+  const ordersDataQuery = useQuery({
+    queryKey: ["orders-page", activeStoreId, orderTab, tabPage, tabFilters],
+    enabled: !!activeStoreId,
+    staleTime: 30_000,
+    queryFn: () =>
+      fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters).then(({ rows, total }) => ({
+        data: rows,
+        total,
+      })),
+  });
+
+  const ordersQuery = {
+    isLoading: ordersMetaQuery.isLoading || ordersDataQuery.isLoading,
+    error: ordersMetaQuery.error || ordersDataQuery.error,
+    data:
+      ordersMetaQuery.data && ordersDataQuery.data
+        ? { meta: ordersMetaQuery.data, ordersRes: ordersDataQuery.data }
+        : undefined,
+  };
 
   // Hydrate local state from query result so existing mutation logic keeps working
   useEffect(() => {
@@ -589,30 +584,24 @@ const Orders = () => {
     const d = ordersQuery.data;
     if (!d) return;
     setOrders((d.ordersRes.data || []) as Order[]);
-    setTabTotal(Number((d.ordersRes as { total?: number }).total) || 0);
-    if (d.confirmCountsRes?.data) {
+    setTabTotal(Number(d.ordersRes.total) || 0);
+
+    const meta = d.meta;
+    if (meta.confirmationCounts) {
       const c: Record<ConfirmationStatus, number> = {
         unconfirmed: 0, confirmed: 0, no_answer: 0, postponed: 0, cancelled: 0,
       };
-      (d.confirmCountsRes.data as any[]).forEach((r) => {
-        const k = (r.confirmation_status || "unconfirmed") as ConfirmationStatus;
-        if (k in c) c[k] = Number(r.cnt) || 0;
+      Object.entries(meta.confirmationCounts).forEach(([k, v]) => {
+        if (k in c) c[k as ConfirmationStatus] = Number(v) || 0;
       });
       setConfirmationCounts(c);
     }
-    if (d.statusCountsRes?.data) {
-      const sc: Record<string, number> = {};
-      (d.statusCountsRes.data as any[]).forEach((r) => { sc[String(r.status)] = Number(r.cnt) || 0; });
-      setServerStatusCounts(sc);
-    }
-    if (d.productsRes.data) {
-      const pm: Record<string, string> = {};
-      (d.productsRes.data as any[]).forEach((p) => { if (p?.id && p?.name) pm[p.id] = p.name; });
-      setProductsMap(pm);
-    }
-    if (d.currencyRes.data) setCurrencySymbol(d.currencyRes.data.currency_symbol);
-    if (d.stickerRes?.data) {
-      const s: any = d.stickerRes.data;
+    setServerStatusCounts(meta.statusCounts);
+    setDeletedCount(meta.deletedCount);
+    setProductsMap(meta.productsMap);
+    if (meta.currencySymbol) setCurrencySymbol(meta.currencySymbol);
+    if (meta.stickerSettings) {
+      const s = meta.stickerSettings as any;
       setStickerSettings({
         page_width_mm: s.page_width_mm ?? 100,
         page_height_mm: s.page_height_mm ?? 150,
@@ -624,17 +613,18 @@ const Orders = () => {
         fields: Array.isArray(s.fields) && s.fields.length > 0 ? s.fields : DEFAULT_STICKER_SETTINGS.fields,
       });
     }
-    if (d.headerRes?.data?.logo_text) setStoreName(d.headerRes.data.logo_text);
-    if (d.walletRes?.data) setWalletBalance(Number(d.walletRes.data.balance) || 0);
-    else if (d.uid) setWalletBalance(0);
-    if (d.mapRes.data) {
+    if (meta.storeName) setStoreName(meta.storeName);
+    if (meta.walletBalance != null) setWalletBalance(meta.walletBalance);
+    else if (effectiveOwnerId) setWalletBalance(0);
+
+    if (meta.statusMappings.length > 0) {
       const m: Record<string, string> = {};
       const cm: Record<string, string> = {};
       const lo: Record<string, number> = {};
       const catm: Record<string, string> = {};
       const lcm: Record<string, string> = {};
-      (d.mapRes.data as any[]).forEach((r) => {
-        m[String(r.status_code)] = r.custom_label;
+      meta.statusMappings.forEach((r) => {
+        m[String(r.status_code)] = r.custom_label ?? "";
         if (r.color) cm[String(r.status_code)] = r.color;
         if (r.category) catm[String(r.status_code)] = r.category;
         if (r.custom_label && r.category && !lcm[String(r.custom_label)]) lcm[String(r.custom_label)] = r.category;
@@ -649,30 +639,17 @@ const Orders = () => {
       setLabelOrderMap(lo);
       setStatusCategoryMap(catm);
       setLabelCategoryMap(lcm);
-    }
-    if (d.carrierCountsRes?.data) {
-      // RPC returns raw `carrier_status` text like "تم التسليم (DTR)".
-      // Re-key by custom_label (via statusMap) so dropdown lookups by label match,
-      // and aggregate codes that share the same custom_label.
-      const localMap: Record<string, string> = {};
-      if (d.mapRes.data) {
-        (d.mapRes.data as any[]).forEach((r) => { localMap[String(r.status_code)] = r.custom_label; });
-      }
+
       const cc: Record<string, number> = {};
-      (d.carrierCountsRes.data as any[]).forEach((r) => {
-        const raw = String(r.label ?? "");
-        const n = Number(r.cnt) || 0;
-        // Always index by raw label (back-compat for "بدون حالة" etc.)
+      Object.entries(meta.carrierCounts).forEach(([raw, n]) => {
         cc[raw] = (cc[raw] || 0) + n;
-        // Parse trailing "(CODE)" and re-key by custom_label if mapped
-        const m = raw.match(/\(([^)]+)\)\s*$/);
-        const code = m ? m[1].trim() : raw.trim();
-        const customLabel = localMap[code];
+        const match = raw.match(/\(([^)]+)\)\s*$/);
+        const code = match ? match[1].trim() : raw.trim();
+        const customLabel = m[code];
         if (customLabel) {
           cc[customLabel] = (cc[customLabel] || 0) + n;
-        } else if (m) {
-          // Also index by the part before "(CODE)" as a fallback label
-          const base = raw.slice(0, m.index).trim();
+        } else if (match) {
+          const base = raw.slice(0, match.index).trim();
           if (base) cc[base] = (cc[base] || 0) + n;
         }
       });
@@ -709,8 +686,10 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     if (!activeStoreId) { setOrders([]); setLoading(false); return; }
-    // Invalidate cached query → triggers refetch and hydration via the effect above
-    await queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId] }),
+      queryClient.invalidateQueries({ queryKey: ["orders-page-meta", activeStoreId] }),
+    ]);
   };
 
   const handleSyncCarrierStatuses = async () => {
@@ -912,14 +891,51 @@ const Orders = () => {
     }
   };
 
+  const refreshOrdersCache = () => {
+    if (activeStoreId) {
+      void queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId] });
+      void queryClient.invalidateQueries({ queryKey: ["orders-page-meta", activeStoreId] });
+    }
+  };
+
+  const applySoftDeleteToLocalState = (removed: Order[]) => {
+    const removedIds = new Set(removed.map((o) => o.id));
+    setOrders((prev) => prev.filter((o) => !removedIds.has(o.id)));
+    setTabTotal((prev) => Math.max(0, prev - removed.length));
+    setDeletedCount((prev) => prev + removed.length);
+    setServerStatusCounts((prev) => {
+      const next = { ...prev };
+      removed.forEach((o) => {
+        next[o.status] = Math.max(0, (next[o.status] ?? 0) - 1);
+      });
+      return next;
+    });
+    setSelectedOrders((prev) => prev.filter((id) => !removedIds.has(id)));
+  };
+
   const handleBulkDelete = async (orderIds: string[]) => {
-    if (orderIds.length === 0) return;
+    if (orderIds.length === 0 || !activeStoreId) return;
+    const targets = orders.filter((o) => orderIds.includes(o.id));
     try {
-      const { error } = await supabase.from("orders").update({ is_deleted: true }).in("id", orderIds);
+      const { data, error } = await supabase
+        .from("orders")
+        .update({ is_deleted: true })
+        .in("id", orderIds)
+        .eq("store_id", activeStoreId)
+        .select("id");
       if (error) throw error;
-      setOrders((prev) => prev.map((o) => orderIds.includes(o.id) ? { ...o, is_deleted: true } : o));
-      setSelectedOrders((prev) => prev.filter((id) => !orderIds.includes(id)));
-      toast({ title: "تم النقل للمحذوفة", description: `تم نقل ${orderIds.length} طلب لقائمة المحذوفة. يمكنك استرجاعها لاحقًا.` });
+      const updatedIds = new Set((data || []).map((r) => r.id));
+      const removed = targets.filter((o) => updatedIds.has(o.id));
+      if (removed.length === 0) {
+        toast({ title: "خطأ", description: "تعذر نقل الطلبات — تحقق من الصلاحيات", variant: "destructive" });
+        return;
+      }
+      applySoftDeleteToLocalState(removed);
+      refreshOrdersCache();
+      toast({
+        title: "تم النقل للمحذوفة",
+        description: `تم نقل ${removed.length} طلب لقائمة المحذوفة. يمكنك استرجاعها لاحقًا.`,
+      });
     } catch (e) {
       console.error(e);
       toast({ title: "خطأ", description: "حدث خطأ أثناء الحذف", variant: "destructive" });
@@ -927,17 +943,32 @@ const Orders = () => {
   };
 
   const handleDeleteOrder = async (orderId: string) => {
+    if (!activeStoreId) return;
+    const target = orders.find((o) => o.id === orderId);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("orders")
         .update({ is_deleted: true })
-        .eq("id", orderId);
+        .eq("id", orderId)
+        .eq("store_id", activeStoreId)
+        .select("id")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        toast({ title: "خطأ", description: "تعذر نقل الطلب — تحقق من الصلاحيات", variant: "destructive" });
+        return;
+      }
 
-      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, is_deleted: true } : o));
-      setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
-      
+      if (target) applySoftDeleteToLocalState([target]);
+      else {
+        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+        setTabTotal((prev) => Math.max(0, prev - 1));
+        setDeletedCount((prev) => prev + 1);
+        setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
+      }
+      refreshOrdersCache();
+
       toast({
         title: "تم النقل للمحذوفة",
         description: "نُقل الطلب لقائمة المحذوفة. يمكنك استرجاعه لاحقًا.",
@@ -953,13 +984,29 @@ const Orders = () => {
   };
 
   const handleRestoreOrder = async (orderId: string) => {
+    if (!activeStoreId) return;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("orders")
         .update({ is_deleted: false, status: "pending" })
-        .eq("id", orderId);
+        .eq("id", orderId)
+        .eq("store_id", activeStoreId)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
-      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, is_deleted: false, status: "pending" } : o));
+      if (!data) {
+        toast({ title: "خطأ", description: "تعذر استرجاع الطلب — تحقق من الصلاحيات", variant: "destructive" });
+        return;
+      }
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setTabTotal((prev) => Math.max(0, prev - 1));
+      setDeletedCount((prev) => Math.max(0, prev - 1));
+      setServerStatusCounts((prev) => ({
+        ...prev,
+        pending: (prev.pending ?? 0) + 1,
+      }));
+      setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
+      refreshOrdersCache();
       toast({ title: "تم الاسترجاع", description: "أُعيد الطلب إلى قيد الانتظار." });
     } catch (e: any) {
       toast({ title: "خطأ", description: e?.message || "تعذر الاسترجاع", variant: "destructive" });
@@ -980,8 +1027,11 @@ const Orders = () => {
       if (error) throw error;
 
       setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setTabTotal((prev) => Math.max(0, prev - 1));
+      setDeletedCount((prev) => Math.max(0, prev - 1));
       setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
       setPermanentDeleteTarget(null);
+      refreshOrdersCache();
       toast({
         title: "تم الحذف نهائياً",
         description: "تم حذف الطلب من النظام بشكل نهائي ولا يمكن استرجاعه.",
@@ -1864,7 +1914,7 @@ const Orders = () => {
           <TabsTrigger value="deleted" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg col-span-2 sm:col-span-1 border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-slate-500 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Archive className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">محذوفة</span>
-            <span className="text-[11px] sm:text-xs font-bold">({deletedOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-bold">({deletedCount})</span>
           </TabsTrigger>
         </TabsList>
 
