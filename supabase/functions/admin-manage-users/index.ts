@@ -109,40 +109,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (action === "assign_plan") {
-      const { user_id, plan_slug } = body;
-      if (!user_id || !plan_slug) {
-        return new Response(JSON.stringify({ error: "user_id و plan_slug مطلوبان" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const { data: plan, error: planErr } = await admin
-        .from("subscription_plans")
-        .select("id, name")
-        .eq("slug", plan_slug)
-        .maybeSingle();
-      if (planErr || !plan) {
-        return new Response(JSON.stringify({ error: `plan not found: ${plan_slug}` }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const { error: updErr } = await admin
-        .from("profiles")
-        .update({ plan_id: plan.id })
-        .eq("user_id", user_id);
-      if (updErr) {
-        return new Response(JSON.stringify({ error: updErr.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ ok: true, plan_name: plan.name }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -235,13 +235,6 @@ Deno.serve(async (req) => {
       const errMsg = String((iErr as { message?: string })?.message || iErr);
       console.error("order insert failed", iErr);
       await logRejected(`db_insert_failed: ${(iErr as { code?: string })?.code || ""} ${errMsg}`.slice(0, 500));
-      const planLimit = errMsg.match(/plan_limit:(\w+):(-?\d+)/);
-      if (planLimit) {
-        return new Response(JSON.stringify({ error: planLimit[0] }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       return new Response(JSON.stringify({ error: "Could not create order" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

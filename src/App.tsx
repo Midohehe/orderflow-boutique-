@@ -105,8 +105,6 @@ const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 
 const Wallet = lazy(() => import("./pages/Wallet"));
 
-const MyPlan = lazy(() => import("./pages/MyPlan"));
-
 const AdminCards = lazy(() => import("./pages/AdminCards"));
 
 const AdminStores = lazy(() => import("./pages/AdminStores"));
@@ -295,8 +293,6 @@ const DashboardRoutes = () => (
         <Route path="account" element={<AccountSettings />} />
 
         <Route path="wallet" element={<Wallet />} />
-
-        <Route path="my-plan" element={<MyPlan />} />
 
         <Route path="admin-cards" element={<AdminCards />} />
 

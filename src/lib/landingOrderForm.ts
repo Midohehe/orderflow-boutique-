@@ -1,7 +1,6 @@
 /** Landing page order form — field resolution aligned with form_field_catalog keys. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parsePlanLimitError, planLimitMessage } from "@/lib/planLimits";
 
 export interface OrderFormField {
   id: string;
@@ -153,10 +152,6 @@ export function validateOrderPayload(
 }
 
 export function mapCreateOrderError(code: string): string {
-  const planLimit = parsePlanLimitError(code);
-  if (planLimit) {
-    return planLimitMessage(planLimit.metric, planLimit.limit);
-  }
   switch (code) {
     case "missing_variant_color":
       return "يرجى اختيار اللون لكل قطعة";

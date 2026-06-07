@@ -17,11 +17,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { assignMerchantPlan, planAssignErrorMessage, type PlanOption } from "@/lib/assignMerchantPlan";
 
 const AdminCards = lazy(() => import("./AdminCards"));
 const AdminStores = lazy(() => import("./AdminStores"));
-const AdminPlans = lazy(() => import("./AdminPlans"));
 const PermissionGroups = lazy(() => import("./PermissionGroups"));
 
 interface ManagedUser {
@@ -31,7 +29,6 @@ interface ManagedUser {
   email: string | null;
   is_active: boolean;
   roles: string[];
-  plan_id: string | null;
 }
 
 const Settings = () => {
@@ -49,8 +46,6 @@ const Settings = () => {
   const [orderFee, setOrderFee] = useState("0");
   const [walletEnabled, setWalletEnabled] = useState(false);
   const [savingWallet, setSavingWallet] = useState(false);
-  const [plans, setPlans] = useState<PlanOption[]>([]);
-  const [assigningPlanFor, setAssigningPlanFor] = useState<string | null>(null);
 
   const callApi = async (action: string, payload: any = {}) => {
     const { data, error } = await supabase.functions.invoke("admin-manage-users", {
@@ -77,18 +72,12 @@ const Settings = () => {
     if (!ctxLoading && isAdmin) {
       refresh();
       (async () => {
-        const [{ data: appData }, { data: planData, error: planErr }] = await Promise.all([
-          supabase.from("app_settings").select("id, system_name, order_fee, wallet_enabled").limit(1).maybeSingle(),
-          supabase.from("subscription_plans" as never).select("id, slug, name").order("sort_order"),
-        ]);
+        const { data: appData } = await supabase.from("app_settings").select("id, system_name, order_fee, wallet_enabled").limit(1).maybeSingle();
         if (appData) {
           setSystemName(appData.system_name || "");
           setSystemNameId(appData.id);
           setOrderFee(String((appData as { order_fee?: number }).order_fee ?? 0));
           setWalletEnabled(Boolean((appData as { wallet_enabled?: boolean }).wallet_enabled));
-        }
-        if (!planErr && planData) {
-          setPlans(planData as PlanOption[]);
         }
       })();
     } else if (!ctxLoading) setLoading(false);
@@ -159,24 +148,6 @@ const Settings = () => {
     }
   };
 
-  const handleAssignPlan = async (userId: string, slug: string) => {
-    const currentSlug = plans.find((p) => p.id === users.find((u) => u.user_id === userId)?.plan_id)?.slug || "free";
-    if (slug === currentSlug) return;
-    setAssigningPlanFor(userId);
-    try {
-      await assignMerchantPlan(userId, slug);
-      const plan = plans.find((p) => p.slug === slug);
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, plan_id: plan?.id ?? u.plan_id } : u))
-      );
-      toast({ title: "تم", description: `تم تعيين خطة ${plan?.name || slug}` });
-    } catch (e: unknown) {
-      toast({ title: "خطأ", description: planAssignErrorMessage(e), variant: "destructive" });
-    } finally {
-      setAssigningPlanFor(null);
-    }
-  };
-
   if (ctxLoading || loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -198,7 +169,6 @@ const Settings = () => {
           <TabsTrigger value="users">المستخدمون</TabsTrigger>
           <TabsTrigger value="cards">كروت الشحن</TabsTrigger>
           <TabsTrigger value="stores">المتاجر</TabsTrigger>
-          <TabsTrigger value="plans">خطط الاشتراك</TabsTrigger>
           <TabsTrigger value="permissions">الصلاحيات</TabsTrigger>
         </TabsList>
 
@@ -278,7 +248,6 @@ const Settings = () => {
         <CardContent className="space-y-3">
           {users.map((u) => {
             const isAdminUser = u.roles.includes("admin");
-            const currentPlanSlug = plans.find((p) => p.id === u.plan_id)?.slug || "free";
             return (
               <div key={u.user_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -288,27 +257,6 @@ const Settings = () => {
                     {!u.is_active && <Badge variant="destructive">معطّل</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">{u.email}</p>
-                  {!isAdminUser && plans.length > 0 && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <Label className="text-xs text-muted-foreground shrink-0">الخطة:</Label>
-                      <Select
-                        value={currentPlanSlug}
-                        onValueChange={(slug) => handleAssignPlan(u.user_id, slug)}
-                        disabled={assigningPlanFor === u.user_id}
-                      >
-                        <SelectTrigger className="h-8 w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent searchable={false}>
-                          {plans.map((p) => (
-                            <SelectItem key={p.id} value={p.slug}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
                 </div>
                 {!isAdminUser && (
                   <div className="flex flex-wrap gap-2">
@@ -361,11 +309,6 @@ const Settings = () => {
         <TabsContent value="stores" className="mt-4">
           <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
             <AdminStores />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="plans" className="mt-4">
-          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-            <AdminPlans />
           </Suspense>
         </TabsContent>
         <TabsContent value="permissions" className="mt-4">
