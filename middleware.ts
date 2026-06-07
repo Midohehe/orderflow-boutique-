@@ -32,7 +32,7 @@ export default async function middleware(request: Request) {
     status: ssrRes.status,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+      "cache-control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
     },
   });
 }

@@ -8,7 +8,7 @@ import {
   puckHasRenderableContent,
   renderPuckToHtml,
 } from "../_shared/puck-ssr-html.ts";
-import { landingHeroPreloadHref, optimizeLandingImageUrl } from "../_shared/landing-image-url.ts";
+import { landingHeroPreloadHref, optimizeLandingImageUrl, wrapLandingCdnUrl } from "../_shared/landing-image-url.ts";
 import { parseThemeTokens, themeTokensToSsrCssFromTokens } from "../_shared/theme-ssr.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -64,12 +64,13 @@ function absolutizeAssets(html: string): string {
   return html;
 }
 
-function buildHead(product: any, currency: string, pageUrl: string, platformName: string): string {
+function buildHead(product: any, currency: string, pageUrl: string, platformName: string, publicHost: string): string {
   const title = escapeHtml(`${product.name} | ${platformName}`);
   const desc = escapeHtml(stripTags(product.description || product.name).slice(0, 160));
   const img = product.images?.[0] || "";
   const price = product.price;
-  const lcpImg = img ? landingHeroPreloadHref(img) : "";
+  const lcpImg = img ? landingHeroPreloadHref(img, publicHost) : "";
+  const ogImg = img ? wrapLandingCdnUrl(img, publicHost) : "";
 
   const preloadImg = lcpImg
     ? `<link rel="preload" as="image" href="${escapeHtml(lcpImg)}" fetchpriority="high" />`
@@ -102,22 +103,22 @@ function buildHead(product: any, currency: string, pageUrl: string, platformName
 <meta property="og:title" content="${title}" />
 <meta property="og:description" content="${desc}" />
 <meta property="og:url" content="${escapeHtml(pageUrl)}" />
-${img ? `<meta property="og:image" content="${escapeHtml(img)}" />` : ""}
+${ogImg ? `<meta property="og:image" content="${escapeHtml(ogImg)}" />` : ""}
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${title}" />
 <meta name="twitter:description" content="${desc}" />
-${img ? `<meta name="twitter:image" content="${escapeHtml(img)}" />` : ""}
+${ogImg ? `<meta name="twitter:image" content="${escapeHtml(ogImg)}" />` : ""}
 ${preloadImg}
 <script type="application/ld+json">${productJsonLd.replace(/</g, "\\u003c")}</script>
 `;
 }
 
-function buildAboveFold(product: any, currency: string, puckHero?: { title?: string; subtitle?: string; image?: string } | null): string {
+function buildAboveFold(product: any, currency: string, puckHero?: { title?: string; subtitle?: string; image?: string } | null, publicHost?: string): string {
   const name = puckHero?.title || product.name;
   const subtitle = puckHero?.subtitle || "الدفع عند الاستلام";
   const img = puckHero?.image || product.images?.[0] || "";
   const heroSrc = img
-    ? optimizeLandingImageUrl(img, { width: 800, height: 800, format: "webp" })
+    ? optimizeLandingImageUrl(img, { width: 800, height: 800, format: "webp" }, publicHost)
     : "";
   return `
 <div id="ssr-shell" style="font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;direction:rtl;background:hsl(220 20% 97%);min-height:100vh">
@@ -289,10 +290,10 @@ Deno.serve(async (req) => {
     const pageUrl = `https://${publicHost}${targetPath}`;
     const shell = absolutizeAssets(await getShell());
     const themeCss = themeTokensToSsrCssFromTokens(themeTokens, "#root", themeCustomCss);
-    const headInjection = buildHead(product, currency, pageUrl, platformName) + `<style id="ssr-theme">${themeCss}</style>`;
+    const headInjection = buildHead(product, currency, pageUrl, platformName, publicHost) + `<style id="ssr-theme">${themeCss}</style>`;
     const bodyInjection = puckHasRenderableContent(puckData)
       ? renderPuckToHtml(puckData)
-      : buildAboveFold(product, currency, puckHero);
+      : buildAboveFold(product, currency, puckHero, publicHost);
 
     let html = shell.replace(/<title>[\s\S]*?<\/title>/i, "");
     // Strip any static OG tags from the shell so ours win for crawlers.
@@ -310,7 +311,7 @@ Deno.serve(async (req) => {
         "content-type": "text/html; charset=utf-8",
         // Keep CDN cache short so new deploys (rotated asset hashes) are
         // picked up quickly. Browsers should always revalidate.
-        "cache-control": "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+        "cache-control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
       },
     });
   } catch (err) {
