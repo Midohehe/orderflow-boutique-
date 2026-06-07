@@ -46,7 +46,12 @@ async function respondFromCache(request, upstreamUrl, cacheControl, contentType)
   const hit = await cache.match(cacheKey);
   if (hit) return hit;
 
-  const upstream = await fetch(upstreamUrl);
+  const upstream = await fetch(upstreamUrl, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
   if (!upstream.ok) return upstream;
 
   const body = await upstream.arrayBuffer();
