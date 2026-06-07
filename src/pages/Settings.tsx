@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { assignMerchantPlan, planAssignErrorMessage, type PlanOption } from "@/lib/assignMerchantPlan";
 
 const AdminCards = lazy(() => import("./AdminCards"));
 const AdminStores = lazy(() => import("./AdminStores"));
@@ -30,6 +31,7 @@ interface ManagedUser {
   email: string | null;
   is_active: boolean;
   roles: string[];
+  plan_id: string | null;
 }
 
 const Settings = () => {
@@ -47,6 +49,8 @@ const Settings = () => {
   const [orderFee, setOrderFee] = useState("0");
   const [walletEnabled, setWalletEnabled] = useState(false);
   const [savingWallet, setSavingWallet] = useState(false);
+  const [plans, setPlans] = useState<PlanOption[]>([]);
+  const [assigningPlanFor, setAssigningPlanFor] = useState<string | null>(null);
 
   const callApi = async (action: string, payload: any = {}) => {
     const { data, error } = await supabase.functions.invoke("admin-manage-users", {
@@ -73,12 +77,18 @@ const Settings = () => {
     if (!ctxLoading && isAdmin) {
       refresh();
       (async () => {
-        const { data } = await supabase.from("app_settings").select("id, system_name, order_fee, wallet_enabled").limit(1).maybeSingle();
-        if (data) {
-          setSystemName(data.system_name || "");
-          setSystemNameId(data.id);
-          setOrderFee(String((data as any).order_fee ?? 0));
-          setWalletEnabled(Boolean((data as any).wallet_enabled));
+        const [{ data: appData }, { data: planData, error: planErr }] = await Promise.all([
+          supabase.from("app_settings").select("id, system_name, order_fee, wallet_enabled").limit(1).maybeSingle(),
+          supabase.from("subscription_plans" as never).select("id, slug, name").order("sort_order"),
+        ]);
+        if (appData) {
+          setSystemName(appData.system_name || "");
+          setSystemNameId(appData.id);
+          setOrderFee(String((appData as { order_fee?: number }).order_fee ?? 0));
+          setWalletEnabled(Boolean((appData as { wallet_enabled?: boolean }).wallet_enabled));
+        }
+        if (!planErr && planData) {
+          setPlans(planData as PlanOption[]);
         }
       })();
     } else if (!ctxLoading) setLoading(false);
@@ -146,6 +156,24 @@ const Settings = () => {
       refresh();
     } catch (e: any) {
       toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleAssignPlan = async (userId: string, slug: string) => {
+    const currentSlug = plans.find((p) => p.id === users.find((u) => u.user_id === userId)?.plan_id)?.slug || "free";
+    if (slug === currentSlug) return;
+    setAssigningPlanFor(userId);
+    try {
+      await assignMerchantPlan(userId, slug);
+      const plan = plans.find((p) => p.slug === slug);
+      setUsers((prev) =>
+        prev.map((u) => (u.user_id === userId ? { ...u, plan_id: plan?.id ?? u.plan_id } : u))
+      );
+      toast({ title: "تم", description: `تم تعيين خطة ${plan?.name || slug}` });
+    } catch (e: unknown) {
+      toast({ title: "خطأ", description: planAssignErrorMessage(e), variant: "destructive" });
+    } finally {
+      setAssigningPlanFor(null);
     }
   };
 
@@ -250,6 +278,7 @@ const Settings = () => {
         <CardContent className="space-y-3">
           {users.map((u) => {
             const isAdminUser = u.roles.includes("admin");
+            const currentPlanSlug = plans.find((p) => p.id === u.plan_id)?.slug || "free";
             return (
               <div key={u.user_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -259,6 +288,27 @@ const Settings = () => {
                     {!u.is_active && <Badge variant="destructive">معطّل</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">{u.email}</p>
+                  {!isAdminUser && plans.length > 0 && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <Label className="text-xs text-muted-foreground shrink-0">الخطة:</Label>
+                      <Select
+                        value={currentPlanSlug}
+                        onValueChange={(slug) => handleAssignPlan(u.user_id, slug)}
+                        disabled={assigningPlanFor === u.user_id}
+                      >
+                        <SelectTrigger className="h-8 w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent searchable={false}>
+                          {plans.map((p) => (
+                            <SelectItem key={p.id} value={p.slug}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
                 {!isAdminUser && (
                   <div className="flex flex-wrap gap-2">

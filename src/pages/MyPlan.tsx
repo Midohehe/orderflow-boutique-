@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Crown, Store, Package, Users, ShoppingCart, Check } from "lucide-react";
 import { formatLimit, isUnlimited, usagePercent } from "@/lib/planLimits";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle } from "lucide-react";
 
 interface PublicPlan {
   id: string;
@@ -54,7 +57,7 @@ function UsageRow({
 }
 
 const MyPlan = () => {
-  const { isSubUser, loading: ctxLoading } = useUserContext();
+  const { isSubUser, isAdmin, loading: ctxLoading } = useUserContext();
   const { plan, usage, isLoading, error } = usePlanUsage();
 
   const { data: publicPlans = [] } = useQuery({
@@ -98,6 +101,9 @@ const MyPlan = () => {
     );
   }
 
+  const ordersAtLimit =
+    !isUnlimited(plan.max_orders_month) && usage.orders_month >= plan.max_orders_month;
+
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
       <PageHeader
@@ -106,6 +112,28 @@ const MyPlan = () => {
         description="استخدامك الحالي وحدود اشتراكك"
         iconGradient="from-amber-500 to-orange-600"
       />
+
+      {ordersAtLimit && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-3 flex-1">
+              <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-foreground">وصلت إلى حد طلبات الشهر</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  لا يمكن استقبال طلبات جديدة من صفحات الهبوط حتى ترقية الخطة. تواصل مع الإدارة
+                  أو اطلب ترقية حسابك إلى Starter أو Pro.
+                </p>
+              </div>
+            </div>
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <Link to="/dashboard/settings">تعيين الخطة من الإعدادات</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-primary/20">
         <CardHeader className="pb-2">
@@ -163,7 +191,9 @@ const MyPlan = () => {
                   </ul>
                   {!current && (
                     <p className="text-xs text-muted-foreground pt-2 border-t">
-                      للترقية تواصل مع الإدارة — الدفع الإلكتروني قريباً.
+                      {isAdmin
+                        ? "لتغيير خطة أي تاجر: الإعدادات → المستخدمون أو المتاجر → عرض البيانات."
+                        : "لترقية خطتك تواصل مع الإدارة — التفعيل يتم من لوحة الأدمن."}
                     </p>
                   )}
                 </CardContent>

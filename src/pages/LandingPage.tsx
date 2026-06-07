@@ -27,6 +27,7 @@ import {
   resolveOrderFields,
   validateOrderPayload,
 } from "@/lib/landingOrderForm";
+import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { LandingImage } from "@/components/LandingImage";
 import { landingHeroPreloadHref } from "@/lib/landingImageUrl";
 import {
@@ -1237,7 +1238,10 @@ const LandingPage = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        const raw = await getEdgeFunctionErrorMessage(error, data);
+        throw new Error(mapCreateOrderError(raw));
+      }
       if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
         throw new Error(mapCreateOrderError(String((data as { error: string }).error)));
       }

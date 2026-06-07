@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { isolateLatin } from "@/lib/bidi";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { assignMerchantPlan, planAssignErrorMessage, type PlanOption } from "@/lib/assignMerchantPlan";
 
 interface Profile {
   user_id: string;
@@ -17,11 +18,6 @@ interface Profile {
   is_active: boolean;
   subscription_ends_at: string | null;
   plan_id: string | null;
-}
-interface PlanOption {
-  id: string;
-  slug: string;
-  name: string;
 }
 interface Product {
   id: string; name: string; slug: string; price: number; is_visible: boolean; images: string[];
@@ -55,6 +51,7 @@ const AdminStoreDetail = () => {
           supabase.from("subscription_plans" as never).select("id, slug, name").order("sort_order"),
         ]);
         if (profRes.error) throw profRes.error;
+        if (plansRes.error) throw plansRes.error;
         setProfile(profRes.data as Profile);
         setProducts((prodRes.data || []) as Product[]);
         setOrders((ordRes.data || []) as Order[]);
@@ -82,21 +79,17 @@ const AdminStoreDetail = () => {
   const currentPlanSlug = plans.find((p) => p.id === profile.plan_id)?.slug || "free";
 
   const handleAssignPlan = async (slug: string) => {
-    if (!userId) return;
+    if (!userId || slug === currentPlanSlug) return;
     setAssigningPlan(true);
     try {
-      const { error } = await supabase.rpc("admin_assign_plan", {
-        _user_id: userId,
-        _plan_slug: slug,
-      });
-      if (error) throw error;
+      await assignMerchantPlan(userId, slug);
       const plan = plans.find((p) => p.slug === slug);
       setProfile((p) => (p ? { ...p, plan_id: plan?.id ?? null } : p));
       toast({ title: "تم", description: `تم تعيين خطة ${plan?.name || slug}` });
     } catch (e: unknown) {
       toast({
         title: "خطأ",
-        description: e instanceof Error ? e.message : "تعذر تعيين الخطة",
+        description: planAssignErrorMessage(e),
         variant: "destructive",
       });
     } finally {
@@ -144,12 +137,16 @@ const AdminStoreDetail = () => {
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {plans.map((p) => (
-                  <SelectItem key={p.id} value={p.slug}>
-                    {p.name}
-                  </SelectItem>
-                ))}
+              <SelectContent searchable={false}>
+                {plans.length === 0 ? (
+                  <p className="p-2 text-sm text-muted-foreground">تعذر تحميل الخطط</p>
+                ) : (
+                  plans.map((p) => (
+                    <SelectItem key={p.id} value={p.slug}>
+                      {p.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
