@@ -30,7 +30,9 @@ export const RecoveryEmail = ({
         <Heading style={h1}>إعادة تعيين كلمة المرور</Heading>
         <Text style={text}>
           استلمنا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك في {siteName}.
-          اضغط على الزر أدناه لاختيار كلمة مرور جديدة.
+        </Text>
+        <Text style={text}>
+          اضغط على الزر أدناه لتعيين كلمة مرور جديدة.
         </Text>
         <Button style={button} href={confirmationUrl}>
           إعادة تعيين كلمة المرور

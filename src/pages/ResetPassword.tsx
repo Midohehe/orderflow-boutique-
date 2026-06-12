@@ -16,15 +16,34 @@ const ResetPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash.includes("type=recovery")) {
-      toast({
-        title: "رابط غير صالح",
-        description: "يجب استخدام الرابط المرسل إلى بريدك الإلكتروني",
-        variant: "destructive",
-      });
-    }
-  }, []);
+    let cancelled = false;
+
+    const verifyAccess = async () => {
+      const hash = window.location.hash;
+      const hasLegacyRecoveryHash =
+        hash.includes("type=recovery") || hash.includes("access_token");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (cancelled) return;
+
+      if (!session && !hasLegacyRecoveryHash) {
+        toast({
+          title: "رابط غير صالح",
+          description: "يجب استخدام الرابط المرسل إلى بريدك الإلكتروني",
+          variant: "destructive",
+        });
+        navigate("/login", { replace: true });
+      }
+    };
+
+    void verifyAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

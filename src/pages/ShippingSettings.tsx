@@ -25,7 +25,7 @@ const DEFAULT: ShippingSettings = {
   password: "",
   endpoint: "https://turboex.ly:8001/graphql",
   enabled: false,
-  auto_mark_delivered: true,
+  auto_mark_delivered: false,
 };
 
 const ShippingSettingsPage = () => {
@@ -555,17 +555,8 @@ const ShippingSettingsPage = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between p-3 rounded-lg border">
-            <div>
-              <Label className="font-medium">تحديث «تم الاستلام» تلقائياً</Label>
-              <p className="text-xs text-muted-foreground">
-                عند وصول أكواد DTR من شركة الشحن (تم التسليم)، يُحدَّث حالة الطلب إلى «تم الاستلام» تلقائياً
-              </p>
-            </div>
-            <Switch
-              checked={settings.auto_mark_delivered}
-              onCheckedChange={(v) => setSettings({ ...settings, auto_mark_delivered: v })}
-            />
+          <div className="p-3 rounded-lg border bg-muted/40 text-sm text-muted-foreground">
+            حالة «تم الاستلام» لا تتغير تلقائياً من شركة الشحن. تُحدَّث فقط عبر تبويب <span className="font-medium text-foreground">استلام التسويات المالية</span> أو يدوياً من تفاصيل الطلب.
           </div>
 
           <div className="space-y-2">

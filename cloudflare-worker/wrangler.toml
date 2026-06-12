@@ -1,0 +1,50 @@
+# Cloudflare Worker — was-la.com edge cache
+# Docs: cloudflare-worker/DEPLOY.md
+
+name = "was-la-edge"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Non-secret config (safe in git)
+[vars]
+SUPABASE_ORIGIN = "https://sukehkrhvasfnoheyvvx.supabase.co"
+SSR_ENDPOINT = "https://sukehkrhvasfnoheyvvx.supabase.co/functions/v1/landing-ssr"
+
+# Secret (set via: npx wrangler secret put SUPABASE_ANON_KEY)
+# SUPABASE_ANON_KEY = your publishable/anon key
+
+# Routes — uncomment after `wrangler login` and zone is on Cloudflare:
+# [[routes]]
+# pattern = "www.was-la.com/p/*"
+# zone_name = "was-la.com"
+#
+# [[routes]]
+# pattern = "www.was-la.com/cdn/img"
+# zone_name = "was-la.com"
+#
+# [[routes]]
+# pattern = "was-la.com/p/*"
+# zone_name = "was-la.com"
+#
+# [[routes]]
+# pattern = "was-la.com/cdn/img"
+# zone_name = "was-la.com"
+
+[[routes]]
+pattern = "www.was-la.com/p/*"
+zone_name = "was-la.com"
+
+[[routes]]
+pattern = "www.was-la.com/cdn/img"
+zone_name = "was-la.com"
+
+[[routes]]
+pattern = "was-la.com/p/*"
+zone_name = "was-la.com"
+
+[[routes]]
+pattern = "was-la.com/cdn/img"
+zone_name = "was-la.com"
+
+[observability]
+enabled = true

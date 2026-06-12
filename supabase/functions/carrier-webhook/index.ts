@@ -200,15 +200,6 @@ Deno.serve(async (req) => {
         ? `${STATUS_LABELS[status]} (${status})`
         : String(status);
 
-    const { data: shipSettings } = await supabase
-      .from("shipping_settings")
-      .select("auto_mark_delivered")
-      .eq("owner_id", profile.user_id)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const autoDeliver = shipSettings?.auto_mark_delivered !== false;
-
     const updatePayload: Record<string, unknown> = {
       carrier_status: label,
       carrier_status_updated_at: new Date().toISOString(),
@@ -217,7 +208,7 @@ Deno.serve(async (req) => {
     if (cancellationReasonId !== null) updatePayload.carrier_cancellation_reason_id = cancellationReasonId;
     if (notes !== null) updatePayload.carrier_notes = notes;
     const upper = String(status).toUpperCase();
-    const nextStatus = carrierCodeToOrderStatus(upper, autoDeliver);
+    const nextStatus = carrierCodeToOrderStatus(upper);
     if (nextStatus) updatePayload.status = nextStatus;
 
     let q = supabase

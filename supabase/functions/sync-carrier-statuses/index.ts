@@ -239,8 +239,7 @@ Deno.serve(async (req) => {
         updatePayload.carrier_notes = String(sh.notes);
       }
       const upper = String(composite).toUpperCase();
-      const autoDeliver = settings.auto_mark_delivered !== false;
-      const nextStatus = carrierCodeToOrderStatus(upper, autoDeliver);
+      const nextStatus = carrierCodeToOrderStatus(upper);
       if (nextStatus) updatePayload.status = nextStatus;
       const { error: uErr } = await admin.from("orders").update(updatePayload).eq("id", o.id);
       if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); return; }

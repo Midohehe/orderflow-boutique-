@@ -28,7 +28,15 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const ownerId = userData.user.id;
+    const uid = userData.user.id;
+
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const { data: ownerData } = await admin.rpc("get_effective_owner_id", { _uid: uid });
+    const ownerId = (ownerData as string) || uid;
 
     const body = (await req.json()) as Body;
     if (!body.settlement_id) {
@@ -37,26 +45,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
     const { data: settlement } = await admin
       .from("settlements")
-      .select("id, owner_id, external_id")
+      .select("id, owner_id, external_id, store_id")
       .eq("id", body.settlement_id)
       .maybeSingle();
-    if (!settlement || settlement.owner_id !== ownerId) {
+    if (!settlement) {
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const { data: isMember } = await admin.rpc("is_member_of", { _owner_id: settlement.owner_id });
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: uid, _role: "admin" });
+    if (!isMember && !isAdmin && settlement.owner_id !== ownerId) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const { data: settingsRows } = await admin
-      .from("shipping_settings").select("*")
-      .eq("owner_id", ownerId).eq("enabled", true)
-      .order("updated_at", { ascending: false }).limit(1);
+    let settingsQuery = admin
+      .from("shipping_settings")
+      .select("*")
+      .eq("owner_id", settlement.owner_id)
+      .eq("enabled", true)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (settlement.store_id) {
+      settingsQuery = settingsQuery.eq("store_id", settlement.store_id);
+    }
+    const { data: settingsRows } = await settingsQuery;
     const settings = settingsRows?.[0];
     if (!settings) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
@@ -133,7 +150,7 @@ Deno.serve(async (req) => {
     if (refs.length) {
       const { data: ordersByRef } = await admin
         .from("orders").select("id, shipping_reference, shipping_id")
-        .eq("owner_id", ownerId)
+        .eq("owner_id", settlement.owner_id)
         .or(`shipping_reference.in.(${refs.map((r) => `"${r}"`).join(",")}),shipping_id.in.(${refs.map((r) => `"${r}"`).join(",")})`);
       for (const o of ordersByRef || []) {
         if (o.shipping_reference) orderIdByRef.set(String(o.shipping_reference), o.id);
@@ -143,7 +160,7 @@ Deno.serve(async (req) => {
     if (codes.length) {
       const { data: ordersByCode } = await admin
         .from("orders").select("id, shipping_reference, shipping_id")
-        .eq("owner_id", ownerId)
+        .eq("owner_id", settlement.owner_id)
         .or(`shipping_id.in.(${codes.map((c) => `"${c}"`).join(",")}),shipping_reference.in.(${codes.map((c) => `"${c}"`).join(",")})`);
       for (const o of ordersByCode || []) {
         if (o.shipping_id) orderIdByRef.set(String(o.shipping_id), o.id);
@@ -153,7 +170,7 @@ Deno.serve(async (req) => {
     // Also direct refNumber may equal order.id prefix (12 chars uppercase)
     if (refs.length) {
       const { data: allOrders } = await admin
-        .from("orders").select("id").eq("owner_id", ownerId);
+        .from("orders").select("id").eq("owner_id", settlement.owner_id);
       const byPrefix = new Map<string, string>();
       for (const o of allOrders || []) {
         byPrefix.set(o.id.slice(0, 12).toUpperCase(), o.id);
@@ -172,7 +189,7 @@ Deno.serve(async (req) => {
         || (s.code && orderIdByRef.get(String(s.code)))
         || null;
       return {
-        owner_id: ownerId,
+        owner_id: settlement.owner_id,
         settlement_id: settlement.id,
         external_shipment_id: s.id ?? null,
         shipment_code: String(s.code ?? ""),

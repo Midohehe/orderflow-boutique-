@@ -16,7 +16,7 @@ project_id = "sukehkrhvasfnoheyvvx"
   [functions.match-city]
     verify_jwt = false
   [functions.process-email-queue]
-    verify_jwt = true
+    verify_jwt = false
   [functions.webhook-order]
     verify_jwt = false
   [functions.whatsapp-ai-reply]
