@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       const { error: updErr } = await admin.from("orders").update({
         settlement_received: received,
         settlement_received_at: ts,
-        status: received ? "settled" : "delivered",
+        status: received ? "settled" : "shipped",
       }).in("id", orderIds).eq("owner_id", ownerIdSettlement);
       if (updErr) {
         console.error("orders update failed", updErr);

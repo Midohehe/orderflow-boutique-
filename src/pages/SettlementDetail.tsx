@@ -9,13 +9,13 @@ import {
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, CheckCircle2, Loader2, RefreshCw, Link2, Link2Off, Undo2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useStoreContext } from "@/hooks/useStoreContext";
 
 interface Settlement {
   id: string;
@@ -49,6 +49,7 @@ interface ShipmentRow {
 const SettlementDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { activeStoreId } = useStoreContext();
   const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,26 +59,6 @@ const SettlementDetail = () => {
   const [selectedSafeId, setSelectedSafeId] = useState<string>("");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const load = async () => {
-    if (!id) return;
-    setLoading(true);
-    const [sRes, shRes, safesRes] = await Promise.all([
-      supabase.from("settlements").select("*").eq("id", id).maybeSingle(),
-      supabase.from("settlement_shipments").select("*").eq("settlement_id", id)
-        .order("shipment_code"),
-      supabase.from("safes").select("id, name, balance").order("created_at"),
-    ]);
-    if (sRes.error) toast({ title: "خطأ", description: sRes.error.message, variant: "destructive" });
-    setSettlement(sRes.data as Settlement | null);
-    setRows((shRes.data as ShipmentRow[]) || []);
-    setSafes((safesRes.data as any[]) || []);
-    setLoading(false);
-    // Auto-sync if shipments not loaded yet
-    if (sRes.data && !(sRes.data as Settlement).shipments_synced_at) {
-      syncShipments(true);
-    }
-  };
-
   const syncShipments = async (silent = false) => {
     if (!id) return;
     setSyncing(true);
@@ -86,22 +67,60 @@ const SettlementDetail = () => {
         body: { settlement_id: id },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
       if (!silent) {
         toast({
           title: "تم تحديث الشحنات",
           description: `${data?.count ?? 0} شحنة، مرتبط منها ${data?.linked ?? 0} بطلبات في النظام`,
         });
       }
-      const { data: sh } = await supabase
+      const { data: sh, error: shErr } = await supabase
         .from("settlement_shipments").select("*")
         .eq("settlement_id", id).order("shipment_code");
+      if (shErr) throw shErr;
       setRows((sh as ShipmentRow[]) || []);
       const { data: s } = await supabase.from("settlements").select("*").eq("id", id).maybeSingle();
       setSettlement(s as Settlement | null);
+      if ((data?.count ?? 0) === 0 && (settlement?.shipment_count ?? s?.shipment_count ?? 0) > 0 && !silent) {
+        toast({
+          title: "لم تُجلب شحنات",
+          description: "تأكد من إعدادات شركة الشحن أو اضغط تحديث الشحنات مرة أخرى",
+          variant: "destructive",
+        });
+      }
     } catch (e: any) {
       toast({ title: "تعذر التحديث", description: e?.message, variant: "destructive" });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const load = async () => {
+    if (!id) return;
+    setLoading(true);
+    let safesQuery = supabase.from("safes").select("id, name, balance").order("created_at");
+    if (activeStoreId) safesQuery = safesQuery.eq("store_id", activeStoreId);
+    const [sRes, shRes, safesRes] = await Promise.all([
+      supabase.from("settlements").select("*").eq("id", id).maybeSingle(),
+      supabase.from("settlement_shipments").select("*").eq("settlement_id", id)
+        .order("shipment_code"),
+      safesQuery,
+    ]);
+    if (sRes.error) toast({ title: "خطأ", description: sRes.error.message, variant: "destructive" });
+    if (shRes.error) toast({ title: "خطأ", description: shRes.error.message, variant: "destructive" });
+    const settlementRow = sRes.data as Settlement | null;
+    const shipmentRows = (shRes.data as ShipmentRow[]) || [];
+    setSettlement(settlementRow);
+    setRows(shipmentRows);
+    setSafes((safesRes.data as any[]) || []);
+    setLoading(false);
+
+    const needsSync =
+      settlementRow &&
+      shipmentRows.length === 0 &&
+      Number(settlementRow.shipment_count) > 0;
+    if (needsSync) {
+      await syncShipments(true);
     }
   };
 
@@ -113,6 +132,7 @@ const SettlementDetail = () => {
         body: { settlement_id: id, received, safe_id: safeId || null },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
       const recon = (data as any)?.reconciliation;
       let description = `تم تحديث ${data?.updated_orders ?? 0} طلب`;
       if (received && recon && !recon.ok) {
@@ -136,7 +156,7 @@ const SettlementDetail = () => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, activeStoreId]);
 
   const linkedCount = rows.filter((r) => r.order_id).length;
   const linkedPaidSum = rows
@@ -262,7 +282,7 @@ const SettlementDetail = () => {
           <p className="text-lg font-bold">{Number(settlement.due_fees).toFixed(2)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">عدد الشحنات</p>
+          <p className="text-xs text-muted-foreground">عدد الشحنات (شركة الشحن)</p>
           <p className="text-lg font-bold">{settlement.shipment_count}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4">
@@ -287,8 +307,17 @@ const SettlementDetail = () => {
         </CardHeader>
         <CardContent>
           {rows.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              لا توجد شحنات. اضغط "تحديث الشحنات".
+            <div className="py-8 text-center text-muted-foreground space-y-3">
+              <p>
+                لا توجد شحنات محفوظة
+                {settlement.shipment_count > 0
+                  ? ` (شركة الشحن تُظهر ${settlement.shipment_count} شحنة في هذه التسوية).`
+                  : "."}
+              </p>
+              <Button variant="outline" onClick={() => syncShipments(false)} disabled={syncing}>
+                {syncing ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <RefreshCw className="w-4 h-4 ml-2" />}
+                جلب الشحنات من شركة الشحن
+              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">

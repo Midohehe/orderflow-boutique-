@@ -41,6 +41,15 @@ import {
   type OrdersPageFilters,
 } from "@/lib/ordersQuery";
 import { fetchOrdersPageMeta } from "@/lib/ordersPageMeta";
+import { fetchDeliveryStatsSummary } from "@/lib/deliveryStatsRpc";
+import {
+  buildIndexesFromDbMappings,
+  resolveCarrierCategory,
+  resolveCarrierDisplayLabel,
+  type CarrierMappingIndexes,
+  type DeliveryStatsOrder,
+  type DeliveryStatsSummary,
+} from "@/lib/deliveryStats";
 
 interface Order {
   id: string;
@@ -186,6 +195,7 @@ const Orders = () => {
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Order | null>(null);
   const [carrierRateProductFilter, setCarrierRateProductFilter] = useState<string>("all");
   const [showDeliveryStats, setShowDeliveryStats] = useState<boolean>(false);
+  const [carrierMappingIndexes, setCarrierMappingIndexes] = useState<CarrierMappingIndexes | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [orderTab, setOrderTab] = useState<OrderTab>("pending");
   const [tabTotal, setTabTotal] = useState(0);
@@ -257,7 +267,7 @@ const Orders = () => {
   const carrierStatusClass = (order: Order): string => {
     if (!order.carrier_status) return "bg-muted text-muted-foreground";
     const code = extractStatusCode(order);
-    const color = code ? statusColorMap[code] : undefined;
+    const color = code ? (statusColorMap[code] ?? statusColorMap[code.toUpperCase()]) : undefined;
     return COLOR_CLASSES[color || "default"] || COLOR_CLASSES.default;
   };
 
@@ -278,17 +288,18 @@ const Orders = () => {
         const suffix = raw.deliveryTypeCode ?? raw.delivery_type_code
           ?? raw.returnTypeCode ?? raw.return_type_code;
         if (suffix != null && String(suffix).trim() !== "") {
-          return baseStr + String(suffix).trim();
+          return (baseStr + String(suffix).trim()).toUpperCase();
         }
-        return baseStr;
+        return baseStr.toUpperCase();
       }
     }
     // Fallback: parse trailing "(<code>)" from existing carrier_status text
     if (order.carrier_status) {
       const m = order.carrier_status.match(/\(([^)]+)\)\s*$/);
-      if (m) return m[1].trim();
+      if (m) return m[1].trim().toUpperCase();
       // If it's just a code like "rits" with no parentheses
-      if (statusMap[order.carrier_status.trim()]) return order.carrier_status.trim();
+      const trimmed = order.carrier_status.trim();
+      if (statusMap[trimmed] || statusMap[trimmed.toUpperCase()]) return trimmed.toUpperCase();
     }
     return null;
   };
@@ -300,16 +311,28 @@ const Orders = () => {
   };
 
   const getCarrierFilterLabel = (order: Order): string => {
+    const indexes = carrierMappingIndexes;
+    if (indexes) {
+      const label = resolveCarrierDisplayLabel(order, indexes.statusMap);
+      return label === "بدون حالة" ? "" : label;
+    }
     const code = extractStatusCode(order);
     if (code && statusMap[code]) return statusMap[code];
     return order.carrier_status?.trim() || "";
   };
 
-  const getCarrierStatusCategory = (order: Order): string | undefined => {
-    const code = extractStatusCode(order);
-    if (code && statusCategoryMap[code]) return statusCategoryMap[code];
+  const getCarrierStatusCategory = (order: Order | DeliveryStatsOrder): string | undefined => {
+    if (carrierMappingIndexes) {
+      return resolveCarrierCategory(order as DeliveryStatsOrder, carrierMappingIndexes);
+    }
+    const code = extractStatusCode(order as Order);
+    if (code) {
+      const upper = code.toUpperCase();
+      if (statusCategoryMap[upper]) return statusCategoryMap[upper];
+      if (statusCategoryMap[code]) return statusCategoryMap[code];
+    }
 
-    const label = getCarrierFilterLabel(order);
+    const label = getCarrierFilterLabel(order as Order);
     if (labelCategoryMap[label]) return labelCategoryMap[label];
 
     const raw = order.carrier_status?.trim() || "";
@@ -550,6 +573,23 @@ const Orders = () => {
     queryFn: () => fetchOrdersPageMeta(activeStoreId!, effectiveOwnerId),
   });
 
+  const deliveryStatsQuery = useQuery({
+    queryKey: [
+      "orders-delivery-stats",
+      activeStoreId,
+      effectiveOwnerId,
+      carrierRateProductFilter === "all" ? null : carrierRateProductFilter,
+    ],
+    enabled: !!activeStoreId && showDeliveryStats,
+    staleTime: 5 * 60_000,
+    queryFn: () =>
+      fetchDeliveryStatsSummary(
+        activeStoreId!,
+        effectiveOwnerId,
+        carrierRateProductFilter === "all" ? null : carrierRateProductFilter,
+      ),
+  });
+
   const ordersDataQuery = useQuery({
     queryKey: ["orders-page", activeStoreId, orderTab, tabPage, tabFilters],
     enabled: !!activeStoreId,
@@ -617,44 +657,24 @@ const Orders = () => {
     if (meta.walletBalance != null) setWalletBalance(meta.walletBalance);
     else if (effectiveOwnerId) setWalletBalance(0);
 
-    if (meta.statusMappings.length > 0) {
-      const m: Record<string, string> = {};
-      const cm: Record<string, string> = {};
-      const lo: Record<string, number> = {};
-      const catm: Record<string, string> = {};
-      const lcm: Record<string, string> = {};
-      meta.statusMappings.forEach((r) => {
-        m[String(r.status_code)] = r.custom_label ?? "";
-        if (r.color) cm[String(r.status_code)] = r.color;
-        if (r.category) catm[String(r.status_code)] = r.category;
-        if (r.custom_label && r.category && !lcm[String(r.custom_label)]) lcm[String(r.custom_label)] = r.category;
-        const so = Number(r.sort_order ?? 0);
-        if (so > 0) {
-          const key = String(r.custom_label);
-          if (lo[key] === undefined || so < lo[key]) lo[key] = so;
-        }
-      });
-      setStatusMap(m);
-      setStatusColorMap(cm);
-      setLabelOrderMap(lo);
-      setStatusCategoryMap(catm);
-      setLabelCategoryMap(lcm);
+    const m = meta.statusMappings;
+    const indexes = buildIndexesFromDbMappings(m);
+    setCarrierMappingIndexes(indexes);
+    setStatusMap(indexes.statusMap);
+    setLabelOrderMap(indexes.labelOrderMap);
+    setStatusCategoryMap(indexes.statusCategoryMap as Record<string, string>);
+    setLabelCategoryMap(indexes.labelCategoryMap as Record<string, string>);
 
-      const cc: Record<string, number> = {};
-      Object.entries(meta.carrierCounts).forEach(([raw, n]) => {
-        cc[raw] = (cc[raw] || 0) + n;
-        const match = raw.match(/\(([^)]+)\)\s*$/);
-        const code = match ? match[1].trim() : raw.trim();
-        const customLabel = m[code];
-        if (customLabel) {
-          cc[customLabel] = (cc[customLabel] || 0) + n;
-        } else if (match) {
-          const base = raw.slice(0, match.index).trim();
-          if (base) cc[base] = (cc[base] || 0) + n;
-        }
-      });
-      setServerCarrierCounts(cc);
-    }
+    const cm: Record<string, string> = {};
+    m.forEach((r) => {
+      if (!r.color) return;
+      const codeKey = String(r.status_code).toUpperCase();
+      cm[codeKey] = r.color;
+      cm[String(r.status_code)] = r.color;
+    });
+    setStatusColorMap(cm);
+
+    setServerCarrierCounts(meta.carrierCounts || {});
     setLoading(false);
   }, [activeStoreId, ordersQuery.data, ordersQuery.isLoading, ordersQuery.error]);
 
@@ -689,6 +709,7 @@ const Orders = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId] }),
       queryClient.invalidateQueries({ queryKey: ["orders-page-meta", activeStoreId] }),
+      queryClient.invalidateQueries({ queryKey: ["orders-delivery-stats", activeStoreId] }),
     ]);
   };
 
@@ -1233,7 +1254,7 @@ const Orders = () => {
       if (bo !== undefined) return 1;
       return a.label.localeCompare(b.label, "ar");
     });
-    if (serverCarrierCounts[""] || serverCarrierCounts["null"]) {
+    if (serverCarrierCounts["بدون حالة"]) {
       opts.push({ code: "__none__", label: "بدون حالة", matchCode: "" });
     }
     return opts;
@@ -1248,7 +1269,7 @@ const Orders = () => {
             const code = extractStatusCode(o);
             const label = getCarrierFilterLabel(o);
             if (shippedCarrierFilter === "__none__") {
-              if (label) return false;
+              if (o.carrier_status?.trim()) return false;
             } else if (shippedCarrierFilter.startsWith("label:")) {
               const wanted = shippedCarrierFilter.slice("label:".length);
               if (label !== wanted) return false;
@@ -1265,58 +1286,32 @@ const Orders = () => {
   const deletedOrders = orderTab === "deleted" ? orders : [];
   const unpackedOrders = orderTab === "unpacked" ? orders : [];
 
-  // Delivery rate by confirmation status — only orders that were sent to shipping
-  const shippedFinalStatuses = new Set(["shipped", "delivered", "settled", "returned_received", "unpacked", "cancelled"]);
-  const sentToCarrier = orders.filter((o) => !!o.shipping_reference || shippedFinalStatuses.has(o.status));
-  const isConfirmed = (o: Order) => o.confirmation_status === "confirmed";
-  const isDelivered = (o: Order) => o.status === "delivered" || o.status === "settled";
-  const confirmedSent = sentToCarrier.filter(isConfirmed);
-  const unconfirmedSent = sentToCarrier.filter((o) => !isConfirmed(o));
-  const confirmedDelivered = confirmedSent.filter(isDelivered).length;
-  const unconfirmedDelivered = unconfirmedSent.filter(isDelivered).length;
-  const confirmedRate = confirmedSent.length > 0
-    ? Math.round((confirmedDelivered / confirmedSent.length) * 100)
-    : 0;
-  const unconfirmedRate = unconfirmedSent.length > 0
-    ? Math.round((unconfirmedDelivered / unconfirmedSent.length) * 100)
-    : 0;
-
-  // نسبة التسليم بناءً على تصنيف أكواد حالات شركة الشحن
-  // (تم التسليم / راجع / قيد التنفيذ) — يعتمد على التصنيف المحدد في إعدادات الشحن.
-  // اعرض فقط منتجات النظام الرئيسية (الموجودة في جدول المنتجات)
   const mainProductNames = new Set(Object.values(productsMap));
   const carrierRateProductOptions = Array.from(mainProductNames)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, "ar"));
-  const carrierRateOrders =
-    carrierRateProductFilter === "all"
-      ? orders
-      : orders.filter(
-          (o) =>
-            ((o.product_id && productsMap[o.product_id]) || o.product_name) ===
-            carrierRateProductFilter,
-        );
-  const carrierCategoryCounts = carrierRateOrders.reduce(
-    (acc, o) => {
-      const cat = getCarrierStatusCategory(o);
-      if (cat === "delivered") acc.delivered += 1;
-      else if (cat === "returned") acc.returned += 1;
-      else if (cat === "in_progress") acc.in_progress += 1;
-      return acc;
-    },
-    { delivered: 0, returned: 0, in_progress: 0 },
-  );
+
+  const deliveryStatsSummary: DeliveryStatsSummary | null | undefined = deliveryStatsQuery.data;
+
+  const confirmedRate = deliveryStatsSummary?.confirmed.rate ?? 0;
+  const otherConfirmationRate = deliveryStatsSummary?.otherConfirmation.rate ?? 0;
+  const confirmedDelivered = deliveryStatsSummary?.confirmed.delivered ?? 0;
+  const confirmedSentTotal = deliveryStatsSummary?.confirmed.total ?? 0;
+  const otherConfirmationDelivered = deliveryStatsSummary?.otherConfirmation.delivered ?? 0;
+  const otherConfirmationTotal = deliveryStatsSummary?.otherConfirmation.total ?? 0;
+  const carrierCategoryCounts = deliveryStatsSummary?.carrierCategories ?? {
+    delivered: 0,
+    returned: 0,
+    in_progress: 0,
+    uncategorized: 0,
+  };
   const carrierCategorizedTotal =
-    carrierCategoryCounts.delivered + carrierCategoryCounts.returned + carrierCategoryCounts.in_progress;
-  const carrierDeliveryRate = carrierCategorizedTotal > 0
-    ? Math.round((carrierCategoryCounts.delivered / carrierCategorizedTotal) * 100)
-    : 0;
-  const carrierReturnRate = carrierCategorizedTotal > 0
-    ? Math.round((carrierCategoryCounts.returned / carrierCategorizedTotal) * 100)
-    : 0;
-  const carrierInProgressRate = carrierCategorizedTotal > 0
-    ? Math.round((carrierCategoryCounts.in_progress / carrierCategorizedTotal) * 100)
-    : 0;
+    carrierCategoryCounts.delivered +
+    carrierCategoryCounts.returned +
+    carrierCategoryCounts.in_progress;
+  const carrierDeliveryRate = deliveryStatsSummary?.carrierRates.delivered ?? 0;
+  const carrierReturnRate = deliveryStatsSummary?.carrierRates.returned ?? 0;
+  const carrierInProgressRate = deliveryStatsSummary?.carrierRates.in_progress ?? 0;
 
   if (loading) {
     return (
@@ -1753,7 +1748,7 @@ const Orders = () => {
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-success">{confirmedRate}%</span>
                 <span className="text-sm text-muted-foreground">
-                  ({confirmedDelivered} من {confirmedSent.length})
+                  ({confirmedDelivered} من {confirmedSentTotal})
                 </span>
               </div>
               <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
@@ -1763,24 +1758,29 @@ const Orders = () => {
             <div className="rounded-lg border-2 border-warning/30 bg-warning/5 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <ShieldAlert className="w-4 h-4 text-warning" />
-                <span className="font-semibold text-foreground">الطلبات بدون تأكيد</span>
+                <span className="font-semibold text-foreground">باقي حالات التأكيد</span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-warning">{unconfirmedRate}%</span>
+                <span className="text-3xl font-bold text-warning">{otherConfirmationRate}%</span>
                 <span className="text-sm text-muted-foreground">
-                  ({unconfirmedDelivered} من {unconfirmedSent.length})
+                  ({otherConfirmationDelivered} من {otherConfirmationTotal})
                 </span>
               </div>
               <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                <div className="h-full bg-warning transition-all" style={{ width: `${unconfirmedRate}%` }} />
+                <div className="h-full bg-warning transition-all" style={{ width: `${otherConfirmationRate}%` }} />
               </div>
             </div>
           </div>
-          {confirmedSent.length > 0 && unconfirmedSent.length > 0 && (
+          {confirmedSentTotal > 0 && otherConfirmationTotal > 0 && (
             <p className="text-xs text-muted-foreground mt-3">
-              💡 الفرق: {confirmedRate - unconfirmedRate > 0 ? `+${confirmedRate - unconfirmedRate}` : confirmedRate - unconfirmedRate}% لصالح الطلبات المؤكدة
+              💡 الفرق: {confirmedRate - otherConfirmationRate > 0 ? `+${confirmedRate - otherConfirmationRate}` : confirmedRate - otherConfirmationRate}% لصالح الطلبات المؤكدة
             </p>
           )}
+          <p className="text-xs text-muted-foreground mt-2">
+            يُقارَن بين الطلبات المؤكدة (حالة التأكيد: مؤكد) وبين جميع الطلبات المرسلة ذات حالات تأكيد أخرى
+            (بانتظار التأكيد، لم يرد، مؤجل، ملغي…). يُحتسب من الطلبات المرسلة لشركة الشحن (باستثناء الملغاة).
+            يُعتبر الطلب مُسلَّماً إذا انتقل لحالة «تم الاستلام» أو إذا أشارت حالة شركة الشحن إلى «تم التسليم».
+          </p>
         </CardContent>
       </Card>
 
@@ -1806,7 +1806,7 @@ const Orders = () => {
           </div>
           {carrierCategorizedTotal === 0 ? (
             <p className="text-sm text-muted-foreground">
-              لم يتم تصنيف أي حالة بعد. اذهب إلى <span className="font-semibold">إعدادات الشحن ← تخصيص أسماء حالات الشحن</span> وحدد لكل كود تصنيفه (تم التسليم / راجع / قيد التنفيذ) ليظهر الاحتساب هنا.
+              لا توجد طلبات مرسلة للشحن بمسميات حالات قابلة للتصنيف. راجع <span className="font-semibold">إعدادات الشحن ← تخصيص أسماء حالات الشحن</span> لضبط التصنيفات (تم التسليم / راجع / قيد التنفيذ).
             </p>
           ) : (
             <>
@@ -1858,7 +1858,11 @@ const Orders = () => {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                يتم احتساب النسب من إجمالي الطلبات المصنّفة فقط ({carrierCategorizedTotal} طلب). لتعديل التصنيفات اذهب إلى إعدادات الشحن.
+                يتم احتساب النسب من إجمالي الطلبات المصنّفة ({carrierCategorizedTotal} طلب).
+                {carrierCategoryCounts.uncategorized > 0
+                  ? ` تم استبعاد ${carrierCategoryCounts.uncategorized} طلباً بحالة غير مصنّفة.`
+                  : ""}
+                {" "}لتعديل التصنيفات اذهب إلى إعدادات الشحن.
               </p>
             </>
           )}
@@ -2162,10 +2166,7 @@ const Orders = () => {
                       }).length;
                       // Prefer server-side count (matches by displayed label) so the
                       // dropdown stays accurate even when the in-memory list is capped.
-                      const serverKey = opt.code.startsWith("label:")
-                        ? opt.code.slice("label:".length)
-                        : opt.code === "__none__" ? "بدون حالة" : opt.label;
-                      const count = serverCarrierCounts[serverKey] ?? localCount;
+                      const count = serverCarrierCounts[opt.label] ?? localCount;
                       return (
                         <SelectItem key={opt.code} value={opt.code}>
                           {opt.label} ({count})

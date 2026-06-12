@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchShippedCarrierCounts } from "@/lib/deliveryStatsRpc";
 
 const STICKER_COLS =
   "page_width_mm, page_height_mm, font_size, header_text, footer_text, show_barcode, show_logo, fields";
@@ -24,8 +25,19 @@ export interface OrdersPageMeta {
 
 export async function fetchOrdersPageMeta(
   storeId: string,
-  ownerId: string | null | undefined
+  ownerId: string | null | undefined,
 ): Promise<OrdersPageMeta> {
+  let mappingsQuery = supabase
+    .from("carrier_status_mappings")
+    .select("status_code, custom_label, color, sort_order, category");
+  if (ownerId) {
+    mappingsQuery = mappingsQuery
+      .eq("owner_id", ownerId)
+      .or(`store_id.eq.${storeId},store_id.is.null`);
+  } else {
+    mappingsQuery = mappingsQuery.or(`store_id.eq.${storeId},store_id.is.null`);
+  }
+
   const [
     currencyRes,
     mapRes,
@@ -34,15 +46,12 @@ export async function fetchOrdersPageMeta(
     headerRes,
     walletRes,
     statusCountsRes,
-    carrierCountsRes,
     confirmCountsRes,
     deletedCountRes,
+    carrierCounts,
   ] = await Promise.all([
     supabase.from("store_settings").select("currency_symbol").eq("store_id", storeId).maybeSingle(),
-    supabase
-      .from("carrier_status_mappings")
-      .select("status_code, custom_label, color, sort_order, category")
-      .eq("store_id", storeId),
+    mappingsQuery,
     supabase.from("products").select("id, name").eq("store_id", storeId),
     supabase.from("sticker_settings").select(STICKER_COLS).eq("store_id", storeId).maybeSingle(),
     supabase.from("header_settings").select("logo_text").eq("store_id", storeId).maybeSingle(),
@@ -50,14 +59,16 @@ export async function fetchOrdersPageMeta(
       ? supabase.from("wallets").select("balance").eq("user_id", ownerId).maybeSingle()
       : Promise.resolve({ data: null } as { data: null }),
     supabase.rpc("orders_status_counts", { _store_id: storeId }),
-    supabase.rpc("orders_shipped_carrier_counts", { _store_id: storeId }),
     supabase.rpc("orders_confirmation_counts", { _store_id: storeId }),
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })
       .eq("store_id", storeId)
       .eq("is_deleted", true),
+    fetchShippedCarrierCounts(storeId, ownerId),
   ]);
+
+  const statusMappings = (mapRes.data as OrdersPageMeta["statusMappings"]) || [];
 
   const productsMap: Record<string, string> = {};
   (productsRes.data || []).forEach((p: { id?: string; name?: string }) => {
@@ -67,11 +78,6 @@ export async function fetchOrdersPageMeta(
   const statusCounts: Record<string, number> = {};
   (statusCountsRes.data as Array<{ status: string; cnt: number }> | null)?.forEach((r) => {
     statusCounts[String(r.status)] = Number(r.cnt) || 0;
-  });
-
-  const carrierCounts: Record<string, number> = {};
-  (carrierCountsRes.data as Array<{ label: string; cnt: number }> | null)?.forEach((r) => {
-    carrierCounts[String(r.label ?? "")] = Number(r.cnt) || 0;
   });
 
   const confirmationCounts: Record<string, number> = {};
@@ -89,6 +95,6 @@ export async function fetchOrdersPageMeta(
     carrierCounts,
     confirmationCounts,
     deletedCount: deletedCountRes.count ?? 0,
-    statusMappings: (mapRes.data as OrdersPageMeta["statusMappings"]) || [],
+    statusMappings,
   };
 }

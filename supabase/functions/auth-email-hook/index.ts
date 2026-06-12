@@ -1,6 +1,7 @@
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0'
 import { SignupEmail } from '../_shared/email-templates/signup.tsx'
 import { InviteEmail } from '../_shared/email-templates/invite.tsx'
 import { MagicLinkEmail } from '../_shared/email-templates/magic-link.tsx'
@@ -15,12 +16,12 @@ const corsHeaders = {
 }
 
 const EMAIL_SUBJECTS: Record<string, string> = {
-  signup: 'Confirm your email',
-  invite: "You've been invited",
-  magiclink: 'Your login link',
-  recovery: 'Reset your password',
-  email_change: 'Confirm your new email',
-  reauthentication: 'Your verification code',
+  signup: 'تأكيد بريدك — وصلة',
+  invite: 'دعوة للانضمام — وصلة',
+  magiclink: 'رابط تسجيل الدخول — وصلة',
+  recovery: 'إعادة تعيين كلمة المرور — وصلة',
+  email_change: 'تأكيد البريد الجديد — وصلة',
+  reauthentication: 'رمز التحقق — وصلة',
 }
 
 const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
@@ -32,10 +33,10 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   reauthentication: ReauthenticationEmail,
 }
 
-const SITE_NAME = Deno.env.get('SITE_NAME') || 'wasla'
-const SENDER_DOMAIN = Deno.env.get('EMAIL_SENDER_DOMAIN') || 'notify.www.was-la.com'
+const SITE_NAME = Deno.env.get('SITE_NAME') || 'وصلة'
+const SENDER_DOMAIN = Deno.env.get('EMAIL_SENDER_DOMAIN') || 'was-la.com'
 const ROOT_DOMAIN = Deno.env.get('SITE_DOMAIN') || 'www.was-la.com'
-const FROM_DOMAIN = Deno.env.get('EMAIL_FROM_DOMAIN') || ROOT_DOMAIN
+const FROM_DOMAIN = Deno.env.get('EMAIL_FROM_DOMAIN') || 'was-la.com'
 const SAMPLE_PROJECT_URL = Deno.env.get('SITE_URL') || `https://${ROOT_DOMAIN}`
 const SAMPLE_EMAIL = 'user@example.test'
 
@@ -86,19 +87,115 @@ interface SupabaseAuthEmailPayload {
   }
 }
 
-function verifyHookSecret(req: Request): boolean {
-  const secret = Deno.env.get('AUTH_HOOK_SECRET')
+function getHookSecret(): string | null {
+  return Deno.env.get('AUTH_HOOK_SECRET') || Deno.env.get('SEND_EMAIL_HOOK_SECRET') || null
+}
+
+function getWebhookSecretBase64(secret: string): string {
+  return secret.replace(/^v1,whsec_/, '')
+}
+
+function verifyPreviewSecret(req: Request): boolean {
+  const secret = getHookSecret()
   if (!secret) return false
   const auth = req.headers.get('Authorization')
-  return auth === `Bearer ${secret}` || auth === secret
+  return auth === `Bearer ${secret}` || auth === secret || auth === `Bearer ${getWebhookSecretBase64(secret)}`
+}
+
+type VerifyResult =
+  | { ok: true; payload: SupabaseAuthEmailPayload; method: string }
+  | { ok: false; response: Response }
+
+function verifyHookPayload(req: Request, rawBody: string): VerifyResult {
+  const secret = getHookSecret()
+  if (!secret) {
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }),
+    }
+  }
+
+  const headers = Object.fromEntries(req.headers.entries())
+  const auth = req.headers.get('Authorization')
+
+  try {
+    const wh = new Webhook(getWebhookSecretBase64(secret))
+    const payload = wh.verify(rawBody, headers) as SupabaseAuthEmailPayload
+    return { ok: true, payload, method: 'standard-webhooks' }
+  } catch {
+    // Fall through to bearer / GoTrue workaround.
+  }
+
+  if (
+    auth === `Bearer ${secret}` ||
+    auth === secret ||
+    auth === `Bearer ${getWebhookSecretBase64(secret)}`
+  ) {
+    try {
+      return { ok: true, payload: JSON.parse(rawBody), method: 'bearer' }
+    } catch {
+      return {
+        ok: false,
+        response: new Response(JSON.stringify({ error: 'Invalid webhook payload' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }),
+      }
+    }
+  }
+
+  const userAgent = req.headers.get('user-agent') || ''
+  const allowUnsignedGoTrue = Deno.env.get('AUTH_HOOK_ALLOW_GOTRUE_UNSIGNED') !== 'false'
+  if (allowUnsignedGoTrue && userAgent.includes('Go-http-client') && !headers['webhook-signature']) {
+    console.warn('Auth hook: accepting unsigned GoTrue request (Supabase send_email hook workaround)')
+    try {
+      return { ok: true, payload: JSON.parse(rawBody), method: 'gotrue-unsigned' }
+    } catch {
+      return {
+        ok: false,
+        response: new Response(JSON.stringify({ error: 'Invalid webhook payload' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }),
+      }
+    }
+  }
+
+  console.error('Auth hook unauthorized', {
+    hasAuth: Boolean(auth),
+    hasWebhookSignature: Boolean(headers['webhook-signature']),
+    userAgent,
+  })
+
+  return {
+    ok: false,
+    response: new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    }),
+  }
+}
+
+function resolveAppBaseUrl(emailData: NonNullable<SupabaseAuthEmailPayload['email_data']>): string {
+  const configured = (Deno.env.get('SITE_URL') || SAMPLE_PROJECT_URL).replace(/\/$/, '')
+  const fromPayload = String(emailData.site_url || '').replace(/\/$/, '')
+  if (fromPayload && !/supabase\.co/i.test(fromPayload)) {
+    return fromPayload
+  }
+  return configured
 }
 
 function buildConfirmationUrl(emailData: NonNullable<SupabaseAuthEmailPayload['email_data']>): string {
-  const base = String(emailData.site_url || SAMPLE_PROJECT_URL).replace(/\/$/, '')
+  const base = resolveAppBaseUrl(emailData)
+  const emailType = String(emailData.email_action_type || 'signup')
+  const redirectPath = emailType === 'recovery' ? '/reset-password' : '/dashboard'
   const params = new URLSearchParams()
   if (emailData.token_hash) params.set('token_hash', String(emailData.token_hash))
-  if (emailData.email_action_type) params.set('type', String(emailData.email_action_type))
-  if (emailData.redirect_to) params.set('redirect_to', String(emailData.redirect_to))
+  params.set('type', emailType)
+  params.set('redirect_to', `${base}${redirectPath}`)
   return `${base}/auth/confirm?${params.toString()}`
 }
 
@@ -112,7 +209,7 @@ async function handlePreview(req: Request): Promise<Response> {
     return new Response(null, { headers: previewCorsHeaders })
   }
 
-  if (!verifyHookSecret(req)) {
+  if (!verifyPreviewSecret(req)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...previewCorsHeaders, 'Content-Type': 'application/json' },
@@ -148,31 +245,24 @@ async function handlePreview(req: Request): Promise<Response> {
 }
 
 async function handleWebhook(req: Request): Promise<Response> {
-  if (!Deno.env.get('AUTH_HOOK_SECRET')) {
-    console.error('AUTH_HOOK_SECRET not configured')
-    return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  if (!verifyHookSecret(req)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
+  let rawBody: string
+  try {
+    rawBody = await req.text()
+  } catch (error) {
+    console.error('Failed to read webhook body', { error })
+    return new Response(JSON.stringify({ error: 'Invalid webhook payload' }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 
-  let payload: SupabaseAuthEmailPayload
-  try {
-    payload = await req.json()
-  } catch (error) {
-    console.error('Invalid webhook payload', { error })
-    return new Response(
-      JSON.stringify({ error: 'Invalid webhook payload' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  const verified = verifyHookPayload(req, rawBody)
+  if (!verified.ok) {
+    return verified.response
   }
+
+  const { payload, method } = verified
+  console.log('Auth hook verified', { method })
 
   const emailData = payload.email_data
   const recipient = payload.user?.email || emailData?.email

@@ -17,6 +17,7 @@ dist-ssr
 .env.*
 !.env.example
 vercel.env
+cloudflare-worker/.dev.vars
 
 # Editor / local tooling
 .vscode/*

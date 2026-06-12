@@ -140,6 +140,7 @@ const LandingTemplates = lazy(() => import("./pages/LandingTemplates"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const AuthConfirm = lazy(() => import("./pages/AuthConfirm"));
 
 const Privacy = lazy(() => import("./pages/Privacy"));
 
@@ -188,6 +189,8 @@ const DashboardRoutes = () => (
       <Route path="/" element={<Home />} />
 
       <Route path="/login" element={<Login />} />
+
+      <Route path="/auth/confirm" element={<AuthConfirm />} />
 
       <Route path="/reset-password" element={<ResetPassword />} />
 
