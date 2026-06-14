@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1345,7 +1345,11 @@ const LandingPage = () => {
     }
   };
 
-  useEffect(() => {
+  // Remove the edge-rendered SSR shell synchronously, BEFORE the browser paints
+  // React's first real content. useLayoutEffect (not useEffect) guarantees the
+  // placeholder and the hydrated content never coexist on screen — preventing
+  // the brief "duplicated image/price" flash on slower mobile devices.
+  useLayoutEffect(() => {
     if (product && !loading) dismissLandingSsrShell();
   }, [product, loading]);
 

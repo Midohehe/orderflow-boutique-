@@ -5,5 +5,10 @@ export function hasLandingSsrShell(): boolean {
 }
 
 export function dismissLandingSsrShell(): void {
-  document.getElementById("ssr-fallback")?.remove();
+  if (typeof document === "undefined") return;
+  // Remove the wrapper and any shell variant directly, so React's first real
+  // paint never overlaps the edge-rendered placeholder (no duplicate flash).
+  document
+    .querySelectorAll("#ssr-fallback, #ssr-puck-shell, #ssr-shell")
+    .forEach((el) => el.remove());
 }
