@@ -25,6 +25,18 @@
       "destination": "/api/cdn-img"
     },
     {
+      "source": "/store/:path*",
+      "destination": "/landing.html"
+    },
+    {
+      "source": "/store",
+      "destination": "/landing.html"
+    },
+    {
+      "source": "/thank-you",
+      "destination": "/landing.html"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

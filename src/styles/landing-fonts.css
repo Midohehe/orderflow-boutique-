@@ -8,3 +8,7 @@ html[data-landing-fonts="1"],
 html[data-landing-fonts="1"] body {
   font-family: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+html[data-landing-fonts="1"] {
+  font-size-adjust: 0.52;
+}

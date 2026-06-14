@@ -29,7 +29,9 @@ import {
 } from "@/lib/landingOrderForm";
 import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { LandingImage } from "@/components/LandingImage";
-import { landingHeroPreloadHref } from "@/lib/landingImageUrl";
+import { landingHeroPreloadHref, buildLandingSrcSet, isOptimizableLandingImage } from "@/lib/landingImageUrl";
+import { hasLandingSsrShell, dismissLandingSsrShell } from "@/lib/landingSsrDetect";
+import { deferMarketingPixels } from "@/lib/deferMarketingPixels";
 import {
   getProductVariantKeys,
   getSingleVariantSelection,
@@ -43,6 +45,7 @@ import {
 } from "@/lib/productVariants";
 
 const OUT_OF_STOCK_MESSAGE = "الكمية غير متوفرة، اختر منتجاً آخر";
+const ORDER_FORM_MIN_HEIGHT = "min-h-[720px]";
 
 const PuckRender = lazy(() =>
   import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
@@ -275,6 +278,7 @@ const LandingPage = () => {
     setTimeout(() => setToastMessage(null), 4000);
     try { toast({ title, description, variant: variant === "destructive" ? "destructive" : undefined } as any); } catch {}
   };
+  const ssrBootRef = useRef(hasLandingSsrShell());
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -321,11 +325,17 @@ const LandingPage = () => {
     };
   }, []);
 
-  // Preload LCP hero image as soon as URL is known (session cache or fetch)
+  // Preload LCP hero image as soon as URL is known (session cache or fetch).
+  // Mirror the <img> srcset/sizes so the browser preloads the SAME candidate it
+  // will actually render — preventing a wasteful double download on mobile.
   useEffect(() => {
     const href = product?.images?.[selectedImage] ?? product?.images?.[0];
     if (!href) return;
     const optimized = landingHeroPreloadHref(href);
+    const heroSizes = "(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 480px";
+    const heroSrcSet = isOptimizableLandingImage(href)
+      ? buildLandingSrcSet(href, [400, 640, 800, 1080], { height: 800, format: "webp" })
+      : "";
     const id = "landing-lcp-preload";
     let link = document.getElementById(id) as HTMLLinkElement | null;
     if (!link) {
@@ -338,6 +348,10 @@ const LandingPage = () => {
     if (link.href !== optimized) {
       link.href = optimized;
       link.setAttribute("fetchpriority", "high");
+    }
+    if (heroSrcSet) {
+      link.setAttribute("imagesrcset", heroSrcSet);
+      link.setAttribute("imagesizes", heroSizes);
     }
     return () => {
       link?.remove();
@@ -682,17 +696,13 @@ const LandingPage = () => {
         }
 
         if (cachedPixelSettings) {
-          const runCachedPixels = () =>
+          deferMarketingPixels(() =>
             initializePixels(
               cachedPixelSettings as PixelSettings,
               loadedProduct,
               loadedCurrency || storeSettings.currency_code
-            );
-          if (typeof (window as any).requestIdleCallback === "function") {
-            (window as any).requestIdleCallback(runCachedPixels, { timeout: 1500 });
-          } else {
-            setTimeout(runCachedPixels, 400);
-          }
+            )
+          );
         }
 
         // Stale-while-revalidate: ALWAYS fetch fresh so admin edits show up.
@@ -769,14 +779,11 @@ const LandingPage = () => {
             }
           }
 
-          // Initialize tracking pixels when browser is idle
+          // Initialize tracking pixels after first paint (never block LCP)
           if (pixelResult.data) {
-            const runPixels = () => initializePixels(pixelResult.data as PixelSettings, loadedProduct, loadedCurrency);
-            if (typeof (window as any).requestIdleCallback === "function") {
-              (window as any).requestIdleCallback(runPixels, { timeout: 2000 });
-            } else {
-              setTimeout(runPixels, 800);
-            }
+            deferMarketingPixels(() =>
+              initializePixels(pixelResult.data as PixelSettings, loadedProduct, loadedCurrency)
+            );
           }
         })
           .catch((err) => {
@@ -797,16 +804,24 @@ const LandingPage = () => {
   useEffect(() => {
     if (!product?.name) return;
     let cancelled = false;
-    supabase
-      .from("app_settings")
-      .select("system_name")
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        const platform = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
-        document.title = `${product.name} | ${platform}`;
-      });
+    // Title is not LCP-critical — defer the extra request off the load path.
+    const run = () => {
+      supabase
+        .from("app_settings")
+        .select("system_name")
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (cancelled) return;
+          const platform = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
+          document.title = `${product.name} | ${platform}`;
+        });
+    };
+    if (typeof (window as any).requestIdleCallback === "function") {
+      (window as any).requestIdleCallback(run, { timeout: 3000 });
+    } else {
+      setTimeout(run, 1200);
+    }
     return () => {
       cancelled = true;
     };
@@ -823,15 +838,15 @@ const LandingPage = () => {
       const dp = await loadDOMPurify();
       if (cancelled) return;
       let html = (dp as any).sanitize(product.description) as string;
-      // Force lazy-loading + async decoding on every embedded image/iframe
+      // Force lazy-loading + async decoding on every embedded image/iframe.
+      // Keep intrinsic width/height attributes so the browser can reserve space
+      // (aspect-ratio) and avoid layout shift; CSS below makes them responsive.
       html = html
         .replace(/<img\b(?![^>]*\bloading=)/gi, '<img loading="lazy" decoding="async"')
         .replace(/<iframe\b(?![^>]*\bloading=)/gi, '<iframe loading="lazy"');
       // Neutralize pasted HTML from other sites that uses fixed widths,
       // floats, absolute positioning, or huge margins that overflow mobile.
       html = html
-        // Drop hard-coded width/height attributes on media + tables
-        .replace(/\s(width|height)="[^"]*"/gi, "")
         // Strip problematic CSS declarations from inline styles
         .replace(/style="([^"]*)"/gi, (_m, s) => {
           const cleaned = s
@@ -1330,6 +1345,10 @@ const LandingPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (product && !loading) dismissLandingSsrShell();
+  }, [product, loading]);
+
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
       case "phone":
@@ -1341,7 +1360,10 @@ const LandingPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !product) {
+    if (ssrBootRef.current && hasLandingSsrShell()) {
+      return null;
+    }
     return (
       <div className="min-h-screen w-full bg-slate-50 font-cairo overflow-x-hidden" dir="rtl">
         <header className="bg-white border-b border-slate-100 py-4 px-6 text-center w-full">
@@ -1463,7 +1485,7 @@ const LandingPage = () => {
   );
   const orderFormSlot = (
     <>
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-100 relative overflow-hidden">
+            <div className={`bg-white/80 backdrop-blur-md rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-100 relative overflow-hidden ${ORDER_FORM_MIN_HEIGHT}`}>
               {/* تزيين الاستمارة بشريط ذهبي جانبي ناعم */}
               <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600" />
 
@@ -1806,7 +1828,7 @@ const LandingPage = () => {
               <h2 className="text-xl sm:text-3xl font-black text-slate-900">أسرار وتفاصيل الفخامة</h2>
             </div>
             <div
-              className="prose prose-sm sm:prose-lg max-w-none text-slate-700 leading-relaxed break-words [&_p]:mb-5 [&_strong]:text-slate-900 [&_strong]:font-black [&_ul]:list-disc [&_ul]:mr-5 [&_ul]:mb-5 [&_li]:mb-2 [&_img]:rounded-2xl [&_img]:shadow-lg [&_img]:my-6 [&_img]:object-contain"
+              className="prose prose-sm sm:prose-lg max-w-none text-slate-700 leading-relaxed break-words [&_p]:mb-5 [&_strong]:text-slate-900 [&_strong]:font-black [&_ul]:list-disc [&_ul]:mr-5 [&_ul]:mb-5 [&_li]:mb-2 [&_img]:rounded-2xl [&_img]:shadow-lg [&_img]:my-6 [&_img]:object-contain [&_img]:max-w-full [&_img]:h-auto"
               dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
             />
           </section>

@@ -39,3 +39,21 @@ export function landingHeroPreloadHref(src: string, publicHost?: string | null):
   }
   return wrapLandingCdnUrl(src, publicHost);
 }
+
+/** Responsive WebP srcset for the hero image (matches the SPA <img>). */
+export function landingHeroSrcSet(
+  src: string,
+  publicHost?: string | null,
+  widths: number[] = [400, 640, 800, 1080],
+): string {
+  if (!src || !SUPABASE_PUBLIC_OBJECT.test(src)) return "";
+  return widths
+    .map(
+      (w) =>
+        `${optimizeLandingImageUrl(src, { width: w, height: w, format: "webp" }, publicHost)} ${w}w`,
+    )
+    .join(", ");
+}
+
+export const LANDING_HERO_SIZES =
+  "(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 480px";
