@@ -104,7 +104,7 @@ const Login = () => {
     }
     setIsLoading(true);
     try {
-      const { error } = await signUp(email, password, username, fullName);
+      const { error, needsEmailConfirmation } = await signUp(email, password, username, fullName);
       if (error) {
         let message = "حدث خطأ أثناء إنشاء الحساب";
         const m = error.message.toLowerCase();
@@ -112,10 +112,19 @@ const Login = () => {
           message = "هذا البريد الإلكتروني مسجل مسبقاً";
         } else if (m.includes("weak") || m.includes("pwned") || m.includes("compromised")) {
           message = "كلمة المرور ضعيفة أو مسربة، اختر كلمة مرور أقوى";
+        } else if (m.includes("rate limit") || m.includes("429") || m.includes("email rate")) {
+          message = "تم تجاوز حد إرسال رسائل التأكيد. انتظر 10–15 دقيقة ثم حاول مرة أخرى.";
+        } else if (m.includes("hook") || m.includes("authorization token")) {
+          message = "تعذّر إرسال رسالة التأكيد. تواصل مع الدعم أو حاول لاحقاً.";
+        } else if (m.includes("invalid email")) {
+          message = "البريد الإلكتروني غير صالح";
         }
         toast({ title: "خطأ", description: message, variant: "destructive" });
-      } else {
+      } else if (needsEmailConfirmation) {
         setSignupSuccess(true);
+      } else {
+        toast({ title: "تم إنشاء الحساب", description: "مرحباً بك في لوحة التحكم" });
+        navigate("/dashboard");
       }
     } finally {
       setIsLoading(false);
