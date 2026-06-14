@@ -7,6 +7,7 @@ import RichTextEditor from "@/components/RichTextEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Switch } from "@/components/ui/switch";
+import { buildVariantKeys } from "@/lib/variantKeys";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStoreContext } from "@/hooks/useStoreContext";
@@ -98,33 +99,9 @@ interface ProductFormProps {
 }
 
 // Build variant keys from colors/sizes/codes (same logic used in inventory page)
-export const buildVariantKeys = (
-  colorsCsv: string,
-  sizesCsv: string,
-  codesCsv: string
-): string[] => {
-  const split = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
-  const colors = split(colorsCsv);
-  const sizes = split(sizesCsv);
-  const codes = split(codesCsv);
-
-  const keys: string[] = [];
-  if (colors.length && sizes.length) {
-    colors.forEach((c) => sizes.forEach((s) => keys.push(`${c} - ${s}`)));
-  } else if (colors.length) {
-    keys.push(...colors);
-  } else if (sizes.length) {
-    keys.push(...sizes);
-  }
-  // Only treat product_codes as variant keys when the product has NO colors and NO sizes.
-  // When colors/sizes exist, codes are per-variant SKUs (stored in variant_skus) — not separate variants.
-  if (keys.length === 0 && codes.length) {
-    codes.forEach((c) => {
-      if (!keys.includes(c)) keys.push(c);
-    });
-  }
-  return keys;
-};
+// Re-exported so existing imports (e.g. Products.tsx) keep working, while the
+// landing page imports the helper from the dependency-free lib directly.
+export { buildVariantKeys };
 
 const parseTags = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const joinTags = (arr: string[]) => arr.join(", ");
