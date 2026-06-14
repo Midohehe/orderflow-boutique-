@@ -1,4 +1,4 @@
-import { buildVariantKeys } from "@/components/ProductForm";
+import { buildVariantKeys } from "@/lib/variantKeys";
 
 export interface ProductVariantSource {
   colors?: string[] | null;
