@@ -70,9 +70,29 @@ export default defineConfig(() => ({
     },
   },
   build: {
+    modulePreload: {
+      resolveDependencies(_filename, deps, { hostId }) {
+        if (hostId.includes("landing.html")) {
+          return deps.filter((dep) => !dep.includes("recharts") && !dep.includes("puck"));
+        }
+        return deps;
+      },
+    },
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        landing: path.resolve(__dirname, "landing.html"),
+      },
       output: {
         manualChunks(id) {
+          if (
+            id.includes("node_modules/react-dom") ||
+            id.includes("node_modules/react/jsx-runtime") ||
+            id.includes("node_modules/react/index")
+          ) {
+            return "react-vendor";
+          }
+          if (id.includes("clsx") || id.includes("tailwind-merge")) return "vendor-utils";
           if (id.includes("@measured/puck")) return "puck";
           if (id.includes("node_modules/recharts")) return "recharts";
           if (id.includes("node_modules/xlsx")) return "xlsx";

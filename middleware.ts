@@ -3,7 +3,7 @@
  * (Cloudflare equivalent: cloudflare-worker/worker.js)
  */
 const SSR_PATH = "/functions/v1/landing-ssr";
-const IMG_EDGE_CACHE = "public, max-age=604800, s-maxage=2592000, immutable";
+const IMG_EDGE_CACHE = "public, max-age=31536000, s-maxage=31536000, immutable";
 
 function isAllowedStorageUrl(target: string, supabaseOrigin: string | null): boolean {
   try {

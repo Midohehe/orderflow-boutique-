@@ -8,7 +8,13 @@ import {
   puckHasRenderableContent,
   renderPuckToHtml,
 } from "../_shared/puck-ssr-html.ts";
-import { landingHeroPreloadHref, optimizeLandingImageUrl, wrapLandingCdnUrl } from "../_shared/landing-image-url.ts";
+import {
+  LANDING_HERO_SIZES,
+  landingHeroPreloadHref,
+  landingHeroSrcSet,
+  optimizeLandingImageUrl,
+  wrapLandingCdnUrl,
+} from "../_shared/landing-image-url.ts";
 import { parseThemeTokens, themeTokensToSsrCssFromTokens } from "../_shared/theme-ssr.ts";
 
 const corsHeaders: Record<string, string> = {
@@ -37,10 +43,16 @@ async function getShell(): Promise<string> {
     shellCache = { html: minimalShell(), ts: Date.now() };
     return shellCache.html;
   }
-  const r = await fetch(APP_ORIGIN + "/index.html", {
+  const r = await fetch(APP_ORIGIN + "/landing.html", {
     headers: { "user-agent": "landing-ssr" },
   });
-  const html = r.ok ? await r.text() : minimalShell();
+  let html = r.ok ? await r.text() : "";
+  if (!html) {
+    const fallback = await fetch(APP_ORIGIN + "/index.html", {
+      headers: { "user-agent": "landing-ssr" },
+    });
+    html = fallback.ok ? await fallback.text() : minimalShell();
+  }
   shellCache = { html, ts: Date.now() };
   return html;
 }
@@ -70,10 +82,15 @@ function buildHead(product: any, currency: string, pageUrl: string, platformName
   const img = product.images?.[0] || "";
   const price = product.price;
   const lcpImg = img ? landingHeroPreloadHref(img, publicHost) : "";
+  const lcpSrcSet = img ? landingHeroSrcSet(img, publicHost) : "";
   const ogImg = img ? wrapLandingCdnUrl(img, publicHost) : "";
 
   const preloadImg = lcpImg
-    ? `<link rel="preload" as="image" href="${escapeHtml(lcpImg)}" fetchpriority="high" />`
+    ? `<link rel="preload" as="image" href="${escapeHtml(lcpImg)}" ${
+        lcpSrcSet
+          ? `imagesrcset="${escapeHtml(lcpSrcSet)}" imagesizes="${escapeHtml(LANDING_HERO_SIZES)}" `
+          : ""
+      }fetchpriority="high" />`
     : "";
 
   const productJsonLd = JSON.stringify({
@@ -120,6 +137,7 @@ function buildAboveFold(product: any, currency: string, puckHero?: { title?: str
   const heroSrc = img
     ? optimizeLandingImageUrl(img, { width: 800, height: 800, format: "webp" }, publicHost)
     : "";
+  const heroSrcSet = img ? landingHeroSrcSet(img, publicHost) : "";
   return `
 <div id="ssr-shell" style="font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;direction:rtl;background:hsl(220 20% 97%);min-height:100vh">
   <div style="background:linear-gradient(135deg,hsl(217 91% 50%),hsl(217 91% 40%));color:#fff;padding:24px 16px;text-align:center">
@@ -127,7 +145,7 @@ function buildAboveFold(product: any, currency: string, puckHero?: { title?: str
     <div style="opacity:.9;font-size:14px">${escapeHtml(subtitle)}</div>
   </div>
   <div style="max-width:960px;margin:0 auto;padding:16px">
-    ${heroSrc ? `<figure style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(heroSrc)}" alt="${escapeHtml(name)}" width="800" height="800" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></figure>` : ""}
+    ${heroSrc ? `<figure style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(heroSrc)}" ${heroSrcSet ? `srcset="${escapeHtml(heroSrcSet)}" sizes="${escapeHtml(LANDING_HERO_SIZES)}" ` : ""}alt="${escapeHtml(name)}" width="800" height="800" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></figure>` : ""}
     <div style="text-align:center;margin-top:16px">
       <span style="font-size:28px;font-weight:800;color:hsl(217 91% 50%)">${product.price} ${escapeHtml(currency)}</span>
       ${product.original_price ? `<span style="margin-right:10px;color:#94a3b8;text-decoration:line-through">${product.original_price} ${escapeHtml(currency)}</span>` : ""}
@@ -301,7 +319,7 @@ Deno.serve(async (req) => {
     html = html.replace("</head>", `${headInjection}\n</head>`);
     html = html.replace(
       /<div id="root">\s*<\/div>/,
-      `<div id="root">${bodyInjection}</div>`,
+      `<div id="ssr-fallback">${bodyInjection}</div>\n<div id="root"></div>`,
     );
 
     return new Response(html, {

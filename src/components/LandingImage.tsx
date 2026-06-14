@@ -41,7 +41,13 @@ export function LandingImage({
   if (!src) return null;
 
   if (isOptimizableLandingImage(src)) {
-    const webpSrcSet = buildLandingSrcSet(src, [width, Math.round(width * 1.5), width * 2], {
+    // Hero (priority) images are displayed near-full-width on mobile (~640px at
+    // DPR 1.75). Offer smaller candidates so phones don't download an oversized
+    // 800px+ asset; thumbnails keep their fixed small widths.
+    const candidateWidths = priority
+      ? [Math.round(width / 2), Math.round(width * 0.8), width, Math.round(width * 1.35)]
+      : [width, Math.round(width * 1.5), width * 2];
+    const webpSrcSet = buildLandingSrcSet(src, candidateWidths, {
       height,
       format: "webp",
     });

@@ -1,7 +1,14 @@
 import { Render } from "@measured/puck";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { buildPuckConfig, type PuckContext } from "@/lib/puck/config";
 import { LandingSlotsProvider, type LandingSlots } from "@/components/landing/LandingSlots";
+
+let puckStylesLoaded = false;
+function ensurePuckStyles() {
+  if (puckStylesLoaded) return;
+  puckStylesLoaded = true;
+  void import("@measured/puck/puck.css");
+}
 
 export const PuckRender = ({
   data,
@@ -12,6 +19,10 @@ export const PuckRender = ({
   ctx: PuckContext;
   slots?: LandingSlots;
 }) => {
+  useEffect(() => {
+    ensurePuckStyles();
+  }, []);
+
   const config = useMemo(
     () => buildPuckConfig(ctx),
     [ctx.ownerId, ctx.storeId, ctx.username, ctx.currencySymbol]

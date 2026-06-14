@@ -2,7 +2,7 @@ export const config = {
   runtime: "edge",
 };
 
-const IMG_EDGE_CACHE = "public, max-age=604800, s-maxage=2592000, immutable";
+const IMG_EDGE_CACHE = "public, max-age=31536000, s-maxage=31536000, immutable";
 
 function supabaseOrigin(): string | null {
   const raw = process.env.VITE_SUPABASE_URL?.replace(/\/$/, "");

@@ -36,8 +36,31 @@ function slotPlaceholder(type: string): string {
     ProductReviews: "التقييمات",
     ProductFaq: "الأسئلة الشائعة",
   };
+  const heights: Record<string, number> = {
+    ProductImages: 420,
+    OrderForm: 720,
+    ProductDescription: 240,
+    ProductReviews: 280,
+    ProductFaq: 220,
+  };
   const label = labels[type] || type;
-  return `<div data-puck-slot="${escapeHtml(type)}" style="min-height:120px;margin:12px 0;padding:24px;background:#f1f5f9;border-radius:12px;text-align:center;color:#64748b;font-family:Cairo,sans-serif">${escapeHtml(label)}…</div>`;
+  const minH = heights[type] ?? 160;
+  if (type === "OrderForm") {
+    return `<div data-puck-slot="OrderForm" style="min-height:${minH}px;margin:12px 0;padding:16px;background:#fff;border-radius:24px;border:1px solid #e2e8f0;box-shadow:0 20px 50px rgba(0,0,0,.06);font-family:Cairo,sans-serif">
+      <div style="height:6px;border-radius:999px;background:linear-gradient(to right,#fbbf24,#f59e0b);margin-bottom:20px"></div>
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="height:36px;width:55%;margin:0 auto 12px;background:#e2e8f0;border-radius:12px"></div>
+        <div style="height:28px;width:70%;margin:0 auto;background:#ecfdf5;border-radius:999px"></div>
+      </div>
+      <div style="display:grid;gap:12px">
+        <div style="height:48px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0"></div>
+        <div style="height:48px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0"></div>
+        <div style="height:52px;background:#f59e0b;border-radius:16px;opacity:.35"></div>
+      </div>
+      <p style="text-align:center;color:#94a3b8;font-size:13px;margin:16px 0 0">${escapeHtml(label)}…</p>
+    </div>`;
+  }
+  return `<div data-puck-slot="${escapeHtml(type)}" style="min-height:${minH}px;margin:12px 0;padding:24px;background:#f1f5f9;border-radius:12px;text-align:center;color:#64748b;font-family:Cairo,sans-serif">${escapeHtml(label)}…</div>`;
 }
 
 function renderBlock(block: PuckBlock): string {
