@@ -33,10 +33,16 @@ import { landingHeroPreloadHref } from "@/lib/landingImageUrl";
 import {
   getProductVariantKeys,
   getSingleVariantSelection,
+  isCodeKeyOutOfStock,
+  isColorOptionOutOfStock,
+  isSizeOptionOutOfStock,
+  isVariantSelectionOutOfStock,
   parseVariantKey,
   productHasVariants,
   productUsesColorOrSize,
 } from "@/lib/productVariants";
+
+const OUT_OF_STOCK_MESSAGE = "الكمية غير متوفرة، اختر منتجاً آخر";
 
 const PuckRender = lazy(() =>
   import("@/components/PuckRender").then((m) => ({ default: m.PuckRender }))
@@ -67,6 +73,7 @@ interface Product {
   show_quantity?: boolean;
   owner_id?: string;
   stock?: number;
+  variant_stock?: Record<string, number>;
   size_chart_url?: string | null;
   reviews?: Array<{ name: string; rating: number; comment: string }>;
   faqs?: Array<{ question: string; answer: string }>;
@@ -261,6 +268,7 @@ const LandingPage = () => {
   const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [strictStockEnabled, setStrictStockEnabled] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
   const showToast = (title: string, description: string, variant: string = "success") => {
     setToastMessage({ type: variant, msg: `${title}: ${description}` });
@@ -349,6 +357,15 @@ const LandingPage = () => {
   const showVariantPickersUI = showVariantPickers && variantKeys.length > 1;
   const useColorSizePickers = productUsesColorOrSize(product);
   const useCodeVariantPickers = showVariantPickers && !useColorSizePickers;
+  const variantButtonClass = (selected: boolean, outOfStock: boolean) =>
+    `relative px-3.5 py-2 rounded-xl border text-xs font-bold transition-all duration-200 ${
+      outOfStock
+        ? "opacity-45 border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+        : selected
+          ? "border-amber-500 bg-amber-500/10 text-amber-800 ring-2 ring-amber-500/20"
+          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+    }`;
+  const notifyOutOfStock = () => showToast("غير متوفر", OUT_OF_STOCK_MESSAGE, "destructive");
   const defaultItemVariant = useMemo((): ItemVariant => {
     const single = getSingleVariantSelection(product);
     return single ?? { color: "", size: "", productCode: "" };
@@ -423,6 +440,7 @@ const LandingPage = () => {
       try {
         setFormFields([]);
         setFormFieldsLoaded(false);
+        setStrictStockEnabled(false);
 
         // Owner-scoped caches will be read after we resolve the product owner.
         let loadedCurrency = "AED";
@@ -443,7 +461,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), heavy fields (description/images/reviews) second
-        const productLightSelect = "id, name, slug, price, original_price, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, size_chart_url";
+        const productLightSelect = "id, name, slug, price, original_price, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, variant_stock, size_chart_url";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -566,6 +584,10 @@ const LandingPage = () => {
             // عنوان مخصص لصفحة الهبوط (إن وُجد)
             ...(lp?.title ? { name: lp.title } : {}),
             stock: typeof (matched as any).stock === "number" ? (matched as any).stock : undefined,
+            variant_stock:
+              (matched as any).variant_stock && typeof (matched as any).variant_stock === "object"
+                ? ((matched as any).variant_stock as Record<string, number>)
+                : {},
             size_chart_url: (matched as any).size_chart_url || null,
             reviews: cachedProduct?.product?.reviews || [],
             faqs: Array.isArray(lp?.faqs) ? lp.faqs : [],
@@ -691,8 +713,18 @@ const LandingPage = () => {
         if (storeForSettings) storeQ.eq("store_id", storeForSettings);
         const storePromise = storeQ.maybeSingle();
 
-        Promise.all([pixelPromise, formFieldsPromise, storePromise])
-          .then(([pixelResult, formFieldsResult, storeSettingsResult]) => {
+        const stockPolicyPromise: Promise<{ data: { strict_stock_enabled?: boolean } | null; error: unknown }> =
+          ownerForSettings
+            ? (supabase as any)
+                .rpc("get_owner_stock_policy", { _owner_id: ownerForSettings })
+                .then((res: any) => ({
+                  data: Array.isArray(res.data) ? res.data[0] : res.data,
+                  error: res.error,
+                }))
+            : Promise.resolve({ data: null, error: null });
+
+        Promise.all([pixelPromise, formFieldsPromise, storePromise, stockPolicyPromise])
+          .then(([pixelResult, formFieldsResult, storeSettingsResult, stockPolicyResult]) => {
           if (!formFieldsResult.error) {
             const fields = (formFieldsResult.data || []) as FormField[];
             setFormFields(fields);
@@ -702,6 +734,12 @@ const LandingPage = () => {
             console.error("order form fields:", formFieldsResult.error);
           }
           setFormFieldsLoaded(true);
+
+          if (stockPolicyResult.data) {
+            setStrictStockEnabled(!!stockPolicyResult.data.strict_stock_enabled);
+          } else if (!stockPolicyResult.error) {
+            setStrictStockEnabled(false);
+          }
 
           if (storeSettingsResult.data) {
             loadedCurrency = storeSettingsResult.data.currency_code;
@@ -1176,6 +1214,10 @@ const LandingPage = () => {
           });
           return;
         }
+        if (strictStockEnabled && isVariantSelectionOutOfStock(product, v, true)) {
+          showToast("غير متوفر", OUT_OF_STOCK_MESSAGE, "destructive");
+          return;
+        }
       }
     }
 
@@ -1605,23 +1647,31 @@ const LandingPage = () => {
                           <div className="flex flex-wrap gap-2">
                             {variantKeys.map((key) => {
                               const selected = item.productCode === key;
+                              const outOfStock = isCodeKeyOutOfStock(product, key, strictStockEnabled);
                               return (
                                 <button
                                   key={key}
                                   type="button"
+                                  aria-disabled={outOfStock}
+                                  title={outOfStock ? OUT_OF_STOCK_MESSAGE : undefined}
                                   onClick={() => {
+                                    if (outOfStock) {
+                                      notifyOutOfStock();
+                                      return;
+                                    }
                                     const parsed = parseVariantKey(key, product);
                                     const newVariants = [...itemVariants];
                                     newVariants[index] = parsed;
                                     setItemVariants(newVariants);
                                   }}
-                                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all duration-200 ${
-                                    selected
-                                      ? "border-amber-500 bg-amber-500/10 text-amber-800 ring-2 ring-amber-500/20"
-                                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                                  }`}
+                                  className={variantButtonClass(selected, outOfStock)}
                                 >
                                   {key}
+                                  {outOfStock && (
+                                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <X className="w-4 h-4 text-red-500 stroke-[3]" />
+                                    </span>
+                                  )}
                                 </button>
                               );
                             })}
@@ -1635,24 +1685,39 @@ const LandingPage = () => {
                             {quantity > 1 ? "اللون المفضل للقطعة" : "اللون:"}
                           </Label>
                           <div className="flex flex-wrap gap-2">
-                            {product.colors.map((color) => (
+                            {product.colors.map((color) => {
+                              const outOfStock = isColorOptionOutOfStock(
+                                product,
+                                color,
+                                item,
+                                strictStockEnabled,
+                              );
+                              return (
                               <button
                                 key={color}
                                 type="button"
+                                aria-disabled={outOfStock}
+                                title={outOfStock ? OUT_OF_STOCK_MESSAGE : undefined}
                                 onClick={() => {
+                                  if (outOfStock) {
+                                    notifyOutOfStock();
+                                    return;
+                                  }
                                   const newVariants = [...itemVariants];
                                   newVariants[index] = { ...newVariants[index], color };
                                   setItemVariants(newVariants);
                                 }}
-                                className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all duration-200 ${
-                                  item.color === color
-                                    ? "border-amber-500 bg-amber-500/10 text-amber-800 ring-2 ring-amber-500/20"
-                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                                }`}
+                                className={variantButtonClass(item.color === color, outOfStock)}
                               >
                                 {color}
+                                {outOfStock && (
+                                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <X className="w-4 h-4 text-red-500 stroke-[3]" />
+                                  </span>
+                                )}
                               </button>
-                            ))}
+                            );
+                            })}
                           </div>
                         </div>
                       )}
@@ -1663,24 +1728,39 @@ const LandingPage = () => {
                             {quantity > 1 ? "المقاس المناسب للقطعة" : "المقاس:"}
                           </Label>
                           <div className="flex flex-wrap gap-2">
-                            {product.sizes.map((size) => (
+                            {product.sizes.map((size) => {
+                              const outOfStock = isSizeOptionOutOfStock(
+                                product,
+                                size,
+                                item,
+                                strictStockEnabled,
+                              );
+                              return (
                               <button
                                 key={size}
                                 type="button"
+                                aria-disabled={outOfStock}
+                                title={outOfStock ? OUT_OF_STOCK_MESSAGE : undefined}
                                 onClick={() => {
+                                  if (outOfStock) {
+                                    notifyOutOfStock();
+                                    return;
+                                  }
                                   const newVariants = [...itemVariants];
                                   newVariants[index] = { ...newVariants[index], size };
                                   setItemVariants(newVariants);
                                 }}
-                                className={`px-3.5 py-2 rounded-xl border text-xs font-bold transition-all duration-200 ${
-                                  item.size === size
-                                    ? "border-amber-500 bg-amber-500/10 text-amber-800 ring-2 ring-amber-500/20"
-                                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                                }`}
+                                className={variantButtonClass(item.size === size, outOfStock)}
                               >
                                 {size}
+                                {outOfStock && (
+                                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <X className="w-4 h-4 text-red-500 stroke-[3]" />
+                                  </span>
+                                )}
                               </button>
-                            ))}
+                            );
+                            })}
                           </div>
                         </div>
                       )}
