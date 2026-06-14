@@ -72,3 +72,105 @@ export function selectionMatchesKey(
   if (!parsed.color && !parsed.size && !parsed.productCode) return false;
   return true;
 }
+
+export interface ProductStockSource extends ProductVariantSource {
+  variant_stock?: Record<string, number> | null;
+  stock?: number;
+}
+
+/** Same key format as apply-order-stock edge function. */
+export function buildVariantKeyFromSelection(sel: ParsedVariantSelection): string | null {
+  const c = (sel.color || "").trim();
+  const s = (sel.size || "").trim();
+  const k = (sel.productCode || "").trim();
+  if (c && s) return `${c} - ${s}`;
+  if (c) return c;
+  if (s) return s;
+  if (k) return k;
+  return null;
+}
+
+export function getVariantStockAmount(
+  product: ProductStockSource | null | undefined,
+  selection: ParsedVariantSelection,
+  strictStock = false,
+): number {
+  if (!product) return 0;
+  const key = buildVariantKeyFromSelection(selection);
+  const vs = product.variant_stock || {};
+  if (key && Object.prototype.hasOwnProperty.call(vs, key)) {
+    return Number(vs[key]) || 0;
+  }
+  if (strictStock && productHasVariants(product)) {
+    return 0;
+  }
+  return Number(product.stock) || 0;
+}
+
+export function isVariantSelectionOutOfStock(
+  product: ProductStockSource | null | undefined,
+  selection: ParsedVariantSelection,
+  strictStock: boolean,
+): boolean {
+  if (!strictStock || !product) return false;
+  return getVariantStockAmount(product, selection, true) <= 0;
+}
+
+export function isColorOptionOutOfStock(
+  product: ProductStockSource | null | undefined,
+  color: string,
+  currentItem: ParsedVariantSelection,
+  strictStock: boolean,
+): boolean {
+  if (!strictStock || !product) return false;
+  const sizes = product.sizes || [];
+  const colors = product.colors || [];
+  if (colors.length && sizes.length) {
+    if (currentItem.size) {
+      return (
+        getVariantStockAmount(product, { color, size: currentItem.size, productCode: "" }, true) <= 0
+      );
+    }
+    return sizes.every(
+      (size) => getVariantStockAmount(product, { color, size, productCode: "" }, true) <= 0,
+    );
+  }
+  if (colors.length) {
+    return getVariantStockAmount(product, { color, size: "", productCode: "" }, true) <= 0;
+  }
+  return false;
+}
+
+export function isSizeOptionOutOfStock(
+  product: ProductStockSource | null | undefined,
+  size: string,
+  currentItem: ParsedVariantSelection,
+  strictStock: boolean,
+): boolean {
+  if (!strictStock || !product) return false;
+  const sizes = product.sizes || [];
+  const colors = product.colors || [];
+  if (colors.length && sizes.length) {
+    if (currentItem.color) {
+      return (
+        getVariantStockAmount(product, { color: currentItem.color, size, productCode: "" }, true) <= 0
+      );
+    }
+    return colors.every(
+      (c) => getVariantStockAmount(product, { color: c, size, productCode: "" }, true) <= 0,
+    );
+  }
+  if (sizes.length) {
+    return getVariantStockAmount(product, { color: "", size, productCode: "" }, true) <= 0;
+  }
+  return false;
+}
+
+export function isCodeKeyOutOfStock(
+  product: ProductStockSource | null | undefined,
+  key: string,
+  strictStock: boolean,
+): boolean {
+  if (!strictStock || !product) return false;
+  return getVariantStockAmount(product, parseVariantKey(key, product), true) <= 0;
+}
