@@ -262,15 +262,54 @@ function setToCache(key: string, data: any) {
   } catch {}
 }
 
+// Edge SSR embeds a JSON data seed so the client can render the COMPLETE page
+// (incl. the order form) on its first paint — no "shell → loading form → page"
+// double load. Parsed once; consumed only when it matches the current slug.
+interface LandingSsrSeed {
+  v: number;
+  slug: string;
+  username: string | null;
+  ownerId: string | null;
+  storeId: string | null;
+  product: Product;
+  store: { currency_symbol: string; currency_code: string; button_text: string };
+  formFields: FormField[];
+  sizeChart: SizeChartData | null;
+}
+
+function readLandingSsrSeed(): LandingSsrSeed | null {
+  if (typeof document === "undefined") return null;
+  const el = document.getElementById("landing-ssr-data");
+  if (!el?.textContent) return null;
+  try {
+    const seed = JSON.parse(el.textContent) as LandingSsrSeed;
+    return seed && seed.product && seed.slug ? seed : null;
+  } catch {
+    return null;
+  }
+}
+
 const LandingPage = () => {
   const { slug, username } = useParams<{ slug: string; username?: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isPreviewMode = searchParams.get("preview") === "1";
-  const [product, setProduct] = useState<Product | null>(null);
-  const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(null);
-  const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [storeId, setStoreId] = useState<string | null>(null);
+
+  // Hydrate from the edge SSR data seed when it matches this slug (skip in
+  // preview mode, which must always fetch the latest unpublished data).
+  const ssrSeed = useMemo(() => {
+    const seed = readLandingSsrSeed();
+    if (!seed || isPreviewMode) return null;
+    if (seed.slug !== slug) return null;
+    if (username && seed.username && seed.username !== username) return null;
+    return seed;
+  }, [slug, username, isPreviewMode]);
+  const seededFirstRunRef = useRef(!!ssrSeed);
+
+  const [product, setProduct] = useState<Product | null>(ssrSeed?.product ?? null);
+  const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(ssrSeed?.sizeChart ?? null);
+  const [ownerId, setOwnerId] = useState<string | null>(ssrSeed?.ownerId ?? null);
+  const [storeId, setStoreId] = useState<string | null>(ssrSeed?.storeId ?? null);
   const [strictStockEnabled, setStrictStockEnabled] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
   const showToast = (title: string, description: string, variant: string = "success") => {
@@ -279,21 +318,23 @@ const LandingPage = () => {
     try { toast({ title, description, variant: variant === "destructive" ? "destructive" : undefined } as any); } catch {}
   };
   const ssrBootRef = useRef(hasLandingSsrShell());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!ssrSeed);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showSizeChart, setShowSizeChart] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formFields, setFormFields] = useState<FormField[]>([]);
-  const [formFieldsLoaded, setFormFieldsLoaded] = useState(false);
+  const [formFields, setFormFields] = useState<FormField[]>(ssrSeed?.formFields ?? []);
+  const [formFieldsLoaded, setFormFieldsLoaded] = useState(!!ssrSeed?.formFields?.length);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
-    currency_symbol: "د.ل",
-    currency_code: "LYD",
-    button_text: "اطلب الآن - الدفع عند الاستلام",
+    currency_symbol: ssrSeed?.store?.currency_symbol ?? "د.ل",
+    currency_code: ssrSeed?.store?.currency_code ?? "LYD",
+    button_text: ssrSeed?.store?.button_text ?? "اطلب الآن - الدفع عند الاستلام",
     theme_tokens: parseThemeTokens(null),
   });
-  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<Record<string, string>>(() =>
+    ssrSeed?.formFields?.length ? ensureFormFieldKeys({}, ssrSeed.formFields) : {}
+  );
   const [selectedProductCode, setSelectedProductCode] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
@@ -452,8 +493,15 @@ const LandingPage = () => {
       }
 
       try {
-        setFormFields([]);
-        setFormFieldsLoaded(false);
+        // When hydrated from the SSR seed, keep the already-rendered form visible
+        // on the first run so it doesn't flash back to a loading state while we
+        // revalidate in the background.
+        if (seededFirstRunRef.current) {
+          seededFirstRunRef.current = false;
+        } else {
+          setFormFields([]);
+          setFormFieldsLoaded(false);
+        }
         setStrictStockEnabled(false);
 
         // Owner-scoped caches will be read after we resolve the product owner.

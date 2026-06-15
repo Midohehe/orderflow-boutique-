@@ -156,6 +156,74 @@ function buildAboveFold(product: any, currency: string, puckHero?: { title?: str
 `;
 }
 
+// Build the client hydration seed. Shape mirrors the `loadedProduct` the
+// LandingPage builds on the client, so React renders identical content with no
+// flash. JSON is embedded in a <script type="application/json"> tag; we only
+// need to neutralize "<" so the tag can't be terminated early.
+function buildSeedJson(input: {
+  slug: string;
+  username: string | null;
+  ownerId: string | null;
+  storeId: string | null;
+  product: any;
+  store: { currency_symbol: string; currency_code: string; button_text: string };
+  formFields: unknown[];
+}): string {
+  const p = input.product || {};
+  const sc = p.size_chart;
+  const seed = {
+    v: 1,
+    slug: input.slug,
+    username: input.username,
+    ownerId: input.ownerId,
+    storeId: input.storeId,
+    product: {
+      id: p.id,
+      owner_id: p.owner_id ?? input.ownerId,
+      name: p.name,
+      slug: p.slug ?? input.slug,
+      price: p.price != null ? String(p.price) : "",
+      original_price: p.original_price != null ? String(p.original_price) : undefined,
+      // description/reviews are heavy — loaded by the client after first paint
+      description: "",
+      images: Array.isArray(p.images) ? p.images : [],
+      product_codes: Array.isArray(p.product_codes) ? p.product_codes : [],
+      colors: Array.isArray(p.colors) ? p.colors : [],
+      sizes: Array.isArray(p.sizes) ? p.sizes : [],
+      upsell_enabled: !!p.upsell_enabled,
+      upsell_title: p.upsell_title || "🎁 عروض خاصة",
+      upsell_offers: Array.isArray(p.upsell_offers) ? p.upsell_offers : [],
+      order_form_on_top: !!p.order_form_on_top,
+      show_quantity: p.show_quantity != null ? !!p.show_quantity : true,
+      stock: typeof p.stock === "number" ? p.stock : undefined,
+      variant_stock:
+        p.variant_stock && typeof p.variant_stock === "object" ? p.variant_stock : {},
+      size_chart_url: p.size_chart_url ?? null,
+      reviews: [],
+      faqs: Array.isArray(p.faqs) ? p.faqs : [],
+    },
+    store: input.store,
+    formFields: Array.isArray(input.formFields) ? input.formFields : [],
+    sizeChart:
+      sc && typeof sc === "object" && sc.enabled && Array.isArray(sc.rows) && sc.rows.length
+        ? {
+            enabled: true,
+            title: String(sc.title ?? "جدول المقاسات"),
+            description: String(sc.description ?? ""),
+            columns: Array.isArray(sc.columns) ? sc.columns.map((c: any) => String(c ?? "")) : [],
+            rows: sc.rows
+              .filter((r: any) => r?.enabled !== false)
+              .map((r: any) => ({
+                enabled: true,
+                values: Array.isArray(r?.values) ? r.values.map((v: any) => String(v ?? "")) : [],
+                note: String(r?.note ?? ""),
+              })),
+          }
+        : null,
+  };
+  return JSON.stringify(seed).replace(/</g, "\\u003c");
+}
+
 const DEFAULT_PLATFORM_NAME = "منصة وصلة";
 
 async function getPlatformName(): Promise<string> {
@@ -173,6 +241,47 @@ async function getStoreCurrency(ownerId: string | null): Promise<string> {
     .limit(1)
     .maybeSingle();
   return data?.currency_symbol || "د.ل";
+}
+
+// Store currency + button text used to seed the client so the first React
+// paint already shows the correct price and CTA without a round-trip.
+async function getStoreExtras(
+  ownerId: string | null,
+  storeId: string | null,
+): Promise<{ currency_symbol: string; currency_code: string; button_text: string }> {
+  const fallback = {
+    currency_symbol: "د.ل",
+    currency_code: "LYD",
+    button_text: "اطلب الآن - الدفع عند الاستلام",
+  };
+  if (!ownerId) return fallback;
+  let q = supabase
+    .from("store_settings")
+    .select("currency_symbol, currency_code, button_text")
+    .eq("owner_id", ownerId);
+  if (storeId) q = q.eq("store_id", storeId);
+  const { data } = await q.limit(1).maybeSingle();
+  return {
+    currency_symbol: data?.currency_symbol || fallback.currency_symbol,
+    currency_code: (data as { currency_code?: string })?.currency_code || fallback.currency_code,
+    button_text: (data as { button_text?: string })?.button_text || fallback.button_text,
+  };
+}
+
+// Enabled public order-form fields — seeded so the form renders instantly
+// (no "loading form" gap) instead of after a client-side fetch.
+async function getFormFields(ownerId: string | null, storeId: string | null): Promise<unknown[]> {
+  if (!ownerId) return [];
+  try {
+    const { data, error } = await supabase.rpc("get_public_order_form_fields", {
+      _owner_id: ownerId,
+      _store_id: storeId,
+    });
+    if (!error && Array.isArray(data)) return data;
+  } catch (_e) {
+    // ignore — client will fetch fields as a fallback
+  }
+  return [];
 }
 
 async function getStoreTheme(
@@ -245,7 +354,9 @@ Deno.serve(async (req) => {
     // First, try a landing_page with this slug (custom landing pages).
     const landingQuery = supabase
       .from("landing_pages")
-      .select("product_id, title, description, images, price, original_price, owner_id, is_visible, puck_data")
+      .select(
+        "id, product_id, store_id, title, subtitle, slug, description, images, price, original_price, owner_id, is_visible, puck_data, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, faqs, size_chart",
+      )
       .eq("slug", slug)
       .eq("is_visible", true);
     if (ownerId) landingQuery.eq("owner_id", ownerId);
@@ -261,7 +372,9 @@ Deno.serve(async (req) => {
       puckHero = extractPuckHero(puckData);
       const { data: prod } = await supabase
         .from("products")
-        .select("id, name, slug, price, original_price, description, images, owner_id")
+        .select(
+          "id, name, slug, price, original_price, description, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
+        )
         .eq("id", landing.product_id)
         .is("deleted_at", null)
         .maybeSingle();
@@ -275,12 +388,24 @@ Deno.serve(async (req) => {
           original_price: landing.original_price ?? prod.original_price,
           images: lpImages.length ? lpImages : prod.images,
           owner_id: landing.owner_id || prod.owner_id,
+          store_id: landing.store_id ?? prod.store_id,
+          // Landing-page controlled fields (mirror client precedence)
+          upsell_enabled: !!landing.upsell_enabled,
+          upsell_title: landing.upsell_title || "🎁 عروض خاصة",
+          upsell_offers: Array.isArray(landing.upsell_offers) ? landing.upsell_offers : [],
+          order_form_on_top:
+            landing.order_form_on_top != null ? !!landing.order_form_on_top : !!prod.order_form_on_top,
+          show_quantity: landing.show_quantity != null ? !!landing.show_quantity : true,
+          faqs: Array.isArray(landing.faqs) ? landing.faqs : [],
+          size_chart: landing.size_chart ?? null,
         };
       }
     } else {
       const productQuery = supabase
         .from("products")
-        .select("id, name, slug, price, original_price, description, images, owner_id")
+        .select(
+          "id, name, slug, price, original_price, description, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
+        )
         .eq("slug", slug)
         .eq("is_visible", true)
         .limit(1);
@@ -296,13 +421,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [currency, platformName] = await Promise.all([
-      getStoreCurrency(product.owner_id),
+    const productStoreId = (product as { store_id?: string }).store_id ?? null;
+    const [storeExtras, platformName, formFields] = await Promise.all([
+      getStoreExtras(product.owner_id, productStoreId),
       getPlatformName(),
+      getFormFields(product.owner_id, productStoreId),
     ]);
+    const currency = storeExtras.currency_symbol;
     const { tokens: themeTokens, customCss: themeCustomCss } = await getStoreTheme(
       product.owner_id,
-      (product as { store_id?: string }).store_id ?? null
+      productStoreId
     );
 
     const pageUrl = `https://${publicHost}${targetPath}`;
@@ -313,13 +441,27 @@ Deno.serve(async (req) => {
       ? renderPuckToHtml(puckData)
       : buildAboveFold(product, currency, puckHero, publicHost);
 
+    // Data seed: lets the client render the COMPLETE page (incl. order form) on
+    // its first paint, with no extra round-trips — so visitors see a single fast
+    // load instead of "shell → loading form → full page". The client revalidates
+    // in the background.
+    const seedJson = buildSeedJson({
+      slug,
+      username,
+      ownerId: product.owner_id ?? ownerId ?? null,
+      storeId: productStoreId,
+      product,
+      store: storeExtras,
+      formFields,
+    });
+
     let html = shell.replace(/<title>[\s\S]*?<\/title>/i, "");
     // Strip any static OG tags from the shell so ours win for crawlers.
     html = html.replace(/<meta\s+(?:property|name)="(?:og:[^"]+|twitter:[^"]+|description)"[^>]*>\s*/gi, "");
     html = html.replace("</head>", `${headInjection}\n</head>`);
     html = html.replace(
       /<div id="root">\s*<\/div>/,
-      `<div id="ssr-fallback">${bodyInjection}</div>\n<div id="root"></div>`,
+      `<div id="ssr-fallback">${bodyInjection}</div>\n<script type="application/json" id="landing-ssr-data">${seedJson}</script>\n<div id="root"></div>`,
     );
 
     return new Response(html, {
