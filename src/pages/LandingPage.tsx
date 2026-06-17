@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isolateLatin } from "@/lib/bidi";
-import StoreHeader from "@/components/StoreHeader";
+import StoreHeader, { type HeaderSettings } from "@/components/StoreHeader";
 import { StoreThemeScope } from "@/components/StoreThemeScope";
 import { parseThemeTokens, type StoreThemeTokens } from "@/lib/themeTokens";
 import {
@@ -272,9 +272,21 @@ interface LandingSsrSeed {
   ownerId: string | null;
   storeId: string | null;
   product: Product;
-  store: { currency_symbol: string; currency_code: string; button_text: string };
+  store: {
+    currency_symbol: string;
+    currency_code: string;
+    button_text: string;
+    theme_tokens?: unknown;
+    theme_custom_css?: string | null;
+  };
   formFields: FormField[];
   sizeChart: SizeChartData | null;
+  // v2 seed: read data embedded so the client makes ZERO read queries.
+  pixelSettings?: PixelSettings | null;
+  header?: HeaderSettings | null;
+  platformName?: string;
+  strictStock?: boolean;
+  puckData?: any;
 }
 
 function readLandingSsrSeed(): LandingSsrSeed | null {
@@ -304,13 +316,18 @@ const LandingPage = () => {
     if (username && seed.username && seed.username !== username) return null;
     return seed;
   }, [slug, username, isPreviewMode]);
+  // Only a v2+ seed carries ALL read data (theme, description, reviews, pixels,
+  // header, platform name). For such seeds we fully trust them and skip the
+  // per-visit read queries. Older/partial seeds still hydrate the first paint
+  // but fall back to the normal fetch so nothing renders stale during deploys.
+  const seedTrusted = !!ssrSeed && (ssrSeed.v ?? 1) >= 2 && !isPreviewMode;
   const seededFirstRunRef = useRef(!!ssrSeed);
 
   const [product, setProduct] = useState<Product | null>(ssrSeed?.product ?? null);
   const [sizeChartData, setSizeChartData] = useState<SizeChartData | null>(ssrSeed?.sizeChart ?? null);
   const [ownerId, setOwnerId] = useState<string | null>(ssrSeed?.ownerId ?? null);
   const [storeId, setStoreId] = useState<string | null>(ssrSeed?.storeId ?? null);
-  const [strictStockEnabled, setStrictStockEnabled] = useState(false);
+  const [strictStockEnabled, setStrictStockEnabled] = useState(!!ssrSeed?.strictStock);
   const [toastMessage, setToastMessage] = useState<{ type: string; msg: string } | null>(null);
   const showToast = (title: string, description: string, variant: string = "success") => {
     setToastMessage({ type: variant, msg: `${title}: ${description}` });
@@ -330,7 +347,8 @@ const LandingPage = () => {
     currency_symbol: ssrSeed?.store?.currency_symbol ?? "د.ل",
     currency_code: ssrSeed?.store?.currency_code ?? "LYD",
     button_text: ssrSeed?.store?.button_text ?? "اطلب الآن - الدفع عند الاستلام",
-    theme_tokens: parseThemeTokens(null),
+    theme_tokens: parseThemeTokens(ssrSeed?.store?.theme_tokens ?? null),
+    theme_custom_css: ssrSeed?.store?.theme_custom_css ?? null,
   });
   const [formData, setFormData] = useState<Record<string, string>>(() =>
     ssrSeed?.formFields?.length ? ensureFormFieldKeys({}, ssrSeed.formFields) : {}
@@ -353,7 +371,7 @@ const LandingPage = () => {
   ownerIdRef.current = ownerId;
   storeIdRef.current = storeId;
   slugRef.current = slug;
-  const [puckData, setPuckData] = useState<any>(null);
+  const [puckData, setPuckData] = useState<any>(ssrSeed?.puckData ?? null);
   const [puckLoading, setPuckLoading] = useState(false);
   
   // Force light mode — landing pages should always look the same regardless of dashboard theme
@@ -489,6 +507,70 @@ const LandingPage = () => {
     const loadData = async () => {
       if (!slug) {
         setLoading(false);
+        return;
+      }
+
+      // SEED FAST PATH — the edge-cached SSR HTML already embeds the full page
+      // data (product, store, theme, form fields, pixels, header, reviews…),
+      // and is purged whenever an owner edits the page. So when a fresh seed is
+      // present we TRUST it and skip the ~11 read queries that previously ran on
+      // EVERY visit (the main cause of DB overload under landing-page traffic).
+      // We keep exactly ONE live read — current stock — so availability stays
+      // accurate, plus the page_view write. Everything else is already in state.
+      if (seedTrusted && ssrSeed) {
+        setLoading(false);
+        setFormFieldsLoaded(true);
+        setStrictStockEnabled(!!ssrSeed.strictStock);
+
+        // One lightweight live stock check (keeps oversell protection working).
+        if (ssrSeed.product?.id) {
+          supabase
+            .from("products")
+            .select("stock, variant_stock")
+            .eq("id", ssrSeed.product.id)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (ac.signal.aborted || !data) return;
+              setProduct((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      stock: typeof data.stock === "number" ? data.stock : prev.stock,
+                      variant_stock:
+                        data.variant_stock && typeof data.variant_stock === "object"
+                          ? (data.variant_stock as Record<string, number>)
+                          : prev.variant_stock,
+                    }
+                  : prev,
+              );
+            });
+        }
+
+        // Track one page view per session (deduped) — a write, not a read.
+        if (!pageViewTrackedRef.current) {
+          const sessionId = getAnalyticsSessionId();
+          if (!hasTrackedPageView(slug, sessionId)) {
+            pageViewTrackedRef.current = true;
+            markPageViewTracked(slug, sessionId);
+            trackAnalyticsEvent("page_view", slug, ssrSeed.ownerId, ssrSeed.storeId).then(
+              ({ error }) => {
+                if (error) console.error("page_view tracking:", error);
+              },
+            );
+          }
+        }
+
+        // Initialize tracking pixels from the seed (still deferred to first
+        // interaction inside deferMarketingPixels — never blocks render).
+        if (ssrSeed.pixelSettings) {
+          deferMarketingPixels(() =>
+            initializePixels(
+              ssrSeed.pixelSettings as PixelSettings,
+              ssrSeed.product,
+              ssrSeed.store?.currency_code || storeSettingsRef.current.currency_code,
+            ),
+          );
+        }
         return;
       }
 
@@ -844,14 +926,21 @@ const LandingPage = () => {
       }
     };
 
-    loadData();
     pageViewTrackedRef.current = false;
+    loadData();
     return () => ac.abort();
-  }, [slug, username, isPreviewMode]);
+  }, [slug, username, isPreviewMode, ssrSeed]);
 
   useEffect(() => {
     if (!product?.name) return;
     let cancelled = false;
+    // When seeded (v2+), the platform name is already embedded — set the title
+    // with no DB query (saves one app_settings read per visit).
+    if (seedTrusted && ssrSeed?.platformName) {
+      const platform = ssrSeed.platformName.trim() || "منصة وصلة";
+      document.title = `${product.name} | ${platform}`;
+      return;
+    }
     // Title is not LCP-critical — defer the extra request off the load path.
     const run = () => {
       supabase
@@ -1982,7 +2071,7 @@ const LandingPage = () => {
       <div className="absolute top-0 right-0 left-0 h-[600px] bg-gradient-to-b from-amber-500/5 via-primary/5 to-transparent -z-10 pointer-events-none" />
 
       {/* ترويسة المتجر الفخمة والثابتة بالقمة */}
-      <StoreHeader ownerId={product?.owner_id} />
+      <StoreHeader ownerId={product?.owner_id} seeded={seedTrusted} initialSettings={ssrSeed?.header ?? undefined} />
 
       {/* تنبيه منبثق بديل للتوست مصمم على الطراز الفاخر */}
       {toastMessage && (

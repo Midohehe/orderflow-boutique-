@@ -31,6 +31,17 @@ interface StoreHeaderProps {
   storeId?: string;
   variant?: "default" | "fashion";
   themePreset?: string | null;
+  /**
+   * Pre-resolved header settings (e.g. from the landing-page SSR seed). When
+   * provided, the component renders from these immediately.
+   */
+  initialSettings?: HeaderSettings | null;
+  /**
+   * When true, the settings are considered fully seeded (even if empty/null) and
+   * the component skips its own header_settings query — avoiding a DB read on
+   * every landing-page visit.
+   */
+  seeded?: boolean;
 }
 
 const FASHION_NAV_MENS = [
@@ -47,12 +58,14 @@ const FASHION_NAV_DEFAULT = [
   { href: "#editorial", label: "من نحن" },
 ];
 
-const StoreHeader = ({ ownerId, storeId, variant = "default", themePreset }: StoreHeaderProps = {}) => {
-  const [settings, setSettings] = useState<HeaderSettings>(DEFAULTS);
+const StoreHeader = ({ ownerId, storeId, variant = "default", themePreset, initialSettings, seeded }: StoreHeaderProps = {}) => {
+  const [settings, setSettings] = useState<HeaderSettings>(initialSettings ?? DEFAULTS);
 
   useEffect(() => {
     let cancelled = false;
     if (!ownerId) return;
+    // Seeded from SSR — already have the settings (even if empty), skip the read.
+    if (seeded) return;
     let q = supabase
       .from("header_settings")
       .select("logo_text, logo_image, tagline, phone, email, instagram_url, facebook_url, whatsapp_url, tiktok_url, owner_id")
@@ -66,7 +79,7 @@ const StoreHeader = ({ ownerId, storeId, variant = "default", themePreset }: Sto
     return () => {
       cancelled = true;
     };
-  }, [ownerId, storeId]);
+  }, [ownerId, storeId, seeded]);
 
   const hasContact = settings.phone || settings.email;
   const hasSocial =

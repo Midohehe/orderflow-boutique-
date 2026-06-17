@@ -246,17 +246,29 @@ function buildSeedJson(input: {
   ownerId: string | null;
   storeId: string | null;
   product: any;
-  store: { currency_symbol: string; currency_code: string; button_text: string };
+  store: StoreExtras;
   formFields: unknown[];
+  pixelSettings: unknown;
+  header: unknown;
+  platformName: string;
+  strictStock: boolean;
+  puckData: unknown;
 }): string {
   const p = input.product || {};
   const sc = p.size_chart;
   const seed = {
-    v: 1,
+    v: 2,
     slug: input.slug,
     username: input.username,
     ownerId: input.ownerId,
     storeId: input.storeId,
+    // Seeded read data so the client renders the COMPLETE page with ZERO read
+    // queries — only a single live stock check + the page_view write remain.
+    pixelSettings: input.pixelSettings ?? null,
+    header: input.header ?? null,
+    platformName: input.platformName || "",
+    strictStock: !!input.strictStock,
+    puckData: input.puckData ?? null,
     product: {
       id: p.id,
       owner_id: p.owner_id ?? input.ownerId,
@@ -265,8 +277,7 @@ function buildSeedJson(input: {
       slug: input.slug,
       price: p.price != null ? String(p.price) : "",
       original_price: p.original_price != null ? String(p.original_price) : undefined,
-      // description/reviews are heavy — loaded by the client after first paint
-      description: "",
+      description: typeof p.description === "string" ? p.description : "",
       images: Array.isArray(p.images) ? p.images : [],
       product_codes: Array.isArray(p.product_codes) ? p.product_codes : [],
       colors: Array.isArray(p.colors) ? p.colors : [],
@@ -280,7 +291,7 @@ function buildSeedJson(input: {
       variant_stock:
         p.variant_stock && typeof p.variant_stock === "object" ? p.variant_stock : {},
       size_chart_url: p.size_chart_url ?? null,
-      reviews: [],
+      reviews: Array.isArray(p.reviews) ? p.reviews : [],
       faqs: Array.isArray(p.faqs) ? p.faqs : [],
     },
     store: input.store,
@@ -324,21 +335,32 @@ async function getStoreCurrency(ownerId: string | null): Promise<string> {
   return data?.currency_symbol || "د.ل";
 }
 
-// Store currency + button text used to seed the client so the first React
-// paint already shows the correct price and CTA without a round-trip.
+// Store currency + button text + theme used to seed the client so the first
+// React paint shows the correct price, CTA and colors without a round-trip.
+// Theme tokens are returned RAW so the client can hydrate StoreThemeScope and
+// skip its own store_settings fetch entirely.
+interface StoreExtras {
+  currency_symbol: string;
+  currency_code: string;
+  button_text: string;
+  theme_tokens: unknown;
+  theme_custom_css: string | null;
+}
 async function getStoreExtras(
   ownerId: string | null,
   storeId: string | null,
-): Promise<{ currency_symbol: string; currency_code: string; button_text: string }> {
-  const fallback = {
+): Promise<StoreExtras> {
+  const fallback: StoreExtras = {
     currency_symbol: "د.ل",
     currency_code: "LYD",
     button_text: "اطلب الآن - الدفع عند الاستلام",
+    theme_tokens: null,
+    theme_custom_css: null,
   };
   if (!ownerId) return fallback;
   let q = supabase
     .from("store_settings")
-    .select("currency_symbol, currency_code, button_text")
+    .select("currency_symbol, currency_code, button_text, theme_tokens, theme_custom_css")
     .eq("owner_id", ownerId);
   if (storeId) q = q.eq("store_id", storeId);
   const { data } = await q.limit(1).maybeSingle();
@@ -346,7 +368,51 @@ async function getStoreExtras(
     currency_symbol: data?.currency_symbol || fallback.currency_symbol,
     currency_code: (data as { currency_code?: string })?.currency_code || fallback.currency_code,
     button_text: (data as { button_text?: string })?.button_text || fallback.button_text,
+    theme_tokens: (data as { theme_tokens?: unknown })?.theme_tokens ?? null,
+    theme_custom_css: (data as { theme_custom_css?: string })?.theme_custom_css ?? null,
   };
+}
+
+// Marketing pixel settings — seeded so the client never queries the DB to set
+// up tracking (pixels still load lazily on first interaction).
+async function getPixelSettings(ownerId: string | null, storeId: string | null): Promise<unknown> {
+  if (!ownerId) return null;
+  try {
+    const { data } = await supabase.rpc("get_pixel_settings_public", {
+      _owner_id: ownerId,
+      _store_id: storeId || null,
+    });
+    return Array.isArray(data) ? data[0] ?? null : data ?? null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+// Strict-stock flag — seeded so the client knows the policy without a query.
+async function getStockPolicy(ownerId: string | null): Promise<boolean> {
+  if (!ownerId) return false;
+  try {
+    const { data } = await supabase.rpc("get_owner_stock_policy", { _owner_id: ownerId });
+    const row = Array.isArray(data) ? data[0] : data;
+    return !!(row as { strict_stock_enabled?: boolean })?.strict_stock_enabled;
+  } catch (_e) {
+    return false;
+  }
+}
+
+// Store header (logo/contact/social) — seeded so the public header renders
+// without its own header_settings round-trip on every visit.
+async function getHeaderSettings(ownerId: string | null, storeId: string | null): Promise<unknown> {
+  if (!ownerId) return null;
+  let q = supabase
+    .from("header_settings")
+    .select(
+      "logo_text, logo_image, tagline, phone, email, instagram_url, facebook_url, whatsapp_url, tiktok_url",
+    )
+    .eq("owner_id", ownerId);
+  if (storeId) q = q.eq("store_id", storeId);
+  const { data } = await q.limit(1).maybeSingle();
+  return data ?? null;
 }
 
 // Enabled public order-form fields — seeded so the form renders instantly
@@ -363,23 +429,6 @@ async function getFormFields(ownerId: string | null, storeId: string | null): Pr
     // ignore — client will fetch fields as a fallback
   }
   return [];
-}
-
-async function getStoreTheme(
-  ownerId: string | null,
-  storeId: string | null
-): Promise<{ tokens: ReturnType<typeof parseThemeTokens>; customCss: string | null }> {
-  if (!ownerId) return { tokens: parseThemeTokens(null), customCss: null };
-  let q = supabase
-    .from("store_settings")
-    .select("theme_tokens, theme_custom_css")
-    .eq("owner_id", ownerId);
-  if (storeId) q = q.eq("store_id", storeId);
-  const { data } = await q.limit(1).maybeSingle();
-  return {
-    tokens: parseThemeTokens(data?.theme_tokens),
-    customCss: (data as { theme_custom_css?: string })?.theme_custom_css ?? null,
-  };
 }
 
 function notFoundHtml(): string {
@@ -454,7 +503,7 @@ Deno.serve(async (req) => {
       const { data: prod } = await supabase
         .from("products")
         .select(
-          "id, name, slug, price, original_price, description, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
+          "id, name, slug, price, original_price, description, reviews, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
         )
         .eq("id", landing.product_id)
         .is("deleted_at", null)
@@ -465,6 +514,7 @@ Deno.serve(async (req) => {
           ...prod,
           name: landing.title || prod.name,
           description: landing.description || prod.description,
+          reviews: Array.isArray((prod as { reviews?: unknown }).reviews) ? (prod as { reviews?: unknown[] }).reviews : [],
           price: landing.price ?? prod.price,
           original_price: landing.original_price ?? prod.original_price,
           images: lpImages.length ? lpImages : prod.images,
@@ -485,7 +535,7 @@ Deno.serve(async (req) => {
       const productQuery = supabase
         .from("products")
         .select(
-          "id, name, slug, price, original_price, description, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
+          "id, name, slug, price, original_price, description, reviews, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
         )
         .eq("slug", slug)
         .eq("is_visible", true)
@@ -503,16 +553,18 @@ Deno.serve(async (req) => {
     }
 
     const productStoreId = (product as { store_id?: string }).store_id ?? null;
-    const [storeExtras, platformName, formFields] = await Promise.all([
-      getStoreExtras(product.owner_id, productStoreId),
-      getPlatformName(),
-      getFormFields(product.owner_id, productStoreId),
-    ]);
+    const [storeExtras, platformName, formFields, pixelSettings, strictStock, header] =
+      await Promise.all([
+        getStoreExtras(product.owner_id, productStoreId),
+        getPlatformName(),
+        getFormFields(product.owner_id, productStoreId),
+        getPixelSettings(product.owner_id, productStoreId),
+        getStockPolicy(product.owner_id),
+        getHeaderSettings(product.owner_id, productStoreId),
+      ]);
     const currency = storeExtras.currency_symbol;
-    const { tokens: themeTokens, customCss: themeCustomCss } = await getStoreTheme(
-      product.owner_id,
-      productStoreId
-    );
+    const themeTokens = parseThemeTokens(storeExtras.theme_tokens);
+    const themeCustomCss = storeExtras.theme_custom_css;
 
     const pageUrl = `https://${publicHost}${targetPath}`;
     const shell = absolutizeAssets(await getShell());
@@ -534,6 +586,11 @@ Deno.serve(async (req) => {
       product,
       store: storeExtras,
       formFields,
+      pixelSettings,
+      header,
+      platformName,
+      strictStock,
+      puckData,
     });
 
     let html = shell.replace(/<title>[\s\S]*?<\/title>/i, "");
