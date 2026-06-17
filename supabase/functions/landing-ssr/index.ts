@@ -130,28 +130,108 @@ ${preloadImg}
 `;
 }
 
-function buildAboveFold(product: any, currency: string, puckHero?: { title?: string; subtitle?: string; image?: string } | null, publicHost?: string): string {
+// Static field row matching the React order-form input (label + 48px box).
+function ssrFieldRow(field: any): string {
+  const label = escapeHtml(field?.label || "");
+  const required = field?.required
+    ? `<span style="color:#f43f5e;font-weight:700">*</span>`
+    : "";
+  const ftype = String(field?.field_type || "");
+  const icon = ftype === "phone" ? "📞" : ftype === "email" ? "✉️" : "👤";
+  const box =
+    ftype === "textarea"
+      ? `<div style="height:84px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)"></div>`
+      : `<div style="height:48px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)"></div>`;
+  return `<div style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px"><span>${icon}</span><span>${label}</span>${required}</div>
+    ${box}
+  </div>`;
+}
+
+// Edge-rendered above-the-fold that MIRRORS the React first paint (dark hero +
+// 4/5 product image + white order-form card with price, trust badges, real
+// field rows and CTA). Because the placeholder matches the hydrated layout,
+// the shell → React swap is visually seamless — visitors perceive a single
+// fast load instead of "blue shell → loading form → full page".
+function buildAboveFold(
+  product: any,
+  currency: string,
+  buttonText: string,
+  formFields: any[],
+  puckHero?: { title?: string; subtitle?: string; image?: string } | null,
+  publicHost?: string,
+): string {
   const name = puckHero?.title || product.name;
-  const subtitle = puckHero?.subtitle || "الدفع عند الاستلام";
   const img = puckHero?.image || product.images?.[0] || "";
   const heroSrc = img
     ? optimizeLandingImageUrl(img, { width: 800, height: 800, format: "webp" }, publicHost)
     : "";
   const heroSrcSet = img ? landingHeroSrcSet(img, publicHost) : "";
-  return `
-<div id="ssr-shell" style="font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;direction:rtl;background:hsl(220 20% 97%);min-height:100vh">
-  <div style="background:linear-gradient(135deg,hsl(217 91% 50%),hsl(217 91% 40%));color:#fff;padding:24px 16px;text-align:center">
-    <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;line-height:1.3">${escapeHtml(name)}</h1>
-    <div style="opacity:.9;font-size:14px">${escapeHtml(subtitle)}</div>
-  </div>
-  <div style="max-width:960px;margin:0 auto;padding:16px">
-    ${heroSrc ? `<figure style="aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:480px;margin:0 auto"><img src="${escapeHtml(heroSrc)}" ${heroSrcSet ? `srcset="${escapeHtml(heroSrcSet)}" sizes="${escapeHtml(LANDING_HERO_SIZES)}" ` : ""}alt="${escapeHtml(name)}" width="800" height="800" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain" /></figure>` : ""}
-    <div style="text-align:center;margin-top:16px">
-      <span style="font-size:28px;font-weight:800;color:hsl(217 91% 50%)">${product.price} ${escapeHtml(currency)}</span>
-      ${product.original_price ? `<span style="margin-right:10px;color:#94a3b8;text-decoration:line-through">${product.original_price} ${escapeHtml(currency)}</span>` : ""}
+  const cur = escapeHtml(currency);
+  const hasDiscount =
+    product.original_price && Number(product.original_price) > Number(product.price);
+
+  const heroBlock = `
+  <section style="position:relative;overflow:hidden;background:linear-gradient(to left,#0f172a,#111c30,#0f172a);padding:32px 16px;text-align:center;color:#fff;border-bottom:1px solid rgba(245,158,11,.15)">
+    <div style="max-width:768px;margin:0 auto">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.3);padding:6px 14px;border-radius:999px;font-size:12px;font-weight:700;margin-bottom:16px">✨ عرض ملكي متاح لفترة وجيزة</div>
+      <h1 style="font-size:clamp(20px,5.5vw,40px);font-weight:900;margin:0 0 12px;line-height:1.2;color:#fff">${escapeHtml(name)}</h1>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:6px 12px;border-radius:12px;font-size:13px;color:#cbd5e1">🏅 ضمان الجودة الفائقة</div>
     </div>
-    <div style="text-align:center;margin-top:18px;color:#64748b;font-size:13px">جارِ تحميل نموذج الطلب…</div>
-  </div>
+  </section>`;
+
+  const imageBlock = heroSrc
+    ? `<figure style="position:relative;aspect-ratio:4/5;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 15px 40px -15px rgba(0,0,0,.12);border:1px solid #f1f5f9;margin:0 0 16px">
+        <span style="position:absolute;top:12px;right:12px;z-index:10;background:rgba(15,23,42,.8);color:#fbbf24;font-size:11px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid rgba(245,158,11,.2)">⭐ الأكثر مبيعاً في ليبيا</span>
+        <img src="${escapeHtml(heroSrc)}" ${heroSrcSet ? `srcset="${escapeHtml(heroSrcSet)}" sizes="${escapeHtml(LANDING_HERO_SIZES)}" ` : ""}alt="${escapeHtml(name)}" width="800" height="800" fetchpriority="high" decoding="async" style="width:100%;height:100%;object-fit:contain;padding:16px;box-sizing:border-box" />
+      </figure>`
+    : "";
+
+  const trustBadge = (icon: string, text: string) =>
+    `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid rgba(241,245,249,.8)"><span style="font-size:20px">${icon}</span><span style="font-weight:700;color:#1e293b;line-height:1.1">${text}</span></div>`;
+
+  const fields = Array.isArray(formFields) ? formFields.filter((f) => f && f.enabled !== false) : [];
+  const fieldsHtml = fields.length
+    ? fields.map(ssrFieldRow).join("")
+    : [ssrFieldRow({ label: "الاسم الكامل", field_type: "text", required: true }),
+       ssrFieldRow({ label: "رقم الهاتف", field_type: "phone", required: true }),
+       ssrFieldRow({ label: "العنوان", field_type: "text", required: true })].join("");
+
+  const formCard = `
+  <div style="background:rgba(255,255,255,.8);border-radius:24px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.06);border:1px solid #f1f5f9;position:relative;overflow:hidden">
+    <div style="position:absolute;top:0;right:0;left:0;height:6px;background:linear-gradient(to right,#fbbf24,#f59e0b,#d97706)"></div>
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px">
+        ${hasDiscount ? `<span style="color:#94a3b8;text-decoration:line-through;font-size:18px;font-weight:500">${product.original_price} ${cur}</span>` : ""}
+        <span style="font-size:clamp(28px,8vw,48px);font-weight:900;color:#0f172a">${product.price} <span style="font-size:.6em;font-weight:700;color:#f59e0b">${cur}</span></span>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(16,185,129,.1);color:#047857;border:1px solid rgba(16,185,129,.2);padding:8px 16px;border-radius:999px;font-size:13px;font-weight:700">✅ الطلب مضمون ومتوفر بالمخزن الرئيسي</div>
+      <div style="margin-top:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px">
+        ${trustBadge("💵", "معاينة قبل الدفع")}
+        ${trustBadge("🚚", "شحن آمن وفوري")}
+        ${trustBadge("🔄", "استبدال مرن")}
+      </div>
+    </div>
+    <div>
+      ${fieldsHtml}
+      <div style="width:100%;background:linear-gradient(to right,#f59e0b,#d97706,#b45309);color:#0f172a;text-align:center;padding:22px 16px;border-radius:12px;font-weight:900;font-size:16px;box-shadow:0 10px 30px rgba(245,158,11,.25);box-sizing:border-box">${escapeHtml(buttonText)}</div>
+      <p style="text-align:center;color:#64748b;font-size:12px;font-weight:700;margin-top:12px">⚡ سنقوم بالاتصال بك هاتفياً لتأكيد موعد الشحن السريع</p>
+    </div>
+  </div>`;
+
+  const formOnTop = !!product.order_form_on_top;
+  const first = formOnTop ? formCard : imageBlock;
+  const second = formOnTop ? imageBlock : formCard;
+
+  return `
+<div id="ssr-shell" style="font-family:Cairo,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;direction:rtl;background:#fafaf7;min-height:100vh;color:#0f172a">
+  <header style="background:#fff;border-bottom:1px solid #f1f5f9;height:56px"></header>
+  ${heroBlock}
+  <main style="max-width:1152px;margin:0 auto;padding:24px 12px">
+    ${first}
+    <div style="height:24px"></div>
+    ${second}
+  </main>
 </div>
 `;
 }
@@ -181,7 +261,8 @@ function buildSeedJson(input: {
       id: p.id,
       owner_id: p.owner_id ?? input.ownerId,
       name: p.name,
-      slug: p.slug ?? input.slug,
+      // Use the URL slug (landing slug for landing pages) to mirror the client.
+      slug: input.slug,
       price: p.price != null ? String(p.price) : "",
       original_price: p.original_price != null ? String(p.original_price) : undefined,
       // description/reviews are heavy — loaded by the client after first paint
@@ -439,7 +520,7 @@ Deno.serve(async (req) => {
     const headInjection = buildHead(product, currency, pageUrl, platformName, publicHost) + `<style id="ssr-theme">${themeCss}</style>`;
     const bodyInjection = puckHasRenderableContent(puckData)
       ? renderPuckToHtml(puckData)
-      : buildAboveFold(product, currency, puckHero, publicHost);
+      : buildAboveFold(product, currency, storeExtras.button_text, formFields as any[], puckHero, publicHost);
 
     // Data seed: lets the client render the COMPLETE page (incl. order form) on
     // its first paint, with no extra round-trips — so visitors see a single fast

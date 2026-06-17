@@ -1,0 +1,67 @@
+﻿# Cursor indexing/context ignore - keeps chat fast by excluding heavy,
+# generated, or non-source files. Source code & migrations stay indexed.
+
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Build output / generated bundles
+dist/
+dist-ssr/
+build/
+.vite/
+.next/
+out/
+**/dist/
+**/build/
+**/.next/
+
+# Lockfiles (huge, no value for AI context)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+**/package-lock.json
+
+# Caches & coverage
+.cache/
+.turbo/
+coverage/
+.eslintcache
+*.tsbuildinfo
+
+# Deploy / platform artifacts
+.vercel/
+.wrangler/
+cloudflare-worker/.wrangler/
+
+# Supabase local temp & exports
+supabase/.temp/
+supabase/.branches/
+supabase/migration-export/
+
+# PWA generated service worker assets
+dev-dist/
+public/sw.js
+public/workbox-*.js
+
+# Logs & local env
+logs/
+*.log
+.env
+.env.*
+!.env.example
+
+# OS / editor cruft
+.DS_Store
+*.suo
+
+# Scratch HTML snapshot at repo root.
+# NOTE: landing.html is the SSR shell template - keep it indexed.
+katro.html
+
+# Lovable scratch
+.lovable/
+
