@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: returnRow } = await admin
-      .from("returns").select("id, owner_id, external_id")
+      .from("returns").select("id, owner_id, external_id, store_id")
       .eq("id", body.return_id).maybeSingle();
     if (!returnRow || returnRow.owner_id !== ownerId) {
       return new Response(JSON.stringify({ error: "Not found" }), {
@@ -177,6 +177,7 @@ Deno.serve(async (req) => {
         || null;
       return {
         owner_id: ownerId,
+        store_id: returnRow.store_id ?? null,
         return_id: returnRow.id,
         external_shipment_id: s.id ?? null,
         shipment_code: String(s.code ?? ""),

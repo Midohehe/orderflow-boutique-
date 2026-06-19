@@ -151,7 +151,9 @@ const Settlements = () => {
   const refreshFromCarrier = async () => {
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("sync-settlements");
+      const { data, error } = await supabase.functions.invoke("sync-settlements", {
+        body: activeStoreId ? { store_id: activeStoreId } : {},
+      });
       if (error) throw error;
       toast({
         title: "تم التحديث",

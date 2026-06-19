@@ -63,20 +63,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    let settingsQuery = admin
-      .from("shipping_settings")
-      .select("*")
-      .eq("owner_id", settlement.owner_id)
-      .eq("enabled", true)
-      .order("updated_at", { ascending: false })
-      .limit(1);
+    // Prefer store-scoped credentials; fall back to owner's latest enabled settings
+    // (same pattern as sync-settlements) so multi-store accounts still work.
+    let settings: Record<string, unknown> | undefined;
     if (settlement.store_id) {
-      settingsQuery = settingsQuery.eq("store_id", settlement.store_id);
+      const { data: storeRows } = await admin
+        .from("shipping_settings")
+        .select("*")
+        .eq("owner_id", settlement.owner_id)
+        .eq("store_id", settlement.store_id)
+        .eq("enabled", true)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      settings = storeRows?.[0];
     }
-    const { data: settingsRows } = await settingsQuery;
-    const settings = settingsRows?.[0];
     if (!settings) {
+      const { data: ownerRows } = await admin
+        .from("shipping_settings")
+        .select("*")
+        .eq("owner_id", settlement.owner_id)
+        .eq("enabled", true)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      settings = ownerRows?.[0];
+    }
+    if (!settings?.email || !settings?.password) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const paymentId = Number(settlement.external_id);
+    if (!Number.isFinite(paymentId)) {
+      return new Response(JSON.stringify({ error: "معرّف التسوية الخارجي غير صالح" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -129,7 +148,7 @@ Deno.serve(async (req) => {
     let page = 1;
     let lastRes: any = null;
     while (true) {
-      const res = await gql(QUERY, { id: settlement.external_id, first: 100, page });
+      const res = await gql(QUERY, { id: paymentId, first: 100, page });
       lastRes = res;
       console.log("page", page, "resp", JSON.stringify(res).slice(0, 1500));
       const ents = res?.data?.payment?.entries;
@@ -190,6 +209,7 @@ Deno.serve(async (req) => {
         || null;
       return {
         owner_id: settlement.owner_id,
+        store_id: settlement.store_id ?? null,
         settlement_id: settlement.id,
         external_shipment_id: s.id ?? null,
         shipment_code: String(s.code ?? ""),
@@ -212,6 +232,19 @@ Deno.serve(async (req) => {
         raw: e,
       };
     }).filter((r) => r.shipment_code);
+
+    if (allEntries.length === 0) {
+      const gqlErrors = lastRes?.errors;
+      const paymentMissing = lastRes?.data?.payment == null && !gqlErrors?.length;
+      const msg = gqlErrors?.length
+        ? String(gqlErrors[0]?.message ?? "خطأ من شركة الشحن")
+        : paymentMissing
+          ? "لم تُعثر على التسوية في حساب شركة الشحن — تحقق من إعدادات المتجر"
+          : "لم تُجلب أي شحنات من شركة الشحن";
+      return new Response(JSON.stringify({
+        ok: false, count: 0, linked: 0, error: msg, debug: gqlErrors ?? null,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Replace existing rows for this settlement
     await admin.from("settlement_shipments").delete().eq("settlement_id", settlement.id);

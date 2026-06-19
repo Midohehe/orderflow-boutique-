@@ -39,13 +39,18 @@ Deno.serve(async (req) => {
     const { data: ownerData } = await admin.rpc("get_effective_owner_id", { _uid: uid });
     const ownerId = (ownerData as string) || uid;
 
-    const { data: settingsRows } = await admin
+    const body = (await req.json().catch(() => ({}))) as { store_id?: string };
+    let settingsQuery = admin
       .from("shipping_settings")
       .select("*")
       .eq("owner_id", ownerId)
       .eq("enabled", true)
       .order("updated_at", { ascending: false })
       .limit(1);
+    if (body.store_id) {
+      settingsQuery = settingsQuery.eq("store_id", body.store_id);
+    }
+    const { data: settingsRows } = await settingsQuery;
     const settings = settingsRows?.[0];
     if (!settings || !settings.email || !settings.password) {
       return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة أو غير مفعّلة" }), {

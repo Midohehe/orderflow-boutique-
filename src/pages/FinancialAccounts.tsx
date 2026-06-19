@@ -20,6 +20,13 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { useShippingErrorAliases, matchShippingError } from "@/hooks/useShippingErrorAliases";
 import {
+  ALL_DELIVERIES_FILTER_LABEL,
+  ALL_DELIVERIES_FILTER_VALUE,
+  buildAllDeliveriesLabelSet,
+  extractCarrierStatusCodeFromText,
+  orderMatchesAllDeliveriesFilter,
+} from "@/lib/allDeliveriesFilter";
+import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from "recharts";
@@ -245,6 +252,22 @@ const FinancialAccounts = () => {
     () => filteredOrders.filter(o => o.status === "shipped" || !!o.carrier_status),
     [filteredOrders],
   );
+  const allDeliveriesLabelSet = useMemo(
+    () => buildAllDeliveriesLabelSet(carrierStatusMap),
+    [carrierStatusMap],
+  );
+  const allDeliveriesCount = useMemo(
+    () =>
+      shippedOrders.filter((o) =>
+        orderMatchesAllDeliveriesFilter({
+          carrierStatus: o.carrier_status,
+          label: getCarrierLabel(o.carrier_status),
+          statusCode: extractCarrierStatusCodeFromText(o.carrier_status),
+          deliveredLabels: allDeliveriesLabelSet,
+        }),
+      ).length,
+    [shippedOrders, allDeliveriesLabelSet],
+  );
   const shippedFiltered = useMemo(() => {
     const inRange = (iso?: string | null) => {
       if (!shippedDateFrom && !shippedDateTo) return true;
@@ -261,11 +284,27 @@ const FinancialAccounts = () => {
       return true;
     };
     return shippedOrders.filter(o => {
-      if (shippedCarrierStatus !== "all" && getCarrierLabel(o.carrier_status) !== shippedCarrierStatus) return false;
+      if (shippedCarrierStatus !== "all") {
+        const label = getCarrierLabel(o.carrier_status);
+        if (shippedCarrierStatus === ALL_DELIVERIES_FILTER_VALUE) {
+          if (
+            !orderMatchesAllDeliveriesFilter({
+              carrierStatus: o.carrier_status,
+              label,
+              statusCode: extractCarrierStatusCodeFromText(o.carrier_status),
+              deliveredLabels: allDeliveriesLabelSet,
+            })
+          ) {
+            return false;
+          }
+        } else if (label !== shippedCarrierStatus) {
+          return false;
+        }
+      }
       if (!inRange(o.carrier_status_updated_at)) return false;
       return true;
     });
-  }, [shippedOrders, shippedDateFrom, shippedDateTo, shippedCarrierStatus]);
+  }, [shippedOrders, shippedDateFrom, shippedDateTo, shippedCarrierStatus, allDeliveriesLabelSet]);
   const shippedCarrierStatuses = useMemo(() => {
     const set = new Set<string>();
     shippedOrders.forEach(o => {
@@ -694,6 +733,9 @@ const FinancialAccounts = () => {
                   <SelectTrigger className="h-9 w-full sm:w-56"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">جميع الحالات</SelectItem>
+                    <SelectItem value={ALL_DELIVERIES_FILTER_VALUE}>
+                      {ALL_DELIVERIES_FILTER_LABEL} ({allDeliveriesCount})
+                    </SelectItem>
                     {shippedCarrierStatuses.map(s => <SelectItem key={s} value={s}>{labelCarrier(s)}</SelectItem>)}
                   </SelectContent>
                 </Select>

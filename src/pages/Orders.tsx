@@ -50,6 +50,13 @@ import {
   type DeliveryStatsOrder,
   type DeliveryStatsSummary,
 } from "@/lib/deliveryStats";
+import {
+  ALL_DELIVERIES_FILTER_LABEL,
+  ALL_DELIVERIES_FILTER_VALUE,
+  buildAllDeliveriesLabelSet,
+  orderMatchesAllDeliveriesFilter,
+  sumAllDeliveriesServerCounts,
+} from "@/lib/allDeliveriesFilter";
 
 interface Order {
   id: string;
@@ -166,6 +173,7 @@ const Orders = () => {
   const [openableMode, setOpenableMode] = useState<"yes" | "no">("yes");
   const [shippingOptionsOpen, setShippingOptionsOpen] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [exportingShipped, setExportingShipped] = useState(false);
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
   const [shippedProductFilter, setShippedProductFilter] = useState<string>("all");
@@ -1260,6 +1268,20 @@ const Orders = () => {
     return opts;
   })();
 
+  const allDeliveriesLabelSet = useMemo(() => buildAllDeliveriesLabelSet(statusMap), [statusMap]);
+  const allDeliveriesCount = useMemo(() => {
+    const fromServer = sumAllDeliveriesServerCounts(serverCarrierCounts, statusMap);
+    if (fromServer > 0) return fromServer;
+    return allShipped.filter((o) =>
+      orderMatchesAllDeliveriesFilter({
+        carrierStatus: o.carrier_status,
+        label: getCarrierFilterLabel(o),
+        statusCode: extractStatusCode(o),
+        deliveredLabels: allDeliveriesLabelSet,
+      }),
+    ).length;
+  }, [allShipped, serverCarrierCounts, statusMap, allDeliveriesLabelSet]);
+
   const pendingOrders = orderTab === "pending" ? orders : [];
   const foreignOrders = orderTab === "foreign" ? orders : [];
   const shippedOrders =
@@ -1270,6 +1292,17 @@ const Orders = () => {
             const label = getCarrierFilterLabel(o);
             if (shippedCarrierFilter === "__none__") {
               if (o.carrier_status?.trim()) return false;
+            } else if (shippedCarrierFilter === ALL_DELIVERIES_FILTER_VALUE) {
+              if (
+                !orderMatchesAllDeliveriesFilter({
+                  carrierStatus: o.carrier_status,
+                  label,
+                  statusCode: code,
+                  deliveredLabels: allDeliveriesLabelSet,
+                })
+              ) {
+                return false;
+              }
             } else if (shippedCarrierFilter.startsWith("label:")) {
               const wanted = shippedCarrierFilter.slice("label:".length);
               if (label !== wanted) return false;
@@ -1285,6 +1318,87 @@ const Orders = () => {
   const returnedReceivedOrders = orderTab === "returned_received" ? orders : [];
   const deletedOrders = orderTab === "deleted" ? orders : [];
   const unpackedOrders = orderTab === "unpacked" ? orders : [];
+
+  const exportShippedOrders = async () => {
+    if (!activeStoreId) return;
+    setExportingShipped(true);
+    try {
+      const exportFilters: OrdersPageFilters = {
+        search: shippedSearch || undefined,
+        productName: shippedProductFilter !== "all" ? shippedProductFilter : undefined,
+      };
+      let rows = (await fetchAllOrdersForExport(activeStoreId, "shipped", exportFilters)) as Order[];
+      if (shippedCarrierFilter !== "all") {
+        rows = rows.filter((o) => {
+          const code = extractStatusCode(o);
+          const label = getCarrierFilterLabel(o);
+          if (shippedCarrierFilter === "__none__") return !o.carrier_status?.trim();
+          if (shippedCarrierFilter === ALL_DELIVERIES_FILTER_VALUE) {
+            return orderMatchesAllDeliveriesFilter({
+              carrierStatus: o.carrier_status,
+              label,
+              statusCode: code,
+              deliveredLabels: allDeliveriesLabelSet,
+            });
+          }
+          if (shippedCarrierFilter.startsWith("label:")) {
+            return label === shippedCarrierFilter.slice("label:".length);
+          }
+          return code === shippedCarrierFilter;
+        });
+      }
+      if (rows.length === 0) {
+        toast({
+          title: "تنبيه",
+          description: "لا توجد طلبات جاري التوصيل للتصدير",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const excelData = rows.map((order, index) => ({
+        "رقم السطر": index + 1,
+        "كود الطلب": order.order_code || order.id.slice(0, 12).toUpperCase(),
+        "كود الشحن": order.shipping_reference || "",
+        "اسم العميل": order.customer_name,
+        "الهاتف": order.phone,
+        "المحافظة": (order as Order & { matched_zone_name?: string }).matched_zone_name || order.city,
+        "المنطقة": (order as Order & { matched_area_name?: string }).matched_area_name || "",
+        "المنتج": displayProductName(order),
+        "الكمية": order.quantity || 1,
+        "السعر": Number(order.price) || 0,
+        "حالة الشحن": getCarrierFilterLabel(order),
+        "تاريخ الطلب": formatDate(order.created_at),
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      ws["!cols"] = [
+        { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 14 },
+        { wch: 16 }, { wch: 16 }, { wch: 24 }, { wch: 8 }, { wch: 10 },
+        { wch: 22 }, { wch: 22 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, "جاري التوصيل");
+
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
+      XLSX.writeFile(wb, `shipped_orders_${dateStr}_${timeStr}.xlsx`);
+
+      toast({
+        title: "تم التصدير",
+        description: `تم تصدير ${rows.length} طلب جاري التوصيل`,
+      });
+    } catch (e: unknown) {
+      toast({
+        title: "خطأ",
+        description: e instanceof Error ? e.message : "تعذر تصدير الطلبات",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingShipped(false);
+    }
+  };
 
   const mainProductNames = new Set(Object.values(productsMap));
   const carrierRateProductOptions = Array.from(mainProductNames)
@@ -2153,6 +2267,9 @@ const Orders = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">كل الحالات ({serverStatusCounts.shipped ?? allShipped.length})</SelectItem>
+                    <SelectItem value={ALL_DELIVERIES_FILTER_VALUE}>
+                      {ALL_DELIVERIES_FILTER_LABEL} ({allDeliveriesCount})
+                    </SelectItem>
                     {shippedCarrierOptions.map((opt) => {
                       const localCount = allShipped.filter((o) => {
                         const c = extractStatusCode(o);
@@ -2226,6 +2343,15 @@ const Orders = () => {
                 >
                   <Printer className="w-4 h-4" />
                   طباعة كل الظاهر
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={exportShippedOrders}
+                  disabled={exportingShipped}
+                  className="gap-2"
+                >
+                  {exportingShipped ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  تصدير Excel
                 </Button>
                 <span className="text-xs text-muted-foreground">
                   لتعديل بيانات الستيكر، اذهب إلى "تصميم ستيكر الشحن" من القائمة.

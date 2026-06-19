@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const ownerId = userData.user.id;
+    const uid = userData.user.id;
 
     const body = (await req.json()) as Body;
     if (!body.settlement_id) {
@@ -51,28 +51,32 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    const { data: ownerData } = await admin.rpc("get_effective_owner_id", { _uid: uid });
+    const effectiveOwnerId = (ownerData as string) || uid;
+
     const { data: settlement } = await admin
-      .from("settlements").select("id, owner_id, payment_amount, received, code, safe_id, deposit_ref_id, reversal_ref_id")
+      .from("settlements").select("id, owner_id, payment_amount, received, received_at, code, safe_id, deposit_ref_id, reversal_ref_id")
       .eq("id", body.settlement_id).maybeSingle();
     if (!settlement) {
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // Authorization: owner or member of owner, or admin
-    const { data: isMember } = await admin.rpc("is_member_of", { _owner_id: settlement.owner_id });
-    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: ownerId, _role: "admin" });
-    if (!isMember && !isAdmin && settlement.owner_id !== ownerId) {
+    // Authorization: owner, staff member, or admin (use user-scoped client for auth.uid())
+    const { data: isMember } = await supabase.rpc("is_member_of", { _owner_id: settlement.owner_id });
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: uid, _role: "admin" });
+    if (!isMember && !isAdmin && settlement.owner_id !== effectiveOwnerId && settlement.owner_id !== uid) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const received = !!body.received;
-    const safeId = body.safe_id || null;
+    const safeId = body.safe_id || settlement.safe_id || null;
+    const completingPartial = settlement.received && received && !settlement.deposit_ref_id;
 
-    // Idempotency: if state is unchanged, do nothing.
-    if (settlement.received === received) {
+    // Idempotency: if state is unchanged and deposit exists, do nothing.
+    if (settlement.received === received && !completingPartial) {
       return new Response(JSON.stringify({
         ok: true, unchanged: true, updated_orders: 0,
         message: received ? "التسوية مستلمة مسبقاً" : "التسوية غير مستلمة أصلاً",
@@ -106,50 +110,111 @@ Deno.serve(async (req) => {
     };
 
     const ownerIdSettlement = settlement.owner_id;
-    const ts = received ? new Date().toISOString() : null;
+    const ts = received
+      ? (settlement.received_at || new Date().toISOString())
+      : null;
 
-    await admin.from("settlements").update({
-      received, received_at: ts, safe_id: received ? safeId : null,
-    }).eq("id", settlement.id);
-
-    // Update linked orders
     const { data: shipments } = await admin
       .from("settlement_shipments")
       .select("order_id")
       .eq("settlement_id", settlement.id)
       .not("order_id", "is", null);
     const orderIds = Array.from(new Set((shipments || []).map((s: any) => s.order_id).filter(Boolean)));
+
+    let updatedOrders = 0;
+
+    // Update linked orders first — fail before mutating settlement / safe
     if (orderIds.length) {
-      const { error: updErr } = await admin.from("orders").update({
-        settlement_received: received,
-        settlement_received_at: ts,
-        status: received ? "settled" : "shipped",
-      }).in("id", orderIds).eq("owner_id", ownerIdSettlement);
-      if (updErr) {
-        console.error("orders update failed", updErr);
-        return new Response(JSON.stringify({ error: updErr.message }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (received) {
+        const { data: settledRows, error: primaryErr } = await admin.from("orders").update({
+          settlement_received: true,
+          settlement_received_at: ts,
+          status: "settled",
+        }).in("id", orderIds).eq("owner_id", ownerIdSettlement)
+          .in("status", ["shipped", "delivered"])
+          .select("id");
+        if (primaryErr) {
+          console.error("orders primary update failed", primaryErr);
+          return new Response(JSON.stringify({ error: primaryErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        updatedOrders += settledRows?.length ?? 0;
+
+        const { data: flaggedRows, error: secondaryErr } = await admin.from("orders").update({
+          settlement_received: true,
+          settlement_received_at: ts,
+        }).in("id", orderIds).eq("owner_id", ownerIdSettlement)
+          .eq("settlement_received", false)
+          .not("status", "in", '("shipped","delivered","settled")')
+          .select("id");
+        if (secondaryErr) {
+          console.error("orders secondary update failed", secondaryErr);
+          return new Response(JSON.stringify({ error: secondaryErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        updatedOrders += flaggedRows?.length ?? 0;
+      } else {
+        const { data: revertedRows, error: revPrimaryErr } = await admin.from("orders").update({
+          settlement_received: false,
+          settlement_received_at: null,
+          status: "shipped",
+        }).in("id", orderIds).eq("owner_id", ownerIdSettlement)
+          .eq("status", "settled")
+          .select("id");
+        if (revPrimaryErr) {
+          console.error("orders reversal primary failed", revPrimaryErr);
+          return new Response(JSON.stringify({ error: revPrimaryErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        updatedOrders += revertedRows?.length ?? 0;
+
+        const { data: clearedRows, error: revSecondaryErr } = await admin.from("orders").update({
+          settlement_received: false,
+          settlement_received_at: null,
+        }).in("id", orderIds).eq("owner_id", ownerIdSettlement)
+          .eq("settlement_received", true)
+          .neq("status", "settled")
+          .select("id");
+        if (revSecondaryErr) {
+          console.error("orders reversal secondary failed", revSecondaryErr);
+          return new Response(JSON.stringify({ error: revSecondaryErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        updatedOrders += clearedRows?.length ?? 0;
       }
     }
 
+    if (!completingPartial) {
+      await admin.from("settlements").update({
+        received, received_at: ts, safe_id: received ? safeId : null,
+      }).eq("id", settlement.id);
+    } else if (received && safeId && !settlement.safe_id) {
+      await admin.from("settlements").update({ safe_id: safeId }).eq("id", settlement.id);
+    }
+
     // CONFIRM: append a new deposit movement with a fresh reference code.
-    if (received && safeId) {
+    if (received && safeId && !settlement.deposit_ref_id) {
       const { data: safe } = await admin
-        .from("safes").select("id").eq("id", safeId).eq("owner_id", ownerIdSettlement).maybeSingle();
+        .from("safes").select("id, store_id").eq("id", safeId).eq("owner_id", ownerIdSettlement).maybeSingle();
       if (!safe) {
         return new Response(JSON.stringify({ error: "الخزينة غير موجودة أو لا تخص نفس الحساب" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const amount = Number(settlement.payment_amount) || 0;
-      // New unique reference for this confirm attempt
       const depositRef = crypto.randomUUID();
       const { error: movErr } = await admin.from("safe_movements").insert({
-        safe_id: safeId, amount, movement_type: "deposit",
+        safe_id: safeId,
+        amount,
+        movement_type: "deposit",
         reference_id: depositRef,
         notes: `إيداع قيمة تسوية ${settlement.code || settlement.id}`,
         owner_id: ownerIdSettlement,
+        store_id: safe.store_id ?? null,
       });
       if (movErr) {
         console.error("movement insert failed", movErr);
@@ -175,6 +240,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (lastDeposit) {
         const reversalRef = crypto.randomUUID();
+        const { data: safeRow } = await admin
+          .from("safes").select("store_id").eq("id", lastDeposit.safe_id).maybeSingle();
         const { error: revErr } = await admin.from("safe_movements").insert({
           safe_id: lastDeposit.safe_id,
           amount: -Number(lastDeposit.amount),
@@ -182,6 +249,7 @@ Deno.serve(async (req) => {
           reference_id: reversalRef,
           notes: `تراجع عن تسوية ${settlement.code || settlement.id}`,
           owner_id: ownerIdSettlement,
+          store_id: safeRow?.store_id ?? null,
         });
         if (revErr) {
           console.error("reversal insert failed", revErr);
@@ -197,7 +265,8 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       ok: true,
-      updated_orders: orderIds.length,
+      updated_orders: updatedOrders,
+      completed_partial: completingPartial,
       reconciliation,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -68,6 +68,7 @@ const SettlementDetail = () => {
       });
       if (error) throw error;
       if (data?.error) throw new Error(String(data.error));
+      if (data?.ok === false && data?.error) throw new Error(String(data.error));
       if (!silent) {
         toast({
           title: "تم تحديث الشحنات",
@@ -81,10 +82,16 @@ const SettlementDetail = () => {
       setRows((sh as ShipmentRow[]) || []);
       const { data: s } = await supabase.from("settlements").select("*").eq("id", id).maybeSingle();
       setSettlement(s as Settlement | null);
-      if ((data?.count ?? 0) === 0 && (settlement?.shipment_count ?? s?.shipment_count ?? 0) > 0 && !silent) {
+      const carrierCount = Number(s?.shipment_count ?? settlement?.shipment_count ?? 0);
+      if ((data?.count ?? 0) === 0 && carrierCount > 0) {
+        const detail = data?.error
+          ? String(data.error)
+          : data?.debug?.[0]?.message
+            ? String(data.debug[0].message)
+            : "تأكد من إعدادات شركة الشحن أو اضغط تحديث الشحنات مرة أخرى";
         toast({
           title: "لم تُجلب شحنات",
-          description: "تأكد من إعدادات شركة الشحن أو اضغط تحديث الشحنات مرة أخرى",
+          description: detail,
           variant: "destructive",
         });
       }
@@ -147,7 +154,14 @@ const SettlementDetail = () => {
       setSelectedSafeId("");
       await load();
     } catch (e: any) {
-      toast({ title: "خطأ", description: e?.message, variant: "destructive" });
+      let message = e?.message || "حدث خطأ غير متوقع";
+      if (e?.context && typeof e.context.json === "function") {
+        try {
+          const body = await e.context.json();
+          if (body?.error) message = String(body.error);
+        } catch { /* ignore parse errors */ }
+      }
+      toast({ title: "خطأ", description: message, variant: "destructive" });
     } finally {
       setMarking(false);
     }
