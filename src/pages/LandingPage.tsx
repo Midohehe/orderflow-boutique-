@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck, Loader2, Gift } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,8 +26,15 @@ import {
   mapCreateOrderError,
   normalizeLibyanPhone,
   resolveOrderFields,
+  validateDeliveryCity,
   validateOrderPayload,
 } from "@/lib/landingOrderForm";
+import {
+  fetchPublicDeliveryPrices,
+  lookupDeliveryFee,
+  orderFormUsesDeliverySelect,
+  type StoreDeliveryPrice,
+} from "@/lib/storeDeliveryPrices";
 import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { LandingImage } from "@/components/LandingImage";
 import { landingHeroPreloadHref, buildLandingSrcSet, isOptimizableLandingImage } from "@/lib/landingImageUrl";
@@ -139,10 +147,14 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
   fields,
   values,
   onChange,
+  deliveryPrices,
+  currencySymbol,
 }: {
   fields: FormField[];
   values: Record<string, string>;
   onChange: (fieldKey: string, value: string) => void;
+  deliveryPrices: StoreDeliveryPrice[];
+  currencySymbol: string;
 }) {
   return (
     <div className="space-y-4">
@@ -153,6 +165,8 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
               <Phone className="w-4 h-4 text-amber-500" />
             ) : field.field_type === "email" ? (
               <Mail className="w-4 h-4 text-amber-500" />
+            ) : field.field_type === "delivery_select" || field.field_key === "delivery_city" ? (
+              <Truck className="w-4 h-4 text-amber-500" />
             ) : (
               <User className="w-4 h-4 text-amber-500" />
             )}
@@ -170,6 +184,24 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
               autoComplete={autocompleteForField(field)}
               className="text-base shadow-sm focus:shadow-md"
             />
+          ) : field.field_type === "delivery_select" || field.field_key === "delivery_city" ? (
+            <Select
+              value={values[field.field_key] || ""}
+              onValueChange={(v) => onChange(field.field_key, v)}
+              required={field.required}
+            >
+              <SelectTrigger className="text-base h-12 shadow-sm focus:shadow-md">
+                <SelectValue placeholder={field.placeholder || "اختر المدينة"} />
+              </SelectTrigger>
+              <SelectContent>
+                {deliveryPrices.map((row) => (
+                  <SelectItem key={row.city_name} value={row.city_name}>
+                    {row.city_name}
+                    {row.price > 0 ? ` (+${row.price} ${currencySymbol})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
             <Input
               name={field.field_key}
@@ -280,6 +312,7 @@ interface LandingSsrSeed {
     theme_custom_css?: string | null;
   };
   formFields: FormField[];
+  deliveryPrices?: StoreDeliveryPrice[];
   sizeChart: SizeChartData | null;
   // v2 seed: read data embedded so the client makes ZERO read queries.
   pixelSettings?: PixelSettings | null;
@@ -343,6 +376,7 @@ const LandingPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formFields, setFormFields] = useState<FormField[]>(ssrSeed?.formFields ?? []);
   const [formFieldsLoaded, setFormFieldsLoaded] = useState(!!ssrSeed?.formFields?.length);
+  const [deliveryPrices, setDeliveryPrices] = useState<StoreDeliveryPrice[]>(ssrSeed?.deliveryPrices ?? []);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
     currency_symbol: ssrSeed?.store?.currency_symbol ?? "د.ل",
     currency_code: ssrSeed?.store?.currency_code ?? "LYD",
@@ -474,12 +508,29 @@ const LandingPage = () => {
     [hasUpsellOffers, product?.upsell_offers],
   );
 
-  const orderTotalDisplay = useMemo(() => {
+  const orderProductSubtotal = useMemo(() => {
     if (selectedUpsellIndex !== null && product?.upsell_offers?.[selectedUpsellIndex]) {
       return Number(product.upsell_offers[selectedUpsellIndex].price);
     }
     return parseFloat(String(product?.price || 0)) * quantity;
   }, [selectedUpsellIndex, product?.upsell_offers, product?.price, quantity]);
+
+  const selectedDeliveryCity = useMemo(() => {
+    const deliveryField = formFields.find(
+      (f) => f.field_type === "delivery_select" || f.field_key === "delivery_city",
+    );
+    if (!deliveryField) return "";
+    return (formData[deliveryField.field_key] || "").trim();
+  }, [formFields, formData]);
+
+  const deliveryFee = useMemo(
+    () => lookupDeliveryFee(selectedDeliveryCity, deliveryPrices),
+    [selectedDeliveryCity, deliveryPrices],
+  );
+
+  const orderTotalDisplay = orderProductSubtotal + deliveryFee;
+  const showOrderTotalSummary =
+    deliveryFee > 0 || quantity > 1 || selectedUpsellIndex !== null;
 
   const activeFormFields = formFields;
   const getAttribution = useCallback(() => {
@@ -571,6 +622,18 @@ const LandingPage = () => {
             ),
           );
         }
+
+        const seedFields = (ssrSeed.formFields || []) as FormField[];
+        if (
+          orderFormUsesDeliverySelect(seedFields) &&
+          ssrSeed.storeId &&
+          !(ssrSeed.deliveryPrices && ssrSeed.deliveryPrices.length > 0)
+        ) {
+          fetchPublicDeliveryPrices(supabase, ssrSeed.storeId).then((prices) => {
+            if (!ac.signal.aborted) setDeliveryPrices(prices);
+          });
+        }
+
         return;
       }
 
@@ -823,6 +886,11 @@ const LandingPage = () => {
           setFormFields(cachedFormFields);
           setFormData((prev) => ensureFormFieldKeys(prev, cachedFormFields as FormField[]));
           setFormFieldsLoaded(true);
+          if (storeForSettings && orderFormUsesDeliverySelect(cachedFormFields as FormField[])) {
+            fetchPublicDeliveryPrices(supabase, storeForSettings).then((prices) => {
+              if (!ac.signal.aborted) setDeliveryPrices(prices);
+            });
+          }
         }
 
         if (cachedPixelSettings) {
@@ -870,6 +938,13 @@ const LandingPage = () => {
             setFormFields(fields);
             setToCache(formKey, fields);
             setFormData((prev) => ensureFormFieldKeys(prev, fields));
+            if (storeForSettings && orderFormUsesDeliverySelect(fields)) {
+              fetchPublicDeliveryPrices(supabase, storeForSettings).then((prices) => {
+                if (!ac.signal.aborted) setDeliveryPrices(prices);
+              });
+            } else if (!orderFormUsesDeliverySelect(fields)) {
+              setDeliveryPrices([]);
+            }
           } else {
             console.error("order form fields:", formFieldsResult.error);
           }
@@ -1243,10 +1318,7 @@ const LandingPage = () => {
 
   const trackPurchaseEvent = () => {
     const currencyCode = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
-    const productValue =
-      selectedUpsellIndex !== null && product?.upsell_offers?.[selectedUpsellIndex]
-        ? Number(product.upsell_offers[selectedUpsellIndex].price)
-        : parseFloat(product?.price || "0") * quantity;
+    const productValue = orderTotalDisplay;
     const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     // Persist for thank-you page fallback dedup
     try {
@@ -1341,6 +1413,12 @@ const LandingPage = () => {
     const validationError = validateOrderPayload(activeFormFields, mergedFormData);
     if (validationError) {
       showToast("خطأ", validationError, "destructive");
+      return;
+    }
+
+    const deliveryValidationError = validateDeliveryCity(activeFormFields, mergedFormData, deliveryPrices);
+    if (deliveryValidationError) {
+      showToast("خطأ", deliveryValidationError, "destructive");
       return;
     }
 
@@ -1447,15 +1525,20 @@ const LandingPage = () => {
       });
 
       const orderPrice =
-        selectedUpsellIndex !== null && product.upsell_offers?.[selectedUpsellIndex]
-          ? product.upsell_offers[selectedUpsellIndex].price
-          : parseFloat(String(product?.price || 0)) * quantity;
+        typeof data === "object" && data && "total" in data && (data as { total?: number }).total != null
+          ? Number((data as { total: number }).total)
+          : orderTotalDisplay;
+      const shippingFeeFromServer =
+        typeof data === "object" && data && "shipping_fee" in data
+          ? Number((data as { shipping_fee?: number }).shipping_fee) || 0
+          : deliveryFee;
 
       navigate("/thank-you", {
         state: {
           orderData: {
             productName: product?.name,
             price: orderPrice,
+            shippingFee: shippingFeeFromServer,
             currencySymbol: storeSettings.currency_symbol,
             currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
             productId: product?.id,
@@ -1717,10 +1800,15 @@ const LandingPage = () => {
                         +
                       </button>
                     </div>
-                    {(quantity > 1 || selectedUpsellIndex !== null) && (
+                    {(quantity > 1 || selectedUpsellIndex !== null || deliveryFee > 0) && (
                       <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
                         💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
                         {storeSettings.currency_symbol}
+                        {deliveryFee > 0 && (
+                          <span className="block text-xs text-muted-foreground mt-1 font-normal">
+                            (منتج {orderProductSubtotal.toFixed(2)} + توصيل {deliveryFee.toFixed(2)})
+                          </span>
+                        )}
                       </p>
                     )}
                   </div>
@@ -1936,7 +2024,21 @@ const LandingPage = () => {
                     fields={activeFormFields}
                     values={formData}
                     onChange={handleInputChange}
+                    deliveryPrices={deliveryPrices}
+                    currencySymbol={storeSettings.currency_symbol}
                   />
+                )}
+
+                {showOrderTotalSummary && product.show_quantity === false && (
+                  <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
+                    💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
+                    {storeSettings.currency_symbol}
+                    {deliveryFee > 0 && (
+                      <span className="block text-xs text-muted-foreground mt-1 font-normal">
+                        (منتج {orderProductSubtotal.toFixed(2)} + توصيل {deliveryFee.toFixed(2)})
+                      </span>
+                    )}
+                  </p>
                 )}
 
                 {/* زر الإرسال الملكي */}

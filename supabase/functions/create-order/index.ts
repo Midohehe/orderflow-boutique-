@@ -193,6 +193,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    const storeId = (product as { store_id?: string | null }).store_id ?? null;
+    let shippingFee = 0;
+    if (storeId && city && city !== "—") {
+      const { data: deliveryField } = await supabase
+        .from("order_form_fields")
+        .select("id")
+        .eq("store_id", storeId)
+        .eq("field_key", "delivery_city")
+        .eq("enabled", true)
+        .maybeSingle();
+
+      if (deliveryField) {
+        const { data: priceRows } = await supabase.rpc("get_public_delivery_prices", {
+          _store_id: storeId,
+        });
+        const prices = Array.isArray(priceRows) ? priceRows : [];
+        if (prices.length > 0) {
+          const match = prices.find((p: { city_name?: string }) => p.city_name === city);
+          if (!match) {
+            await logRejected("invalid_delivery_city");
+            return new Response(JSON.stringify({ error: "invalid_delivery_city" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          shippingFee = Number((match as { price?: number }).price) || 0;
+        }
+      }
+    }
+
     // Insert the order immediately with no city match. City matching (AI) and
     // stock/WhatsApp side-effects run in the background so the client can
     // navigate to the thank-you page without waiting on slow AI calls.
@@ -208,6 +238,7 @@ Deno.serve(async (req) => {
       product_id: product.id,
       product_name: product.name,
       price: totalPrice,
+      shipping_fee: shippingFee,
       quantity,
       status: "pending",
       selected_color: s(body.selected_color ?? "", 200) || null,
@@ -361,7 +392,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, price: totalPrice }), {
+    return new Response(
+      JSON.stringify({ ok: true, price: totalPrice, shipping_fee: shippingFee, total: totalPrice + shippingFee }),
+      {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

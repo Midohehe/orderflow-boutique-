@@ -248,6 +248,7 @@ function buildSeedJson(input: {
   product: any;
   store: StoreExtras;
   formFields: unknown[];
+  deliveryPrices?: unknown[];
   pixelSettings: unknown;
   header: unknown;
   platformName: string;
@@ -296,6 +297,7 @@ function buildSeedJson(input: {
     },
     store: input.store,
     formFields: Array.isArray(input.formFields) ? input.formFields : [],
+    deliveryPrices: Array.isArray(input.deliveryPrices) ? input.deliveryPrices : [],
     sizeChart:
       sc && typeof sc === "object" && sc.enabled && Array.isArray(sc.rows) && sc.rows.length
         ? {
@@ -431,6 +433,17 @@ async function getFormFields(ownerId: string | null, storeId: string | null): Pr
   return [];
 }
 
+async function getDeliveryPrices(storeId: string | null): Promise<unknown[]> {
+  if (!storeId) return [];
+  try {
+    const { data, error } = await supabase.rpc("get_public_delivery_prices", { _store_id: storeId });
+    if (!error && Array.isArray(data)) return data;
+  } catch (_e) {
+    // ignore — client will fetch as fallback
+  }
+  return [];
+}
+
 function notFoundHtml(): string {
   return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>المنتج غير متوفر</title></head><body style="font-family:Cairo,sans-serif;text-align:center;padding:48px"><h1>المنتج غير موجود</h1><p>عذراً، لم نتمكن من العثور على هذا المنتج.</p></body></html>`;
 }
@@ -553,11 +566,12 @@ Deno.serve(async (req) => {
     }
 
     const productStoreId = (product as { store_id?: string }).store_id ?? null;
-    const [storeExtras, platformName, formFields, pixelSettings, strictStock, header] =
+    const [storeExtras, platformName, formFields, deliveryPrices, pixelSettings, strictStock, header] =
       await Promise.all([
         getStoreExtras(product.owner_id, productStoreId),
         getPlatformName(),
         getFormFields(product.owner_id, productStoreId),
+        getDeliveryPrices(productStoreId),
         getPixelSettings(product.owner_id, productStoreId),
         getStockPolicy(product.owner_id),
         getHeaderSettings(product.owner_id, productStoreId),
@@ -586,6 +600,7 @@ Deno.serve(async (req) => {
       product,
       store: storeExtras,
       formFields,
+      deliveryPrices,
       pixelSettings,
       header,
       platformName,

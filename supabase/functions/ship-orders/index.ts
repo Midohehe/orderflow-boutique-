@@ -2,6 +2,11 @@
 // Authenticates with email+password via GraphQL, then submits each order.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { initialLibyanLocations } from "../_shared/locationData.ts";
+import {
+  applyCollectableTotalToShipmentProducts,
+  orderCollectableTotal,
+  orderProductTotal,
+} from "../_shared/orderTotals.ts";
 
 // Bidi isolation for mixed Arabic/Latin: wrap Latin/digit runs (XL, 2XL, SKUs)
 // with U+2066 LRI ... U+2069 PDI so they don't reorder inside RTL text.
@@ -651,7 +656,12 @@ Deno.serve(async (req) => {
         // When shipmentProducts is set, the API derives weight/pieces/price from products
         // and forbids top-level weight/piecesCount/price as well as receiveInWarehouse/typeCode.
         // Setting shipmentProducts alone is enough to deduct from the company's warehouse stock.
-        input.shipmentProducts = shipmentProducts;
+        const productTotal = orderProductTotal(o);
+        const collectableTotal = orderCollectableTotal(o);
+        input.shipmentProducts =
+          collectableTotal > productTotal
+            ? applyCollectableTotalToShipmentProducts(shipmentProducts, productTotal, collectableTotal)
+            : shipmentProducts;
       } else {
         // No warehouse product → send as a regular shipment with explicit fields.
         const totalPieces = items.length > 0
@@ -659,7 +669,7 @@ Deno.serve(async (req) => {
           : (o.quantity || 1);
         input.piecesCount = totalPieces;
         input.weight = 1;
-        input.price = Number(o.price) || 0;
+        input.price = orderCollectableTotal(o);
       }
 
 

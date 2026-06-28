@@ -57,6 +57,12 @@ import {
   orderMatchesAllDeliveriesFilter,
   sumAllDeliveriesServerCounts,
 } from "@/lib/allDeliveriesFilter";
+import {
+  orderCollectableTotal,
+  orderHasDeliveryFee,
+  orderProductTotal,
+  orderShippingFee,
+} from "@/lib/orderTotals";
 
 interface Order {
   id: string;
@@ -67,6 +73,7 @@ interface Order {
   product_name: string;
   product_id?: string | null;
   price: number;
+  shipping_fee?: number;
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received" | "unpacked";
   created_at: string;
   selected_color?: string;
@@ -116,7 +123,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -196,6 +203,7 @@ const Orders = () => {
   const [labelCategoryMap, setLabelCategoryMap] = useState<Record<string, string>>({});
   const [confirmationFilter, setConfirmationFilter] = useState<"all" | ConfirmationStatus>("all");
   const [prepFilter, setPrepFilter] = useState<"all" | "pending" | "preparing" | "prepared">("all");
+  const [deliveryTypeFilter, setDeliveryTypeFilter] = useState<"all" | "with" | "without">("all");
   const [confirmNoteOpen, setConfirmNoteOpen] = useState<string | null>(null);
   const [confirmNoteValue, setConfirmNoteValue] = useState("");
   const [confirmNoteAction, setConfirmNoteAction] = useState<ConfirmationStatus>("no_answer");
@@ -540,6 +548,7 @@ const Orders = () => {
         productName: productFilter,
         confirmationStatus: confirmationFilter,
         prepStatus: prepFilter,
+        deliveryType: deliveryTypeFilter,
         dateFrom: pendingDateFrom || undefined,
         dateTo: pendingDateTo || undefined,
       };
@@ -563,6 +572,7 @@ const Orders = () => {
     productFilter,
     confirmationFilter,
     prepFilter,
+    deliveryTypeFilter,
     pendingDateFrom,
     pendingDateTo,
     shippedSearch,
@@ -1128,6 +1138,7 @@ const Orders = () => {
         productName: productFilter,
         confirmationStatus: confirmationFilter,
         prepStatus: prepFilter,
+        deliveryType: deliveryTypeFilter,
         dateFrom: pendingDateFrom || undefined,
         dateTo: pendingDateTo || undefined,
       };
@@ -1174,7 +1185,7 @@ const Orders = () => {
         "وصف الطرد": productName,
         "عدد القطع": order.quantity || 1,
         "الوزن": 1,
-        "السعر": Number(order.price) || 0,
+        "السعر": orderCollectableTotal(order),
         "نوع السعر": shippingMode === "included" ? "INCLD" : "EXCLD",
         "نوع التحصيل": "COLC",
         "رقم المرجع": order.id.slice(0, 12).toUpperCase(),
@@ -1366,7 +1377,7 @@ const Orders = () => {
         "المنطقة": (order as Order & { matched_area_name?: string }).matched_area_name || "",
         "المنتج": displayProductName(order),
         "الكمية": order.quantity || 1,
-        "السعر": Number(order.price) || 0,
+        "السعر": orderCollectableTotal(order),
         "حالة الشحن": getCarrierFilterLabel(order),
         "تاريخ الطلب": formatDate(order.created_at),
       }));
@@ -1532,10 +1543,15 @@ const Orders = () => {
     );
   };
 
-  const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => (
+  const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => {
+    const productTotal = orderProductTotal(order);
+    const shippingFee = orderShippingFee(order);
+    const orderTotal = orderCollectableTotal(order);
+    const hasDeliveryFee = orderHasDeliveryFee(order);
+    return (
     <Card
       key={order.id}
-      className={`card-shadow animate-slide-up ${duplicateCount > 1 ? "border-2 border-destructive bg-destructive/5" : ""}`}
+      className={`card-shadow animate-slide-up ${duplicateCount > 1 ? "border-2 border-destructive bg-destructive/5" : ""} ${hasDeliveryFee ? "border-2 border-sky-500/40 bg-sky-500/5" : ""}`}
     >
       <CardContent className="p-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1592,6 +1608,12 @@ const Orders = () => {
                     رقم مكرر ×{duplicateCount}
                   </Badge>
                 )}
+                {hasDeliveryFee && (
+                  <Badge className="bg-sky-500/15 text-sky-800 dark:text-sky-200 border border-sky-500/30 gap-1">
+                    <Truck className="w-3 h-3" />
+                    نوع التوصيل: {order.city} (+{shippingFee} {currencySymbol})
+                  </Badge>
+                )}
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
@@ -1607,9 +1629,23 @@ const Orders = () => {
                   {formatDate(order.created_at)}
                 </span>
               </div>
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-foreground">{isolateLatin(order.product_name)}</span>
-                <span className="text-primary font-bold">{order.price} {currencySymbol}</span>
+                {hasDeliveryFee ? (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">
+                      المنتجات: <span className="font-semibold text-foreground">{productTotal} {currencySymbol}</span>
+                    </span>
+                    <span className="text-sky-700 dark:text-sky-300">
+                      التوصيل: <span className="font-semibold">+{shippingFee} {currencySymbol}</span>
+                    </span>
+                    <span className="text-primary font-bold text-base">
+                      الإجمالي: {orderTotal} {currencySymbol}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-primary font-bold">{productTotal} {currencySymbol}</span>
+                )}
                 {Array.isArray(order.upsell_offers) && order.upsell_offers.length > 0 && (
                   <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1">
                     عروض تخفيض
@@ -1764,7 +1800,8 @@ const Orders = () => {
         </div>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   const renderEmptyState = (icon: React.ReactNode, message: string) => (
     <Card className="card-shadow">
@@ -2095,6 +2132,16 @@ const Orders = () => {
                         <SelectItem value="pending">قيد الانتظار</SelectItem>
                         <SelectItem value="preparing">جاري التجهيز</SelectItem>
                         <SelectItem value="prepared">تم التجهيز</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={deliveryTypeFilter} onValueChange={(v) => { setDeliveryTypeFilter(v as "all" | "with" | "without"); setSelectedOrders([]); }}>
+                      <SelectTrigger className="w-full sm:w-52">
+                        <SelectValue placeholder="فلتر نوع التوصيل" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">كل الطلبات</SelectItem>
+                        <SelectItem value="with">مع توصيل مدفوع</SelectItem>
+                        <SelectItem value="without">بدون توصيل مدفوع</SelectItem>
                       </SelectContent>
                     </Select>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">

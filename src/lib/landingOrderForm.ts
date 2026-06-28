@@ -63,9 +63,10 @@ export function resolveOrderFields(
     byKey("phone_alt");
 
   const city =
+    byKey("delivery_city") ||
     byKey("government") ||
     byKey("city") ||
-    findFieldValue(formFields, d, "government", "city", "مدينة", "محافظة", "ولاية");
+    findFieldValue(formFields, d, "delivery_city", "government", "city", "مدينة", "محافظة", "ولاية", "توصيل");
 
   const area = byKey("note") || findFieldValue(formFields, d, "note", "حي");
   const street =
@@ -135,7 +136,12 @@ export function validateOrderPayload(
   }
 
   const cityRequired = formFields.some(
-    (f) => f.required && (f.field_key === "government" || f.field_key === "city")
+    (f) =>
+      f.required &&
+      (f.field_key === "government" ||
+        f.field_key === "city" ||
+        f.field_key === "delivery_city" ||
+        f.field_type === "delivery_select")
   );
   if (cityRequired && !resolved.city.trim()) {
     return "يرجى إدخال المدينة";
@@ -148,6 +154,22 @@ export function validateOrderPayload(
     return "يرجى إدخال العنوان";
   }
 
+  return null;
+}
+
+export function validateDeliveryCity(
+  formFields: OrderFormField[],
+  formData: Record<string, string>,
+  prices: { city_name: string; price: number }[],
+): string | null {
+  if (!formFields.some((f) => f.field_type === "delivery_select" || f.field_key === "delivery_city")) {
+    return null;
+  }
+  const resolved = resolveOrderFields(formFields, formData);
+  const city = resolved.city.trim();
+  if (!city) return null;
+  if (prices.length === 0) return "أسعار التوصيل غير متوفرة حالياً";
+  if (!prices.some((p) => p.city_name === city)) return "يرجى اختيار مدينة توصيل صالحة";
   return null;
 }
 
@@ -166,6 +188,8 @@ export function mapCreateOrderError(code: string): string {
       return "المنتج غير متاح حالياً";
     case "missing_phone":
       return "رقم الهاتف مطلوب";
+    case "invalid_delivery_city":
+      return "يرجى اختيار مدينة توصيل صالحة";
     default:
       return "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى";
   }

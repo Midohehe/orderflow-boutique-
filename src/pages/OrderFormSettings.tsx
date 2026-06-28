@@ -4,7 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Loader2, MousePointerClick, MessageSquare, FormInput, ArrowUp, ArrowDown, Shield, Eye, EyeOff, Asterisk } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  FileText, Save, Loader2, MousePointerClick, MessageSquare, FormInput,
+  ArrowUp, ArrowDown, Shield, Eye, EyeOff, Asterisk, Truck, Plus, Trash2,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionCard } from "@/components/SectionCard";
@@ -31,14 +35,37 @@ interface FormField {
   enabled: boolean;
   sort_order: number;
 }
+interface DeliveryPriceRow {
+  id?: string;
+  city_name: string;
+  price: string;
+  sort_order: number;
+}
+
+/** Arabic text that was saved with wrong encoding shows as question marks only. */
+function isCorruptedArabicText(value: string | null | undefined): boolean {
+  const s = (value || "").trim();
+  if (!s) return false;
+  return s.includes("?") && !/[\u0600-\u06FF]/.test(s);
+}
+
+function resolveFieldText(
+  value: string | null | undefined,
+  fallback: string | null | undefined,
+): string {
+  if (isCorruptedArabicText(value)) return (fallback || "").trim();
+  return (value || fallback || "").trim();
+}
 
 const OrderFormSettings = () => {
   const { isAdmin, effectiveOwnerId } = useUserContext();
   const { activeStoreId } = useStoreContext();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [deliveryPrices, setDeliveryPrices] = useState<DeliveryPriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPrices, setSavingPrices] = useState(false);
   const [settings, setSettings] = useState({
     buttonText: "اطلب الآن",
     successMessage: "شكراً لك! تم استلام طلبك بنجاح",
@@ -56,10 +83,11 @@ const OrderFormSettings = () => {
           _store_id: activeStoreId,
         });
 
-        const [{ data: cat }, { data: existing }, { data: storeRow }] = await Promise.all([
+        const [{ data: cat }, { data: existing }, { data: storeRow }, { data: prices }] = await Promise.all([
           supabase.from("form_field_catalog").select("*").order("sort_order"),
           supabase.from("order_form_fields").select("*").eq("store_id", activeStoreId).order("sort_order"),
           supabase.from("store_settings").select("button_text, success_message").eq("owner_id", effectiveOwnerId).eq("store_id", activeStoreId).maybeSingle(),
+          supabase.from("store_delivery_prices").select("id, city_name, price, sort_order").eq("store_id", activeStoreId).order("sort_order"),
         ]);
 
         if (storeRow) {
@@ -69,14 +97,26 @@ const OrderFormSettings = () => {
           });
         }
 
-        const catalogRows = (cat || []) as CatalogItem[];
-        setCatalog(catalogRows);
-
-        const rows = existing || [];
-
-        setFormFields(rows.map((f: any) => ({
-          id: f.id, field_key: f.field_key, label: f.label, placeholder: f.placeholder,
-          field_type: f.field_type, required: f.required, enabled: f.enabled, sort_order: f.sort_order,
+        setCatalog((cat || []) as CatalogItem[]);
+        const catalogByKey = new Map(((cat || []) as CatalogItem[]).map((c) => [c.field_key, c]));
+        setFormFields((existing || []).map((f: any) => {
+          const catItem = catalogByKey.get(f.field_key);
+          return {
+            id: f.id,
+            field_key: f.field_key,
+            label: resolveFieldText(f.label, catItem?.label),
+            placeholder: resolveFieldText(f.placeholder, catItem?.default_placeholder),
+            field_type: f.field_type,
+            required: f.required,
+            enabled: f.enabled,
+            sort_order: f.sort_order,
+          };
+        }));
+        setDeliveryPrices((prices || []).map((p: any, i: number) => ({
+          id: p.id,
+          city_name: p.city_name,
+          price: String(p.price ?? 0),
+          sort_order: p.sort_order ?? i,
         })));
       } catch (e) {
         console.error(e);
@@ -85,9 +125,9 @@ const OrderFormSettings = () => {
     load();
   }, [effectiveOwnerId, activeStoreId]);
 
-  // Visible to store owner = catalog admin_enabled fields only (admin sees all)
   const allowedKeys = new Set(catalog.filter(c => isAdmin || c.admin_enabled).map(c => c.field_key));
   const visibleFields = formFields.filter(f => allowedKeys.has(f.field_key));
+  const hasDeliveryField = visibleFields.some((f) => f.field_key === "delivery_city" || f.field_type === "delivery_select");
 
   const handleFieldToggle = (id: string) => {
     setFormFields(formFields.map((f) => {
@@ -139,6 +179,71 @@ const OrderFormSettings = () => {
     } finally { setSaving(false); }
   };
 
+  const addDeliveryRow = () => {
+    setDeliveryPrices((prev) => [
+      ...prev,
+      { city_name: "", price: "0", sort_order: prev.length },
+    ]);
+  };
+
+  const updateDeliveryRow = (index: number, patch: Partial<DeliveryPriceRow>) => {
+    setDeliveryPrices((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  };
+
+  const removeDeliveryRow = (index: number) => {
+    setDeliveryPrices((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveDeliveryPrices = async () => {
+    if (!effectiveOwnerId || !activeStoreId) return;
+    const cleaned = deliveryPrices
+      .map((r, i) => ({
+        city_name: r.city_name.trim(),
+        price: Number(r.price) || 0,
+        sort_order: i,
+      }))
+      .filter((r) => r.city_name.length > 0);
+
+    const names = cleaned.map((r) => r.city_name);
+    if (new Set(names).size !== names.length) {
+      toast({ title: "خطأ", description: "لا يمكن تكرار اسم المدينة", variant: "destructive" });
+      return;
+    }
+
+    setSavingPrices(true);
+    try {
+      await supabase.from("store_delivery_prices").delete().eq("store_id", activeStoreId);
+      if (cleaned.length) {
+        const { error } = await supabase.from("store_delivery_prices").insert(
+          cleaned.map((r) => ({
+            owner_id: effectiveOwnerId,
+            store_id: activeStoreId,
+            city_name: r.city_name,
+            price: r.price,
+            sort_order: r.sort_order,
+          })),
+        );
+        if (error) throw error;
+      }
+      const { data: refreshed } = await supabase
+        .from("store_delivery_prices")
+        .select("id, city_name, price, sort_order")
+        .eq("store_id", activeStoreId)
+        .order("sort_order");
+      setDeliveryPrices((refreshed || []).map((p: any, i: number) => ({
+        id: p.id,
+        city_name: p.city_name,
+        price: String(p.price ?? 0),
+        sort_order: p.sort_order ?? i,
+      })));
+      toast({ title: "تم الحفظ", description: `تم حفظ ${cleaned.length} سعر توصيل` });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر حفظ أسعار التوصيل", variant: "destructive" });
+    } finally {
+      setSavingPrices(false);
+    }
+  };
+
   const toggleCatalogAdmin = async (key: string, value: boolean) => {
     const { error } = await supabase.from("form_field_catalog").update({ admin_enabled: value }).eq("field_key", key);
     if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
@@ -164,7 +269,7 @@ const OrderFormSettings = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader icon={FormInput} title="تعديل نموذج الطلب" description="تخصيص حقول ورسائل النموذج" iconGradient="from-cyan-500 to-blue-500" />
+      <PageHeader icon={FormInput} title="تعديل نموذج الطلب" description="تخصيص حقول ورسائل النموذج وأسعار التوصيل" iconGradient="from-cyan-500 to-blue-500" />
 
       {isAdmin && (
         <SectionCard icon={Shield} title="كتالوج الحقول (السوبر ادمن)" description="تحكّم في الحقول التي تظهر لأصحاب المتاجر" iconColor="bg-rose-500">
@@ -192,90 +297,155 @@ const OrderFormSettings = () => {
         </SectionCard>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-5">
-        <SectionCard icon={FileText} title="حقول النموذج" description="لكل حقل: إظهار/إخفاء + إلزامي/اختياري" iconColor="bg-blue-500">
-          {[...visibleFields].sort((a, b) => a.sort_order - b.sort_order).map((field, i, arr) => (
-            <div key={field.id} className="p-4 bg-muted/50 rounded-lg border space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="flex flex-col gap-1 shrink-0">
-                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => handleMove(field.id, -1)}>
-                    <ArrowUp className="w-4 h-4" />
-                  </Button>
-                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === arr.length - 1} onClick={() => handleMove(field.id, 1)}>
-                    <ArrowDown className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="flex-1 min-w-0 space-y-3">
-                  <div className="text-xs text-muted-foreground font-mono">{field.field_key}</div>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <label className="flex items-center gap-2 text-sm min-w-[140px]">
-                      <Switch checked={field.enabled} onCheckedChange={() => handleFieldToggle(field.id)} />
-                      {field.enabled ? (
-                        <span className="flex items-center gap-1 font-medium text-emerald-700">
-                          <Eye className="w-4 h-4" /> ظاهر
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 font-medium text-muted-foreground">
-                          <EyeOff className="w-4 h-4" /> مخفي
-                        </span>
+      <Tabs defaultValue="fields" className="space-y-4">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="fields">حقول النموذج</TabsTrigger>
+          <TabsTrigger value="delivery-prices">أسعار التوصيل</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fields" className="space-y-5">
+          <div className="grid lg:grid-cols-2 gap-5">
+            <SectionCard icon={FileText} title="حقول النموذج" description="لكل حقل: إظهار/إخفاء + إلزامي/اختياري" iconColor="bg-blue-500">
+              {[...visibleFields].sort((a, b) => a.sort_order - b.sort_order).map((field, i, arr) => (
+                <div key={field.id} className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => handleMove(field.id, -1)}>
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                      <Button type="button" variant="outline" size="icon" className="h-7 w-7" disabled={i === arr.length - 1} onClick={() => handleMove(field.id, 1)}>
+                        <ArrowDown className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-3">
+                      <div className="text-xs text-muted-foreground font-mono">{field.field_key}</div>
+                      {field.field_type === "delivery_select" && (
+                        <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                          قائمة منسدلة بالمدن من تبويب «أسعار التوصيل» — يُضاف سعر التوصيل على إجمالي الطلب
+                        </p>
                       )}
-                    </label>
-                    <label className={`flex items-center gap-2 text-sm min-w-[160px] ${!field.enabled ? "opacity-50 pointer-events-none" : ""}`}>
-                      <Switch
-                        checked={field.required}
-                        disabled={!field.enabled}
-                        onCheckedChange={() => handleRequiredToggle(field.id)}
-                      />
-                      {field.required ? (
-                        <span className="flex items-center gap-1 font-medium text-amber-700">
-                          <Asterisk className="w-4 h-4" /> إلزامي
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 font-medium text-muted-foreground">
-                          اختياري
-                        </span>
-                      )}
-                    </label>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <label className="flex items-center gap-2 text-sm min-w-[140px]">
+                          <Switch checked={field.enabled} onCheckedChange={() => handleFieldToggle(field.id)} />
+                          {field.enabled ? (
+                            <span className="flex items-center gap-1 font-medium text-emerald-700">
+                              <Eye className="w-4 h-4" /> ظاهر
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 font-medium text-muted-foreground">
+                              <EyeOff className="w-4 h-4" /> مخفي
+                            </span>
+                          )}
+                        </label>
+                        <label className={`flex items-center gap-2 text-sm min-w-[160px] ${!field.enabled ? "opacity-50 pointer-events-none" : ""}`}>
+                          <Switch
+                            checked={field.required}
+                            disabled={!field.enabled}
+                            onCheckedChange={() => handleRequiredToggle(field.id)}
+                          />
+                          {field.required ? (
+                            <span className="flex items-center gap-1 font-medium text-amber-700">
+                              <Asterisk className="w-4 h-4" /> إلزامي
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 font-medium text-muted-foreground">
+                              اختياري
+                            </span>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">اسم الحقل</Label>
+                      <Input value={field.label} onChange={(e) => handleFieldEdit(field.id, { label: e.target.value })} disabled={!isAdmin} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">النص المساعد</Label>
+                      <Input value={field.placeholder} onChange={(e) => handleFieldEdit(field.id, { placeholder: e.target.value })} />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">اسم الحقل</Label>
-                  <Input value={field.label} onChange={(e) => handleFieldEdit(field.id, { label: e.target.value })} disabled={!isAdmin} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">النص المساعد</Label>
-                  <Input value={field.placeholder} onChange={(e) => handleFieldEdit(field.id, { placeholder: e.target.value })} />
-                </div>
-              </div>
-            </div>
-          ))}
-          {visibleFields.length === 0 && (
-            <div className="text-sm text-muted-foreground p-4 text-center">لا توجد حقول متاحة. تواصل مع السوبر ادمن.</div>
-          )}
-        </SectionCard>
+              ))}
+              {visibleFields.length === 0 && (
+                <div className="text-sm text-muted-foreground p-4 text-center">لا توجد حقول متاحة. تواصل مع السوبر ادمن.</div>
+              )}
+            </SectionCard>
 
-        <div className="space-y-5">
-          <SectionCard icon={MousePointerClick} title="زر الطلب" description="نص زر الإرسال" iconColor="bg-emerald-500">
-            <div className="space-y-2">
-              <Label className="font-semibold">نص الزر</Label>
-              <Input value={settings.buttonText} onChange={(e) => setSettings({ ...settings, buttonText: e.target.value })} placeholder="اطلب الآن" />
+            <div className="space-y-5">
+              <SectionCard icon={MousePointerClick} title="زر الطلب" description="نص زر الإرسال" iconColor="bg-emerald-500">
+                <div className="space-y-2">
+                  <Label className="font-semibold">نص الزر</Label>
+                  <Input value={settings.buttonText} onChange={(e) => setSettings({ ...settings, buttonText: e.target.value })} placeholder="اطلب الآن" />
+                </div>
+              </SectionCard>
+              <SectionCard icon={MessageSquare} title="رسالة النجاح" description="تظهر بعد إرسال الطلب" iconColor="bg-violet-500">
+                <div className="space-y-2">
+                  <Label className="font-semibold">رسالة بعد إرسال الطلب</Label>
+                  <Textarea value={settings.successMessage} onChange={(e) => setSettings({ ...settings, successMessage: e.target.value })} rows={3} />
+                </div>
+              </SectionCard>
+            </div>
+          </div>
+
+          <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            حفظ إعدادات النموذج
+          </Button>
+        </TabsContent>
+
+        <TabsContent value="delivery-prices" className="space-y-4">
+          <SectionCard
+            icon={Truck}
+            title="أسعار التوصيل حسب المدينة"
+            description="تُستخدم في حقل «نوع التوصيل» في صفحة الطلب — يختار الزبون المدينة ويُضاف السعر على المنتج"
+            iconColor="bg-orange-500"
+          >
+            {!hasDeliveryField && (
+              <p className="text-sm text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-4">
+                فعّل حقل «نوع التوصيل» (delivery_city) من تبويب حقول النموذج ليظهر للزبائن.
+              </p>
+            )}
+            <div className="space-y-3">
+              {deliveryPrices.map((row, index) => (
+                <div key={row.id || `new-${index}`} className="grid grid-cols-[1fr_120px_auto] gap-2 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-xs">المدينة</Label>
+                    <Input
+                      value={row.city_name}
+                      onChange={(e) => updateDeliveryRow(index, { city_name: e.target.value })}
+                      placeholder="مثال: طرابلس"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">سعر التوصيل</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={row.price}
+                      onChange={(e) => updateDeliveryRow(index, { price: e.target.value })}
+                    />
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => removeDeliveryRow(index)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addDeliveryRow} className="gap-2">
+                <Plus className="w-4 h-4" />
+                إضافة مدينة
+              </Button>
             </div>
           </SectionCard>
-          <SectionCard icon={MessageSquare} title="رسالة النجاح" description="تظهر بعد إرسال الطلب" iconColor="bg-violet-500">
-            <div className="space-y-2">
-              <Label className="font-semibold">رسالة بعد إرسال الطلب</Label>
-              <Textarea value={settings.successMessage} onChange={(e) => setSettings({ ...settings, successMessage: e.target.value })} rows={3} />
-            </div>
-          </SectionCard>
-        </div>
-      </div>
 
-      <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
-        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-        حفظ الإعدادات
-      </Button>
+          <Button onClick={handleSaveDeliveryPrices} disabled={savingPrices} className="w-full py-6 text-lg font-bold gap-2">
+            {savingPrices ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            حفظ أسعار التوصيل
+          </Button>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
