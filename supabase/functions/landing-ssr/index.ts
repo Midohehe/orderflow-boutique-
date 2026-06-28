@@ -137,10 +137,13 @@ function ssrFieldRow(field: any): string {
     ? `<span style="color:#f43f5e;font-weight:700">*</span>`
     : "";
   const ftype = String(field?.field_type || "");
-  const icon = ftype === "phone" ? "📞" : ftype === "email" ? "✉️" : "👤";
-  const box =
-    ftype === "textarea"
-      ? `<div style="height:84px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)"></div>`
+  const fkey = String(field?.field_key || "");
+  const isDelivery = ftype === "delivery_select" || fkey === "delivery_city";
+  const icon = ftype === "phone" ? "📞" : ftype === "email" ? "✉️" : isDelivery ? "🚚" : "👤";
+  const box = ftype === "textarea"
+    ? `<div style="height:84px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)"></div>`
+    : isDelivery
+      ? `<div style="height:48px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:#64748b;font-size:14px"><span>${escapeHtml(field?.placeholder || "اختر المدينة")}</span><span>▾</span></div>`
       : `<div style="height:48px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)"></div>`;
   return `<div style="margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px"><span>${icon}</span><span>${label}</span>${required}</div>

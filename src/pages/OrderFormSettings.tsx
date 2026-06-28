@@ -15,6 +15,7 @@ import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
+import { isDeliverySelectField } from "@/lib/landingOrderForm";
 
 interface CatalogItem {
   field_key: string;
@@ -127,7 +128,7 @@ const OrderFormSettings = () => {
 
   const allowedKeys = new Set(catalog.filter(c => isAdmin || c.admin_enabled).map(c => c.field_key));
   const visibleFields = formFields.filter(f => allowedKeys.has(f.field_key));
-  const hasDeliveryField = visibleFields.some((f) => f.field_key === "delivery_city" || f.field_type === "delivery_select");
+  const hasDeliveryField = visibleFields.some(isDeliverySelectField);
 
   const handleFieldToggle = (id: string) => {
     setFormFields(formFields.map((f) => {
@@ -319,7 +320,7 @@ const OrderFormSettings = () => {
                     </div>
                     <div className="flex-1 min-w-0 space-y-3">
                       <div className="text-xs text-muted-foreground font-mono">{field.field_key}</div>
-                      {field.field_type === "delivery_select" && (
+                      {isDeliverySelectField(field) && (
                         <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
                           قائمة منسدلة بالمدن من تبويب «أسعار التوصيل» — يُضاف سعر التوصيل على إجمالي الطلب
                         </p>

@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, ShoppingBag, Phone, MapPin, User, Mail, Ruler, ZoomIn, X, Star, ChevronDown, ShieldCheck, Sparkles, Award, Truck, Loader2, Gift } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,8 +22,10 @@ import {
   autocompleteForField,
   fetchPublicOrderFormFields,
   inputTypeForField,
+  isDeliverySelectField,
   mapCreateOrderError,
   normalizeLibyanPhone,
+  normalizePublicFormFields,
   resolveOrderFields,
   validateDeliveryCity,
   validateOrderPayload,
@@ -165,7 +166,7 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
               <Phone className="w-4 h-4 text-amber-500" />
             ) : field.field_type === "email" ? (
               <Mail className="w-4 h-4 text-amber-500" />
-            ) : field.field_type === "delivery_select" || field.field_key === "delivery_city" ? (
+            ) : isDeliverySelectField(field) ? (
               <Truck className="w-4 h-4 text-amber-500" />
             ) : (
               <User className="w-4 h-4 text-amber-500" />
@@ -184,24 +185,34 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
               autoComplete={autocompleteForField(field)}
               className="text-base shadow-sm focus:shadow-md"
             />
-          ) : field.field_type === "delivery_select" || field.field_key === "delivery_city" ? (
-            <Select
-              value={values[field.field_key] || ""}
-              onValueChange={(v) => onChange(field.field_key, v)}
-              required={field.required}
-            >
-              <SelectTrigger className="text-base h-12 shadow-sm focus:shadow-md">
-                <SelectValue placeholder={field.placeholder || "اختر المدينة"} />
-              </SelectTrigger>
-              <SelectContent>
-                {deliveryPrices.map((row) => (
-                  <SelectItem key={row.city_name} value={row.city_name}>
-                    {row.city_name}
-                    {row.price > 0 ? ` (+${row.price} ${currencySymbol})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          ) : isDeliverySelectField(field) ? (
+            deliveryPrices.length === 0 ? (
+              <p className="text-sm text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                أسعار التوصيل غير متوفرة — أضف المدن من إعدادات نموذج الطلب
+              </p>
+            ) : (
+              <div className="relative">
+                <select
+                  name={field.field_key}
+                  value={values[field.field_key] || ""}
+                  onChange={(e) => onChange(field.field_key, e.target.value)}
+                  required={field.required}
+                  className="flex h-12 w-full appearance-none rounded-md border border-slate-200 bg-white px-3 py-2 text-base shadow-sm focus:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-10"
+                  dir="rtl"
+                >
+                  <option value="" disabled>
+                    {field.placeholder || "اختر المدينة"}
+                  </option>
+                  {deliveryPrices.map((row) => (
+                    <option key={row.city_name} value={row.city_name}>
+                      {row.city_name}
+                      {row.price > 0 ? ` (+${row.price} ${currencySymbol})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              </div>
+            )
           ) : (
             <Input
               name={field.field_key}
@@ -374,7 +385,9 @@ const LandingPage = () => {
   const [showSizeChart, setShowSizeChart] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formFields, setFormFields] = useState<FormField[]>(ssrSeed?.formFields ?? []);
+  const [formFields, setFormFields] = useState<FormField[]>(
+    normalizePublicFormFields((ssrSeed?.formFields ?? []) as FormField[]),
+  );
   const [formFieldsLoaded, setFormFieldsLoaded] = useState(!!ssrSeed?.formFields?.length);
   const [deliveryPrices, setDeliveryPrices] = useState<StoreDeliveryPrice[]>(ssrSeed?.deliveryPrices ?? []);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
@@ -516,9 +529,7 @@ const LandingPage = () => {
   }, [selectedUpsellIndex, product?.upsell_offers, product?.price, quantity]);
 
   const selectedDeliveryCity = useMemo(() => {
-    const deliveryField = formFields.find(
-      (f) => f.field_type === "delivery_select" || f.field_key === "delivery_city",
-    );
+    const deliveryField = formFields.find(isDeliverySelectField);
     if (!deliveryField) return "";
     return (formData[deliveryField.field_key] || "").trim();
   }, [formFields, formData]);
@@ -883,10 +894,11 @@ const LandingPage = () => {
           loadedCurrency = cachedStoreSettings.currency_code;
         }
         if (cachedFormFields) {
-          setFormFields(cachedFormFields);
-          setFormData((prev) => ensureFormFieldKeys(prev, cachedFormFields as FormField[]));
+          const normalized = normalizePublicFormFields(cachedFormFields as FormField[]);
+          setFormFields(normalized);
+          setFormData((prev) => ensureFormFieldKeys(prev, normalized));
           setFormFieldsLoaded(true);
-          if (storeForSettings && orderFormUsesDeliverySelect(cachedFormFields as FormField[])) {
+          if (storeForSettings && orderFormUsesDeliverySelect(normalized)) {
             fetchPublicDeliveryPrices(supabase, storeForSettings).then((prices) => {
               if (!ac.signal.aborted) setDeliveryPrices(prices);
             });
@@ -934,7 +946,7 @@ const LandingPage = () => {
         Promise.all([pixelPromise, formFieldsPromise, storePromise, stockPolicyPromise])
           .then(([pixelResult, formFieldsResult, storeSettingsResult, stockPolicyResult]) => {
           if (!formFieldsResult.error) {
-            const fields = (formFieldsResult.data || []) as FormField[];
+            const fields = normalizePublicFormFields((formFieldsResult.data || []) as FormField[]);
             setFormFields(fields);
             setToCache(formKey, fields);
             setFormData((prev) => ensureFormFieldKeys(prev, fields));
@@ -1400,7 +1412,9 @@ const LandingPage = () => {
     const mergedFormData = { ...formData };
     const formEl = document.getElementById("order-form");
     if (formEl) {
-      formEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]").forEach((el) => {
+      formEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+        "input[name], textarea[name], select[name]",
+      ).forEach((el) => {
         if (el.name) mergedFormData[el.name] = el.value;
       });
     }

@@ -140,8 +140,7 @@ export function validateOrderPayload(
       f.required &&
       (f.field_key === "government" ||
         f.field_key === "city" ||
-        f.field_key === "delivery_city" ||
-        f.field_type === "delivery_select")
+        isDeliverySelectField(f))
   );
   if (cityRequired && !resolved.city.trim()) {
     return "يرجى إدخال المدينة";
@@ -162,7 +161,7 @@ export function validateDeliveryCity(
   formData: Record<string, string>,
   prices: { city_name: string; price: number }[],
 ): string | null {
-  if (!formFields.some((f) => f.field_type === "delivery_select" || f.field_key === "delivery_city")) {
+  if (!formFields.some(isDeliverySelectField)) {
     return null;
   }
   const resolved = resolveOrderFields(formFields, formData);
@@ -201,6 +200,24 @@ export function inputTypeForField(field: OrderFormField): string {
   return "text";
 }
 
+/** City delivery picker — must render as dropdown, not free text. */
+export function isDeliverySelectField(
+  field: Pick<OrderFormField, "field_key" | "field_type">,
+): boolean {
+  const key = (field.field_key || "").trim().toLowerCase();
+  const type = (field.field_type || "").trim().toLowerCase();
+  return key === "delivery_city" || type === "delivery_select";
+}
+
+export function normalizePublicFormField(field: OrderFormField): OrderFormField {
+  if (!isDeliverySelectField(field)) return field;
+  return { ...field, field_type: "delivery_select", field_key: field.field_key || "delivery_city" };
+}
+
+export function normalizePublicFormFields(fields: OrderFormField[]): OrderFormField[] {
+  return fields.map(normalizePublicFormField);
+}
+
 /** Load enabled order-form fields for a public landing page (RPC + table fallback). */
 export async function fetchPublicOrderFormFields(
   supabase: SupabaseClient,
@@ -213,7 +230,7 @@ export async function fetchPublicOrderFormFields(
   });
 
   if (!error && Array.isArray(data)) {
-    return { fields: data as OrderFormField[], error: null };
+    return { fields: normalizePublicFormFields(data as OrderFormField[]), error: null };
   }
 
   const [{ data: catalog }, fieldsQuery] = await Promise.all([
@@ -235,7 +252,7 @@ export async function fetchPublicOrderFormFields(
     allowed.has(f.field_key)
   );
 
-  return { fields, error: error ?? fieldsQuery.error ?? null };
+  return { fields: normalizePublicFormFields(fields), error: error ?? fieldsQuery.error ?? null };
 }
 
 /** @deprecated Do not use as UI fallback — always load fields via get_public_order_form_fields. */

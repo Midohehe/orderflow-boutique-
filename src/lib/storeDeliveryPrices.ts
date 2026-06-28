@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { OrderFormField } from "@/lib/landingOrderForm";
+import { isDeliverySelectField, type OrderFormField } from "@/lib/landingOrderForm";
 
 export interface StoreDeliveryPrice {
   city_name: string;
@@ -8,7 +8,7 @@ export interface StoreDeliveryPrice {
 }
 
 export function orderFormUsesDeliverySelect(fields: OrderFormField[]): boolean {
-  return fields.some((f) => f.field_type === "delivery_select" || f.field_key === "delivery_city");
+  return fields.some(isDeliverySelectField);
 }
 
 export function lookupDeliveryFee(
