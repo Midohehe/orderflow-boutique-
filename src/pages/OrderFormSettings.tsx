@@ -15,7 +15,8 @@ import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
-import { isDeliverySelectField } from "@/lib/landingOrderForm";
+import { isDeliverySelectField, clearLandingFormFieldsCache } from "@/lib/landingOrderForm";
+import { purgeLandingCache } from "@/lib/purgeLandingCache";
 
 interface CatalogItem {
   field_key: string;
@@ -102,7 +103,7 @@ const OrderFormSettings = () => {
         const catalogByKey = new Map(((cat || []) as CatalogItem[]).map((c) => [c.field_key, c]));
         setFormFields((existing || []).map((f: any) => {
           const catItem = catalogByKey.get(f.field_key);
-          return {
+          const merged = {
             id: f.id,
             field_key: f.field_key,
             label: resolveFieldText(f.label, catItem?.label),
@@ -112,6 +113,9 @@ const OrderFormSettings = () => {
             enabled: f.enabled,
             sort_order: f.sort_order,
           };
+          return isDeliverySelectField(merged)
+            ? { ...merged, field_type: "delivery_select", field_key: "delivery_city" }
+            : merged;
         }));
         setDeliveryPrices((prices || []).map((p: any, i: number) => ({
           id: p.id,
@@ -154,10 +158,24 @@ const OrderFormSettings = () => {
     setFormFields([...formFields]);
   };
 
+  const purgeStoreLandingCache = async () => {
+    if (!activeStoreId) return;
+    const [{ data: pages }, { data: store }] = await Promise.all([
+      supabase.from("landing_pages").select("slug").eq("store_id", activeStoreId),
+      supabase.from("stores").select("slug").eq("id", activeStoreId).maybeSingle(),
+    ]);
+    const username = store?.slug || null;
+    for (const row of pages || []) {
+      if (row.slug) await purgeLandingCache(row.slug, username);
+    }
+    if (effectiveOwnerId) clearLandingFormFieldsCache(effectiveOwnerId, activeStoreId);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       for (const f of formFields) {
+        const isDelivery = isDeliverySelectField(f);
         await supabase.from("order_form_fields")
           .update({
             enabled: f.enabled,
@@ -165,6 +183,7 @@ const OrderFormSettings = () => {
             sort_order: f.sort_order,
             label: f.label,
             placeholder: f.placeholder,
+            ...(isDelivery ? { field_type: "delivery_select", field_key: "delivery_city" } : {}),
           })
           .eq("id", f.id);
       }
@@ -175,6 +194,7 @@ const OrderFormSettings = () => {
           .eq("store_id", activeStoreId);
       }
       toast({ title: "تم الحفظ", description: "تم حفظ إعدادات نموذج الطلب" });
+      await purgeStoreLandingCache();
     } catch (e) {
       toast({ title: "خطأ", description: "تعذر الحفظ", variant: "destructive" });
     } finally { setSaving(false); }
@@ -238,6 +258,7 @@ const OrderFormSettings = () => {
         sort_order: p.sort_order ?? i,
       })));
       toast({ title: "تم الحفظ", description: `تم حفظ ${cleaned.length} سعر توصيل` });
+      await purgeStoreLandingCache();
     } catch (e: any) {
       toast({ title: "خطأ", description: e?.message || "تعذر حفظ أسعار التوصيل", variant: "destructive" });
     } finally {

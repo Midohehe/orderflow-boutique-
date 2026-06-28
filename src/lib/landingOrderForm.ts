@@ -200,18 +200,43 @@ export function inputTypeForField(field: OrderFormField): string {
   return "text";
 }
 
+const DELIVERY_LABEL_HINT = /منطقة\s*التوصيل|نوع\s*التوصيل|مكان\s*التوصيل/i;
+const DELIVERY_PLACEHOLDER_HINT = /مكان\s*التوصيل|اختر\s*(ال)?(مدينة|منطقة)/i;
+
 /** City delivery picker — must render as dropdown, not free text. */
 export function isDeliverySelectField(
-  field: Pick<OrderFormField, "field_key" | "field_type">,
+  field: Pick<OrderFormField, "field_key" | "field_type" | "label" | "placeholder">,
 ): boolean {
   const key = (field.field_key || "").trim().toLowerCase();
   const type = (field.field_type || "").trim().toLowerCase();
-  return key === "delivery_city" || type === "delivery_select";
+  if (key === "delivery_city" || type === "delivery_select") return true;
+  const label = (field.label || "").trim();
+  const placeholder = (field.placeholder || "").trim();
+  return DELIVERY_LABEL_HINT.test(label) || DELIVERY_PLACEHOLDER_HINT.test(placeholder);
 }
 
 export function normalizePublicFormField(field: OrderFormField): OrderFormField {
   if (!isDeliverySelectField(field)) return field;
-  return { ...field, field_type: "delivery_select", field_key: field.field_key || "delivery_city" };
+  return {
+    ...field,
+    field_type: "delivery_select",
+    field_key: (field.field_key || "").trim() || "delivery_city",
+  };
+}
+
+export const LANDING_FORM_FIELDS_CACHE_PREFIX = "libya_form_fields_v2";
+
+export function landingFormFieldsCacheKey(ownerId: string, storeId: string | null): string {
+  return `${LANDING_FORM_FIELDS_CACHE_PREFIX}_${ownerId}_${storeId || "_"}`;
+}
+
+export function clearLandingFormFieldsCache(ownerId: string, storeId: string | null): void {
+  try {
+    sessionStorage.removeItem(landingFormFieldsCacheKey(ownerId, storeId));
+    sessionStorage.removeItem(`libya_form_fields_${ownerId}_${storeId || "_"}`);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function normalizePublicFormFields(fields: OrderFormField[]): OrderFormField[] {

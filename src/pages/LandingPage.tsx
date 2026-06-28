@@ -23,6 +23,7 @@ import {
   fetchPublicOrderFormFields,
   inputTypeForField,
   isDeliverySelectField,
+  landingFormFieldsCacheKey,
   mapCreateOrderError,
   normalizeLibyanPhone,
   normalizePublicFormFields,
@@ -279,7 +280,7 @@ function toISOCurrency(code?: string, symbol?: string): string {
 const CACHE_KEYS = {
   STORE_SETTINGS: 'libya_store_settings',
   PIXEL_SETTINGS: 'libya_pixel_settings',
-  FORM_FIELDS: 'libya_form_fields',
+  FORM_FIELDS: 'libya_form_fields_v2',
   PRODUCT: 'libya_product_',
 };
 
@@ -634,15 +635,26 @@ const LandingPage = () => {
           );
         }
 
-        const seedFields = (ssrSeed.formFields || []) as FormField[];
-        if (
-          orderFormUsesDeliverySelect(seedFields) &&
-          ssrSeed.storeId &&
-          !(ssrSeed.deliveryPrices && ssrSeed.deliveryPrices.length > 0)
-        ) {
-          fetchPublicDeliveryPrices(supabase, ssrSeed.storeId).then((prices) => {
-            if (!ac.signal.aborted) setDeliveryPrices(prices);
-          });
+        // Always revalidate form fields + delivery prices (stale SSR/edge cache may
+        // embed outdated field types after enabling «نوع التوصيل»).
+        if (ssrSeed.ownerId) {
+          fetchPublicOrderFormFields(supabase, ssrSeed.ownerId, ssrSeed.storeId).then(
+            ({ fields, error }) => {
+              if (ac.signal.aborted || error || !fields.length) return;
+              const normalized = normalizePublicFormFields(fields) as FormField[];
+              setFormFields(normalized);
+              setFormData((prev) => ensureFormFieldKeys(prev, normalized));
+              setToCache(
+                landingFormFieldsCacheKey(ssrSeed.ownerId!, ssrSeed.storeId),
+                normalized,
+              );
+            },
+          );
+          if (ssrSeed.storeId) {
+            fetchPublicDeliveryPrices(supabase, ssrSeed.storeId).then((prices) => {
+              if (!ac.signal.aborted) setDeliveryPrices(prices);
+            });
+          }
         }
 
         return;
@@ -882,7 +894,7 @@ const LandingPage = () => {
         const ownerSuffix = (ownerForSettings || "_") + "_" + (storeForSettings || "_");
         const storeKey = CACHE_KEYS.STORE_SETTINGS + "_" + ownerSuffix;
         const pixelKey = CACHE_KEYS.PIXEL_SETTINGS + "_" + ownerSuffix;
-        const formKey = CACHE_KEYS.FORM_FIELDS + "_" + ownerSuffix;
+        const formKey = landingFormFieldsCacheKey(ownerForSettings || "", storeForSettings);
 
         const cachedStoreSettings = getFromCache(storeKey);
         const cachedPixelSettings = getFromCache(pixelKey);
