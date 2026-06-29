@@ -15,6 +15,7 @@ interface OrderPayload {
   phone: string;
   address: string;
   city: string;
+  governorate?: string | null;
   selected_color?: string | null;
   selected_size?: string | null;
   selected_product_code?: string | null;
@@ -86,6 +87,7 @@ Deno.serve(async (req) => {
     const phone = s(body.phone, 40);
     const address = s(body.address, 500);
     const city = s(body.city, 120);
+    const governorate = s(body.governorate ?? "", 120);
 
     if (!product_id || !phone) {
       console.error("Missing required fields", { product_id, phone });
@@ -235,6 +237,7 @@ Deno.serve(async (req) => {
       phone,
       address: address || "—",
       city: city || "—",
+      governorate: governorate || null,
       product_id: product.id,
       product_name: product.name,
       price: totalPrice,

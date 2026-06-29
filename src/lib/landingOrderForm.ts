@@ -15,6 +15,7 @@ export interface ResolvedOrderFields {
   customer_name: string;
   phone: string;
   city: string;
+  governorate: string;
   address: string;
 }
 
@@ -62,15 +63,18 @@ export function resolveOrderFields(
     findFieldValue(formFields, d, "phone", "tel", "هاتف", "جوال", "موبايل") ||
     byKey("phone_alt");
 
+  // Delivery zone (used for shipping price) and the customer-entered city /
+  // governorate are two independent values — neither overrides the other.
   const deliveryCity = byKey("delivery_city");
-  const governmentCity =
+  const governorate =
     byKey("government") ||
     byKey("city") ||
     findFieldValue(formFields, d, "government", "city", "مدينة", "محافظة", "ولاية");
 
+  // `city` holds the delivery zone when present, otherwise the customer's city.
   const city =
     deliveryCity ||
-    governmentCity ||
+    governorate ||
     findFieldValue(formFields, d, "delivery_city", "توصيل");
 
   const area = byKey("note") || findFieldValue(formFields, d, "note", "حي");
@@ -78,15 +82,9 @@ export function resolveOrderFields(
     byKey("address") ||
     findFieldValue(formFields, d, "address", "عنوان", "شارع", "تفصيل");
 
-  // The orders table has a single `city` column. When a delivery zone is chosen
-  // as the city, keep the customer's own city/governorate (e.g. "طرابلس") inside
-  // the address so it isn't lost and stays visible on the order.
-  const extraCity =
-    deliveryCity && governmentCity && governmentCity !== deliveryCity ? governmentCity : "";
+  const address = [street, area].filter(Boolean).join(" — ");
 
-  const address = [extraCity, street, area].filter(Boolean).join(" — ");
-
-  return { customer_name, phone, city, address };
+  return { customer_name, phone, city, governorate, address };
 }
 
 export function normalizeLibyanPhone(raw: string): string {

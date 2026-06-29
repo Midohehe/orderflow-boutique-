@@ -1450,7 +1450,7 @@ const LandingPage = () => {
       return;
     }
 
-    const { customer_name, phone, city, address } = resolveOrderFields(activeFormFields, mergedFormData);
+    const { customer_name, phone, city, governorate, address } = resolveOrderFields(activeFormFields, mergedFormData);
     const normalizedPhone = normalizeLibyanPhone(phone);
 
     // Validate per-piece variants when product has colors, sizes, or named codes
@@ -1526,6 +1526,7 @@ const LandingPage = () => {
           phone: normalizedPhone,
           address,
           city,
+          governorate,
           product_id: product?.id,
           quantity: quantity,
           selected_color: colorsArray.filter(Boolean).join(", ") || null,

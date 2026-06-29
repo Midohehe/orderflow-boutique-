@@ -70,6 +70,7 @@ interface Order {
   phone: string;
   address: string;
   city: string;
+  governorate?: string | null;
   product_name: string;
   product_id?: string | null;
   price: number;
@@ -1626,7 +1627,9 @@ const Orders = () => {
                 </span>
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
-                  {order.locked_insufficient_balance ? "••••••••••" : `${order.address}، ${order.city}`}
+                  {order.locked_insufficient_balance
+                    ? "••••••••••"
+                    : `${order.address}، ${order.city}${order.governorate ? ` — ${order.governorate}` : ""}`}
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />

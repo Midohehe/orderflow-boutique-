@@ -35,6 +35,7 @@ interface ProductLite {
 const TEXT_FIELDS: { key: string; label: string; type?: string; textarea?: boolean }[] = [
   { key: "customer_name", label: "اسم العميل" },
   { key: "phone", label: "رقم الهاتف" },
+  { key: "governorate", label: "المدينة (التي كتبها الزبون)" },
   { key: "address", label: "العنوان", textarea: true },
   { key: "shipping_reference", label: "كود الشحن" },
 ];
@@ -62,7 +63,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [data, setData] = useState<any>(null);
   const [products, setProducts] = useState<ProductLite[]>([]);
   const [items, setItems] = useState<any[]>([]);
-  const [originalInput, setOriginalInput] = useState<{ city: string; address: string; variant: string; quantity: number | null } | null>(null);
+  const [originalInput, setOriginalInput] = useState<{ city: string; governorate: string; address: string; variant: string; quantity: number | null } | null>(null);
   const [zones, setZones] = useState<Array<{ id: number; name: string; canonical?: string }>>([]);
   const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string; canonical?: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
@@ -160,6 +161,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
           .join(" - ");
         setOriginalInput({
           city: o.data.city || "",
+          governorate: (o.data as any).governorate || "",
           address: o.data.address || "",
           variant: variantStr,
           quantity: o.data.quantity ?? null,
@@ -534,13 +536,19 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <span>الطلب مقفل بسبب نفاد الرصيد — لا يمكن إرساله لشركة التوصيل حتى شحن المحفظة.</span>
             </div>
           )}
-          {originalInput && (originalInput.city || originalInput.address || originalInput.variant) && (
+          {originalInput && (originalInput.city || originalInput.governorate || originalInput.address || originalInput.variant) && (
             <div className="p-3 rounded-md bg-muted/50 border border-border text-sm mb-2 space-y-1">
               <div className="font-medium text-foreground">ما كتبه الزبون في النموذج:</div>
               <div className="text-muted-foreground">
-                <span className="font-medium text-foreground">المدينة/المنطقة: </span>
+                <span className="font-medium text-foreground">نوع التوصيل/المنطقة: </span>
                 {originalInput.city || "—"}
               </div>
+              {originalInput.governorate && (
+                <div className="text-muted-foreground">
+                  <span className="font-medium text-foreground">المدينة: </span>
+                  {originalInput.governorate}
+                </div>
+              )}
               <div className="text-muted-foreground">
                 <span className="font-medium text-foreground">العنوان: </span>
                 {originalInput.address || "—"}
