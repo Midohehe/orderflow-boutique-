@@ -1,7 +1,6 @@
 /**
- * Default carrier status codes, labels, and delivery-rate categories.
- * Used when a store owner has not saved custom mappings in carrier_status_mappings.
- * Matches the standard Libyan carrier (Wassal) code set.
+ * Suggested carrier codes/labels for the admin settings UI only.
+ * Delivery-rate stats use ONLY rows saved in carrier_status_mappings (no hidden defaults).
  */
 export type CarrierCategory = "delivered" | "returned" | "in_progress";
 
@@ -50,7 +49,7 @@ export const CARRIER_LABEL_ALIASES: Record<string, string> = {
 };
 
 export function mergeCarrierStatusMappings(
-  ownerMappings: Array<{
+  savedMappings: Array<{
     status_code: string;
     custom_label: string | null;
     color?: string | null;
@@ -59,21 +58,18 @@ export function mergeCarrierStatusMappings(
   }>,
 ): CarrierStatusMappingRow[] {
   const byCode = new Map<string, CarrierStatusMappingRow>();
-  for (const d of DEFAULT_CARRIER_STATUS_MAPPINGS) {
-    byCode.set(d.status_code.toUpperCase(), { ...d });
-  }
-  for (const row of ownerMappings) {
+  for (const row of savedMappings) {
     const code = String(row.status_code).toUpperCase();
     const category =
       row.category === "delivered" || row.category === "returned" || row.category === "in_progress"
         ? row.category
-        : byCode.get(code)?.category ?? null;
+        : null;
     byCode.set(code, {
       status_code: code,
-      custom_label: row.custom_label?.trim() || byCode.get(code)?.custom_label || code,
+      custom_label: row.custom_label?.trim() || code,
       category,
       color: row.color ?? undefined,
-      sort_order: row.sort_order ?? byCode.get(code)?.sort_order,
+      sort_order: row.sort_order ?? undefined,
     });
   }
   return Array.from(byCode.values());

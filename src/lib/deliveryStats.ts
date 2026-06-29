@@ -168,9 +168,6 @@ export function resolveCarrierCategory(
   order: DeliveryStatsOrder,
   indexes: CarrierMappingIndexes,
 ): CarrierCategory | undefined {
-  if (order.status === "delivered" || order.status === "settled") return "delivered";
-  if (order.status === "returned_received" || order.status === "unpacked") return "returned";
-
   const code = extractCarrierStatusCode(order, indexes.statusMap);
   if (code) {
     const cat = indexes.statusCategoryMap[code] ?? indexes.statusCategoryMap[code.toUpperCase()];
@@ -201,6 +198,7 @@ export function isOrderDelivered(
   order: DeliveryStatsOrder,
   indexes: CarrierMappingIndexes,
 ): boolean {
+  if (order.status === "delivered" || order.status === "settled") return true;
   return resolveCarrierCategory(order, indexes) === "delivered";
 }
 

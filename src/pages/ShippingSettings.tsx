@@ -11,7 +11,6 @@ import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, C
 import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
-import { DEFAULT_CARRIER_STATUS_MAPPINGS } from "@/lib/carrierStatusDefaults";
 
 interface ShippingSettings {
   id?: string;
@@ -175,13 +174,11 @@ const ShippingSettingsPage = () => {
       if (hiddenSet.has(d.code)) return;
       if (usedDefaultCodes.has(d.code)) return;
       if (existingByCode.has(d.code)) return;
-      const defaultCategory =
-        DEFAULT_CARRIER_STATUS_MAPPINGS.find((m) => m.status_code === d.code)?.category || "none";
       rows.push({
         codes: d.code,
         custom_label: d.label,
         color: "default",
-        category: defaultCategory,
+        category: "none",
         originalCodes: [],
         sort_order: 0,
         isDefault: true,
@@ -733,6 +730,8 @@ const ShippingSettingsPage = () => {
               <Label className="text-base font-bold">تخصيص أسماء حالات الشحن</Label>
               <p className="text-xs text-muted-foreground mt-1">
                 حوّل أكواد الحالات القادمة من شركة الشحن إلى أسماء تفهمها. يمكنك إضافة أكثر من كود لنفس الاسم بفصلهم بفاصلة (مثال: <span className="font-mono">RTS, RTSWODF, RTSD</span> ← "راجع").
+                {" "}
+                النسب تُحسب فقط من التصنيفات التي تحفظها هنا — «لا يحتسب» يستبعد الحالة من النسب.
               </p>
             </div>
 
