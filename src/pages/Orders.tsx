@@ -1720,7 +1720,7 @@ const Orders = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end md:justify-start">
             <Button variant="outline" size="icon" onClick={() => setDetailsId(order.id)} title="تفاصيل وتعديل">
               <Eye className="w-4 h-4" />
             </Button>
@@ -2715,7 +2715,10 @@ const Orders = () => {
         orderId={detailsId}
         open={!!detailsId}
         onOpenChange={(o) => !o && setDetailsId(null)}
-        onSaved={(u) => setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p))}
+        onSaved={(u) => {
+          setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p));
+          refreshOrdersCache();
+        }}
       />
 
       <ShippingOptionsDialog
