@@ -108,32 +108,7 @@ export async function fetchDeliveryStatsSummary(
   ownerId: string | null | undefined,
   productName: string | null = null,
 ): Promise<DeliveryStatsSummary | null> {
-  const { data, error } = await supabase.rpc("orders_delivery_stats_summary", {
-    _store_id: storeId,
-    _owner_id: ownerId ?? null,
-    _product_name: productName,
-  });
-
-  if (error) {
-    const msg = String(error.message || "");
-    if (!msg.includes("orders_delivery_stats_summary")) throw error;
-    return computeDeliveryStatsClientSide(storeId, ownerId, productName);
-  }
-
-  const summary = parseDeliveryStatsRpc(data as DeliveryStatsRpcRow | null);
-  if (!summary) return computeDeliveryStatsClientSide(storeId, ownerId, productName);
-
-  const sentTotal = summary.confirmed.total + summary.otherConfirmation.total;
-  const categorizedTotal =
-    summary.carrierCategories.delivered +
-    summary.carrierCategories.returned +
-    summary.carrierCategories.in_progress;
-
-  if (sentTotal > 0 && categorizedTotal === 0) {
-    return computeDeliveryStatsClientSide(storeId, ownerId, productName);
-  }
-
-  return summary;
+  return computeDeliveryStatsClientSide(storeId, ownerId, productName);
 }
 
 export async function fetchShippedCarrierCounts(

@@ -28,6 +28,7 @@ export const DEFAULT_CARRIER_STATUS_MAPPINGS: CarrierStatusMappingRow[] = [
   { status_code: "DTRCP", custom_label: "تم التسليم والسداد للعميل", category: "delivered", sort_order: 120 },
   { status_code: "DTRUC", custom_label: "تم التسليم دون تحصيل", category: "delivered", sort_order: 130 },
   { status_code: "RTS", custom_label: "راجع", category: "returned", sort_order: 200 },
+  { status_code: "RTSWODF", custom_label: "RTSWODF", category: "returned", sort_order: 205 },
   { status_code: "RTSD", custom_label: "راجع لدى المندوب", category: "returned", sort_order: 210 },
   { status_code: "RTSC", custom_label: "راجع لدى الشركة", category: "returned", sort_order: 220 },
   { status_code: "OTR", custom_label: "قيد الإرجاع", category: "returned", sort_order: 230 },

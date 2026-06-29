@@ -599,7 +599,8 @@ const Orders = () => {
       carrierRateProductFilter === "all" ? null : carrierRateProductFilter,
     ],
     enabled: !!activeStoreId && showDeliveryStats,
-    staleTime: 5 * 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: () =>
       fetchDeliveryStatsSummary(
         activeStoreId!,

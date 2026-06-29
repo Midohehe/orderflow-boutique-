@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { Loader2, Truck, RefreshCw, Copy, Plus, Trash2, GripVertical, Package, C
 import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { DEFAULT_CARRIER_STATUS_MAPPINGS } from "@/lib/carrierStatusDefaults";
 
 interface ShippingSettings {
   id?: string;
@@ -31,6 +33,7 @@ const DEFAULT: ShippingSettings = {
 const ShippingSettingsPage = () => {
   const { isAdmin } = useUserContext();
   const { activeStoreId } = useStoreContext();
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<ShippingSettings>(DEFAULT);
   const [globalEndpoint, setGlobalEndpoint] = useState<string>("https://turboex.ly:8001/graphql");
   const [savingEndpoint, setSavingEndpoint] = useState(false);
@@ -89,6 +92,7 @@ const ShippingSettingsPage = () => {
     { code: "DTRCP", label: "تم التسليم والسداد للعميل" },
     { code: "DTRUC", label: "تم التسليم دون تحصيل" },
     { code: "RTS", label: "راجع" },
+    { code: "RTSWODF", label: "RTSWODF" },
     { code: "RTSD", label: "راجع لدى المندوب" },
     { code: "RTSC", label: "راجع لدى الشركة" },
     { code: "OTR", label: "قيد الإرجاع" },
@@ -109,12 +113,18 @@ const ShippingSettingsPage = () => {
   ];
 
   const loadMappings = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    let mappingsQuery = supabase
+      .from("carrier_status_mappings")
+      .select("id, status_code, custom_label, color, sort_order, category")
+      .order("sort_order", { ascending: true })
+      .order("status_code", { ascending: true });
+    if (isAdmin && user) {
+      mappingsQuery = mappingsQuery.eq("owner_id", user.id);
+    }
+
     const [{ data }, { data: hidden }] = await Promise.all([
-      supabase
-        .from("carrier_status_mappings")
-        .select("id, status_code, custom_label, color, sort_order, category")
-        .order("sort_order", { ascending: true })
-        .order("status_code", { ascending: true }),
+      mappingsQuery,
       supabase.from("hidden_default_carrier_codes").select("status_code"),
     ]);
     const existing = (data || []) as any[];
@@ -165,11 +175,13 @@ const ShippingSettingsPage = () => {
       if (hiddenSet.has(d.code)) return;
       if (usedDefaultCodes.has(d.code)) return;
       if (existingByCode.has(d.code)) return;
+      const defaultCategory =
+        DEFAULT_CARRIER_STATUS_MAPPINGS.find((m) => m.status_code === d.code)?.category || "none";
       rows.push({
         codes: d.code,
         custom_label: d.label,
         color: "default",
-        category: "none",
+        category: defaultCategory,
         originalCodes: [],
         sort_order: 0,
         isDefault: true,
@@ -293,7 +305,12 @@ const ShippingSettingsPage = () => {
           .upsert(rows, { onConflict: "owner_id,status_code" });
         if (error) throw error;
       }
-      toast({ title: "تم الحفظ", description: "تم حفظ تخصيص أسماء الحالات" });
+      toast({
+        title: "تم الحفظ",
+        description: "تم حفظ تخصيص أسماء الحالات. ستُحدَّث نسب التسليم في صفحة الطلبات فوراً.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["orders-delivery-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["orders-page-meta"] });
       await loadMappings();
     } catch (e) {
       toast({ title: "خطأ", description: (e as Error).message, variant: "destructive" });

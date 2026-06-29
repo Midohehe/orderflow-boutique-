@@ -69,7 +69,7 @@ export function buildCarrierMappingIndexes(
     if (row.category) {
       statusCategoryMap[code] = row.category;
       statusCategoryMap[String(row.status_code)] = row.category;
-      if (!labelCategoryMap[label]) labelCategoryMap[label] = row.category;
+      labelCategoryMap[label] = row.category;
     }
     const order = Number(row.sort_order ?? 0);
     if (order > 0 && (labelOrderMap[label] === undefined || order < labelOrderMap[label])) {
