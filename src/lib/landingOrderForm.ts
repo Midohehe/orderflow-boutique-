@@ -62,18 +62,29 @@ export function resolveOrderFields(
     findFieldValue(formFields, d, "phone", "tel", "هاتف", "جوال", "موبايل") ||
     byKey("phone_alt");
 
-  const city =
-    byKey("delivery_city") ||
+  const deliveryCity = byKey("delivery_city");
+  const governmentCity =
     byKey("government") ||
     byKey("city") ||
-    findFieldValue(formFields, d, "delivery_city", "government", "city", "مدينة", "محافظة", "ولاية", "توصيل");
+    findFieldValue(formFields, d, "government", "city", "مدينة", "محافظة", "ولاية");
+
+  const city =
+    deliveryCity ||
+    governmentCity ||
+    findFieldValue(formFields, d, "delivery_city", "توصيل");
 
   const area = byKey("note") || findFieldValue(formFields, d, "note", "حي");
   const street =
     byKey("address") ||
     findFieldValue(formFields, d, "address", "عنوان", "شارع", "تفصيل");
 
-  const address = [street, area].filter(Boolean).join(" — ");
+  // The orders table has a single `city` column. When a delivery zone is chosen
+  // as the city, keep the customer's own city/governorate (e.g. "طرابلس") inside
+  // the address so it isn't lost and stays visible on the order.
+  const extraCity =
+    deliveryCity && governmentCity && governmentCity !== deliveryCity ? governmentCity : "";
+
+  const address = [extraCity, street, area].filter(Boolean).join(" — ");
 
   return { customer_name, phone, city, address };
 }
