@@ -1418,6 +1418,9 @@ const Orders = () => {
     .sort((a, b) => a.localeCompare(b, "ar"));
 
   const deliveryStatsSummary: DeliveryStatsSummary | null | undefined = deliveryStatsQuery.data;
+  const deliveryStatsLoading =
+    showDeliveryStats && (deliveryStatsQuery.isLoading || deliveryStatsQuery.isFetching);
+  const deliveryStatsError = deliveryStatsQuery.error;
 
   const confirmedRate = deliveryStatsSummary?.confirmed.rate ?? 0;
   const otherConfirmationRate = deliveryStatsSummary?.otherConfirmation.rate ?? 0;
@@ -1878,11 +1881,33 @@ const Orders = () => {
           className="gap-2 shadow-sm hover:shadow-md transition-shadow border-primary/30 text-primary hover:bg-primary/5"
         >
           {showDeliveryStats ? <EyeOff className="w-4 h-4" /> : <BarChart3 className="w-4 h-4" />}
-          {showDeliveryStats ? "إخفاء نسب التسليم" : "إظهار نسب التسليم"}
+          {deliveryStatsLoading
+            ? "جاري الحساب..."
+            : showDeliveryStats
+              ? "إخفاء نسب التسليم"
+              : "إظهار نسب التسليم"}
         </Button>
       </div>
 
       {showDeliveryStats && (
+      <>
+      {deliveryStatsLoading ? (
+        <Card className="card-shadow">
+          <CardContent className="p-10 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-base font-semibold text-foreground">جاري حساب نسب التسليم...</p>
+            <p className="text-sm text-muted-foreground max-w-md">
+              الرجاء الانتظار — يتم تحليل الطلبات المرسلة لشركة الشحن وفق تصنيفاتك المحفوظة.
+            </p>
+          </CardContent>
+        </Card>
+      ) : deliveryStatsError ? (
+        <Card className="card-shadow border-destructive/30">
+          <CardContent className="p-6 text-center text-sm text-destructive">
+            تعذّر حساب نسب التسليم. حدّث الصفحة وحاول مرة أخرى.
+          </CardContent>
+        </Card>
+      ) : (
       <>
       {/* نسبة التسليم حسب حالة التأكيد */}
       <Card className="card-shadow">
@@ -2020,6 +2045,8 @@ const Orders = () => {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
       </>
       )}
 

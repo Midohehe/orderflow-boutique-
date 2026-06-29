@@ -108,6 +108,16 @@ export async function fetchDeliveryStatsSummary(
   ownerId: string | null | undefined,
   productName: string | null = null,
 ): Promise<DeliveryStatsSummary | null> {
+  const { data, error } = await supabase.rpc("orders_delivery_stats_summary", {
+    _store_id: storeId,
+    _owner_id: ownerId ?? null,
+    _product_name: productName,
+  });
+
+  if (!error && data) {
+    return parseDeliveryStatsRpc(data as DeliveryStatsRpcRow);
+  }
+
   return computeDeliveryStatsClientSide(storeId, ownerId, productName);
 }
 
