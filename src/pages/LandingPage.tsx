@@ -543,6 +543,7 @@ const LandingPage = () => {
   const orderTotalDisplay = orderProductSubtotal + deliveryFee;
   const showOrderTotalSummary =
     deliveryFee > 0 || quantity > 1 || selectedUpsellIndex !== null;
+  const showOrderCostBreakdown = orderFormUsesDeliverySelect(formFields);
 
   const activeFormFields = formFields;
   const getAttribution = useCallback(() => {
@@ -1826,17 +1827,13 @@ const LandingPage = () => {
                         +
                       </button>
                     </div>
-                    {(quantity > 1 || selectedUpsellIndex !== null || deliveryFee > 0) && (
-                      <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
-                        💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
-                        {storeSettings.currency_symbol}
-                        {deliveryFee > 0 && (
-                          <span className="block text-xs text-muted-foreground mt-1 font-normal">
-                            (منتج {orderProductSubtotal.toFixed(2)} + توصيل {deliveryFee.toFixed(2)})
-                          </span>
-                        )}
-                      </p>
-                    )}
+                    {(quantity > 1 || selectedUpsellIndex !== null) &&
+                      !showOrderCostBreakdown && (
+                        <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
+                          💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
+                          {storeSettings.currency_symbol}
+                        </p>
+                      )}
                   </div>
                 )}
 
@@ -2055,16 +2052,37 @@ const LandingPage = () => {
                   />
                 )}
 
-                {showOrderTotalSummary && product.show_quantity === false && (
-                  <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
-                    💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
-                    {storeSettings.currency_symbol}
-                    {deliveryFee > 0 && (
-                      <span className="block text-xs text-muted-foreground mt-1 font-normal">
-                        (منتج {orderProductSubtotal.toFixed(2)} + توصيل {deliveryFee.toFixed(2)})
+                {showOrderCostBreakdown ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2.5 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">تكلفة المنتج</span>
+                      <span className="font-semibold tabular-nums">
+                        {orderProductSubtotal.toFixed(2)} {storeSettings.currency_symbol}
                       </span>
-                    )}
-                  </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">تكلفة الشحن</span>
+                      <span className="font-semibold tabular-nums">
+                        {selectedDeliveryCity
+                          ? `${deliveryFee.toFixed(2)} ${storeSettings.currency_symbol}`
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2.5 text-base font-bold text-primary">
+                      <span>الإجمالي</span>
+                      <span className="tabular-nums">
+                        {orderTotalDisplay.toFixed(2)} {storeSettings.currency_symbol}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  showOrderTotalSummary &&
+                  product.show_quantity === false && (
+                    <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
+                      💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
+                      {storeSettings.currency_symbol}
+                    </p>
+                  )
                 )}
 
                 {/* زر الإرسال الملكي */}
