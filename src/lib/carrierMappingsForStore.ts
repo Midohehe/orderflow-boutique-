@@ -1,13 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
-  DEFAULT_CARRIER_STATUS_MAPPINGS,
   mergeCarrierStatusMappings,
   type CarrierStatusMappingRow,
 } from "@/lib/carrierStatusDefaults";
 
 type DbCarrierMappingRow = {
-  owner_id: string;
-  store_id: string | null;
   status_code: string;
   custom_label: string | null;
   color?: string | null;
@@ -20,26 +17,25 @@ export async function fetchMergedCarrierMappingRows(
   storeId: string,
   ownerId: string | null | undefined,
 ): Promise<CarrierStatusMappingRow[]> {
-  const [{ data: all }, { data: adminRoles }] = await Promise.all([
-    supabase
-      .from("carrier_status_mappings")
-      .select("owner_id, store_id, status_code, custom_label, color, sort_order, category"),
-    supabase.from("user_roles").select("user_id").eq("role", "admin"),
-  ]);
+  const { data, error } = await supabase.rpc("list_carrier_mappings_for_store", {
+    _store_id: storeId,
+    _owner_id: ownerId ?? null,
+  });
 
-  const adminIds = new Set((adminRoles || []).map((row) => row.user_id));
-  const rows = (all || []) as DbCarrierMappingRow[];
+  if (!error && Array.isArray(data) && data.length > 0) {
+    return mergeCarrierStatusMappings(data as DbCarrierMappingRow[]);
+  }
 
-  const platformRows = rows.filter(
-    (row) => adminIds.has(row.owner_id) && (row.store_id == null || row.store_id === storeId),
-  );
-  const ownerRows = ownerId
-    ? rows.filter(
-        (row) => row.owner_id === ownerId && (row.store_id == null || row.store_id === storeId),
-      )
-    : [];
+  // Fallback when RPC unavailable: owner rows only (platform rows need server RPC).
+  if (!ownerId) return [];
 
-  return mergeCarrierStatusMappings([...platformRows, ...ownerRows]);
+  const { data: ownerRows } = await supabase
+    .from("carrier_status_mappings")
+    .select("status_code, custom_label, color, sort_order, category")
+    .eq("owner_id", ownerId)
+    .or(`store_id.eq.${storeId},store_id.is.null`);
+
+  return mergeCarrierStatusMappings((ownerRows || []) as DbCarrierMappingRow[]);
 }
 
 export function carrierMappingsFromRows(rows: CarrierStatusMappingRow[]): Array<{
@@ -58,4 +54,4 @@ export function carrierMappingsFromRows(rows: CarrierStatusMappingRow[]): Array<
   }));
 }
 
-export { DEFAULT_CARRIER_STATUS_MAPPINGS };
+export { DEFAULT_CARRIER_STATUS_MAPPINGS } from "@/lib/carrierStatusDefaults";

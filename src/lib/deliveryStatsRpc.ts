@@ -115,7 +115,8 @@ export async function fetchDeliveryStatsSummary(
   });
 
   if (!error && data) {
-    return parseDeliveryStatsRpc(data as DeliveryStatsRpcRow);
+    const parsed = parseDeliveryStatsRpc(data as DeliveryStatsRpcRow);
+    if (parsed) return parsed;
   }
 
   return computeDeliveryStatsClientSide(storeId, ownerId, productName);
