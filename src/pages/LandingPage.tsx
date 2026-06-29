@@ -543,7 +543,8 @@ const LandingPage = () => {
   const orderTotalDisplay = orderProductSubtotal + deliveryFee;
   const showOrderTotalSummary =
     deliveryFee > 0 || quantity > 1 || selectedUpsellIndex !== null;
-  const showOrderCostBreakdown = orderFormUsesDeliverySelect(formFields);
+  const hasDeliveryPricing =
+    deliveryPrices.length > 0 || orderFormUsesDeliverySelect(formFields);
 
   const activeFormFields = formFields;
   const getAttribution = useCallback(() => {
@@ -1828,7 +1829,7 @@ const LandingPage = () => {
                       </button>
                     </div>
                     {(quantity > 1 || selectedUpsellIndex !== null) &&
-                      !showOrderCostBreakdown && (
+                      !hasDeliveryPricing && (
                         <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
                           💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
                           {storeSettings.currency_symbol}
@@ -2052,14 +2053,14 @@ const LandingPage = () => {
                   />
                 )}
 
-                {showOrderCostBreakdown ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2.5 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-muted-foreground">تكلفة المنتج</span>
-                      <span className="font-semibold tabular-nums">
-                        {orderProductSubtotal.toFixed(2)} {storeSettings.currency_symbol}
-                      </span>
-                    </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">تكلفة المنتج</span>
+                    <span className="font-semibold tabular-nums">
+                      {orderProductSubtotal.toFixed(2)} {storeSettings.currency_symbol}
+                    </span>
+                  </div>
+                  {hasDeliveryPricing && (
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-muted-foreground">تكلفة الشحن</span>
                       <span className="font-semibold tabular-nums">
@@ -2068,22 +2069,14 @@ const LandingPage = () => {
                           : "—"}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2.5 text-base font-bold text-primary">
-                      <span>الإجمالي</span>
-                      <span className="tabular-nums">
-                        {orderTotalDisplay.toFixed(2)} {storeSettings.currency_symbol}
-                      </span>
-                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2.5 text-base font-bold text-primary">
+                    <span>الإجمالي</span>
+                    <span className="tabular-nums">
+                      {orderTotalDisplay.toFixed(2)} {storeSettings.currency_symbol}
+                    </span>
                   </div>
-                ) : (
-                  showOrderTotalSummary &&
-                  product.show_quantity === false && (
-                    <p className="text-sm font-bold text-primary bg-primary/5 border border-primary/10 px-4 py-2 rounded-xl">
-                      💰 الإجمالي المستحق للطلب: {orderTotalDisplay.toFixed(2)}{" "}
-                      {storeSettings.currency_symbol}
-                    </p>
-                  )
-                )}
+                </div>
 
                 {/* زر الإرسال الملكي */}
                 <Button
