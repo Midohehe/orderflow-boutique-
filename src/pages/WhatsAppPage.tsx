@@ -241,7 +241,7 @@ export default function WhatsAppPage() {
     if (!ownerId) return;
     let q = supabase
       .from("whatsapp_settings")
-      .select("id, owner_id, store_id, provider, enabled, ai_enabled, whatchimp_api_url, whatchimp_api_key, whatchimp_phone_number_id, whatchimp_business_account_id, whatchimp_send_endpoint, whatchimp_template_endpoint, whatchimp_conversation_endpoint, wati_api_endpoint, wati_api_key, wati_phone_number, template_name, template_language")
+      .select("*")
       .eq("owner_id", ownerId);
     if (activeStoreId) q = q.eq("store_id", activeStoreId);
     const { data: row, error } = await q.maybeSingle();
