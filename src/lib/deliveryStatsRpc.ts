@@ -1,4 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  buildIndexesFromDbMappings,
+  computeDeliveryStatsSummary,
+  type DeliveryStatsOrder,
+} from "@/lib/deliveryStats";
+import {
+  carrierMappingsFromRows,
+  fetchMergedCarrierMappingRows,
+} from "@/lib/carrierMappingsForStore";
 import type { DeliveryStatsSummary } from "@/lib/deliveryStats";
 
 export interface DeliveryStatsRpcRow {
@@ -44,6 +53,56 @@ export function parseDeliveryStatsRpc(data: DeliveryStatsRpcRow | null): Deliver
   };
 }
 
+async function fetchSentOrdersForDeliveryStats(
+  storeId: string,
+  productName: string | null,
+  productsMap: Record<string, string>,
+): Promise<DeliveryStatsOrder[]> {
+  const out: DeliveryStatsOrder[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(
+        "status, confirmation_status, carrier_status, carrier_status_raw, product_id, product_name, shipping_reference",
+      )
+      .eq("store_id", storeId)
+      .eq("is_deleted", false)
+      .neq("status", "cancelled")
+      .or(
+        "shipping_reference.not.is.null,status.in.(shipped,delivered,settled,returned_received,unpacked)",
+      )
+      .range(from, from + 999);
+    if (error) throw error;
+    if (!data?.length) break;
+    out.push(...(data as DeliveryStatsOrder[]));
+    if (data.length < 1000) break;
+  }
+
+  if (!productName) return out;
+  return out.filter((order) => {
+    const name = (order.product_id && productsMap[order.product_id]) || order.product_name;
+    return name === productName;
+  });
+}
+
+async function computeDeliveryStatsClientSide(
+  storeId: string,
+  ownerId: string | null | undefined,
+  productName: string | null,
+): Promise<DeliveryStatsSummary> {
+  const [{ data: products }, mappingRows] = await Promise.all([
+    supabase.from("products").select("id, name").eq("store_id", storeId),
+    fetchMergedCarrierMappingRows(storeId, ownerId),
+  ]);
+  const productsMap: Record<string, string> = {};
+  (products || []).forEach((p: { id?: string; name?: string }) => {
+    if (p?.id && p?.name) productsMap[p.id] = p.name;
+  });
+  const indexes = buildIndexesFromDbMappings(carrierMappingsFromRows(mappingRows));
+  const orders = await fetchSentOrdersForDeliveryStats(storeId, productName, productsMap);
+  return computeDeliveryStatsSummary(orders, indexes, "all", productsMap);
+}
+
 export async function fetchDeliveryStatsSummary(
   storeId: string,
   ownerId: string | null | undefined,
@@ -54,8 +113,27 @@ export async function fetchDeliveryStatsSummary(
     _owner_id: ownerId ?? null,
     _product_name: productName,
   });
-  if (error) throw error;
-  return parseDeliveryStatsRpc(data as DeliveryStatsRpcRow | null);
+
+  if (error) {
+    const msg = String(error.message || "");
+    if (!msg.includes("orders_delivery_stats_summary")) throw error;
+    return computeDeliveryStatsClientSide(storeId, ownerId, productName);
+  }
+
+  const summary = parseDeliveryStatsRpc(data as DeliveryStatsRpcRow | null);
+  if (!summary) return computeDeliveryStatsClientSide(storeId, ownerId, productName);
+
+  const sentTotal = summary.confirmed.total + summary.otherConfirmation.total;
+  const categorizedTotal =
+    summary.carrierCategories.delivered +
+    summary.carrierCategories.returned +
+    summary.carrierCategories.in_progress;
+
+  if (sentTotal > 0 && categorizedTotal === 0) {
+    return computeDeliveryStatsClientSide(storeId, ownerId, productName);
+  }
+
+  return summary;
 }
 
 export async function fetchShippedCarrierCounts(

@@ -1,4 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  carrierMappingsFromRows,
+  fetchMergedCarrierMappingRows,
+} from "@/lib/carrierMappingsForStore";
 import { fetchShippedCarrierCounts } from "@/lib/deliveryStatsRpc";
 
 const STICKER_COLS =
@@ -27,20 +31,9 @@ export async function fetchOrdersPageMeta(
   storeId: string,
   ownerId: string | null | undefined,
 ): Promise<OrdersPageMeta> {
-  let mappingsQuery = supabase
-    .from("carrier_status_mappings")
-    .select("status_code, custom_label, color, sort_order, category");
-  if (ownerId) {
-    mappingsQuery = mappingsQuery
-      .eq("owner_id", ownerId)
-      .or(`store_id.eq.${storeId},store_id.is.null`);
-  } else {
-    mappingsQuery = mappingsQuery.or(`store_id.eq.${storeId},store_id.is.null`);
-  }
-
   const [
     currencyRes,
-    mapRes,
+    mergedMappings,
     productsRes,
     stickerRes,
     headerRes,
@@ -51,7 +44,7 @@ export async function fetchOrdersPageMeta(
     carrierCounts,
   ] = await Promise.all([
     supabase.from("store_settings").select("currency_symbol").eq("store_id", storeId).maybeSingle(),
-    mappingsQuery,
+    fetchMergedCarrierMappingRows(storeId, ownerId),
     supabase.from("products").select("id, name").eq("store_id", storeId),
     supabase.from("sticker_settings").select(STICKER_COLS).eq("store_id", storeId).maybeSingle(),
     supabase.from("header_settings").select("logo_text").eq("store_id", storeId).maybeSingle(),
@@ -68,7 +61,7 @@ export async function fetchOrdersPageMeta(
     fetchShippedCarrierCounts(storeId, ownerId),
   ]);
 
-  const statusMappings = (mapRes.data as OrdersPageMeta["statusMappings"]) || [];
+  const statusMappings = carrierMappingsFromRows(mergedMappings);
 
   const productsMap: Record<string, string> = {};
   (productsRes.data || []).forEach((p: { id?: string; name?: string }) => {
