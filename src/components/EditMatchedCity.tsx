@@ -13,13 +13,15 @@ interface Props {
   area: string | null | undefined;
   originalCity: string;
   originalAddress: string;
-  onSaved: (city: string, area: string) => void;
+  onSaved: (city: string, area: string, zoneId?: number | null, areaId?: number | null) => void;
 }
 
 export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAddress, onSaved }: Props) => {
   const { isAdmin, isSubUser, hasPermission } = useUserContext();
   const canEdit = isAdmin || !isSubUser || hasPermission("orders.edit");
   const [editing, setEditing] = useState(false);
+  const [displayCity, setDisplayCity] = useState(city || "");
+  const [displayArea, setDisplayArea] = useState(area || "");
   const [c, setC] = useState(city || "");
   const [a, setA] = useState(area || "");
   const [saving, setSaving] = useState(false);
@@ -29,6 +31,15 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
 
   const selectedZone = zones.find((z) => z.name === c);
   const filteredAreas = selectedZone ? (areasMap[selectedZone.id] || []) : [];
+
+  useEffect(() => {
+    setDisplayCity(city || "");
+    setDisplayArea(area || "");
+    if (!editing) {
+      setC(city || "");
+      setA(area || "");
+    }
+  }, [city, area, editing]);
 
   useEffect(() => {
     if (!editing || zones.length > 0) return;
@@ -97,7 +108,9 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
       }
 
       toast({ title: "تم الحفظ", description: "سيُستخدم هذا التصحيح تلقائياً للطلبات المشابهة." });
-      onSaved(newCity, newArea);
+      setDisplayCity(newCity);
+      setDisplayArea(newArea);
+      onSaved(newCity, newArea, zId, aId);
       setEditing(false);
     } catch (e: any) {
       toast({ title: "فشل الحفظ", description: e.message, variant: "destructive" });
@@ -109,8 +122,8 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
   if (!editing) {
     return (
       <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 inline-flex items-center gap-2">
-        <span><span className="font-semibold">المدينة المصححة:</span> {city || "—"}</span>
-        {area && <span>• <span className="font-semibold">المنطقة:</span> {area}</span>}
+        <span><span className="font-semibold">المدينة المصححة:</span> {displayCity || "—"}</span>
+        {displayArea && <span>• <span className="font-semibold">المنطقة:</span> {displayArea}</span>}
         {canEdit && (
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
             <Pencil className="w-3 h-3" />

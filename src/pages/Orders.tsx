@@ -87,6 +87,8 @@ interface Order {
   order_code?: string | null;
   matched_zone_name?: string | null;
   matched_area_name?: string | null;
+  matched_zone_id?: number | null;
+  matched_area_id?: number | null;
   shipping_error?: string | null;
   link_error?: string | null;
   carrier_status?: string | null;
@@ -940,6 +942,23 @@ const Orders = () => {
     }
   };
 
+  /** Keep local list + React Query cache in sync so useEffect hydration does not wipe edits. */
+  const patchOrderLocally = (orderId: string, patch: Partial<Order>) => {
+    setOrders((prev) => prev.map((p) => (p.id === orderId ? { ...p, ...patch } : p)));
+    if (!activeStoreId) return;
+    queryClient.setQueriesData<{ data: Order[]; total: number }>(
+      { queryKey: ["orders-page", activeStoreId] },
+      (old) => {
+        if (!old?.data) return old;
+        if (!old.data.some((p) => p.id === orderId)) return old;
+        return {
+          ...old,
+          data: old.data.map((p) => (p.id === orderId ? { ...p, ...patch } : p)),
+        };
+      },
+    );
+  };
+
   const applySoftDeleteToLocalState = (removed: Order[]) => {
     const removedIds = new Set(removed.map((o) => o.id));
     setOrders((prev) => prev.filter((o) => !removedIds.has(o.id)));
@@ -1714,7 +1733,12 @@ const Orders = () => {
                 area={order.matched_area_name}
                 originalCity={customerCityForMatching(order.governorate, order.city)}
                 originalAddress={order.address}
-                onSaved={(nc, na) => setOrders((prev) => prev.map((p) => p.id === order.id ? { ...p, matched_zone_name: nc, matched_area_name: na } : p))}
+                onSaved={(nc, na, zId, aId) => patchOrderLocally(order.id, {
+                  matched_zone_name: nc,
+                  matched_area_name: na,
+                  matched_zone_id: zId ?? null,
+                  matched_area_id: aId ?? null,
+                })}
               />
               {order.confirmation_notes && (
                 <div className="text-xs text-muted-foreground italic pt-1">
@@ -2719,10 +2743,7 @@ const Orders = () => {
         orderId={detailsId}
         open={!!detailsId}
         onOpenChange={(o) => !o && setDetailsId(null)}
-        onSaved={(u) => {
-          setOrders((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p));
-          refreshOrdersCache();
-        }}
+        onSaved={(u) => patchOrderLocally(u.id, u)}
       />
 
       <ShippingOptionsDialog
