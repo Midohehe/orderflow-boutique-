@@ -419,7 +419,9 @@ Deno.serve(async (req) => {
     );
 
     const catalog = await buildCatalog(admin);
-    const cityInput = city || "";
+    let cityInput = (city || "").trim();
+    // Ignore delivery-pricing labels (داخل/خارج …) — matching uses customer text only.
+    if (CITY_FIELD_JUNK_RE.test(norm(cityInput))) cityInput = "";
     const addrInput = address || "";
     const inputTokens = [...tokenize(cityInput), ...tokenize(addrInput)];
     const inputNorm = norm(cityInput + " " + addrInput);

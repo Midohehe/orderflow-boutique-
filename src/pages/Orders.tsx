@@ -27,6 +27,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import { EditMatchedCity } from "@/components/EditMatchedCity";
+import { customerCityForMatching } from "@/lib/landingOrderForm";
 import { isolateLatin } from "@/lib/bidi";
 import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { extractTextFromImage } from "@/lib/imageOcr";
@@ -1711,7 +1712,7 @@ const Orders = () => {
                 orderId={order.id}
                 city={order.matched_zone_name}
                 area={order.matched_area_name}
-                originalCity={order.city}
+                originalCity={customerCityForMatching(order.governorate, order.city)}
                 originalAddress={order.address}
                 onSaved={(nc, na) => setOrders((prev) => prev.map((p) => p.id === order.id ? { ...p, matched_zone_name: nc, matched_area_name: na } : p))}
               />

@@ -1,6 +1,7 @@
 // Public edge function to create an order with server-side price recomputation.
 // Prevents clients from spoofing the price written to the database.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { customerCityForMatching } from "../_shared/customerCityForMatching.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -331,12 +332,14 @@ Deno.serve(async (req) => {
           console.error("order_items persistence error", e);
         }
 
-        // 1) Match city via AI and update the order row.
+        // 1) Match city from what the customer wrote (governorate + address),
+        // not the delivery zone (داخل/خارج طرابلس).
         try {
+          const cityForMatch = customerCityForMatching(governorate, city);
           const matchRes = await fetch(`${baseUrl}/functions/v1/match-city`, {
             method: "POST",
             headers: authHeaders,
-            body: JSON.stringify({ city, address, owner_id: (product as any).owner_id }),
+            body: JSON.stringify({ city: cityForMatch, address, owner_id: (product as any).owner_id }),
           });
           if (matchRes.ok) {
             const m = await matchRes.json();

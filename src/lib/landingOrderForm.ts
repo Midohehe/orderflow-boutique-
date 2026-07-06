@@ -211,6 +211,27 @@ export function inputTypeForField(field: OrderFormField): string {
 
 const DELIVERY_LABEL_HINT = /منطقة\s*التوصيل|نوع\s*التوصيل|مكان\s*التوصيل/i;
 const DELIVERY_PLACEHOLDER_HINT = /مكان\s*التوصيل|اختر\s*(ال)?(مدينة|منطقة)/i;
+export const DELIVERY_ZONE_LABEL_RE = /^(داخل|خارج)\s/i;
+
+/** True for delivery-pricing dropdown values like «داخل طرابلس» / «خارج طرابلس». */
+export function isDeliveryZoneLabel(value: string | null | undefined): boolean {
+  return DELIVERY_ZONE_LABEL_RE.test((value || "").trim());
+}
+
+/**
+ * City text for match-city / city_corrections — what the customer typed,
+ * never the delivery zone dropdown.
+ */
+export function customerCityForMatching(
+  governorate: string | null | undefined,
+  city: string | null | undefined,
+): string {
+  const gov = (governorate || "").trim();
+  if (gov && gov !== "—") return gov;
+  const c = (city || "").trim();
+  if (c && c !== "—" && !isDeliveryZoneLabel(c)) return c;
+  return "";
+}
 
 /** City delivery picker — must render as dropdown, not free text. */
 export function isDeliverySelectField(
