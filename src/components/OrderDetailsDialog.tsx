@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
 import { isolateLatin } from "@/lib/bidi";
 import { resolveEasyOrdersVariantId, resolveWarehouseCode } from "@/lib/variantWarehouse";
+import { loadShippingZonesFromDb, remapZoneName } from "@/lib/shippingZonesCache";
 
 interface Props {
   orderId: string | null;
@@ -67,56 +68,45 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
   const [zones, setZones] = useState<Array<{ id: number; name: string; canonical?: string }>>([]);
   const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string; canonical?: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
-  const [loadingAreas, setLoadingAreas] = useState(false);
 
   useEffect(() => {
     if (!open || zones.length > 0) return;
     setLoadingZones(true);
-    supabase.functions.invoke("list-shipping-dropdown", { body: {} })
-      .then(({ data, error }) => {
-        if (!error) {
-          const list = ((data as any)?.zones || []) as Array<{ id: number; name: string; canonical?: string }>;
-          list.sort((a, b) => a.name.localeCompare(b.name, "ar"));
-          setZones(list);
-          // Remap stored matched_zone_name (may be the old canonical) to current display name
-          setData((d: any) => {
-            if (!d) return d;
-            const current = d.matched_zone_name || d.city;
-            if (!current) return d;
-            if (list.some((z) => z.name === current)) return d;
-            const byCanon = list.find((z) => z.canonical === current);
-            if (!byCanon) return d;
-            return { ...d, matched_zone_name: byCanon.name, city: byCanon.name, matched_zone_id: byCanon.id };
+    loadShippingZonesFromDb()
+      .then(({ zones: list, areasByZoneId, empty }) => {
+        if (empty) {
+          toast({
+            title: "لا توجد مدن مخزّنة",
+            description: "اطلب من الأدمن مزامنة المدن من: الشحن ← مدن ومناطق الشحن",
+            variant: "destructive",
           });
+          return;
         }
+        setZones(list);
+        setAreasMap(areasByZoneId);
+        setData((d: any) => {
+          if (!d) return d;
+          const currentZone = d.matched_zone_name || d.city;
+          if (!currentZone) return d;
+          const zoneName = remapZoneName(currentZone, list);
+          const zone = list.find((z) => z.name === zoneName);
+          const next = { ...d, matched_zone_name: zoneName, city: zoneName, matched_zone_id: zone?.id ?? d.matched_zone_id };
+          const currentArea = d.matched_area_name;
+          if (currentArea && zone) {
+            const areas = areasByZoneId[zone.id] || [];
+            next.matched_area_name = remapZoneName(currentArea, areas);
+            const area = areas.find((a) => a.name === next.matched_area_name);
+            next.matched_area_id = area?.id ?? d.matched_area_id;
+          }
+          return next;
+        });
       })
+      .catch((e) => toast({ title: "تعذر جلب المدن", description: e.message, variant: "destructive" }))
       .finally(() => setLoadingZones(false));
-  }, [open]);
+  }, [open, zones.length]);
 
   const selectedZone = zones.find((z) => z.name === (data?.matched_zone_name || data?.city));
   const currentAreas = selectedZone ? (areasMap[selectedZone.id] || []) : [];
-
-  useEffect(() => {
-    if (!selectedZone || areasMap[selectedZone.id]) return;
-    setLoadingAreas(true);
-    supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id, zoneName: selectedZone.name } })
-      .then(({ data, error }) => {
-        if (!error) {
-          const list = ((data as any)?.areas || []) as Array<{ id: number; name: string; canonical?: string }>;
-          setAreasMap((prev) => ({ ...prev, [selectedZone.id]: list }));
-          setData((d: any) => {
-            if (!d) return d;
-            const current = d.matched_area_name;
-            if (!current) return d;
-            if (list.some((x) => x.name === current)) return d;
-            const byCanon = list.find((x) => x.canonical === current);
-            if (!byCanon) return d;
-            return { ...d, matched_area_name: byCanon.name, matched_area_id: byCanon.id };
-          });
-        }
-      })
-      .finally(() => setLoadingAreas(false));
-  }, [selectedZone?.id]);
 
   const onZoneChange = (name: string) => {
     const z = zones.find((x) => x.name === name);
@@ -596,7 +586,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
                   value={data?.matched_area_name ?? ""}
                   onChange={onAreaChange}
                   disabled={!selectedZone}
-                  placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (currentAreas.length === 0 ? "لا مناطق" : "اختر المنطقة"))}
+                  placeholder={!selectedZone ? "اختر المدينة أولاً" : (currentAreas.length === 0 ? "لا مناطق" : "اختر المنطقة")}
                   searchPlaceholder="ابحث عن منطقة..."
                 />
               </div>

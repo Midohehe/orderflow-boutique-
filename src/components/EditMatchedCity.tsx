@@ -5,6 +5,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { loadShippingZonesFromDb, remapZoneName } from "@/lib/shippingZonesCache";
 
 interface Props {
   orderId: string;
@@ -25,7 +26,6 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
   const [zones, setZones] = useState<Array<{ id: number; name: string; canonical?: string }>>([]);
   const [areasMap, setAreasMap] = useState<Record<number, Array<{ id: number; name: string; canonical?: string }>>>({});
   const [loadingZones, setLoadingZones] = useState(false);
-  const [loadingAreas, setLoadingAreas] = useState(false);
 
   const selectedZone = zones.find((z) => z.name === c);
   const filteredAreas = selectedZone ? (areasMap[selectedZone.id] || []) : [];
@@ -34,43 +34,32 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
     if (!editing || zones.length > 0) return;
     setLoadingZones(true);
     (async () => {
-      const { data, error } = await supabase.functions.invoke("list-shipping-dropdown", { body: {} });
-      if (error || (data as any)?.error) {
-        toast({ title: "تعذر جلب المدن", description: (data as any)?.error || error?.message, variant: "destructive" });
-      } else {
-        const list = ((data as any)?.zones || []) as Array<{ id: number; name: string; canonical?: string }>;
-        list.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+      try {
+        const { zones: list, areasByZoneId, empty } = await loadShippingZonesFromDb();
+        if (empty) {
+          toast({
+            title: "لا توجد مدن مخزّنة",
+            description: "اطلب من الأدمن مزامنة المدن من: الشحن ← مدن ومناطق الشحن",
+            variant: "destructive",
+          });
+          return;
+        }
         setZones(list);
-        // Remap stored value (canonical/old name) to current display name
-        setC((prev) => {
-          if (!prev) return prev;
-          if (list.some((z) => z.name === prev)) return prev;
-          const byCanon = list.find((z) => z.canonical === prev);
-          return byCanon ? byCanon.name : prev;
-        });
+        setAreasMap(areasByZoneId);
+        const zoneName = remapZoneName(city || c, list);
+        const zone = list.find((z) => z.name === zoneName);
+        setC(zoneName);
+        if (area && zone) {
+          const areas = areasByZoneId[zone.id] || [];
+          setA(remapZoneName(area, areas));
+        }
+      } catch (e: any) {
+        toast({ title: "تعذر جلب المدن", description: e.message, variant: "destructive" });
+      } finally {
+        setLoadingZones(false);
       }
-      setLoadingZones(false);
     })();
-  }, [editing]);
-
-  useEffect(() => {
-    if (!editing || !selectedZone || areasMap[selectedZone.id]) return;
-    setLoadingAreas(true);
-    (async () => {
-      const { data, error } = await supabase.functions.invoke("list-shipping-dropdown", { body: { zoneId: selectedZone.id } });
-      if (!error && !(data as any)?.error) {
-        const list = ((data as any)?.areas || []) as Array<{ id: number; name: string; canonical?: string }>;
-        setAreasMap((prev) => ({ ...prev, [selectedZone.id]: list }));
-        setA((prev) => {
-          if (!prev) return prev;
-          if (list.some((x) => x.name === prev)) return prev;
-          const byCanon = list.find((x) => x.canonical === prev);
-          return byCanon ? byCanon.name : prev;
-        });
-      }
-      setLoadingAreas(false);
-    })();
-  }, [editing, selectedZone?.id]);
+  }, [editing, zones.length, city, area, c]);
 
   const save = async () => {
     const newCity = c.trim();
@@ -147,7 +136,7 @@ export const EditMatchedCity = ({ orderId, city, area, originalCity, originalAdd
           options={filteredAreas.map((ar) => ({ value: ar.name, label: ar.name }))}
           value={a}
           onChange={setA}
-          placeholder={!selectedZone ? "اختر المدينة أولاً" : (loadingAreas ? "جاري التحميل..." : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة"))}
+          placeholder={!selectedZone ? "اختر المدينة أولاً" : (filteredAreas.length === 0 ? "لا مناطق" : "المنطقة")}
           searchPlaceholder="ابحث عن منطقة..."
         />
       </div>

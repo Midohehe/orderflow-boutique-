@@ -125,7 +125,7 @@ export default function ShippingZones() {
       <PageHeader
         icon={MapPin}
         title="مدن ومناطق الشحن"
-        description="قائمة المدن والمناطق المخزّنة محلياً من شركة الشحن."
+        description="قائمة المدن والمناطق المخزّنة محلياً. المزامنة من شركة الشحن مرة واحدة تسرّع تصحيح المدن ونماذج الطلب."
       />
       <Card className="p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
