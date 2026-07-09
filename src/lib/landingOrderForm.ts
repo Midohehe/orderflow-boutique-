@@ -170,14 +170,16 @@ export function validateDeliveryCity(
   formData: Record<string, string>,
   prices: { city_name: string; price: number }[],
 ): string | null {
-  if (!formFields.some(isDeliverySelectField)) {
-    return null;
-  }
-  const resolved = resolveOrderFields(formFields, formData);
-  const city = resolved.city.trim();
-  if (!city) return null;
+  const deliveryField = formFields.find(isDeliverySelectField);
+  if (!deliveryField) return null;
+
+  const deliveryCity = (formData[deliveryField.field_key] || "").trim();
+  if (!deliveryCity) return null;
+
   if (prices.length === 0) return "أسعار التوصيل غير متوفرة حالياً";
-  if (!prices.some((p) => p.city_name === city)) return "يرجى اختيار مدينة توصيل صالحة";
+  if (!prices.some((p) => p.city_name === deliveryCity)) {
+    return "يرجى اختيار مدينة توصيل صالحة";
+  }
   return null;
 }
 

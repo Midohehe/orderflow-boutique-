@@ -171,15 +171,17 @@ Deno.serve(async (req) => {
     // no upsell — period.
     let upsellEnabled = false;
     let upsellOffers: any[] = [];
+    let orderFormPresetId: string | null = null;
     const landingSlug = s(body.landing_slug ?? "", 200);
     if (landingSlug) {
       const { data: lp } = await supabase
         .from("landing_pages")
-        .select("price, upsell_enabled, upsell_offers")
+        .select("price, upsell_enabled, upsell_offers, order_form_preset_id")
         .eq("slug", landingSlug)
         .eq("product_id", product.id)
         .maybeSingle();
       if (lp) {
+        orderFormPresetId = (lp as { order_form_preset_id?: string | null }).order_form_preset_id ?? null;
         if (lp.price !== null && lp.price !== undefined && Number(lp.price) > 0) {
           totalPrice = Number(lp.price) * quantity;
         }
@@ -198,7 +200,23 @@ Deno.serve(async (req) => {
 
     const storeId = (product as { store_id?: string | null }).store_id ?? null;
     let shippingFee = 0;
-    if (storeId && city && city !== "—") {
+
+    let deliveryPricingEnabled = false;
+    if (orderFormPresetId) {
+      const { data: preset } = await supabase
+        .from("order_form_presets")
+        .select("fields")
+        .eq("id", orderFormPresetId)
+        .maybeSingle();
+      const presetFields = Array.isArray((preset as { fields?: unknown } | null)?.fields)
+        ? (preset as { fields: Array<{ field_key?: string; field_type?: string; enabled?: boolean }> }).fields
+        : [];
+      deliveryPricingEnabled = presetFields.some(
+        (f) =>
+          f?.enabled !== false &&
+          (f.field_key === "delivery_city" || f.field_type === "delivery_select"),
+      );
+    } else if (storeId) {
       const { data: deliveryField } = await supabase
         .from("order_form_fields")
         .select("id")
@@ -206,23 +224,24 @@ Deno.serve(async (req) => {
         .eq("field_key", "delivery_city")
         .eq("enabled", true)
         .maybeSingle();
+      deliveryPricingEnabled = !!deliveryField;
+    }
 
-      if (deliveryField) {
-        const { data: priceRows } = await supabase.rpc("get_public_delivery_prices", {
-          _store_id: storeId,
-        });
-        const prices = Array.isArray(priceRows) ? priceRows : [];
-        if (prices.length > 0) {
-          const match = prices.find((p: { city_name?: string }) => p.city_name === city);
-          if (!match) {
-            await logRejected("invalid_delivery_city");
-            return new Response(JSON.stringify({ error: "invalid_delivery_city" }), {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          shippingFee = Number((match as { price?: number }).price) || 0;
+    if (storeId && deliveryPricingEnabled && city && city !== "—") {
+      const { data: priceRows } = await supabase.rpc("get_public_delivery_prices", {
+        _store_id: storeId,
+      });
+      const prices = Array.isArray(priceRows) ? priceRows : [];
+      if (prices.length > 0) {
+        const match = prices.find((p: { city_name?: string }) => p.city_name === city);
+        if (!match) {
+          await logRejected("invalid_delivery_city");
+          return new Response(JSON.stringify({ error: "invalid_delivery_city" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
+        shippingFee = Number((match as { price?: number }).price) || 0;
       }
     }
 
