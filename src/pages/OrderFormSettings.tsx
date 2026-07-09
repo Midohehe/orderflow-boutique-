@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText, Save, Loader2, MousePointerClick, MessageSquare, FormInput,
   ArrowUp, ArrowDown, Shield, Eye, EyeOff, Asterisk, Truck, Plus, Trash2,
+  BookmarkPlus, LayoutTemplate, ShieldCheck,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +18,8 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { isDeliverySelectField, clearLandingFormFieldsCache } from "@/lib/landingOrderForm";
 import { purgeLandingCache } from "@/lib/purgeLandingCache";
+import { mapPresetRow, type OrderFormPreset, type OrderFormPresetField } from "@/lib/orderFormPresets";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 interface CatalogItem {
   field_key: string;
@@ -64,14 +67,115 @@ const OrderFormSettings = () => {
   const { activeStoreId } = useStoreContext();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [defaultFieldSnapshot, setDefaultFieldSnapshot] = useState<FormField[]>([]);
   const [deliveryPrices, setDeliveryPrices] = useState<DeliveryPriceRow[]>([]);
+  const [presets, setPresets] = useState<OrderFormPreset[]>([]);
+  const [activePresetId, setActivePresetId] = useState<string>("__default__");
+  const [newPresetName, setNewPresetName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
   const [settings, setSettings] = useState({
     buttonText: "اطلب الآن",
     successMessage: "شكراً لك! تم استلام طلبك بنجاح",
+    confirmationEnabled: false,
+    confirmationMessage: "",
   });
+
+  const mergeFieldsFromRows = (existing: any[], cat: CatalogItem[]): FormField[] => {
+    const catalogByKey = new Map(cat.map((c) => [c.field_key, c]));
+    return (existing || []).map((f: any) => {
+      const catItem = catalogByKey.get(f.field_key);
+      const merged = {
+        id: f.id || `${f.field_key}-${f.sort_order ?? 0}`,
+        field_key: f.field_key,
+        label: resolveFieldText(f.label, catItem?.label),
+        placeholder: resolveFieldText(f.placeholder, catItem?.default_placeholder),
+        field_type: f.field_type,
+        required: !!f.required,
+        enabled: f.enabled !== false,
+        sort_order: f.sort_order ?? 0,
+      };
+      return isDeliverySelectField(merged)
+        ? { ...merged, field_type: "delivery_select", field_key: "delivery_city" }
+        : merged;
+    });
+  };
+
+  const loadPresets = async () => {
+    if (!activeStoreId) return;
+    const { data, error } = await (supabase as any)
+      .from("order_form_presets")
+      .select("*")
+      .eq("store_id", activeStoreId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      console.error(error);
+      return;
+    }
+    setPresets((data || []).map(mapPresetRow));
+  };
+
+  const loadDefaultIntoEditor = async (cat: CatalogItem[]) => {
+    if (!effectiveOwnerId || !activeStoreId) return;
+    const [{ data: existing }, { data: storeRow }] = await Promise.all([
+      supabase.from("order_form_fields").select("*").eq("store_id", activeStoreId).order("sort_order"),
+      supabase
+        .from("store_settings")
+        .select("button_text, success_message, confirmation_enabled, confirmation_message")
+        .eq("owner_id", effectiveOwnerId)
+        .eq("store_id", activeStoreId)
+        .maybeSingle(),
+    ]);
+    const merged = mergeFieldsFromRows(existing || [], cat);
+    setFormFields(merged);
+    setDefaultFieldSnapshot(merged);
+    setSettings({
+      buttonText: (storeRow as any)?.button_text || "اطلب الآن",
+      successMessage: (storeRow as any)?.success_message || "شكراً لك! تم استلام طلبك بنجاح",
+      confirmationEnabled: !!(storeRow as any)?.confirmation_enabled,
+      confirmationMessage: (storeRow as any)?.confirmation_message || "",
+    });
+  };
+
+  const loadPresetIntoEditor = (preset: OrderFormPreset, cat: CatalogItem[], baseFields: FormField[]) => {
+    const byKey = new Map(preset.fields.map((f) => [f.field_key, f]));
+    const bases = baseFields.length
+      ? baseFields
+      : cat.map((c, i) => ({
+          id: c.field_key,
+          field_key: c.field_key,
+          label: c.label,
+          placeholder: c.default_placeholder,
+          field_type: c.field_type,
+          required: c.default_required,
+          enabled: false,
+          sort_order: i,
+        }));
+
+    const merged: FormField[] = bases.map((base) => {
+      const p = byKey.get(base.field_key);
+      if (!p) return { ...base, enabled: false, required: false };
+      return {
+        ...base,
+        label: resolveFieldText(p.label, base.label),
+        placeholder: resolveFieldText(p.placeholder, base.placeholder),
+        field_type: p.field_type || base.field_type,
+        required: !!p.required,
+        enabled: p.enabled !== false,
+        sort_order: p.sort_order ?? base.sort_order,
+      };
+    });
+
+    setFormFields(merged);
+    setSettings({
+      buttonText: preset.button_text || "اطلب الآن",
+      successMessage: preset.success_message || "شكراً لك! تم استلام طلبك بنجاح",
+      confirmationEnabled: !!preset.confirmation_enabled,
+      confirmationMessage: preset.confirmation_message || "",
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -85,38 +189,17 @@ const OrderFormSettings = () => {
           _store_id: activeStoreId,
         });
 
-        const [{ data: cat }, { data: existing }, { data: storeRow }, { data: prices }] = await Promise.all([
+        const [{ data: cat }, { data: prices }] = await Promise.all([
           supabase.from("form_field_catalog").select("*").order("sort_order"),
-          supabase.from("order_form_fields").select("*").eq("store_id", activeStoreId).order("sort_order"),
-          supabase.from("store_settings").select("button_text, success_message").eq("owner_id", effectiveOwnerId).eq("store_id", activeStoreId).maybeSingle(),
           supabase.from("store_delivery_prices").select("id, city_name, price, sort_order").eq("store_id", activeStoreId).order("sort_order"),
         ]);
 
-        if (storeRow) {
-          setSettings({
-            buttonText: storeRow.button_text || "اطلب الآن",
-            successMessage: storeRow.success_message || "شكراً لك! تم استلام طلبك بنجاح",
-          });
-        }
+        const catalogItems = (cat || []) as CatalogItem[];
+        setCatalog(catalogItems);
+        await loadDefaultIntoEditor(catalogItems);
+        await loadPresets();
+        setActivePresetId("__default__");
 
-        setCatalog((cat || []) as CatalogItem[]);
-        const catalogByKey = new Map(((cat || []) as CatalogItem[]).map((c) => [c.field_key, c]));
-        setFormFields((existing || []).map((f: any) => {
-          const catItem = catalogByKey.get(f.field_key);
-          const merged = {
-            id: f.id,
-            field_key: f.field_key,
-            label: resolveFieldText(f.label, catItem?.label),
-            placeholder: resolveFieldText(f.placeholder, catItem?.default_placeholder),
-            field_type: f.field_type,
-            required: f.required,
-            enabled: f.enabled,
-            sort_order: f.sort_order,
-          };
-          return isDeliverySelectField(merged)
-            ? { ...merged, field_type: "delivery_select", field_key: "delivery_city" }
-            : merged;
-        }));
         setDeliveryPrices((prices || []).map((p: any, i: number) => ({
           id: p.id,
           city_name: p.city_name,
@@ -133,6 +216,9 @@ const OrderFormSettings = () => {
   const allowedKeys = new Set(catalog.filter(c => isAdmin || c.admin_enabled).map(c => c.field_key));
   const visibleFields = formFields.filter(f => allowedKeys.has(f.field_key));
   const hasDeliveryField = visibleFields.some(isDeliverySelectField);
+  const editingPreset = activePresetId !== "__default__"
+    ? presets.find((p) => p.id === activePresetId) || null
+    : null;
 
   const handleFieldToggle = (id: string) => {
     setFormFields(formFields.map((f) => {
@@ -171,33 +257,137 @@ const OrderFormSettings = () => {
     if (effectiveOwnerId) clearLandingFormFieldsCache(effectiveOwnerId, activeStoreId);
   };
 
+  const snapshotFields = (): OrderFormPresetField[] =>
+    [...formFields]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((f, i) => {
+        const isDelivery = isDeliverySelectField(f);
+        return {
+          id: f.id,
+          field_key: isDelivery ? "delivery_city" : f.field_key,
+          label: f.label,
+          placeholder: f.placeholder,
+          field_type: isDelivery ? "delivery_select" : f.field_type,
+          required: f.enabled ? f.required : false,
+          enabled: f.enabled,
+          sort_order: i,
+        };
+      });
+
+  const handleSelectPreset = async (value: string) => {
+    setActivePresetId(value);
+    if (value === "__default__") {
+      await loadDefaultIntoEditor(catalog);
+      return;
+    }
+    const preset = presets.find((p) => p.id === value);
+    if (preset) loadPresetIntoEditor(preset, catalog, defaultFieldSnapshot);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      for (const f of formFields) {
-        const isDelivery = isDeliverySelectField(f);
-        await supabase.from("order_form_fields")
+      if (activePresetId === "__default__") {
+        for (const f of formFields) {
+          const isDelivery = isDeliverySelectField(f);
+          await supabase.from("order_form_fields")
+            .update({
+              enabled: f.enabled,
+              required: f.enabled ? f.required : false,
+              sort_order: f.sort_order,
+              label: f.label,
+              placeholder: f.placeholder,
+              ...(isDelivery ? { field_type: "delivery_select", field_key: "delivery_city" } : {}),
+            })
+            .eq("id", f.id);
+        }
+        if (effectiveOwnerId && activeStoreId) {
+          await supabase.from("store_settings")
+            .update({
+              button_text: settings.buttonText,
+              success_message: settings.successMessage,
+              confirmation_enabled: settings.confirmationEnabled,
+              confirmation_message: settings.confirmationMessage,
+            } as any)
+            .eq("owner_id", effectiveOwnerId)
+            .eq("store_id", activeStoreId);
+        }
+        toast({ title: "تم الحفظ", description: "تم حفظ الإعدادات الافتراضية لنموذج الطلب" });
+      } else if (editingPreset) {
+        const { error } = await (supabase as any)
+          .from("order_form_presets")
           .update({
-            enabled: f.enabled,
-            required: f.enabled ? f.required : false,
-            sort_order: f.sort_order,
-            label: f.label,
-            placeholder: f.placeholder,
-            ...(isDelivery ? { field_type: "delivery_select", field_key: "delivery_city" } : {}),
+            button_text: settings.buttonText,
+            success_message: settings.successMessage,
+            confirmation_enabled: settings.confirmationEnabled,
+            confirmation_message: settings.confirmationMessage,
+            fields: snapshotFields(),
+            updated_at: new Date().toISOString(),
           })
-          .eq("id", f.id);
+          .eq("id", editingPreset.id);
+        if (error) throw error;
+        await loadPresets();
+        toast({ title: "تم الحفظ", description: `تم تحديث القالب «${editingPreset.name}»` });
       }
-      if (effectiveOwnerId && activeStoreId) {
-        await supabase.from("store_settings")
-          .update({ button_text: settings.buttonText, success_message: settings.successMessage })
-          .eq("owner_id", effectiveOwnerId)
-          .eq("store_id", activeStoreId);
-      }
-      toast({ title: "تم الحفظ", description: "تم حفظ إعدادات نموذج الطلب" });
       await purgeStoreLandingCache();
-    } catch (e) {
-      toast({ title: "خطأ", description: "تعذر الحفظ", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر الحفظ", variant: "destructive" });
     } finally { setSaving(false); }
+  };
+
+  const handleSaveAsPreset = async () => {
+    const name = newPresetName.trim();
+    if (!name) {
+      toast({ title: "خطأ", description: "أدخل اسماً للقالب", variant: "destructive" });
+      return;
+    }
+    if (!effectiveOwnerId || !activeStoreId) return;
+    if (presets.some((p) => p.name === name)) {
+      toast({ title: "خطأ", description: "يوجد قالب بنفس الاسم", variant: "destructive" });
+      return;
+    }
+    setSavingPreset(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("order_form_presets")
+        .insert({
+          owner_id: effectiveOwnerId,
+          store_id: activeStoreId,
+          name,
+          button_text: settings.buttonText,
+          success_message: settings.successMessage,
+          confirmation_enabled: settings.confirmationEnabled,
+          confirmation_message: settings.confirmationMessage,
+          fields: snapshotFields(),
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      const mapped = mapPresetRow(data);
+      setPresets((prev) => [...prev, mapped]);
+      setActivePresetId(mapped.id);
+      setNewPresetName("");
+      toast({ title: "تم", description: `تم حفظ القالب «${name}»` });
+    } catch (e: any) {
+      toast({ title: "خطأ", description: e?.message || "تعذر حفظ القالب", variant: "destructive" });
+    } finally {
+      setSavingPreset(false);
+    }
+  };
+
+  const handleDeletePreset = async () => {
+    if (!editingPreset) return;
+    if (!window.confirm(`حذف القالب «${editingPreset.name}»؟`)) return;
+    const { error } = await (supabase as any).from("order_form_presets").delete().eq("id", editingPreset.id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPresets((prev) => prev.filter((p) => p.id !== editingPreset.id));
+    setActivePresetId("__default__");
+    await loadDefaultIntoEditor(catalog);
+    toast({ title: "تم الحذف", description: "تم حذف القالب" });
+    await purgeStoreLandingCache();
   };
 
   const addDeliveryRow = () => {
@@ -291,7 +481,7 @@ const OrderFormSettings = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader icon={FormInput} title="تعديل نموذج الطلب" description="تخصيص حقول ورسائل النموذج وأسعار التوصيل" iconGradient="from-cyan-500 to-blue-500" />
+      <PageHeader icon={FormInput} title="تعديل نموذج الطلب" description="تخصيص حقول ورسائل النموذج وأسعار التوصيل وحفظ قوالب متعددة" iconGradient="from-cyan-500 to-blue-500" />
 
       {isAdmin && (
         <SectionCard icon={Shield} title="كتالوج الحقول (السوبر ادمن)" description="تحكّم في الحقول التي تظهر لأصحاب المتاجر" iconColor="bg-rose-500">
@@ -318,6 +508,52 @@ const OrderFormSettings = () => {
           ))}
         </SectionCard>
       )}
+
+      <SectionCard
+        icon={LayoutTemplate}
+        title="قوالب نموذج الطلب"
+        description="احفظ أكثر من إعداد باسم معيّن، ثم اختر القالب من صفحة الهبوط"
+        iconColor="bg-indigo-500"
+      >
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-sm font-semibold">القالب الحالي للتحرير</Label>
+            <SearchableSelect
+              value={activePresetId}
+              onChange={handleSelectPreset}
+              placeholder="اختر قالباً..."
+              searchPlaceholder="ابحث..."
+              options={[
+                { value: "__default__", label: "الإعدادات الافتراضية للمتجر" },
+                ...presets.map((p) => ({ value: p.id, label: p.name, keywords: p.name })),
+              ]}
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              placeholder="اسم القالب الجديد..."
+              className="flex-1"
+            />
+            <Button type="button" variant="outline" onClick={handleSaveAsPreset} disabled={savingPreset} className="gap-2 shrink-0">
+              {savingPreset ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookmarkPlus className="w-4 h-4" />}
+              حفظ كقالب جديد
+            </Button>
+            {editingPreset && (
+              <Button type="button" variant="destructive" onClick={handleDeletePreset} className="gap-2 shrink-0">
+                <Trash2 className="w-4 h-4" />
+                حذف القالب
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {editingPreset
+              ? `تحرّر القالب «${editingPreset.name}» — زر الحفظ بالأسفل يحدّث هذا القالب فقط.`
+              : "تحرّر الإعدادات الافتراضية — تُستخدم لصفحات الهبوط التي لم يُختر لها قالب."}
+          </p>
+        </div>
+      </SectionCard>
 
       <Tabs defaultValue="fields" className="space-y-4">
         <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -408,12 +644,37 @@ const OrderFormSettings = () => {
                   <Textarea value={settings.successMessage} onChange={(e) => setSettings({ ...settings, successMessage: e.target.value })} rows={3} />
                 </div>
               </SectionCard>
+              <SectionCard icon={ShieldCheck} title="تأكيد قبل الإرسال" description="نافذة منبثقة يقرأها الزبون قبل تأكيد الطلب" iconColor="bg-amber-500">
+                <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
+                  <div className="flex-1 min-w-0">
+                    <Label className="block font-semibold">تفعيل نافذة التأكيد</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      عند الضغط على «اطلب الآن» تظهر رسالة التأكيد، ولا يمكن التأكيد إلا بعد 3 ثوانٍ
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.confirmationEnabled}
+                    onCheckedChange={(v) => setSettings({ ...settings, confirmationEnabled: v })}
+                  />
+                </div>
+                {settings.confirmationEnabled && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">نص رسالة التأكيد</Label>
+                    <Textarea
+                      value={settings.confirmationMessage}
+                      onChange={(e) => setSettings({ ...settings, confirmationMessage: e.target.value })}
+                      rows={4}
+                      placeholder="مثال: تأكد من صحة رقم الهاتف والعنوان قبل إرسال الطلب..."
+                    />
+                  </div>
+                )}
+              </SectionCard>
             </div>
           </div>
 
           <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold gap-2">
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            حفظ إعدادات النموذج
+            {editingPreset ? `حفظ القالب «${editingPreset.name}»` : "حفظ الإعدادات الافتراضية"}
           </Button>
         </TabsContent>
 

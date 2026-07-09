@@ -52,6 +52,7 @@ export interface LandingPageFormData {
   isVisible: boolean;
   faqs?: Array<{ question: string; answer: string }>;
   templateId?: string;
+  orderFormPresetId?: string;
   sizeChart?: {
     enabled: boolean;
     title?: string;
@@ -78,6 +79,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   isVisible: true,
   faqs: [],
   templateId: "",
+  orderFormPresetId: "",
   sizeChart: {
     enabled: false,
     title: "جدول المقاسات",
@@ -105,6 +107,7 @@ interface LandingPageFormProps {
   /** عند التعديل: لا نسمح بتغيير المنتج المرتبط */
   lockProduct?: boolean;
   templates?: Array<{ id: string; name: string; is_default?: boolean }>;
+  orderFormPresets?: Array<{ id: string; name: string }>;
   ownerId?: string | null;
   storeId?: string | null;
 }
@@ -118,6 +121,7 @@ const LandingPageForm = ({
   products,
   lockProduct,
   templates,
+  orderFormPresets,
   ownerId,
   storeId,
 }: LandingPageFormProps) => {
@@ -645,6 +649,34 @@ const LandingPageForm = ({
           />
         </SectionCard>
       )}
+
+      {/* قالب نموذج الطلب */}
+      <SectionCard
+        icon={FileText}
+        title="نموذج الطلب"
+        description="اختر إعدادات نموذج الطلب المحفوظة — أو اترك الافتراضي للمتجر"
+        iconColor="bg-cyan-500"
+      >
+        <SearchableSelect
+          value={data.orderFormPresetId || "__default__"}
+          onChange={(v) => update("orderFormPresetId", v === "__default__" ? "" : v)}
+          placeholder="اختر نموذج الطلب..."
+          searchPlaceholder="ابحث..."
+          options={[
+            { value: "__default__", label: "الإعدادات الافتراضية للمتجر" },
+            ...(orderFormPresets || []).map((p) => ({
+              value: p.id,
+              label: p.name,
+              keywords: p.name,
+            })),
+          ]}
+        />
+        {(!orderFormPresets || orderFormPresets.length === 0) && (
+          <p className="text-xs text-muted-foreground">
+            لا توجد قوالب محفوظة بعد. احفظ قالباً من صفحة «نموذج الطلب» ثم اختره هنا.
+          </p>
+        )}
+      </SectionCard>
 
       {/* الإظهار */}
       <SectionCard icon={Eye} title="الإظهار" iconColor="bg-teal-500">

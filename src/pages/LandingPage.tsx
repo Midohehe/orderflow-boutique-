@@ -20,7 +20,6 @@ import {
 } from "@/lib/analyticsAttribution";
 import {
   autocompleteForField,
-  fetchPublicOrderFormFields,
   inputTypeForField,
   isDeliverySelectField,
   landingFormFieldsCacheKey,
@@ -31,6 +30,8 @@ import {
   validateDeliveryCity,
   validateOrderPayload,
 } from "@/lib/landingOrderForm";
+import { fetchPublicOrderFormConfig } from "@/lib/orderFormPresets";
+import { OrderConfirmDialog } from "@/components/OrderConfirmDialog";
 import {
   fetchPublicDeliveryPrices,
   lookupDeliveryFee,
@@ -391,6 +392,16 @@ const LandingPage = () => {
   );
   const [formFieldsLoaded, setFormFieldsLoaded] = useState(!!ssrSeed?.formFields?.length);
   const [deliveryPrices, setDeliveryPrices] = useState<StoreDeliveryPrice[]>(ssrSeed?.deliveryPrices ?? []);
+  const [orderFormPresetId, setOrderFormPresetId] = useState<string | null>(
+    (ssrSeed as any)?.orderFormPresetId ?? null,
+  );
+  const [confirmationEnabled, setConfirmationEnabled] = useState(
+    !!(ssrSeed as any)?.store?.confirmation_enabled,
+  );
+  const [confirmationMessage, setConfirmationMessage] = useState(
+    String((ssrSeed as any)?.store?.confirmation_message || ""),
+  );
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
     currency_symbol: ssrSeed?.store?.currency_symbol ?? "د.ل",
     currency_code: ssrSeed?.store?.currency_code ?? "LYD",
@@ -640,16 +651,26 @@ const LandingPage = () => {
         // Always revalidate form fields + delivery prices (stale SSR/edge cache may
         // embed outdated field types after enabling «نوع التوصيل»).
         if (ssrSeed.ownerId) {
-          fetchPublicOrderFormFields(supabase, ssrSeed.ownerId, ssrSeed.storeId).then(
-            ({ fields, error }) => {
-              if (ac.signal.aborted || error || !fields.length) return;
-              const normalized = normalizePublicFormFields(fields) as FormField[];
-              setFormFields(normalized);
-              setFormData((prev) => ensureFormFieldKeys(prev, normalized));
-              setToCache(
-                landingFormFieldsCacheKey(ssrSeed.ownerId!, ssrSeed.storeId),
-                normalized,
-              );
+          const presetId = (ssrSeed as any).orderFormPresetId || null;
+          if (presetId) setOrderFormPresetId(presetId);
+          fetchPublicOrderFormConfig(supabase, ssrSeed.ownerId, ssrSeed.storeId, presetId).then(
+            ({ config, error }) => {
+              if (ac.signal.aborted || error) return;
+              const normalized = normalizePublicFormFields(config.fields) as FormField[];
+              if (normalized.length) {
+                setFormFields(normalized);
+                setFormData((prev) => ensureFormFieldKeys(prev, normalized));
+                setToCache(
+                  landingFormFieldsCacheKey(ssrSeed.ownerId!, ssrSeed.storeId),
+                  normalized,
+                );
+              }
+              setStoreSettings((prev) => ({
+                ...prev,
+                button_text: config.buttonText || prev.button_text,
+              }));
+              setConfirmationEnabled(config.confirmationEnabled);
+              setConfirmationMessage(config.confirmationMessage);
             },
           );
           if (ssrSeed.storeId) {
@@ -703,7 +724,7 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, owner_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart")
+          .select("id, product_id, store_id, owner_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart, order_form_preset_id")
           .eq("slug", slug)
           .maybeSingle();
 
@@ -889,14 +910,17 @@ const LandingPage = () => {
         // SECONDARY: fetch the rest in the background, prefer cache.
         const ownerForSettings = resolvedOwnerId || matched?.owner_id;
         const storeForSettings = resolvedStoreId || (matched as any)?.store_id || null;
+        const presetForSettings: string | null = landingPage?.order_form_preset_id || null;
+        if (presetForSettings) setOrderFormPresetId(presetForSettings);
+        else setOrderFormPresetId(null);
         const productResult = { data: matched } as any;
 
         // Owner-scoped cache keys so different stores don't pollute each other's
         // form fields, store currency, or pixel settings.
-        const ownerSuffix = (ownerForSettings || "_") + "_" + (storeForSettings || "_");
+        const ownerSuffix = (ownerForSettings || "_") + "_" + (storeForSettings || "_") + "_" + (presetForSettings || "default");
         const storeKey = CACHE_KEYS.STORE_SETTINGS + "_" + ownerSuffix;
-        const pixelKey = CACHE_KEYS.PIXEL_SETTINGS + "_" + ownerSuffix;
-        const formKey = landingFormFieldsCacheKey(ownerForSettings || "", storeForSettings);
+        const pixelKey = CACHE_KEYS.PIXEL_SETTINGS + "_" + (ownerForSettings || "_") + "_" + (storeForSettings || "_");
+        const formKey = landingFormFieldsCacheKey(ownerForSettings || "", storeForSettings) + "_" + (presetForSettings || "default");
 
         const cachedStoreSettings = getFromCache(storeKey);
         const cachedPixelSettings = getFromCache(pixelKey);
@@ -904,7 +928,17 @@ const LandingPage = () => {
 
         // Apply cache immediately for snappy paint.
         if (cachedStoreSettings) {
-          setStoreSettings(cachedStoreSettings);
+          setStoreSettings({
+            currency_symbol: cachedStoreSettings.currency_symbol,
+            currency_code: cachedStoreSettings.currency_code,
+            button_text: cachedStoreSettings.button_text,
+            theme_tokens: parseThemeTokens(cachedStoreSettings.theme_tokens),
+            theme_custom_css: cachedStoreSettings.theme_custom_css ?? null,
+          });
+          if (typeof cachedStoreSettings.confirmation_enabled === "boolean") {
+            setConfirmationEnabled(cachedStoreSettings.confirmation_enabled);
+            setConfirmationMessage(cachedStoreSettings.confirmation_message || "");
+          }
           loadedCurrency = cachedStoreSettings.currency_code;
         }
         if (cachedFormFields) {
@@ -936,13 +970,11 @@ const LandingPage = () => {
               .then((res: any) => ({ data: Array.isArray(res.data) ? res.data[0] : res.data, error: res.error }))
           : Promise.resolve({ data: null, error: null } as any);
 
-        const formFieldsPromise: Promise<{ data: FormField[] | null; error: unknown }> = ownerForSettings
-          ? fetchPublicOrderFormFields(supabase, ownerForSettings, storeForSettings || null).then(
-              ({ fields, error }) => ({ data: fields, error })
-            )
-          : Promise.resolve({ data: [], error: null });
+        const formConfigPromise = ownerForSettings
+          ? fetchPublicOrderFormConfig(supabase, ownerForSettings, storeForSettings || null, presetForSettings)
+          : Promise.resolve({ config: null, error: null } as const);
 
-        const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, button_text, theme_tokens, theme_custom_css");
+        const storeQ = supabase.from("store_settings").select("currency_symbol, currency_code, theme_tokens, theme_custom_css");
         if (ownerForSettings) storeQ.eq("owner_id", ownerForSettings);
         if (storeForSettings) storeQ.eq("store_id", storeForSettings);
         const storePromise = storeQ.maybeSingle();
@@ -957,13 +989,15 @@ const LandingPage = () => {
                 }))
             : Promise.resolve({ data: null, error: null });
 
-        Promise.all([pixelPromise, formFieldsPromise, storePromise, stockPolicyPromise])
-          .then(([pixelResult, formFieldsResult, storeSettingsResult, stockPolicyResult]) => {
-          if (!formFieldsResult.error) {
-            const fields = normalizePublicFormFields((formFieldsResult.data || []) as FormField[]);
+        Promise.all([pixelPromise, formConfigPromise, storePromise, stockPolicyPromise])
+          .then(([pixelResult, formConfigResult, storeSettingsResult, stockPolicyResult]) => {
+          if (!formConfigResult.error && formConfigResult.config) {
+            const fields = normalizePublicFormFields(formConfigResult.config.fields) as FormField[];
             setFormFields(fields);
             setToCache(formKey, fields);
             setFormData((prev) => ensureFormFieldKeys(prev, fields));
+            setConfirmationEnabled(formConfigResult.config.confirmationEnabled);
+            setConfirmationMessage(formConfigResult.config.confirmationMessage);
             if (storeForSettings && orderFormUsesDeliverySelect(fields)) {
               fetchPublicDeliveryPrices(supabase, storeForSettings).then((prices) => {
                 if (!ac.signal.aborted) setDeliveryPrices(prices);
@@ -971,8 +1005,8 @@ const LandingPage = () => {
             } else if (!orderFormUsesDeliverySelect(fields)) {
               setDeliveryPrices([]);
             }
-          } else {
-            console.error("order form fields:", formFieldsResult.error);
+          } else if (formConfigResult.error) {
+            console.error("order form config:", formConfigResult.error);
           }
           setFormFieldsLoaded(true);
 
@@ -982,16 +1016,28 @@ const LandingPage = () => {
             setStrictStockEnabled(false);
           }
 
-          if (storeSettingsResult.data) {
-            loadedCurrency = storeSettingsResult.data.currency_code;
+          const currencySymbol = storeSettingsResult.data?.currency_symbol;
+          const currencyCode = storeSettingsResult.data?.currency_code;
+          const buttonText = formConfigResult.config?.buttonText || "اطلب الآن - الدفع عند الاستلام";
+          if (storeSettingsResult.data || formConfigResult.config) {
+            loadedCurrency = currencyCode || loadedCurrency;
+            const nextStore = {
+              currency_symbol: currencySymbol || storeSettings.currency_symbol || "د.ل",
+              currency_code: currencyCode || "LYD",
+              button_text: buttonText,
+              theme_tokens: parseThemeTokens((storeSettingsResult.data as { theme_tokens?: unknown } | null)?.theme_tokens),
+              theme_custom_css: (storeSettingsResult.data as { theme_custom_css?: string } | null)?.theme_custom_css ?? null,
+              confirmation_enabled: !!formConfigResult.config?.confirmationEnabled,
+              confirmation_message: formConfigResult.config?.confirmationMessage || "",
+            };
             setStoreSettings({
-              currency_symbol: storeSettingsResult.data.currency_symbol,
-              currency_code: storeSettingsResult.data.currency_code,
-              button_text: (storeSettingsResult.data as any).button_text || "اطلب الآن - الدفع عند الاستلام",
-              theme_tokens: parseThemeTokens((storeSettingsResult.data as { theme_tokens?: unknown }).theme_tokens),
-              theme_custom_css: (storeSettingsResult.data as { theme_custom_css?: string }).theme_custom_css ?? null,
+              currency_symbol: nextStore.currency_symbol,
+              currency_code: nextStore.currency_code,
+              button_text: nextStore.button_text,
+              theme_tokens: nextStore.theme_tokens,
+              theme_custom_css: nextStore.theme_custom_css,
             });
-            setToCache(storeKey, storeSettingsResult.data);
+            setToCache(storeKey, nextStore);
           }
 
           if (pixelResult.data) {
@@ -1479,6 +1525,31 @@ const LandingPage = () => {
       }
     }
 
+    if (confirmationEnabled) {
+      setConfirmOpen(true);
+      return;
+    }
+
+    await submitOrderAfterValidation(mergedFormData, {
+      customer_name,
+      phone: normalizedPhone,
+      city,
+      governorate,
+      address,
+    });
+  };
+
+  const submitOrderAfterValidation = async (
+    mergedFormData: Record<string, string>,
+    resolved: {
+      customer_name: string;
+      phone: string;
+      city: string;
+      governorate: string;
+      address: string;
+    },
+  ) => {
+    const { customer_name, phone: normalizedPhone, city, governorate, address } = resolved;
     setIsSubmitting(true);
 
     try {
@@ -1562,6 +1633,7 @@ const LandingPage = () => {
           ? Number((data as { shipping_fee?: number }).shipping_fee) || 0
           : deliveryFee;
 
+      setConfirmOpen(false);
       navigate("/thank-you", {
         state: {
           orderData: {
@@ -1592,6 +1664,26 @@ const LandingPage = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleConfirmOrder = async () => {
+    const mergedFormData = { ...formData };
+    const formEl = document.getElementById("order-form");
+    if (formEl) {
+      formEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+        "input[name], textarea[name], select[name]",
+      ).forEach((el) => {
+        if (el.name) mergedFormData[el.name] = el.value;
+      });
+    }
+    const { customer_name, phone, city, governorate, address } = resolveOrderFields(activeFormFields, mergedFormData);
+    await submitOrderAfterValidation(mergedFormData, {
+      customer_name,
+      phone: normalizeLibyanPhone(phone),
+      city,
+      governorate,
+      address,
+    });
   };
 
   // Remove the edge-rendered SSR shell synchronously, BEFORE the browser paints
@@ -2396,6 +2488,13 @@ const LandingPage = () => {
         </div>
       </div>
     </div>
+    <OrderConfirmDialog
+      open={confirmOpen}
+      message={confirmationMessage}
+      submitting={isSubmitting}
+      onConfirm={handleConfirmOrder}
+      onCancel={() => { if (!isSubmitting) setConfirmOpen(false); }}
+    />
     </StoreThemeScope>
   );
 };

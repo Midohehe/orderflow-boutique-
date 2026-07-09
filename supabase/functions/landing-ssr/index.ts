@@ -257,6 +257,7 @@ function buildSeedJson(input: {
   platformName: string;
   strictStock: boolean;
   puckData: unknown;
+  orderFormPresetId?: string | null;
 }): string {
   const p = input.product || {};
   const sc = p.size_chart;
@@ -266,6 +267,7 @@ function buildSeedJson(input: {
     username: input.username,
     ownerId: input.ownerId,
     storeId: input.storeId,
+    orderFormPresetId: input.orderFormPresetId ?? null,
     // Seeded read data so the client renders the COMPLETE page with ZERO read
     // queries — only a single live stock check + the page_view write remain.
     pixelSettings: input.pixelSettings ?? null,
@@ -348,6 +350,8 @@ interface StoreExtras {
   currency_symbol: string;
   currency_code: string;
   button_text: string;
+  confirmation_enabled: boolean;
+  confirmation_message: string;
   theme_tokens: unknown;
   theme_custom_css: string | null;
 }
@@ -359,13 +363,15 @@ async function getStoreExtras(
     currency_symbol: "د.ل",
     currency_code: "LYD",
     button_text: "اطلب الآن - الدفع عند الاستلام",
+    confirmation_enabled: false,
+    confirmation_message: "",
     theme_tokens: null,
     theme_custom_css: null,
   };
   if (!ownerId) return fallback;
   let q = supabase
     .from("store_settings")
-    .select("currency_symbol, currency_code, button_text, theme_tokens, theme_custom_css")
+    .select("currency_symbol, currency_code, button_text, confirmation_enabled, confirmation_message, theme_tokens, theme_custom_css")
     .eq("owner_id", ownerId);
   if (storeId) q = q.eq("store_id", storeId);
   const { data } = await q.limit(1).maybeSingle();
@@ -373,6 +379,8 @@ async function getStoreExtras(
     currency_symbol: data?.currency_symbol || fallback.currency_symbol,
     currency_code: (data as { currency_code?: string })?.currency_code || fallback.currency_code,
     button_text: (data as { button_text?: string })?.button_text || fallback.button_text,
+    confirmation_enabled: !!(data as { confirmation_enabled?: boolean })?.confirmation_enabled,
+    confirmation_message: (data as { confirmation_message?: string })?.confirmation_message || "",
     theme_tokens: (data as { theme_tokens?: unknown })?.theme_tokens ?? null,
     theme_custom_css: (data as { theme_custom_css?: string })?.theme_custom_css ?? null,
   };
@@ -422,18 +430,62 @@ async function getHeaderSettings(ownerId: string | null, storeId: string | null)
 
 // Enabled public order-form fields — seeded so the form renders instantly
 // (no "loading form" gap) instead of after a client-side fetch.
-async function getFormFields(ownerId: string | null, storeId: string | null): Promise<unknown[]> {
-  if (!ownerId) return [];
+async function getFormConfig(
+  ownerId: string | null,
+  storeId: string | null,
+  presetId: string | null,
+): Promise<{
+  fields: unknown[];
+  button_text: string;
+  confirmation_enabled: boolean;
+  confirmation_message: string;
+}> {
+  const fallback = {
+    fields: [] as unknown[],
+    button_text: "اطلب الآن - الدفع عند الاستلام",
+    confirmation_enabled: false,
+    confirmation_message: "",
+  };
+  if (!ownerId) return fallback;
+  try {
+    const { data, error } = await supabase.rpc("get_public_order_form_config", {
+      _owner_id: ownerId,
+      _store_id: storeId,
+      _preset_id: presetId,
+    });
+    if (!error && Array.isArray(data) && data.length) {
+      const meta = data[0] as Record<string, unknown>;
+      const fields = data
+        .filter((r: any) => r?.field_key)
+        .map((r: any) => ({
+          id: r.field_id || r.field_key,
+          field_key: r.field_key,
+          label: r.label,
+          placeholder: r.placeholder,
+          field_type: r.field_type,
+          required: !!r.required,
+          enabled: true,
+        }));
+      return {
+        fields,
+        button_text: String(meta.button_text || fallback.button_text),
+        confirmation_enabled: !!meta.confirmation_enabled,
+        confirmation_message: String(meta.confirmation_message || ""),
+      };
+    }
+  } catch (_e) {
+    // ignore — client will fetch as fallback
+  }
   try {
     const { data, error } = await supabase.rpc("get_public_order_form_fields", {
       _owner_id: ownerId,
       _store_id: storeId,
     });
-    if (!error && Array.isArray(data)) return data;
+    if (!error && Array.isArray(data)) return { ...fallback, fields: data };
   } catch (_e) {
-    // ignore — client will fetch fields as a fallback
+    // ignore
   }
-  return [];
+  return fallback;
 }
 
 async function getDeliveryPrices(storeId: string | null): Promise<unknown[]> {
@@ -501,7 +553,7 @@ Deno.serve(async (req) => {
     const landingQuery = supabase
       .from("landing_pages")
       .select(
-        "id, product_id, store_id, title, subtitle, slug, description, images, price, original_price, owner_id, is_visible, puck_data, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, faqs, size_chart",
+        "id, product_id, store_id, title, subtitle, slug, description, images, price, original_price, owner_id, is_visible, puck_data, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, faqs, size_chart, order_form_preset_id",
       )
       .eq("slug", slug)
       .eq("is_visible", true);
@@ -569,16 +621,22 @@ Deno.serve(async (req) => {
     }
 
     const productStoreId = (product as { store_id?: string }).store_id ?? null;
-    const [storeExtras, platformName, formFields, deliveryPrices, pixelSettings, strictStock, header] =
+    const orderFormPresetId =
+      (landing as { order_form_preset_id?: string | null } | null)?.order_form_preset_id ?? null;
+    const [storeExtras, platformName, formConfig, deliveryPrices, pixelSettings, strictStock, header] =
       await Promise.all([
         getStoreExtras(product.owner_id, productStoreId),
         getPlatformName(),
-        getFormFields(product.owner_id, productStoreId),
+        getFormConfig(product.owner_id, productStoreId, orderFormPresetId),
         getDeliveryPrices(productStoreId),
         getPixelSettings(product.owner_id, productStoreId),
         getStockPolicy(product.owner_id),
         getHeaderSettings(product.owner_id, productStoreId),
       ]);
+    const formFields = formConfig.fields;
+    storeExtras.button_text = formConfig.button_text || storeExtras.button_text;
+    storeExtras.confirmation_enabled = formConfig.confirmation_enabled;
+    storeExtras.confirmation_message = formConfig.confirmation_message;
     const currency = storeExtras.currency_symbol;
     const themeTokens = parseThemeTokens(storeExtras.theme_tokens);
     const themeCustomCss = storeExtras.theme_custom_css;
@@ -609,6 +667,7 @@ Deno.serve(async (req) => {
       platformName,
       strictStock,
       puckData,
+      orderFormPresetId,
     });
 
     let html = shell.replace(/<title>[\s\S]*?<\/title>/i, "");

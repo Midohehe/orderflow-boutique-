@@ -134,6 +134,7 @@ const Products = () => {
   const [isSavingLp, setIsSavingLp] = useState(false);
   const [deleteLpTarget, setDeleteLpTarget] = useState<LandingPage | null>(null);
   const [lpTemplates, setLpTemplates] = useState<Array<{ id: string; name: string; is_default: boolean; puck_data: any }>>([]);
+  const [orderFormPresets, setOrderFormPresets] = useState<Array<{ id: string; name: string }>>([]);
   const productImportRef = useRef<HTMLInputElement>(null);
   const landingImportRef = useRef<HTMLInputElement>(null);
   const [isImportingProducts, setIsImportingProducts] = useState(false);
@@ -891,6 +892,21 @@ const Products = () => {
     return () => { cancelled = true; };
   }, [userLoading, storeLoading, activeStoreId]);
 
+  // ===== Order form presets =====
+  useEffect(() => {
+    if (userLoading || storeLoading || !activeStoreId) { setOrderFormPresets([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("order_form_presets")
+        .select("id, name")
+        .eq("store_id", activeStoreId)
+        .order("created_at", { ascending: true });
+      if (!cancelled) setOrderFormPresets((data || []) as Array<{ id: string; name: string }>);
+    })();
+    return () => { cancelled = true; };
+  }, [userLoading, storeLoading, activeStoreId]);
+
   // ===== Categories: load =====
   useEffect(() => {
     if (userLoading || storeLoading) return;
@@ -1032,6 +1048,7 @@ const Products = () => {
           : { enabled: false, title: "", description: "", columns: [], rows: [] },
         template_id: chosenTpl?.id || null,
         puck_data: chosenTpl?.puck_data ?? null,
+        order_form_preset_id: newLp.orderFormPresetId || null,
       } as any).select("id, product_id, slug, title, subtitle, is_visible").single();
       if (error) {
         if (error.code === "23505") {
@@ -1250,6 +1267,7 @@ const Products = () => {
           }
         : { enabled: false, title: "جدول المقاسات", description: "", columns: ["المقاس", "الطول (سم)", "العرض (سم)"], rows: [] },
       templateId: d.template_id || "",
+      orderFormPresetId: d.order_form_preset_id || "",
     });
   };
 
@@ -1297,6 +1315,7 @@ const Products = () => {
             }
           : { enabled: false, title: "", description: "", columns: [], rows: [] },
         template_id: chosenTpl?.id || null,
+        order_form_preset_id: editLp.orderFormPresetId || null,
       };
       if (chosenTpl) updatePayload.puck_data = chosenTpl.puck_data ?? null;
       else updatePayload.puck_data = null;
@@ -1499,6 +1518,7 @@ const Products = () => {
                       id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
                     }))}
                     templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
+                    orderFormPresets={orderFormPresets}
                   />
                 </DialogContent>
               </Dialog>
@@ -1556,6 +1576,7 @@ const Products = () => {
                 id: p.id, name: p.name, price: p.price, original_price: p.original_price, images: p.images,
               }))}
               templates={lpTemplates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
+              orderFormPresets={orderFormPresets}
             />
           </div>
         </DialogContent>
