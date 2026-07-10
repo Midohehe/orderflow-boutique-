@@ -23,46 +23,38 @@ export interface MissedOrdersPageResult {
   total: number;
 }
 
-const MISSED_COLS =
-  "id, owner_id, store_id, product_id, product_name, landing_slug, customer_name, phone, address, city, governorate, quantity, estimated_price, reason, created_at";
-
 export async function fetchMissedOrdersPage(
   storeId: string,
   page: number,
   pageSize: number,
-  search?: string,
+  _search?: string,
 ): Promise<MissedOrdersPageResult> {
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const offset = (page - 1) * pageSize;
 
-  let q = supabase
-    .from("missed_orders")
-    .select(MISSED_COLS, { count: "exact" })
-    .eq("store_id", storeId)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, count] = await Promise.all([
+    (supabase as any).rpc("list_missed_orders_for_store", {
+      _store_id: storeId,
+      _limit: pageSize,
+      _offset: offset,
+    }),
+    fetchMissedOrdersCount(storeId),
+  ]);
 
-  if (search?.trim()) {
-    const s = `%${search.trim()}%`;
-    q = q.or(`phone.ilike.${s},customer_name.ilike.${s},product_name.ilike.${s}`);
-  }
-
-  const { data, error, count } = await q.range(from, to);
   if (error) throw error;
-  return { rows: (data || []) as MissedOrder[], total: count ?? 0 };
+  return { rows: (data || []) as MissedOrder[], total: count };
 }
 
 export async function fetchMissedOrdersCount(storeId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from("missed_orders")
-    .select("id", { count: "exact", head: true })
-    .eq("store_id", storeId);
+  const { data, error } = await (supabase as any).rpc("count_missed_orders_for_store", {
+    _store_id: storeId,
+  });
   if (error) throw error;
-  return count ?? 0;
+  return Number(data) || 0;
 }
 
 export type LogMissedOrderPayload = {
   product_id: string;
-  owner_id: string;
+  owner_id?: string | null;
   store_id?: string | null;
   product_name?: string;
   landing_slug?: string | null;
@@ -78,11 +70,11 @@ export type LogMissedOrderPayload = {
 
 /**
  * Log checkout abandoned at confirmation dialog.
- * Prefer public RPC (works for anon landing visitors); fall back to edge function.
+ * Product id is enough — server derives owner/store from the product row.
  */
 export async function logMissedOrder(payload: LogMissedOrderPayload): Promise<boolean> {
-  if (!payload.product_id || !payload.owner_id) {
-    console.error("logMissedOrder: missing product/owner", payload);
+  if (!payload.product_id) {
+    console.error("logMissedOrder: missing product_id");
     return false;
   }
   if (!payload.phone?.trim() && !payload.customer_name?.trim()) {
@@ -92,7 +84,7 @@ export async function logMissedOrder(payload: LogMissedOrderPayload): Promise<bo
 
   const rpcArgs = {
     _product_id: payload.product_id,
-    _owner_id: payload.owner_id,
+    _owner_id: payload.owner_id || null,
     _store_id: payload.store_id || null,
     _customer_name: payload.customer_name || null,
     _phone: payload.phone || null,

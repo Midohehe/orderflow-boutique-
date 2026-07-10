@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const store_id = s(body.store_id, 64);
     const reason = s(body.reason, 80) || "confirmation_cancelled";
 
-    if (!product_id || !owner_id) {
+    if (!product_id) {
       return new Response(JSON.stringify({ error: "missing_fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -37,24 +37,19 @@ Deno.serve(async (req) => {
       .from("products")
       .select("id, name, owner_id, store_id, is_visible")
       .eq("id", product_id)
+      .is("deleted_at", null)
       .maybeSingle();
 
-    if (!product || !product.is_visible) {
+    if (!product) {
       return new Response(JSON.stringify({ error: "product_unavailable" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (product.owner_id !== owner_id) {
-      return new Response(JSON.stringify({ error: "invalid_owner" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    const effectiveOwnerId = product.owner_id;
     const effectiveStoreId = product.store_id || store_id || null;
-    if (!effectiveStoreId) {
+    if (!effectiveOwnerId || !effectiveStoreId) {
       return new Response(JSON.stringify({ error: "missing_store" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -68,7 +63,7 @@ Deno.serve(async (req) => {
     const { data: row, error } = await supabase
       .from("missed_orders")
       .insert({
-        owner_id,
+        owner_id: effectiveOwnerId,
         store_id: effectiveStoreId,
         product_id,
         product_name: s(body.product_name, 200) || product.name,

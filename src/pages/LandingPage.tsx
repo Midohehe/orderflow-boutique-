@@ -1698,17 +1698,15 @@ const LandingPage = () => {
     missedLoggedRef.current = true;
 
     const p = productRef.current;
-    const oid = p?.owner_id || ownerIdRef.current;
-    const sid = storeIdRef.current || p?.store_id || null;
-    if (!p?.id || !oid) {
-      console.error("missed order skip: missing product/owner", { productId: p?.id, oid, sid });
+    if (!p?.id) {
+      console.error("missed order skip: missing product", { productId: p?.id });
       return;
     }
 
     void logMissedOrder({
       product_id: p.id,
-      owner_id: oid,
-      store_id: sid,
+      owner_id: p.owner_id || ownerIdRef.current,
+      store_id: storeIdRef.current || p.store_id || null,
       product_name: p.name,
       landing_slug: slugRef.current || null,
       customer_name: pending.customer_name,
