@@ -43,7 +43,12 @@ export function OrderConfirmDialog({
   const canConfirm = secondsLeft <= 0 && !submitting;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o && !submitting) onCancel(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !submitting) onCancel();
+      }}
+    >
       <DialogContent className="max-w-md sm:max-w-md" aria-describedby="order-confirm-desc">
         <DialogHeader className="text-right sm:text-right">
           <DialogTitle className="text-xl">تأكيد الطلب</DialogTitle>
@@ -77,7 +82,11 @@ export function OrderConfirmDialog({
             type="button"
             variant="outline"
             disabled={!!submitting}
-            onClick={onCancel}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }}
             className="w-full"
           >
             إلغاء

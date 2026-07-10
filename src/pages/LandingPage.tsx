@@ -427,6 +427,7 @@ const LandingPage = () => {
     governorate: string;
     address: string;
   } | null>(null);
+  const missedLoggedRef = useRef(false);
   const pageViewTrackedRef = useRef(false);
   const formFieldsRef = useRef<FormField[]>([]);
   const productRef = useRef<Product | null>(null);
@@ -1545,6 +1546,7 @@ const LandingPage = () => {
         governorate,
         address,
       };
+      missedLoggedRef.current = false;
       setConfirmOpen(true);
       return;
     }
@@ -1689,14 +1691,19 @@ const LandingPage = () => {
   const handleConfirmCancel = () => {
     if (isSubmitting) return;
     const pending = pendingCheckoutRef.current;
-    if (!pending) return;
     setConfirmOpen(false);
     pendingCheckoutRef.current = null;
+
+    if (!pending || missedLoggedRef.current) return;
+    missedLoggedRef.current = true;
 
     const p = productRef.current;
     const oid = p?.owner_id || ownerIdRef.current;
     const sid = storeIdRef.current || p?.store_id || null;
-    if (!p?.id || !oid) return;
+    if (!p?.id || !oid) {
+      console.error("missed order skip: missing product/owner", { productId: p?.id, oid, sid });
+      return;
+    }
 
     void logMissedOrder({
       product_id: p.id,
@@ -1712,6 +1719,8 @@ const LandingPage = () => {
       quantity,
       estimated_price: orderTotalDisplay,
       form_data: pending.mergedFormData,
+    }).then((ok) => {
+      if (!ok) console.error("missed order failed to save");
     });
   };
 
