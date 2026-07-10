@@ -2179,6 +2179,10 @@ const Orders = () => {
         onValueChange={(v) => {
           setOrderTab(v as OrderTab);
           setPage(v, 1);
+          if (v === "missed") {
+            void queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId, "missed"] });
+            void queryClient.invalidateQueries({ queryKey: ["orders-page-meta", activeStoreId] });
+          }
         }}
         className="w-full"
       >

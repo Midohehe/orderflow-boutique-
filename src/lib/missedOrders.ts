@@ -64,7 +64,7 @@ export async function fetchMissedOrdersCount(storeId: string): Promise<number> {
 export type LogMissedOrderPayload = {
   product_id: string;
   owner_id: string;
-  store_id: string;
+  store_id?: string | null;
   product_name?: string;
   landing_slug?: string | null;
   customer_name?: string;
@@ -77,17 +77,28 @@ export type LogMissedOrderPayload = {
   form_data?: Record<string, string>;
 };
 
-/** Fire-and-forget: log checkout abandoned at confirmation dialog. */
-export async function logMissedOrder(payload: LogMissedOrderPayload): Promise<void> {
-  if (!payload.phone?.trim() && !payload.customer_name?.trim()) return;
+/** Log checkout abandoned at confirmation dialog. */
+export async function logMissedOrder(payload: LogMissedOrderPayload): Promise<boolean> {
+  if (!payload.product_id || !payload.owner_id) return false;
+  if (!payload.phone?.trim() && !payload.customer_name?.trim()) return false;
   try {
-    await supabase.functions.invoke("log-missed-order", {
+    const { data, error } = await supabase.functions.invoke("log-missed-order", {
       body: {
         ...payload,
         reason: "confirmation_cancelled",
       },
     });
+    if (error) {
+      console.error("logMissedOrder invoke:", error);
+      return false;
+    }
+    if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+      console.error("logMissedOrder:", (data as { error: string }).error);
+      return false;
+    }
+    return true;
   } catch (e) {
     console.error("logMissedOrder:", e);
+    return false;
   }
 }

@@ -87,6 +87,7 @@ interface Product {
   order_form_on_top?: boolean;
   show_quantity?: boolean;
   owner_id?: string;
+  store_id?: string;
   stock?: number;
   variant_stock?: Record<string, number>;
   size_chart_url?: string | null;
@@ -828,6 +829,7 @@ const LandingPage = () => {
           loadedProduct = {
             id: matched.id,
             owner_id: matched.owner_id,
+            store_id: resolvedStoreId || (matched as any).store_id || undefined,
             name: matched.name,
             slug: lp?.slug || matched.slug,
             price: String(lp?.price ?? matched.price),
@@ -1687,13 +1689,14 @@ const LandingPage = () => {
   const handleConfirmCancel = () => {
     if (isSubmitting) return;
     const pending = pendingCheckoutRef.current;
+    if (!pending) return;
     setConfirmOpen(false);
     pendingCheckoutRef.current = null;
 
     const p = productRef.current;
-    const oid = ownerIdRef.current || p?.owner_id;
-    const sid = storeIdRef.current;
-    if (!pending || !p?.id || !oid || !sid) return;
+    const oid = p?.owner_id || ownerIdRef.current;
+    const sid = storeIdRef.current || p?.store_id || null;
+    if (!p?.id || !oid) return;
 
     void logMissedOrder({
       product_id: p.id,

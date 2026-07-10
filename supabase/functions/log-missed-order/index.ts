@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const store_id = s(body.store_id, 64);
     const reason = s(body.reason, 80) || "confirmation_cancelled";
 
-    if (!product_id || !owner_id || !store_id) {
+    if (!product_id || !owner_id) {
       return new Response(JSON.stringify({ error: "missing_fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -46,9 +46,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (product.owner_id !== owner_id || (product.store_id && product.store_id !== store_id)) {
-      return new Response(JSON.stringify({ error: "invalid_store" }), {
+    if (product.owner_id !== owner_id) {
+      return new Response(JSON.stringify({ error: "invalid_owner" }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const effectiveStoreId = product.store_id || store_id || null;
+    if (!effectiveStoreId) {
+      return new Response(JSON.stringify({ error: "missing_store" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -61,7 +69,7 @@ Deno.serve(async (req) => {
       .from("missed_orders")
       .insert({
         owner_id,
-        store_id,
+        store_id: effectiveStoreId,
         product_id,
         product_name: s(body.product_name, 200) || product.name,
         landing_slug: s(body.landing_slug, 200) || null,
