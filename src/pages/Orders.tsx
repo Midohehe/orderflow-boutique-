@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot, Globe } from "lucide-react";
+import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot, Globe, UserX } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
@@ -42,6 +42,7 @@ import {
   type OrdersPageFilters,
 } from "@/lib/ordersQuery";
 import { fetchOrdersPageMeta } from "@/lib/ordersPageMeta";
+import { fetchMissedOrdersPage, type MissedOrder } from "@/lib/missedOrders";
 import { fetchDeliveryStatsSummary } from "@/lib/deliveryStatsRpc";
 import {
   buildIndexesFromDbMappings,
@@ -170,6 +171,8 @@ const Orders = () => {
   // Server-side counts (authoritative — independent of how many rows are loaded).
   const [serverStatusCounts, setServerStatusCounts] = useState<Record<string, number>>({});
   const [deletedCount, setDeletedCount] = useState(0);
+  const [missedCount, setMissedCount] = useState(0);
+  const [missedOrders, setMissedOrders] = useState<MissedOrder[]>([]);
   const [serverCarrierCounts, setServerCarrierCounts] = useState<Record<string, number>>({});
   const errorAliases = useShippingErrorAliases();
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
@@ -617,11 +620,20 @@ const Orders = () => {
     queryKey: ["orders-page", activeStoreId, orderTab, tabPage, tabFilters],
     enabled: !!activeStoreId,
     staleTime: 30_000,
-    queryFn: () =>
-      fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters).then(({ rows, total }) => ({
+    queryFn: () => {
+      if (orderTab === "missed") {
+        return fetchMissedOrdersPage(activeStoreId!, tabPage, PAGE_SIZE).then(({ rows, total }) => ({
+          data: rows,
+          total,
+          kind: "missed" as const,
+        }));
+      }
+      return fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters).then(({ rows, total }) => ({
         data: rows,
         total,
-      })),
+        kind: "orders" as const,
+      }));
+    },
   });
 
   const ordersQuery = {
@@ -646,7 +658,13 @@ const Orders = () => {
     }
     const d = ordersQuery.data;
     if (!d) return;
-    setOrders((d.ordersRes.data || []) as Order[]);
+    if (orderTab === "missed" && d.ordersRes.kind === "missed") {
+      setMissedOrders((d.ordersRes.data || []) as MissedOrder[]);
+      setOrders([]);
+    } else {
+      setOrders((d.ordersRes.data || []) as Order[]);
+      setMissedOrders([]);
+    }
     setTabTotal(Number(d.ordersRes.total) || 0);
 
     const meta = d.meta;
@@ -661,6 +679,7 @@ const Orders = () => {
     }
     setServerStatusCounts(meta.statusCounts);
     setDeletedCount(meta.deletedCount);
+    setMissedCount(meta.missedCount ?? 0);
     setProductsMap(meta.productsMap);
     if (meta.currencySymbol) setCurrencySymbol(meta.currencySymbol);
     if (meta.stickerSettings) {
@@ -1568,6 +1587,83 @@ const Orders = () => {
     );
   };
 
+  const deleteMissedOrder = async (id: string) => {
+    const { error } = await (supabase as any).from("missed_orders").delete().eq("id", id);
+    if (error) {
+      toast({ title: "خطأ", description: error.message, variant: "destructive" });
+      return;
+    }
+    setMissedOrders((prev) => prev.filter((o) => o.id !== id));
+    setMissedCount((c) => Math.max(0, c - 1));
+    setTabTotal((t) => Math.max(0, t - 1));
+    void queryClient.invalidateQueries({ queryKey: ["orders-page-meta", activeStoreId] });
+  };
+
+  const renderMissedOrderCard = (row: MissedOrder) => (
+    <Card key={row.id} className="card-shadow border-violet-500/30 bg-violet-500/5">
+      <CardContent className="p-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-foreground">{row.customer_name || "—"}</h3>
+              <Badge className="bg-violet-600 hover:bg-violet-600 text-white">
+                طلب مفقود
+              </Badge>
+              <Badge variant="outline" className="text-violet-700 border-violet-300">
+                ألغى من نافذة التأكيد
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {row.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span dir="ltr">{row.phone}</span>
+                </span>
+              )}
+              {(row.city || row.governorate) && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {[row.governorate, row.city].filter(Boolean).join(" — ")}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                {formatDate(row.created_at)}
+              </span>
+            </div>
+            <p className="text-sm">
+              <span className="text-muted-foreground">المنتج: </span>
+              <span className="font-medium">{row.product_name || "—"}</span>
+              {row.quantity > 1 ? ` × ${row.quantity}` : ""}
+              {row.estimated_price != null && (
+                <span className="text-muted-foreground">
+                  {" "}— تقريباً {Number(row.estimated_price).toFixed(2)} {currencySymbol}
+                </span>
+              )}
+            </p>
+            {row.address && (
+              <p className="text-xs text-muted-foreground truncate" title={row.address}>
+                {row.address}
+              </p>
+            )}
+            {row.landing_slug && (
+              <p className="text-xs text-muted-foreground font-mono">صفحة: {row.landing_slug}</p>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive shrink-0"
+            onClick={() => deleteMissedOrder(row.id)}
+          >
+            <Trash2 className="w-4 h-4 ml-1" />
+            حذف
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => {
     const productTotal = orderProductTotal(order);
     const shippingFee = orderShippingFee(order);
@@ -2086,11 +2182,16 @@ const Orders = () => {
         }}
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-9 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 h-auto p-1 sm:p-1.5 bg-muted/40 rounded-xl gap-1.5">
           <TabsTrigger value="pending" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Clock className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">قيد الانتظار</span>
             <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.pending ?? pendingOrders.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="missed" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-violet-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
+            <UserX className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span className="text-[11px] sm:text-xs font-medium leading-tight">طلبات مفقودة</span>
+            <span className="text-[11px] sm:text-xs font-bold">({missedCount || missedOrders.length})</span>
           </TabsTrigger>
           <TabsTrigger value="foreign" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Globe className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -2122,7 +2223,7 @@ const Orders = () => {
             <span className="text-[11px] sm:text-xs font-medium leading-tight">المرتجعات</span>
             <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.returned_received ?? returnedReceivedOrders.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="deleted" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg col-span-2 sm:col-span-1 border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-slate-500 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
+          <TabsTrigger value="deleted" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-slate-500 data-[state=active]:to-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Archive className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">محذوفة</span>
             <span className="text-[11px] sm:text-xs font-bold">({deletedCount})</span>
@@ -2320,6 +2421,31 @@ const Orders = () => {
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order, true, pendingPhoneCounts[normalizePhone(order.phone)] || 0))}
+                <Pager p={p} />
+              </div>
+            );
+          })()}
+        </TabsContent>
+
+        <TabsContent value="missed" className="space-y-4">
+          <Card className="card-shadow border-violet-500/40 bg-violet-500/5">
+            <CardContent className="p-3 flex items-center gap-2 text-sm">
+              <UserX className="w-5 h-5 text-violet-600 shrink-0" />
+              <span>
+                زبائن ملأوا نموذج الطلب ووصلوا لنافذة التأكيد ثم ضغطوا «إلغاء» — لم يُسجَّل طلب فعلي، لكن بياناتهم محفوظة لمتابعة الجادين منهم.
+              </span>
+            </CardContent>
+          </Card>
+          {missedOrders.length === 0 ? (
+            renderEmptyState(
+              <UserX className="w-16 h-16 text-muted-foreground mb-4" />,
+              "لا توجد طلبات مفقودة"
+            )
+          ) : (() => {
+            const p = paginate(missedOrders, "missed", orderTab === "missed" ? tabTotal : undefined);
+            return (
+              <div className="space-y-4">
+                {p.items.map((row) => renderMissedOrderCard(row))}
                 <Pager p={p} />
               </div>
             );

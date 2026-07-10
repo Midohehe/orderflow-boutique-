@@ -4,6 +4,7 @@ import {
   fetchMergedCarrierMappingRows,
 } from "@/lib/carrierMappingsForStore";
 import { fetchShippedCarrierCounts } from "@/lib/deliveryStatsRpc";
+import { fetchMissedOrdersCount } from "@/lib/missedOrders";
 
 const STICKER_COLS =
   "page_width_mm, page_height_mm, font_size, header_text, footer_text, show_barcode, show_logo, fields";
@@ -18,6 +19,7 @@ export interface OrdersPageMeta {
   carrierCounts: Record<string, number>;
   confirmationCounts: Record<string, number>;
   deletedCount: number;
+  missedCount: number;
   statusMappings: Array<{
     status_code: string;
     custom_label: string | null;
@@ -42,6 +44,7 @@ export async function fetchOrdersPageMeta(
     confirmCountsRes,
     deletedCountRes,
     carrierCounts,
+    missedCount,
   ] = await Promise.all([
     supabase.from("store_settings").select("currency_symbol").eq("store_id", storeId).maybeSingle(),
     fetchMergedCarrierMappingRows(storeId, ownerId),
@@ -59,6 +62,7 @@ export async function fetchOrdersPageMeta(
       .eq("store_id", storeId)
       .eq("is_deleted", true),
     fetchShippedCarrierCounts(storeId, ownerId),
+    fetchMissedOrdersCount(storeId),
   ]);
 
   const statusMappings = carrierMappingsFromRows(mergedMappings);
@@ -88,6 +92,7 @@ export async function fetchOrdersPageMeta(
     carrierCounts,
     confirmationCounts,
     deletedCount: deletedCountRes.count ?? 0,
+    missedCount,
     statusMappings,
   };
 }

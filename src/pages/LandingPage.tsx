@@ -31,6 +31,7 @@ import {
   validateOrderPayload,
 } from "@/lib/landingOrderForm";
 import { fetchPublicOrderFormConfig } from "@/lib/orderFormPresets";
+import { logMissedOrder } from "@/lib/missedOrders";
 import { OrderConfirmDialog } from "@/components/OrderConfirmDialog";
 import {
   fetchPublicDeliveryPrices,
@@ -417,6 +418,14 @@ const LandingPage = () => {
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
   const checkoutTrackedRef = useRef(false);
+  const pendingCheckoutRef = useRef<{
+    mergedFormData: Record<string, string>;
+    customer_name: string;
+    phone: string;
+    city: string;
+    governorate: string;
+    address: string;
+  } | null>(null);
   const pageViewTrackedRef = useRef(false);
   const formFieldsRef = useRef<FormField[]>([]);
   const productRef = useRef<Product | null>(null);
@@ -1526,6 +1535,14 @@ const LandingPage = () => {
     }
 
     if (confirmationEnabled) {
+      pendingCheckoutRef.current = {
+        mergedFormData,
+        customer_name,
+        phone: normalizedPhone,
+        city,
+        governorate,
+        address,
+      };
       setConfirmOpen(true);
       return;
     }
@@ -1634,6 +1651,7 @@ const LandingPage = () => {
           : deliveryFee;
 
       setConfirmOpen(false);
+      pendingCheckoutRef.current = null;
       navigate("/thank-you", {
         state: {
           orderData: {
@@ -1666,7 +1684,36 @@ const LandingPage = () => {
     }
   };
 
+  const handleConfirmCancel = () => {
+    if (isSubmitting) return;
+    const pending = pendingCheckoutRef.current;
+    setConfirmOpen(false);
+    pendingCheckoutRef.current = null;
+
+    const p = productRef.current;
+    const oid = ownerIdRef.current || p?.owner_id;
+    const sid = storeIdRef.current;
+    if (!pending || !p?.id || !oid || !sid) return;
+
+    void logMissedOrder({
+      product_id: p.id,
+      owner_id: oid,
+      store_id: sid,
+      product_name: p.name,
+      landing_slug: slugRef.current || null,
+      customer_name: pending.customer_name,
+      phone: pending.phone,
+      address: pending.address,
+      city: pending.city,
+      governorate: pending.governorate,
+      quantity,
+      estimated_price: orderTotalDisplay,
+      form_data: pending.mergedFormData,
+    });
+  };
+
   const handleConfirmOrder = async () => {
+    pendingCheckoutRef.current = null;
     const mergedFormData = { ...formData };
     const formEl = document.getElementById("order-form");
     if (formEl) {
@@ -2493,7 +2540,7 @@ const LandingPage = () => {
       message={confirmationMessage}
       submitting={isSubmitting}
       onConfirm={handleConfirmOrder}
-      onCancel={() => { if (!isSubmitting) setConfirmOpen(false); }}
+      onCancel={handleConfirmCancel}
     />
     </StoreThemeScope>
   );

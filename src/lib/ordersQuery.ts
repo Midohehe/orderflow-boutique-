@@ -5,6 +5,7 @@ export const ORDER_LIST_COLS =
 
 export type OrderTab =
   | "pending"
+  | "missed"
   | "foreign"
   | "shipped"
   | "delivered"
