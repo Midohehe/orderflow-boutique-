@@ -33,6 +33,7 @@ import {
 import { fetchPublicOrderFormConfig } from "@/lib/orderFormPresets";
 import { logMissedOrder } from "@/lib/missedOrders";
 import { OrderConfirmDialog } from "@/components/OrderConfirmDialog";
+import { OfferRuntimeDialog } from "@/components/offers/OfferRuntimeDialog";
 import {
   fetchPublicDeliveryPrices,
   lookupDeliveryFee,
@@ -40,6 +41,17 @@ import {
   type StoreDeliveryPrice,
 } from "@/lib/storeDeliveryPrices";
 import { getEdgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { fetchPublicActiveOffers, trackOfferEvent } from "@/lib/offers/publicApi";
+import type { OfferRecord } from "@/lib/offers/types";
+import {
+  detectDevice,
+  findMatchingOffer,
+  findOrderBumpOffers,
+  markOfferDecided,
+  markOfferSeen,
+  resetOfferSessionLocks,
+  type OfferMatchContext,
+} from "@/lib/offers/runtime";
 import { LandingImage } from "@/components/LandingImage";
 import { landingHeroPreloadHref, buildLandingSrcSet, isOptimizableLandingImage } from "@/lib/landingImageUrl";
 import { hasLandingSsrShell, dismissLandingSsrShell } from "@/lib/landingSsrDetect";
@@ -404,6 +416,23 @@ const LandingPage = () => {
     String((ssrSeed as any)?.store?.confirmation_message || ""),
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [storeOffers, setStoreOffers] = useState<OfferRecord[]>([]);
+  const [runtimeOffer, setRuntimeOffer] = useState<OfferRecord | null>(null);
+  const [offerDialogOpen, setOfferDialogOpen] = useState(false);
+  const [acceptedOfferId, setAcceptedOfferId] = useState<string | null>(null);
+  const [selectedBumpOfferIds, setSelectedBumpOfferIds] = useState<string[]>([]);
+  const offerPhaseRef = useRef<"pre_checkout" | "post_order">("pre_checkout");
+  const postOrderThankYouRef = useRef<null | (() => void)>(null);
+  const lastOrderIdRef = useRef<string | null>(null);
+  const thankYouPayloadRef = useRef<Record<string, unknown> | null>(null);
+  const offerAcceptInFlightRef = useRef(false);
+  const lastOrderCustomerRef = useRef<{
+    customer_name: string;
+    phone: string;
+    city: string;
+    governorate: string;
+    address: string;
+  } | null>(null);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
     currency_symbol: ssrSeed?.store?.currency_symbol ?? "د.ل",
     currency_code: ssrSeed?.store?.currency_code ?? "LYD",
@@ -572,6 +601,262 @@ const LandingPage = () => {
   const getAttribution = useCallback(() => {
     return resolveAttributionFromUrl(searchParams, typeof document !== "undefined" ? document.referrer : "");
   }, [searchParams]);
+
+  const buildOfferContext = useCallback((): OfferMatchContext => {
+    const attr = getAttribution();
+    return {
+      storeId: storeId || product?.store_id || "",
+      productId: product?.id || null,
+      landingSlug: slug || null,
+      orderValue: orderProductSubtotal,
+      orderQuantity: quantity,
+      city: selectedDeliveryCity || null,
+      device: detectDevice(),
+      utmSource: attr.utm_source || null,
+      utmCampaign: attr.utm_campaign || null,
+    };
+  }, [
+    getAttribution,
+    storeId,
+    product?.store_id,
+    product?.id,
+    slug,
+    orderProductSubtotal,
+    quantity,
+    selectedDeliveryCity,
+  ]);
+
+  const orderBumpOffers = useMemo(() => {
+    if (!storeOffers.length || !storeId) return [];
+    return findOrderBumpOffers(storeOffers, buildOfferContext());
+  }, [storeOffers, storeId, buildOfferContext]);
+
+  useEffect(() => {
+    if (searchParams.get("reset_offers") === "1") resetOfferSessionLocks();
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!storeId) return;
+    let cancelled = false;
+    fetchPublicActiveOffers(storeId).then((list) => {
+      if (!cancelled) setStoreOffers(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
+
+  // after_seconds / exit_intent (basic) / scroll triggers
+  useEffect(() => {
+    if (!storeOffers.length || !product?.id || !storeId) return;
+    const ctx = buildOfferContext();
+
+    const timed = findMatchingOffer(storeOffers, ctx, ["after_seconds"]);
+    let timer: number | undefined;
+    if (timed) {
+      const delay = Math.max(0, Number(timed.trigger_config?.delaySeconds) || 3) * 1000;
+      timer = window.setTimeout(() => {
+        if (offerDialogOpen || confirmOpen) return;
+        offerPhaseRef.current = "pre_checkout";
+        setRuntimeOffer(timed);
+        setOfferDialogOpen(true);
+        markOfferSeen(timed.id);
+        void trackOfferEvent({
+          offerId: timed.id,
+          storeId,
+          eventType: "view",
+          landingSlug: slug,
+          device: detectDevice(),
+        });
+      }, delay);
+    }
+
+    const onScroll = () => {
+      const scrollOffer = findMatchingOffer(storeOffers, ctx, ["scroll_percent"]);
+      if (!scrollOffer || offerDialogOpen) return;
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      if (max <= 0) return;
+      const pct = (window.scrollY / max) * 100;
+      if (pct < (scrollOffer.trigger_config?.scrollPercent || 50)) return;
+      offerPhaseRef.current = "pre_checkout";
+      setRuntimeOffer(scrollOffer);
+      setOfferDialogOpen(true);
+      markOfferSeen(scrollOffer.id);
+      void trackOfferEvent({
+        offerId: scrollOffer.id,
+        storeId,
+        eventType: "view",
+        landingSlug: slug,
+        device: detectDevice(),
+      });
+      window.removeEventListener("scroll", onScroll);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    const onMouseOut = (e: MouseEvent) => {
+      if (e.clientY > 0) return;
+      const exitOffer = findMatchingOffer(storeOffers, ctx, ["exit_intent"]);
+      if (!exitOffer || offerDialogOpen) return;
+      offerPhaseRef.current = "pre_checkout";
+      setRuntimeOffer(exitOffer);
+      setOfferDialogOpen(true);
+      markOfferSeen(exitOffer.id);
+      void trackOfferEvent({
+        offerId: exitOffer.id,
+        storeId,
+        eventType: "view",
+        landingSlug: slug,
+        device: detectDevice(),
+      });
+      document.removeEventListener("mouseout", onMouseOut);
+    };
+    document.addEventListener("mouseout", onMouseOut);
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("mouseout", onMouseOut);
+    };
+    // intentionally not depending on offerDialogOpen to avoid re-arming timers every open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeOffers, product?.id, storeId, slug]);
+
+  const continueCheckoutAfterOffer = async () => {
+    const pending = pendingCheckoutRef.current;
+    if (!pending) return;
+    if (confirmationEnabled && offerPhaseRef.current === "pre_checkout") {
+      setConfirmOpen(true);
+      return;
+    }
+    await submitOrderAfterValidation(pending.mergedFormData, {
+      customer_name: pending.customer_name,
+      phone: pending.phone,
+      city: pending.city,
+      governorate: pending.governorate,
+      address: pending.address,
+    });
+  };
+
+  const handleOfferAccept = async () => {
+    if (!runtimeOffer || !storeId || offerAcceptInFlightRef.current) return;
+    offerAcceptInFlightRef.current = true;
+    markOfferDecided(runtimeOffer.id, true);
+    setAcceptedOfferId(runtimeOffer.id);
+    void trackOfferEvent({
+      offerId: runtimeOffer.id,
+      storeId,
+      eventType: "accept",
+      landingSlug: slug,
+      device: detectDevice(),
+    });
+
+    if (offerPhaseRef.current === "post_order") {
+      const orderId = lastOrderIdRef.current;
+      try {
+        setIsSubmitting(true);
+        if (!orderId) {
+          console.error("append offer skipped: missing order_id");
+          showToast("تنبيه", "تعذر ربط العرض بالطلب، تواصل مع الدعم إن تكرر", "destructive");
+        } else {
+          const { data, error } = await supabase.functions.invoke("create-order", {
+            body: {
+              append_to_order_id: orderId,
+              accepted_offer_id: runtimeOffer.id,
+            },
+          });
+          if (error || (data && typeof data === "object" && (data as any).error)) {
+            console.error("append offer failed", error, data);
+            const msg = await getEdgeFunctionErrorMessage(error, data);
+            showToast("خطأ", msg || "تعذر إضافة العرض للطلب", "destructive");
+          } else if (data && typeof data === "object") {
+            const payload = thankYouPayloadRef.current || {};
+            const items = Array.isArray((data as any).items) ? (data as any).items : [];
+            const offerLines = Array.isArray((data as any).offer_lines)
+              ? (data as any).offer_lines
+              : [];
+            const newPrice =
+              (data as any).price != null ? Number((data as any).price) : Number(payload.price) || 0;
+            const shippingFee =
+              (data as any).shipping_fee != null
+                ? Number((data as any).shipping_fee)
+                : Number(payload.shippingFee) || 0;
+            const names = items.map((i: any) => i.product_name).filter(Boolean);
+            thankYouPayloadRef.current = {
+              ...payload,
+              productName: names.length ? names.join(" + ") : payload.productName,
+              price: newPrice,
+              shippingFee,
+              items: items.length
+                ? items.map((i: any) => ({
+                    product_id: i.product_id,
+                    product_name: i.product_name,
+                    quantity: i.quantity || 1,
+                    price: Number(i.price) || 0,
+                    original_price: i.original_price,
+                    image: i.image || null,
+                  }))
+                : [
+                    ...(Array.isArray(payload.items) ? (payload.items as any[]) : []),
+                    ...offerLines.map((i: any) => ({
+                      product_id: i.product_id,
+                      product_name: i.product_name,
+                      quantity: i.quantity || 1,
+                      price: Number(i.price) || 0,
+                      original_price: i.original_price,
+                      image: i.image || null,
+                    })),
+                  ],
+              quantity:
+                items.reduce((n: number, i: any) => n + (Number(i.quantity) || 1), 0) ||
+                payload.quantity,
+            };
+          }
+        }
+      } catch (e) {
+        console.error("post-purchase offer append failed", e);
+        showToast("خطأ", "تعذر إضافة العرض للطلب", "destructive");
+      } finally {
+        setIsSubmitting(false);
+        setOfferDialogOpen(false);
+        setRuntimeOffer(null);
+        offerAcceptInFlightRef.current = false;
+        const go = postOrderThankYouRef.current;
+        postOrderThankYouRef.current = null;
+        go?.();
+      }
+      return;
+    }
+
+    setOfferDialogOpen(false);
+    setRuntimeOffer(null);
+    offerAcceptInFlightRef.current = false;
+    await continueCheckoutAfterOffer();
+  };
+
+  const handleOfferDecline = async () => {
+    if (offerAcceptInFlightRef.current || isSubmitting) return;
+    if (runtimeOffer && storeId) {
+      markOfferDecided(runtimeOffer.id, false);
+      void trackOfferEvent({
+        offerId: runtimeOffer.id,
+        storeId,
+        eventType: "reject",
+        landingSlug: slug,
+        device: detectDevice(),
+      });
+    }
+    setOfferDialogOpen(false);
+    setRuntimeOffer(null);
+
+    if (offerPhaseRef.current === "post_order") {
+      const go = postOrderThankYouRef.current;
+      postOrderThankYouRef.current = null;
+      go?.();
+      return;
+    }
+    await continueCheckoutAfterOffer();
+  };
 
   const trackAnalyticsEvent = useCallback(
     (eventType: "page_view" | "checkout_start" | "purchase", productSlug: string, owner: string | null, store: string | null) => {
@@ -1537,16 +1822,41 @@ const LandingPage = () => {
       }
     }
 
+    pendingCheckoutRef.current = {
+      mergedFormData,
+      customer_name,
+      phone: normalizedPhone,
+      city,
+      governorate,
+      address,
+    };
+    missedLoggedRef.current = false;
+
+    // Unified Offer Builder — show matching offer before checkout/confirm
+    const preOffer = findMatchingOffer(storeOffers, buildOfferContext(), [
+      "before_checkout",
+      "before_confirmation",
+      "inside_checkout",
+    ]);
+    if (preOffer && !acceptedOfferId) {
+      offerPhaseRef.current = "pre_checkout";
+      setRuntimeOffer(preOffer);
+      setOfferDialogOpen(true);
+      markOfferSeen(preOffer.id);
+      if (storeId) {
+        void trackOfferEvent({
+          offerId: preOffer.id,
+          storeId,
+          eventType: "view",
+          landingSlug: slug,
+          city,
+          device: detectDevice(),
+        });
+      }
+      return;
+    }
+
     if (confirmationEnabled) {
-      pendingCheckoutRef.current = {
-        mergedFormData,
-        customer_name,
-        phone: normalizedPhone,
-        city,
-        governorate,
-        address,
-      };
-      missedLoggedRef.current = false;
       setConfirmOpen(true);
       return;
     }
@@ -1612,6 +1922,7 @@ const LandingPage = () => {
         }
       }
 
+      const bumpOfferId = selectedBumpOfferIds[0] || null;
       const { data, error } = await supabase.functions.invoke("create-order", {
         body: {
           customer_name,
@@ -1627,6 +1938,7 @@ const LandingPage = () => {
           items: itemsPayload,
           upsell_index: selectedUpsellIndex,
           landing_slug: slug,
+          accepted_offer_id: acceptedOfferId || bumpOfferId,
           ...getAttribution(),
         },
       });
@@ -1656,24 +1968,107 @@ const LandingPage = () => {
 
       setConfirmOpen(false);
       pendingCheckoutRef.current = null;
-      navigate("/thank-you", {
-        state: {
-          orderData: {
-            productName: product?.name,
-            price: orderPrice,
-            shippingFee: shippingFeeFromServer,
-            currencySymbol: storeSettings.currency_symbol,
-            currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
-            productId: product?.id,
-            quantity,
-            customerName: customer_name,
-            phone: normalizedPhone,
-            city,
-            address,
-            ownerId: product?.owner_id || ownerId || null,
+      lastOrderCustomerRef.current = {
+        customer_name,
+        phone: normalizedPhone,
+        city,
+        governorate,
+        address,
+      };
+      const orderIdFromServer =
+        typeof data === "object" && data && "order_id" in data
+          ? String((data as { order_id?: string }).order_id || "")
+          : "";
+      lastOrderIdRef.current = orderIdFromServer || null;
+
+      const serverItems =
+        typeof data === "object" && data && Array.isArray((data as any).items)
+          ? (data as any).items
+          : [];
+      const productPriceOnly =
+        typeof data === "object" && data && "price" in data && (data as any).price != null
+          ? Number((data as any).price)
+          : orderProductSubtotal;
+
+      thankYouPayloadRef.current = {
+        productName: product?.name,
+        price: productPriceOnly,
+        shippingFee: shippingFeeFromServer,
+        currencySymbol: storeSettings.currency_symbol,
+        currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
+        productId: product?.id,
+        quantity,
+        customerName: customer_name,
+        phone: normalizedPhone,
+        city,
+        address,
+        ownerId: product?.owner_id || ownerId || null,
+        items:
+          serverItems.length > 0
+            ? serverItems.map((i: any) => ({
+                product_id: i.product_id,
+                product_name: i.product_name,
+                quantity: i.quantity || 1,
+                price: Number(i.price) || 0,
+                original_price: i.original_price,
+                image: i.image || product?.images?.[0] || null,
+              }))
+            : [
+                {
+                  product_id: product?.id,
+                  product_name: product?.name || "",
+                  quantity,
+                  price: orderProductSubtotal,
+                  image: product?.images?.[0] || null,
+                },
+              ],
+      };
+
+      const goThankYou = () => {
+        navigate("/thank-you", {
+          state: {
+            orderData: thankYouPayloadRef.current || {
+              productName: product?.name,
+              price: orderPrice,
+              shippingFee: shippingFeeFromServer,
+              currencySymbol: storeSettings.currency_symbol,
+              currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
+              productId: product?.id,
+              quantity,
+              customerName: customer_name,
+              phone: normalizedPhone,
+              city,
+              address,
+              ownerId: product?.owner_id || ownerId || null,
+            },
           },
-        },
-      });
+        });
+      };
+
+      const postOffer = findMatchingOffer(storeOffers, buildOfferContext(), [
+        "after_order",
+        "thank_you_page",
+      ]);
+      if (postOffer && postOffer.id !== acceptedOfferId) {
+        offerPhaseRef.current = "post_order";
+        postOrderThankYouRef.current = goThankYou;
+        setRuntimeOffer(postOffer);
+        setOfferDialogOpen(true);
+        markOfferSeen(postOffer.id);
+        if (storeId) {
+          void trackOfferEvent({
+            offerId: postOffer.id,
+            storeId,
+            eventType: "view",
+            landingSlug: slug,
+            city,
+            device: detectDevice(),
+          });
+        }
+        return;
+      }
+
+      goThankYou();
     } catch (error) {
       console.error("Error submitting order:", error);
       const msg =
@@ -2228,6 +2623,53 @@ const LandingPage = () => {
                   </div>
                 </div>
 
+                {orderBumpOffers.length > 0 && (
+                  <div className="space-y-2">
+                    {orderBumpOffers.slice(0, 3).map((bump) => {
+                      const checked = selectedBumpOfferIds.includes(bump.id);
+                      return (
+                        <label
+                          key={bump.id}
+                          className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+                            checked ? "border-amber-500 bg-amber-50" : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={checked}
+                            onChange={(e) => {
+                              setSelectedBumpOfferIds((prev) =>
+                                e.target.checked
+                                  ? [...prev.filter((id) => id !== bump.id), bump.id]
+                                  : prev.filter((id) => id !== bump.id),
+                              );
+                              if (e.target.checked && storeId) {
+                                void trackOfferEvent({
+                                  offerId: bump.id,
+                                  storeId,
+                                  eventType: "click",
+                                  landingSlug: slug,
+                                  device: detectDevice(),
+                                });
+                              }
+                            }}
+                          />
+                          <div className="min-w-0 text-right flex-1">
+                            <div className="text-sm font-bold text-slate-900">
+                              {bump.design.badge ? `${bump.design.badge} · ` : ""}
+                              {bump.design.title || bump.name}
+                            </div>
+                            {bump.design.subtitle && (
+                              <p className="text-xs text-slate-600 mt-0.5">{bump.design.subtitle}</p>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* زر الإرسال الملكي */}
                 <Button
                   type="submit"
@@ -2551,6 +2993,14 @@ const LandingPage = () => {
       submitting={isSubmitting}
       onConfirm={handleConfirmOrder}
       onCancel={handleConfirmCancel}
+    />
+    <OfferRuntimeDialog
+      open={offerDialogOpen}
+      offer={runtimeOffer}
+      currencySymbol={storeSettings.currency_symbol}
+      busy={isSubmitting}
+      onAccept={handleOfferAccept}
+      onDecline={handleOfferDecline}
     />
     </StoreThemeScope>
   );

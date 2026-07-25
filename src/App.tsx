@@ -137,6 +137,10 @@ const PuckBuilder = lazy(() => import("./pages/PuckBuilder"));
 
 const LandingTemplates = lazy(() => import("./pages/LandingTemplates"));
 
+const Offers = lazy(() => import("./pages/Offers"));
+
+const OfferWizard = lazy(() => import("./pages/OfferWizard"));
+
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -272,6 +276,12 @@ const DashboardRoutes = () => (
         <Route path="header" element={<HeaderSettings />} />
 
         <Route path="landing-templates" element={<LandingTemplates />} />
+
+        <Route path="offers" element={<Offers />} />
+
+        <Route path="offers/new" element={<OfferWizard />} />
+
+        <Route path="offers/:offerId/edit" element={<OfferWizard />} />
 
         <Route path="page-builder" element={<PuckBuilder />} />
 

@@ -10,12 +10,12 @@ const corsHeaders = {
 };
 
 interface OrderPayload {
-  product_id: string;
-  quantity: number;
-  customer_name: string;
-  phone: string;
-  address: string;
-  city: string;
+  product_id?: string;
+  quantity?: number;
+  customer_name?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
   governorate?: string | null;
   selected_color?: string | null;
   selected_size?: string | null;
@@ -23,12 +23,90 @@ interface OrderPayload {
   shipping_included?: boolean;
   upsell_index?: number | null;
   landing_slug?: string | null;
+  accepted_offer_id?: string | null;
+  /** Append offer products to an existing order (post-purchase) */
+  append_to_order_id?: string | null;
   items?: Array<{
     color?: string | null;
     size?: string | null;
     product_code?: string | null;
     quantity?: number;
   }> | null;
+}
+
+type OfferLine = {
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  price: number;
+  original_price?: number;
+  image?: string | null;
+};
+
+async function resolveOfferExtraItems(
+  supabase: ReturnType<typeof createClient>,
+  acceptedOfferId: string,
+  storeId: string,
+  excludeProductId?: string | null,
+): Promise<{ lines: OfferLine[]; mode: string; waivesShipping: boolean }> {
+  const { data: offerRow } = await supabase
+    .from("offers")
+    .select("id, store_id, status, pricing")
+    .eq("id", acceptedOfferId)
+    .eq("store_id", storeId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!offerRow) return { lines: [], mode: "", waivesShipping: false };
+
+  const pricing = (offerRow as { pricing?: Record<string, unknown> }).pricing || {};
+  const mode = String(pricing.mode || "");
+  const waivesShipping = mode === "free_shipping";
+
+  const { data: offerProducts } = await supabase
+    .from("offer_products")
+    .select("product_id, sort_order, is_default")
+    .eq("offer_id", acceptedOfferId)
+    .order("sort_order");
+
+  const extraIds = (offerProducts || [])
+    .map((p: { product_id?: string | null }) => p.product_id)
+    .filter((id: string | null | undefined): id is string => !!id && id !== excludeProductId);
+
+  if (extraIds.length === 0) return { lines: [], mode, waivesShipping };
+
+  const { data: extraProducts } = await supabase
+    .from("products")
+    .select("id, name, price, images, store_id")
+    .in("id", extraIds)
+    .eq("store_id", storeId);
+
+  const lines: OfferLine[] = [];
+  for (const ep of extraProducts || []) {
+    const original = Number((ep as { price?: number }).price) || 0;
+    let linePrice = original;
+    if (mode === "free_product") {
+      linePrice = 0;
+    } else if (mode === "custom_price" && Number(pricing.customPrice) >= 0) {
+      linePrice = Number(pricing.customPrice) || 0;
+    } else if (mode === "fixed_discount") {
+      linePrice = Math.max(0, original - (Number(pricing.fixedDiscount) || 0));
+    } else if (mode === "percent_discount") {
+      const pct = Math.max(0, Math.min(100, Number(pricing.percentDiscount) || 0));
+      linePrice = Math.max(0, Number((original * (1 - pct / 100)).toFixed(2)));
+    }
+    const imgs = (ep as { images?: unknown }).images;
+    const image = Array.isArray(imgs) && imgs.length ? String(imgs[0]) : null;
+    lines.push({
+      product_id: (ep as { id: string }).id,
+      product_name: (ep as { name: string }).name,
+      quantity: 1,
+      price: linePrice,
+      original_price: original,
+      image,
+    });
+  }
+  return { lines, mode, waivesShipping };
 }
 
 function s(v: unknown, max = 200): string {
@@ -78,6 +156,156 @@ Deno.serve(async (req) => {
     // (rejected_orders logging removed — feature deleted)
     const logRejected = async (_reason: string) => { /* no-op */ };
 
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // ── Post-purchase: append offer lines to an existing order ──────────────
+    const appendOrderId = s(body.append_to_order_id ?? "", 64) || null;
+    const appendOfferId = s(body.accepted_offer_id ?? "", 64) || null;
+    if (appendOrderId && appendOfferId) {
+      const { data: existing, error: exErr } = await supabase
+        .from("orders")
+        .select("id, store_id, owner_id, product_id, product_name, price, shipping_fee, quantity")
+        .eq("id", appendOrderId)
+        .maybeSingle();
+
+      if (exErr || !existing) {
+        return new Response(JSON.stringify({ error: "Order not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const storeId = (existing as { store_id?: string | null }).store_id;
+      if (!storeId) {
+        return new Response(JSON.stringify({ error: "Order has no store" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { lines, waivesShipping } = await resolveOfferExtraItems(
+        supabase,
+        appendOfferId,
+        storeId,
+        (existing as { product_id?: string }).product_id,
+      );
+
+      if (lines.length === 0) {
+        return new Response(JSON.stringify({ error: "Offer has no products" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const addAmount = lines.reduce((s, l) => s + l.price * l.quantity, 0);
+      const basePrice = Number((existing as { price?: number }).price) || 0;
+      const newPrice = Number((basePrice + addAmount).toFixed(2));
+      let shippingFee = Number((existing as { shipping_fee?: number }).shipping_fee) || 0;
+      if (waivesShipping) shippingFee = 0;
+
+      const mainName = String((existing as { product_name?: string }).product_name || "");
+      const offerNames = lines.map((l) => l.product_name).join(" + ");
+      const combinedName = offerNames
+        ? (mainName.includes(offerNames) ? mainName : `${mainName} + ${offerNames}`)
+        : mainName;
+
+      const itemRows = lines.map((l) => ({
+        order_id: appendOrderId,
+        owner_id: (existing as { owner_id: string }).owner_id,
+        store_id: storeId,
+        product_id: l.product_id,
+        product_name: l.product_name,
+        quantity: l.quantity,
+        price: l.price,
+        selected_color: null,
+        selected_size: null,
+        selected_product_code: null,
+      }));
+
+      const { error: itemsErr } = await supabase.from("order_items").insert(itemRows);
+      if (itemsErr) {
+        console.error("append offer items failed", itemsErr);
+        return new Response(JSON.stringify({ error: "Could not add offer items" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: updErr } = await supabase
+        .from("orders")
+        .update({
+          price: newPrice,
+          shipping_fee: shippingFee,
+          product_name: combinedName.slice(0, 500),
+          quantity: Math.max(1, Number((existing as { quantity?: number }).quantity) || 1) +
+            lines.reduce((n, l) => n + l.quantity, 0),
+        })
+        .eq("id", appendOrderId);
+
+      if (updErr) {
+        console.error("append offer order update failed", updErr);
+        return new Response(JSON.stringify({ error: "Could not update order" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Stock for appended products
+      try {
+        const baseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        await fetch(`${baseUrl}/functions/v1/apply-order-stock`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({ order_id: appendOrderId, reason: "offer_accepted" }),
+        });
+      } catch (e) {
+        console.error("apply-order-stock after offer append failed", e);
+      }
+
+      let mainImage: string | null = null;
+      const mainProductId = (existing as { product_id?: string }).product_id;
+      if (mainProductId) {
+        const { data: mainProd } = await supabase
+          .from("products")
+          .select("images")
+          .eq("id", mainProductId)
+          .maybeSingle();
+        const imgs = (mainProd as { images?: unknown } | null)?.images;
+        if (Array.isArray(imgs) && imgs.length) mainImage = String(imgs[0]);
+      }
+
+      const mainQty = Number((existing as { quantity?: number }).quantity) || 1;
+      const mainLine = {
+        product_id: mainProductId,
+        product_name: mainName.split(" + ")[0] || mainName,
+        quantity: mainQty,
+        price: basePrice,
+        image: mainImage,
+      };
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          appended: true,
+          order_id: appendOrderId,
+          price: newPrice,
+          shipping_fee: shippingFee,
+          total: newPrice + shippingFee,
+          offer_lines: lines,
+          items: [mainLine, ...lines],
+          accepted_offer_id: appendOfferId,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const product_id = s(body.product_id, 64);
     let quantity = Math.max(1, Math.min(999, Math.floor(Number(body.quantity) || 1)));
     const upsellIndex =
@@ -98,11 +326,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
 
     // Authoritative price lookup
     const { data: product, error: pErr } = await supabase
@@ -199,6 +422,47 @@ Deno.serve(async (req) => {
     }
 
     const storeId = (product as { store_id?: string | null }).store_id ?? null;
+    const acceptedOfferId = s(body.accepted_offer_id ?? "", 64) || null;
+    let offerWaivesShipping = false;
+    let offerExtraItems: OfferLine[] = [];
+
+    if (acceptedOfferId && storeId) {
+      const resolved = await resolveOfferExtraItems(supabase, acceptedOfferId, storeId, product.id);
+      offerWaivesShipping = resolved.waivesShipping;
+      offerExtraItems = resolved.lines;
+      if (offerExtraItems.length > 0) {
+        for (const line of offerExtraItems) {
+          totalPrice = Number((totalPrice + line.price * line.quantity).toFixed(2));
+        }
+      } else if (resolved.mode === "percent_discount") {
+        const { data: offerRow } = await supabase
+          .from("offers")
+          .select("pricing")
+          .eq("id", acceptedOfferId)
+          .maybeSingle();
+        const pricing = (offerRow as { pricing?: Record<string, unknown> } | null)?.pricing || {};
+        const pct = Math.max(0, Math.min(100, Number(pricing.percentDiscount) || 0));
+        totalPrice = Math.max(0, Number((totalPrice * (1 - pct / 100)).toFixed(2)));
+      } else if (resolved.mode === "fixed_discount") {
+        const { data: offerRow } = await supabase
+          .from("offers")
+          .select("pricing")
+          .eq("id", acceptedOfferId)
+          .maybeSingle();
+        const pricing = (offerRow as { pricing?: Record<string, unknown> } | null)?.pricing || {};
+        const fixed = Math.max(0, Number(pricing.fixedDiscount) || 0);
+        totalPrice = Math.max(0, Number((totalPrice - fixed).toFixed(2)));
+      } else if (resolved.mode === "custom_price") {
+        const { data: offerRow } = await supabase
+          .from("offers")
+          .select("pricing")
+          .eq("id", acceptedOfferId)
+          .maybeSingle();
+        const pricing = (offerRow as { pricing?: Record<string, unknown> } | null)?.pricing || {};
+        const custom = Number(pricing.customPrice);
+        if (custom >= 0) totalPrice = Number(custom.toFixed(2));
+      }
+    }
     let shippingFee = 0;
 
     let deliveryPricingEnabled = false;
@@ -245,10 +509,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (offerWaivesShipping) shippingFee = 0;
+
     // Insert the order immediately with no city match. City matching (AI) and
     // stock/WhatsApp side-effects run in the background so the client can
     // navigate to the thank-you page without waiting on slow AI calls.
     const orderCode = generateFallbackOrderCode();
+
+    const offerNameSuffix = offerExtraItems.length
+      ? ` + ${offerExtraItems.map((l) => l.product_name).join(" + ")}`
+      : "";
+    const orderProductName = `${product.name}${offerNameSuffix}`.slice(0, 500);
 
     const { data: insertedOrder, error: iErr } = await supabase.from("orders").insert({
       owner_id: (product as any).owner_id,
@@ -259,7 +530,7 @@ Deno.serve(async (req) => {
       city: city || "—",
       governorate: governorate || null,
       product_id: product.id,
-      product_name: product.name,
+      product_name: orderProductName,
       price: totalPrice,
       shipping_fee: shippingFee,
       quantity,
@@ -343,6 +614,20 @@ Deno.serve(async (req) => {
               });
             }
           }
+          for (const extra of offerExtraItems) {
+            rows.push({
+              order_id: orderId,
+              owner_id: (product as any).owner_id,
+              store_id: (product as any).store_id ?? null,
+              product_id: extra.product_id,
+              product_name: extra.product_name,
+              quantity: extra.quantity,
+              price: extra.price,
+              selected_color: null,
+              selected_size: null,
+              selected_product_code: null,
+            });
+          }
           if (rows.length > 0) {
             const { error: itErr } = await supabase.from("order_items").insert(rows);
             if (itErr) console.error("order_items insert failed", itErr);
@@ -417,8 +702,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    const mainUnit = quantity > 0
+      ? Number(((totalPrice - offerExtraItems.reduce((s, l) => s + l.price * l.quantity, 0)) / quantity).toFixed(2))
+      : Number(product.price) || 0;
+    const responseItems = [
+      {
+        product_id: product.id,
+        product_name: product.name,
+        quantity,
+        price: Number((mainUnit * quantity).toFixed(2)),
+      },
+      ...offerExtraItems.map((l) => ({
+        product_id: l.product_id,
+        product_name: l.product_name,
+        quantity: l.quantity,
+        price: l.price,
+        original_price: l.original_price,
+        image: l.image,
+      })),
+    ];
+
     return new Response(
-      JSON.stringify({ ok: true, price: totalPrice, shipping_fee: shippingFee, total: totalPrice + shippingFee }),
+      JSON.stringify({
+        ok: true,
+        price: totalPrice,
+        shipping_fee: shippingFee,
+        total: totalPrice + shippingFee,
+        order_id: insertedOrder?.id ?? null,
+        accepted_offer_id: acceptedOfferId,
+        items: responseItems,
+      }),
       {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
