@@ -16,6 +16,7 @@ import {
   wrapLandingCdnUrl,
 } from "../_shared/landing-image-url.ts";
 import { parseThemeTokens, themeTokensToSsrCssFromTokens } from "../_shared/theme-ssr.ts";
+import { hasApprovedStandardDesign, renderApprovedStandardLanding } from "../_shared/approved-standard-landing.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -163,6 +164,8 @@ function buildAboveFold(
   formFields: any[],
   puckHero?: { title?: string; subtitle?: string; image?: string } | null,
   publicHost?: string,
+  approvedDesign = false,
+  header?: unknown,
 ): string {
   const name = puckHero?.title || product.name;
   const img = puckHero?.image || product.images?.[0] || "";
@@ -221,6 +224,10 @@ function buildAboveFold(
       <p style="text-align:center;color:#64748b;font-size:12px;font-weight:700;margin-top:12px">⚡ سنقوم بالاتصال بك هاتفياً لتأكيد موعد الشحن السريع</p>
     </div>
   </div>`;
+
+  if (approvedDesign) {
+    return renderApprovedStandardLanding({ heroBlock, imageBlock, formCard, header });
+  }
 
   const formOnTop = !!product.order_form_on_top;
   const first = formOnTop ? formCard : imageBlock;
@@ -647,7 +654,7 @@ Deno.serve(async (req) => {
     const headInjection = buildHead(product, currency, pageUrl, platformName, publicHost) + `<style id="ssr-theme">${themeCss}</style>`;
     const bodyInjection = puckHasRenderableContent(puckData)
       ? renderPuckToHtml(puckData)
-      : buildAboveFold(product, currency, storeExtras.button_text, formFields as any[], puckHero, publicHost);
+      : buildAboveFold(product, currency, storeExtras.button_text, formFields as any[], puckHero, publicHost, hasApprovedStandardDesign(shell), header);
 
     // Data seed: lets the client render the COMPLETE page (incl. order form) on
     // its first paint, with no extra round-trips — so visitors see a single fast
