@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="wasla-standard-design" content="standard-approved-v1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#fafaf7" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>منصة وصلة</title>
+    <meta name="description" content="وصلة مكان هادئ لادارة متجرك الالكتروني">
+    <meta name="author" content="منصة ليبيا" />
+
+    <!-- Preconnect to backend & CDNs to speed up first request -->
+    <link rel="preconnect" href="https://sukehkrhvasfnoheyvvx.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://sukehkrhvasfnoheyvvx.supabase.co" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Conversion pages: Cairo only (LCP). Dashboard loads full font bundle async. -->
+    <script>
+      (function () {
+        var p = location.pathname;
+        var conversion =
+          p.indexOf("/p/") === 0 ||
+          p === "/thank-you" ||
+          p.indexOf("/store") === 0;
+        if (conversion) {
+          document.documentElement.dataset.landingFonts = "1";
+        } else {
+        var href =
+          "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700&family=Almarai:wght@400;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap";
+        var preload = document.createElement("link");
+        preload.rel = "preload";
+        preload.as = "style";
+        preload.href = href;
+        document.head.appendChild(preload);
+        var sheet = document.createElement("link");
+        sheet.rel = "stylesheet";
+        sheet.href = href;
+        document.head.appendChild(sheet);
+        }
+        if (!conversion) {
+          ["https://connect.facebook.net", "https://analytics.tiktok.com", "https://www.googletagmanager.com", "https://sc-static.net"].forEach(
+            function (u) {
+              var d = document.createElement("link");
+              d.rel = "dns-prefetch";
+              d.href = u;
+              document.head.appendChild(d);
+            }
+          );
+        }
+      })();
+    </script>
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" />
+    </noscript>
+
+    <!-- Prefetch likely next route after a successful order -->
+    <link rel="prefetch" href="/thank-you" />
+
+    <!-- Critical inline CSS to paint background instantly (avoid white flash) -->
+    <style>
+      html,body{background:#fafaf7;color:#37352f;font-family:'Cairo',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0}
+      .gpu{transform:translateZ(0);will-change:transform;backface-visibility:hidden}
+    </style>
+
+    
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icon-512.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="/icon-512.png" />
+    
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <meta property="og:title" content="منصة وصلة">
+  <meta name="twitter:title" content="منصة وصلة">
+  <meta property="og:description" content="وصلة مكان هادئ لادارة متجرك الالكتروني">
+  <meta name="twitter:description" content="وصلة مكان هادئ لادارة متجرك الالكتروني">
+</head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
