@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ColorImagesEditor from "@/components/ColorImagesEditor";
 import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,6 +73,7 @@ export interface ProductFormData {
   features: string;
   productCodes: string;
   colors: string;
+  colorImages?: Record<string, string>;
   sizes: string;
   warehouseLinked: boolean;
   upsellEnabled: boolean;
@@ -209,6 +211,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     if (codes[0]) onProductChange({ ...product, productCodes: codes[0] });
   };
 
+  const [colorImageUploading, setColorImageUploading] = useState(false);
   const [whProducts, setWhProducts] = useState<Array<{ external_id: number; code: string | null; name: string | null }>>([]);
   const [eoProducts, setEoProducts] = useState<Array<{ external_id: string; name: string | null; sku: string | null; variants: any }>>([]);
   useEffect(() => {
@@ -272,7 +275,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
     } else {
       // switching to single SKU → clear colors/sizes
       if (product.colors?.trim() || product.sizes?.trim()) {
-        onProductChange({ ...product, colors: "", sizes: "" });
+        onProductChange({ ...product, colors: "", sizes: "", colorImages: {} });
       }
     }
   };
@@ -719,6 +722,14 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
                 />
               </div>
             </div>
+            <ColorImagesEditor
+              colors={[...new Set(product.colors.split(",").map((color) => color.trim()).filter(Boolean))]}
+              images={product.colorImages || {}}
+              ownerId={activeStore?.owner_id}
+              storeId={activeStoreId}
+              onChange={(images) => updateField("colorImages", images)}
+              onUploadingChange={setColorImageUploading}
+            />
             <p className="text-xs text-muted-foreground">
               اكتب المتغير واضغط Enter لإضافته. يمكنك تعيين كود (SKU) لكل توليفة من جدول المخزون أدناه.
             </p>
@@ -1190,7 +1201,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       )}
 
       <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/95 backdrop-blur border-t shadow-lg">
-        <Button onClick={onSubmit} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold" disabled={isLoading}>
+        <Button onClick={onSubmit} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold" disabled={isLoading || colorImageUploading}>
           {isLoading ? "جاري الحفظ..." : submitText}
         </Button>
       </div>

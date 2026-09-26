@@ -25,6 +25,7 @@ import { useUserContext } from "@/hooks/useUserContext";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { isolateLatin } from "@/lib/bidi";
 import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
+import { normalizeColorImages } from "@/lib/colorImages";
 import { purgeLandingCache } from "@/lib/purgeLandingCache";
 import {
   parseStoreExportFile,
@@ -45,6 +46,7 @@ interface Product {
   images: string[];
   product_codes?: string[];
   colors?: string[];
+  color_images?: Record<string, string>;
   sizes?: string[];
   is_visible: boolean;
   stock?: number;
@@ -84,6 +86,7 @@ const emptyFormData: ProductFormData = {
   features: "",
   productCodes: "",
   colors: "",
+  colorImages: {},
   sizes: "",
   warehouseLinked: true,
   upsellEnabled: false,
@@ -364,6 +367,7 @@ const Products = () => {
         images: newProduct.images,
         product_codes: productCodesArray,
         colors: colorsArray,
+        color_images: normalizeColorImages(colorsArray, newProduct.colorImages),
         sizes: sizesArray,
         stock: stockNum,
         variant_stock: variantStockNum,
@@ -462,6 +466,7 @@ const Products = () => {
         images: newProduct.images,
         product_codes: productCodesArray,
         colors: colorsArray,
+        color_images: normalizeColorImages(colorsArray, newProduct.colorImages),
         sizes: sizesArray,
         is_visible: true,
         stock: stockNum,
@@ -541,6 +546,7 @@ const Products = () => {
         description: editProduct.description,
         product_codes: productCodesArray,
         colors: colorsArray,
+        color_images: normalizeColorImages(colorsArray, editProduct.colorImages),
         sizes: sizesArray,
         variant_warehouse_codes: Object.fromEntries(
           variantKeys.map((k) => [k, (editProduct.variantWarehouseCodes?.[k] || "").trim()]).filter(([, v]) => v)
@@ -645,6 +651,7 @@ const Products = () => {
           images: editProduct.images,
           product_codes: productCodesArray,
           colors: colorsArray,
+          color_images: normalizeColorImages(colorsArray, editProduct.colorImages),
           sizes: sizesArray,
           is_visible: p.is_visible,
           stock: stockNum,
@@ -652,6 +659,11 @@ const Products = () => {
           category_id: editProduct.categoryId || null,
         } : p
       ));
+      // Product images also appear on every landing page linked to this product.
+      const { data: linkedPages } = await supabase.from("landing_pages")
+        .select("slug").eq("product_id", editingProductId);
+      const slugs = new Set([editProduct.slug, ...(linkedPages || []).map((page) => page.slug)]);
+      await Promise.all([...slugs].filter(Boolean).map((slug) => purgeLandingCache(slug, activeStore?.slug)));
       setEditingProductId(null);
       setEditProduct(emptyFormData);
       setIsEditOpen(false);
@@ -692,6 +704,7 @@ const Products = () => {
       features: "",
       productCodes: product.product_codes?.join(", ") || "",
       colors: product.colors?.join(", ") || "",
+      colorImages: product.color_images || {},
       sizes: product.sizes?.join(", ") || "",
       warehouseLinked: true,
       upsellEnabled: false,
@@ -706,7 +719,7 @@ const Products = () => {
       const { data, error } = await runWithTimeout(
         supabase
           .from("products")
-          .select("description, product_codes, colors, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id, size_chart_url, reviews")
+          .select("description, product_codes, colors, color_images, sizes, stock, variant_stock, variant_warehouse_codes, variant_skus, easyorders_product_id, variant_easyorders_ids, warehouse_linked, upsell_enabled, upsell_title, upsell_offers, category_id, size_chart_url, reviews")
           .eq("id", product.id)
           .single()
       );
@@ -718,6 +731,7 @@ const Products = () => {
         description: (data as any).description || "",
         productCodes: (data as any).product_codes?.join(", ") || "",
         colors: (data as any).colors?.join(", ") || "",
+        colorImages: normalizeColorImages((data as any).colors || [], (data as any).color_images),
         sizes: (data as any).sizes?.join(", ") || "",
         stock: (data as any).stock != null ? String((data as any).stock) : "",
         variantStock: (data as any).variant_stock

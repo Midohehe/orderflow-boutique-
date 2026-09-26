@@ -105,6 +105,7 @@ interface Product {
   store_id?: string;
   stock?: number;
   variant_stock?: Record<string, number>;
+  color_images?: Record<string, string>;
   size_chart_url?: string | null;
   reviews?: Array<{ name: string; rating: number; comment: string }>;
   faqs?: Array<{ question: string; answer: string }>;
@@ -1013,7 +1014,7 @@ const LandingPage = () => {
           : Promise.resolve({ data: null, error: null } as any);
 
         // Two-stage fetch: lightweight fields first (fast), heavy fields (description/images/reviews) second
-        const productLightSelect = "id, name, slug, price, original_price, product_codes, colors, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, variant_stock, size_chart_url";
+        const productLightSelect = "id, name, slug, price, original_price, product_codes, colors, color_images, sizes, owner_id, store_id, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, is_visible, stock, variant_stock, size_chart_url";
 
         // أولاً: حاول مطابقة username كرابط متجر (slug) لتحديد store_id
         const storeBySlugPromise = username
@@ -1127,6 +1128,7 @@ const LandingPage = () => {
             images: lpImages.length ? lpImages : (cachedProduct?.product?.images || []),
             product_codes: matched.product_codes || [],
             colors: matched.colors || [],
+            color_images: (matched as any).color_images || {},
             sizes: matched.sizes || [],
             // Upsell is controlled exclusively by the landing page.
             upsell_enabled: !!lp?.upsell_enabled,
@@ -2520,6 +2522,7 @@ const LandingPage = () => {
                               <button
                                 key={color}
                                 type="button"
+                                aria-pressed={item.color === color}
                                 aria-disabled={outOfStock}
                                 title={outOfStock ? OUT_OF_STOCK_MESSAGE : undefined}
                                 onClick={() => {
@@ -2531,9 +2534,14 @@ const LandingPage = () => {
                                   newVariants[index] = { ...newVariants[index], color };
                                   setItemVariants(newVariants);
                                 }}
-                                className={variantButtonClass(item.color === color, outOfStock)}
+                                className={variantButtonClass(item.color === color, outOfStock) + (product.color_images?.[color] ? " w-24 flex flex-col items-center gap-1.5 !p-1.5" : "")}
                               >
-                                {color}
+                                {product.color_images?.[color] && (
+                                  <img src={product.color_images[color]} alt="" width={80} height={80}
+                                    className="h-20 w-20 rounded-lg object-cover" loading="lazy"
+                                    onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                                )}
+                                <span className="break-words max-w-full">{color}</span>
                                 {outOfStock && (
                                   <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                     <X className="w-4 h-4 text-red-500 stroke-[3]" />

@@ -294,6 +294,7 @@ function buildSeedJson(input: {
       images: Array.isArray(p.images) ? p.images : [],
       product_codes: Array.isArray(p.product_codes) ? p.product_codes : [],
       colors: Array.isArray(p.colors) ? p.colors : [],
+      color_images: p.color_images || {},
       sizes: Array.isArray(p.sizes) ? p.sizes : [],
       upsell_enabled: !!p.upsell_enabled,
       upsell_title: p.upsell_title || "🎁 عروض خاصة",
@@ -578,7 +579,7 @@ Deno.serve(async (req) => {
       const { data: prod } = await supabase
         .from("products")
         .select(
-          "id, name, slug, price, original_price, description, reviews, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
+          "id, name, slug, price, original_price, description, reviews, images, owner_id, store_id, product_codes, colors, color_images, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
         )
         .eq("id", landing.product_id)
         .is("deleted_at", null)
@@ -610,7 +611,7 @@ Deno.serve(async (req) => {
       const productQuery = supabase
         .from("products")
         .select(
-          "id, name, slug, price, original_price, description, reviews, images, owner_id, store_id, product_codes, colors, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
+          "id, name, slug, price, original_price, description, reviews, images, owner_id, store_id, product_codes, colors, color_images, sizes, stock, variant_stock, size_chart_url, order_form_on_top",
         )
         .eq("slug", slug)
         .eq("is_visible", true)

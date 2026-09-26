@@ -1,3 +1,4 @@
+import { normalizeColorImages } from "@/lib/colorImages";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadImageFromUrl, isHttpImageUrl } from "@/lib/imageStorage";
 
@@ -20,6 +21,7 @@ export interface ExportProduct {
   images?: string[];
   product_codes?: string[];
   colors?: string[];
+  color_images?: Record<string, string>;
   sizes?: string[];
   is_visible?: boolean;
   stock?: number;
@@ -230,6 +232,7 @@ export async function importProductsFromExport(
         images,
         product_codes: p.product_codes || [],
         colors: p.colors || [],
+        color_images: normalizeColorImages(p.colors || [], p.color_images),
         sizes: p.sizes || [],
         stock: Number(p.stock) || 0,
         variant_stock: p.variant_stock || {},
