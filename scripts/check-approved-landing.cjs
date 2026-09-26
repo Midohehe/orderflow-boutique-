@@ -1,11 +1,16 @@
 // Render the production layout without browser, network, or checkout side effects.
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { createRequire } = require('node:module');
 const { runInThisContext } = require('node:vm');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const repo = path.resolve(__dirname, '..');
+const activationMarker = '<meta name="wasla-standard-design" content="standard-approved-v1" />';
+assert.match(fs.readFileSync(path.join(repo, 'index.html'), 'utf8'), new RegExp(activationMarker));
+assert.match(fs.readFileSync(path.join(repo, 'landing.html'), 'utf8'), new RegExp(activationMarker));
+console.log('PASS approved design activation marker exists in both application shells');
 const viteRequire = createRequire(require.resolve('vite/package.json'));
 const built = viteRequire('esbuild').buildSync({
   absWorkingDir: repo,
