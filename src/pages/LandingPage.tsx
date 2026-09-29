@@ -203,7 +203,7 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
               rows={3}
               required={field.required}
               autoComplete={autocompleteForField(field)}
-              className="text-base shadow-sm focus:shadow-md"
+              className="text-base shadow-sm focus:shadow-md focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
             />
           ) : isDeliverySelectField(field) ? (
             deliveryPrices.length === 0 ? (
@@ -244,7 +244,7 @@ const LandingOrderFormFields = memo(function LandingOrderFormFields({
               autoComplete={autocompleteForField(field)}
               dir={field.field_type === "phone" ? "ltr" : "rtl"}
               required={field.required}
-              className="text-base h-12 shadow-sm focus:shadow-md"
+              className="text-base h-12 shadow-sm focus:shadow-md focus-visible:border-amber-500 focus-visible:ring-amber-500/30"
             />
           )}
         </div>
