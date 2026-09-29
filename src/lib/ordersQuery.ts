@@ -35,7 +35,7 @@ function applyTabFilter(q: OrdersQuery, tab: OrderTab): OrdersQuery {
   if (tab === "deleted") {
     return q.eq("is_deleted", true);
   }
-  let next = q.eq("is_deleted", false);
+  const next = q.eq("is_deleted", false);
   if (tab === "pending") {
     return next.eq("status", "pending").or("country_code.is.null,country_code.eq.LY,country_code.eq.ly");
   }
@@ -46,6 +46,15 @@ function applyTabFilter(q: OrdersQuery, tab: OrderTab): OrdersQuery {
     return next.in("status", ["delivered", "settled"]);
   }
   return next.eq("status", tab);
+}
+
+/** Count the same visible tab scope as the list, independent of pagination. */
+export async function fetchOrdersTabCount(storeId: string, tab: OrderTab): Promise<number> {
+  const query = supabase.from("orders").select("id", { count: "exact", head: true })
+    .eq("store_id", storeId);
+  const { count, error } = await applyTabFilter(query, tab);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function fetchOrdersPage(
