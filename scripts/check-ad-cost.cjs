@@ -24,3 +24,17 @@ for (const invalid of [{ spendUsd: -1 }, { orders: 1.5 }, { messages: -1 }, { de
   assert.throws(() => calculate({ ...base, ...invalid }));
 }
 console.log('Ad calculator: all checks passed');
+const product = { purchasePrice: 20, salePrice: 50, averageItems: 1.5 };
+const profit = calculate(base, product).profit;
+assert.equal(profit.expectedItems, 60);
+assert.equal(profit.revenue, 3000);
+assert.equal(profit.purchaseCost, 1200);
+assert.equal(profit.grossProfit, 1800);
+assert.equal(profit.netProfit, 1100);
+assert.equal(calculate({ ...base, deliveryPercent: 0 }, product).profit.netProfit, -700);
+assert.equal(calculate(base, { ...product, salePrice: 10 }).profit.netProfit, -1300);
+assert.equal(calculate(base).profit, null);
+for (const invalid of [{ averageItems: 0 }, { averageItems: NaN }, { purchasePrice: -1 }, { salePrice: Infinity }, { averageItems: Number.MAX_VALUE }]) {
+  assert.throws(() => calculate(base, { ...product, ...invalid }));
+}
+console.log('Product profit: fractional quantities, revenue, cost, losses and invalid inputs passed');
