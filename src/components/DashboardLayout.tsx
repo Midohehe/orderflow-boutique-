@@ -49,6 +49,7 @@ const baseMenuGroups = [
   {
     label: "المالية",
     items: [
+      { icon: Calculator, label: "حاسبة تكلفة الإعلان", path: "/dashboard/ad-cost-calculator", external: false, adminOnly: false, dynamicStore: false },
       { icon: Calculator, label: "الحسابات المالية", path: "/dashboard/financial", external: false, adminOnly: false, dynamicStore: false },
       { icon: TrendingUp, label: "الأرباح والخسائر", path: "/dashboard/profit-loss", external: false, adminOnly: false, dynamicStore: false },
       { icon: Wallet, label: "التدفق النقدي", path: "/dashboard/cash-flow", external: false, adminOnly: false, dynamicStore: false },

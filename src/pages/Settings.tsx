@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, Trash2, KeyRound, Power, Save, Settings as SettingsIcon } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import OpeningBalanceSettings from "@/components/OpeningBalanceSettings";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -173,6 +174,7 @@ const Settings = () => {
         </TabsList>
 
         <TabsContent value="users" className="space-y-6 mt-4">
+          <OpeningBalanceSettings settingsId={systemNameId} />
           <Card>
         <CardHeader><CardTitle>اسم النظام</CardTitle></CardHeader>
         <CardContent className="space-y-3">
