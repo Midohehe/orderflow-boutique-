@@ -13,7 +13,8 @@ Deno.serve(async req => {
     const body = await req.json();
     if (typeof body.courier_id !== "string" || !["create", "reset_password"].includes(body.action)) return json({ error: "طلب غير صالح" }, 400);
     const { data: courier, error: courierError } = await admin.from("couriers").select("id,name,store_id").eq("id", body.courier_id).single();
-    if (courierError || !courier) return json({ error: "المندوب غير موجود" }, 404);
+    if (courierError && courierError.code !== "PGRST116") return json({ error: "تعذّر قراءة بيانات المندوب. حاول مرة أخرى أو تواصل مع الإدارة" }, 500);
+    if (!courier) return json({ error: "المندوب غير موجود" }, 404);
     const [{ data: store, error: storeError }, { data: roles, error: roleError }] = await Promise.all([
       admin.from("stores").select("owner_id").eq("id", courier.store_id).single(),
       admin.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin"),

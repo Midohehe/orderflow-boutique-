@@ -35,10 +35,14 @@ export default defineConfig(() => ({
         ],
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /supabase/, /^\/p\//, /^\/store/],
+        navigateFallbackDenylist: [/^\/courier(?:\/|$)/,/^\/~oauth/, /^\/api/, /supabase/, /^\/p\//, /^\/store/],
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
+            {
+              urlPattern: ({ url, request }) => request.mode === "navigate" && /^\/courier(?:\/|$)/.test(url.pathname),
+              handler: "NetworkOnly",
+            },
           {
             urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
