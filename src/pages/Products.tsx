@@ -162,17 +162,12 @@ const Products = () => {
   // Two-phase load: fast metadata first, images in background
   useEffect(() => {
     if (userLoading || storeLoading) return;
-    if (!activeStoreId) { setProducts([]); setIsLoading(false); return; }
+    if (!activeStoreId || !effectiveOwnerId) { setProducts([]); setIsLoading(false); return; }
     let cancelled = false;
+    setIsLoading(true);
 
     const loadProducts = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          if (!cancelled) setIsLoading(false);
-          return;
-        }
-
         // Phase 1: lightweight metadata only (no images) — fast
         let metaQuery = supabase
           .from("products")
@@ -186,7 +181,8 @@ const Products = () => {
         if (cancelled) return;
 
         // Fetch purchase prices via RPC (sensitive cost data is no longer publicly readable)
-        const { data: costsData } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+        const { data: costsData } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: (metaData || []).map(p => p.id) });
+        if (cancelled) return;
         const costMap = new Map<string, number>((costsData || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
 
         const baseList: Product[] = (metaData || []).map((p: any) => ({
@@ -243,18 +239,15 @@ const Products = () => {
     }
 
     // Load strict-stock toggle for current user
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase.from("profiles").select("strict_stock_enabled").eq("user_id", user.id).maybeSingle()
+      supabase.from("profiles").select("strict_stock_enabled").eq("user_id", effectiveOwnerId).maybeSingle()
         .then(({ data }) => {
           if (!cancelled && data) setStrictStock(!!(data as any).strict_stock_enabled);
         });
-    });
 
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, userLoading, storeLoading, activeStoreId]);
+  }, [isAdmin, userLoading, storeLoading, activeStoreId, effectiveOwnerId]);
 
   const fetchProducts = async () => {
     try {
@@ -271,7 +264,7 @@ const Products = () => {
 
       if (error) throw error;
 
-      const { data: costsData2 } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+      const { data: costsData2 } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: (data || []).map(p => p.id) });
       const costMap2 = new Map<string, number>((costsData2 || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
 
       setProducts(
@@ -1092,7 +1085,7 @@ const Products = () => {
       .eq("store_id", activeStoreId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
-    const { data: costsData } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+    const { data: costsData } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: (metaData || []).map(p => p.id) });
     const costMap = new Map<string, number>((costsData || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
     const baseList: Product[] = (metaData || []).map((p: any) => ({
       id: p.id,

@@ -598,7 +598,7 @@ const Orders = () => {
 
   const ordersMetaQuery = useQuery({
     queryKey: ["orders-page-meta", activeStoreId, effectiveOwnerId],
-    enabled: !!activeStoreId,
+    enabled: !!activeStoreId && !!effectiveOwnerId,
     staleTime: 5 * 60_000,
     queryFn: () => fetchOrdersPageMeta(activeStoreId!, effectiveOwnerId),
   });
@@ -641,14 +641,14 @@ const Orders = () => {
     },
   });
 
-  const ordersQuery = {
+  const ordersQuery = useMemo(() => ({
     isLoading: ordersMetaQuery.isLoading || ordersDataQuery.isLoading,
     error: ordersMetaQuery.error || ordersDataQuery.error,
     data:
       ordersMetaQuery.data && ordersDataQuery.data
         ? { meta: ordersMetaQuery.data, ordersRes: ordersDataQuery.data }
         : undefined,
-  };
+  }), [ordersMetaQuery.isLoading, ordersMetaQuery.error, ordersMetaQuery.data, ordersDataQuery.isLoading, ordersDataQuery.error, ordersDataQuery.data]);
 
   // Hydrate local state from query result so existing mutation logic keeps working
   useEffect(() => {

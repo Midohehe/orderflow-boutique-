@@ -38,33 +38,38 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
   const [action, setAction] = useState<"deliver" | "settle" | "return" | null>(null);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState(false);
+  const [page, setPage] = useState(0);
+  const [receiptPage, setReceiptPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
   const [subFilter, setSubFilter] = useState("");
   const [newSub, setNewSub] = useState<CourierSubStatus>("follow_up");
-  const orders = useQuery({ queryKey: ["courier-orders", storeId, courierId], queryFn: async () => {
-    const rows = [];
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await supabase.from("courier_orders").select("*, courier_batches(code), orders(id, order_code, customer_name, phone, city, product_name, status)")
-        .eq("store_id", storeId).eq("courier_id", courierId).order("assigned_at", { ascending: false }).order("order_id").range(offset, offset + 499);
-      if (error) throw error;
-      rows.push(...data);
-      if (data.length < 500) return rows;
-    }
+  const orders = useQuery({ queryKey: ["courier-orders", storeId, courierId, history, subFilter, page, pageSize], queryFn: async () => {
+    let query = supabase.from("courier_orders").select("*, courier_batches(code), orders(id, order_code, customer_name, phone, city, product_name, status)", { count: "exact" })
+      .eq("store_id", storeId).eq("courier_id", courierId);
+    if (!history) query = query.in("state", ["assigned", "delivered"]);
+    if (subFilter) query = query.eq("sub_status", subFilter);
+    const { data, error, count } = await query.order("assigned_at", { ascending: false }).order("order_id").range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw error;
+    return { rows: data, total: count ?? 0 };
+  } });
+  const openCount = useQuery({ queryKey: ["courier-orders", storeId, courierId, "open-count"], queryFn: async () => {
+    const { count, error } = await supabase.from("courier_orders").select("order_id", { count: "exact", head: true })
+      .eq("store_id", storeId).eq("courier_id", courierId).in("state", ["assigned", "delivered"]);
+    if (error) throw error;
+    return count ?? 0;
   } });
   const safes = useQuery({ queryKey: ["courier-safes", storeId], queryFn: async () => {
     const { data, error } = await supabase.from("safes").select("id,name").eq("store_id", storeId).order("name");
     if (error) throw error;
     return data;
   } });
-  const receipts = useQuery({ queryKey: ["courier-receipts", storeId, courierId], queryFn: async () => {
-    const rows = [];
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await supabase.from("courier_receipts").select("*").eq("store_id", storeId).eq("courier_id", courierId).order("created_at", { ascending: false }).order("id").range(offset, offset + 499);
-      if (error) throw error;
-      rows.push(...data);
-      if (data.length < 500) return rows;
-    }
+  const receipts = useQuery({ queryKey: ["courier-receipts", storeId, courierId, receiptPage, pageSize], queryFn: async () => {
+    const { data, error, count } = await supabase.from("courier_receipts").select("*", { count: "exact" }).eq("store_id", storeId).eq("courier_id", courierId)
+      .order("created_at", { ascending: false }).order("id").range(receiptPage * pageSize, (receiptPage + 1) * pageSize - 1);
+    if (error) throw error;
+    return { rows: data, total: count ?? 0 };
   } });
-  const rows = orders.data || [];
+  const rows = orders.data?.rows || [];
   const open = rows.filter(row => ["assigned", "delivered"].includes(row.state));
   const visible = (history ? rows : open).filter(row => !subFilter || row.sub_status === subFilter);
   const visibleOpen = visible.filter(row => ["assigned", "delivered"].includes(row.state));
@@ -102,7 +107,7 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
     {orders.isLoading && <p>جاري تحميل الطلبات...</p>}
     {orders.isError && <Button onClick={() => void orders.refetch()}>تعذّر تحميل الطلبات — أعد المحاولة</Button>}
     <Card><CardContent className="p-5 space-y-4">
-      <p>طلبات مفتوحة: <strong>{open.length}</strong> | المحدد: <strong>{picked.length}</strong></p>
+      <p>طلبات مفتوحة: <strong>{openCount.data ?? "…"}</strong> | المحدد في الصفحة: <strong>{picked.length}</strong></p>
       <div className="grid sm:grid-cols-3 gap-3"><p>التحصيل: <strong>{money(gross)}</strong></p><p>أجرة المندوب: <strong>{money(fees)}</strong></p><p>الصافي للخزينة: <strong>{money(net)}</strong></p></div>
       <p className="text-sm text-muted-foreground">المبالغ بعملة المتجر. التحصيل يشمل قيمة المنتجات وتوصيل العميل. الأجرة هي السعر المثبت عند إسناد الطلب. المرتجع بدون رسوم.</p>
       <div className="flex flex-wrap gap-2">
@@ -113,14 +118,22 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
     </CardContent></Card>
     <p className="text-sm text-muted-foreground">التسليم والتسوية متاحان فقط لحالة «تم التسليم لدى المندوب»، واستلام المرتجع فقط لحالة «راجع لدى المندوب».</p>
     <div className="flex flex-wrap gap-2">
-      <select aria-label="فلتر الحالة الفرعية" className="border rounded-md bg-background p-2" value={subFilter} onChange={e => { setSubFilter(e.target.value); setSelected([]); }}><option value="">كل الحالات الفرعية</option>{Object.entries(courierSubStatuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
+      <select aria-label="فلتر الحالة الفرعية" className="border rounded-md bg-background p-2" value={subFilter} onChange={e => { setSubFilter(e.target.value); setPage(0); setSelected([]); }}><option value="">كل الحالات الفرعية</option>{Object.entries(courierSubStatuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
       <select aria-label="الحالة الفرعية الجديدة" className="border rounded-md bg-background p-2" value={newSub} disabled={busy} onChange={e => setNewSub(e.target.value as CourierSubStatus)}>{Object.entries(courierSubStatuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
       <Button variant="outline" disabled={busy || !picked.length} onClick={() => void updateSub()}>تغيير الحالة الفرعية للمحدد</Button>
       <Button variant="outline" disabled={orders.isFetching} onClick={() => void orders.refetch()}>تحديث الطلبات</Button>
     </div>
-    <label className="flex gap-2"><input type="checkbox" checked={history} onChange={e => setHistory(e.target.checked)} />عرض كل الطلبات بما فيها المسددة والمرتجعات ({rows.length})</label>
+    <label className="flex gap-2"><input type="checkbox" checked={history} onChange={e => { setHistory(e.target.checked); setPage(0); setSelected([]); }} />عرض كل الطلبات بما فيها المسددة والمرتجعات</label>
+    <div className="flex items-center gap-3">
+      <select aria-label="عدد الطلبات في الصفحة" className="border rounded-md bg-background p-2" disabled={busy} value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPage(0); setReceiptPage(0); setSelected([]); }}>
+        {[50, 100, 500].map(size => <option key={size} value={size}>{size} لكل صفحة</option>)}
+      </select>
+      <Button variant="outline" disabled={busy || page === 0} onClick={() => { setPage(page - 1); setSelected([]); }}>السابق</Button>
+      <span>صفحة {page + 1} — {orders.data?.total ?? 0} طلب مطابق</span>
+      <Button variant="outline" disabled={busy || orders.isFetching || (page + 1) * pageSize >= (orders.data?.total ?? 0)} onClick={() => { setPage(page + 1); setSelected([]); }}>التالي</Button>
+    </div>
     <div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm text-right"><thead className="bg-muted"><tr>
-      <th className="p-3"><input aria-label="تحديد الطلبات المفتوحة (حتى 500)" type="checkbox" disabled={busy || !visibleOpen.length} checked={visibleOpen.length > 0 && visibleOpen.slice(0, 500).every(row => selected.includes(row.order_id))} onChange={e => setSelected(e.target.checked ? visibleOpen.slice(0, 500).map(row => row.order_id) : [])} /></th>
+      <th className="p-3"><input aria-label="تحديد الطلبات المفتوحة في هذه الصفحة" type="checkbox" disabled={busy || !visibleOpen.length} checked={visibleOpen.length > 0 && visibleOpen.slice(0, 500).every(row => selected.includes(row.order_id))} onChange={e => setSelected(e.target.checked ? visibleOpen.slice(0, 500).map(row => row.order_id) : [])} /></th>
       {["الطلب", "العميل", "المنطقة", "المنتج", "التحصيل", "أجرة التوصيل", "الحالة", "الحالة الفرعية", "تاريخ الإسناد", "كود الباتش"].map(label => <th className="p-3 whitespace-nowrap" key={label}>{label}</th>)}</tr></thead>
       <tbody>{visible.map(row => <tr key={row.order_id} className="border-t">
         <td className="p-3"><input aria-label={`تحديد الطلب ${row.orders?.order_code || row.order_id}`} type="checkbox" disabled={busy || !["assigned", "delivered"].includes(row.state)} checked={selected.includes(row.order_id)} onChange={() => toggle(row.order_id)} /></td>
@@ -130,7 +143,12 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
     {!orders.isLoading && !orders.isError && !visible.length && <p>لا توجد طلبات في هذه القائمة.</p>}
     <h2 className="font-bold text-lg">سجل التسويات والمرتجعات</h2>
     {receipts.isError && <Button onClick={() => void receipts.refetch()}>إعادة تحميل السجل</Button>}
-    {receipts.data?.map(row => <Card key={row.id}><CardContent className="p-4 flex flex-wrap gap-4 text-sm"><span>{row.action === "settle" ? "تسوية مالية" : "استلام مرتجع"}</span><span>{new Date(row.created_at).toLocaleString("ar-LY")}</span><span>{row.order_count} طلب</span><span>تحصيل: {money(Number(row.gross))}</span><span>أجرة: {money(Number(row.fees))}</span><strong>صافي: {money(Number(row.net))}</strong><span>{safes.data?.find(safe => safe.id === row.safe_id)?.name || "—"}</span></CardContent></Card>)}
+    {receipts.data?.rows.map(row => <Card key={row.id}><CardContent className="p-4 flex flex-wrap gap-4 text-sm"><span>{row.action === "settle" ? "تسوية مالية" : "استلام مرتجع"}</span><span>{new Date(row.created_at).toLocaleString("ar-LY")}</span><span>{row.order_count} طلب</span><span>تحصيل: {money(Number(row.gross))}</span><span>أجرة: {money(Number(row.fees))}</span><strong>صافي: {money(Number(row.net))}</strong><span>{safes.data?.find(safe => safe.id === row.safe_id)?.name || "—"}</span></CardContent></Card>)}
+    <div className="flex items-center gap-3">
+      <Button variant="outline" disabled={receiptPage === 0} onClick={() => setReceiptPage(receiptPage - 1)}>السجل السابق</Button>
+      <span>صفحة {receiptPage + 1} — {receipts.data?.total ?? 0} عملية</span>
+      <Button variant="outline" disabled={receipts.isFetching || (receiptPage + 1) * pageSize >= (receipts.data?.total ?? 0)} onClick={() => setReceiptPage(receiptPage + 1)}>السجل التالي</Button>
+    </div>
     <Dialog open={!!action} onOpenChange={value => { if (!value && !busy) setAction(null); }}><DialogContent dir="rtl"><DialogTitle>تأكيد {action === "settle" ? "استلام التسوية" : action === "return" ? "استلام المرتجع" : "التسليم"}</DialogTitle>
       <DialogDescription>عدد الطلبات: {picked.length}. {action === "return" ? "سيتم تسجيل استلام المرتجع وإعادة الكميات المخصومة للمخزون، بدون حركة مالية." : action === "deliver" ? "سيتم تسجيل التسليم فقط، ويبقى التحصيل لدى المندوب حتى استلام التسوية." : "سيتم تسجيل تسليم الطلبات وإيداع الصافي في الخزينة في عملية واحدة."}</DialogDescription>
       {action === "settle" && <><p>التحصيل {money(gross)} − أجرة المندوب {money(fees)} = <strong>{money(net)}</strong></p>{net < 0 && <p className="text-destructive">الأجرة أكبر من التحصيل؛ ستُخصم قيمة الفرق من الخزينة.</p>}

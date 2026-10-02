@@ -162,7 +162,7 @@ const FinancialAccounts = () => {
         })));
         setOrders((o.data as Order[]) || []);
         // Fetch sensitive purchase_price via secure RPC and merge
-        const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+        const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: (p.data || []).map(product => product.id) });
         const cmap = new Map<string, number>((costs || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
         setProducts(((p.data || []) as any[]).map((pr) => ({ ...pr, purchase_price: cmap.get(pr.id) ?? 0 })) as ProductRow[]);
         setOrderItems((oi.data as OrderItemRow[]) || []);

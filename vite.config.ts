@@ -36,9 +36,18 @@ export default defineConfig(() => ({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/courier(?:\/|$)/,/^\/~oauth/, /^\/api/, /supabase/, /^\/p\//, /^\/store/],
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
+        // Cache route code on demand instead of downloading every dashboard page on entry.
+        globPatterns: ["**/*.{css,html,svg,png,ico,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
+          {
+            urlPattern: ({ url, request }) => url.origin === self.location.origin && request.destination === "script" && url.pathname.startsWith("/assets/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "app-scripts",
+              expiration: { maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
             {
               urlPattern: ({ url, request }) => request.mode === "navigate" && /^\/courier(?:\/|$)/.test(url.pathname),
               handler: "NetworkOnly",

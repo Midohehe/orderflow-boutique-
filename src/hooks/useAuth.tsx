@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { sendCompletedRegistration } from "@/lib/registrationPixel";
 import { useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextType {
   user: User | null;
@@ -23,15 +24,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { pathname } = useLocation();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (user?.email_confirmed_at) void sendCompletedRegistration();
+    if (user?.email_confirmed_at && user.user_metadata.platform_signup && !user.user_metadata.sub_user && user.app_metadata.account_type !== "courier") {
+      void sendCompletedRegistration(user);
+    }
   }, [user?.id, user?.email_confirmed_at, pathname]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (event === "SIGNED_OUT") queryClient.clear();
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -46,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({

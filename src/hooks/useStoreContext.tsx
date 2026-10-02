@@ -26,12 +26,13 @@ const STORAGE_KEY = "active_store_id";
 
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const { user, loading: authLoading } = useAuth();
+  const userId = user?.id;
   const [stores, setStores] = useState<Store[]>([]);
   const [activeStoreId, setActiveStoreIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStores = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setStores([]);
       setActiveStoreIdState(null);
       setLoading(false);
@@ -41,7 +42,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     const { data: member } = await supabase
       .from("store_members")
       .select("id, owner_id")
-      .eq("member_user_id", user.id)
+      .eq("member_user_id", userId)
       .maybeSingle();
 
     let list: Store[] = [];
@@ -60,7 +61,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await supabase
         .from("stores")
         .select("id, owner_id, name, slug, is_default, push_enabled")
-        .eq("owner_id", user.id)
+        .eq("owner_id", userId)
         .order("is_default", { ascending: false })
         .order("created_at");
       list = (data || []) as Store[];
@@ -68,20 +69,20 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     setStores(list);
     // Restore active from localStorage if still valid, else pick default/first
-    const savedId = localStorage.getItem(`${STORAGE_KEY}:${user.id}`);
+    const savedId = localStorage.getItem(`${STORAGE_KEY}:${userId}`);
     const active = list.find((s) => s.id === savedId)
       || list.find((s) => s.is_default)
       || list[0]
       || null;
     setActiveStoreIdState(active?.id || null);
     setLoading(false);
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     if (authLoading) return;
     setLoading(true);
     fetchStores();
-  }, [authLoading, user, fetchStores]);
+  }, [authLoading, fetchStores]);
 
   const setActiveStoreId = (id: string) => {
     setActiveStoreIdState(id);

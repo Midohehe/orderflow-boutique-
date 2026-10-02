@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Video, Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2, ClipboardList, ScanLine,
@@ -374,7 +374,9 @@ const DashboardLayout = () => {
         )}
       >
         <div className="p-3 sm:p-4 md:p-6 max-w-full overflow-x-hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Outlet />
+          <Suspense fallback={<div className="p-6 text-muted-foreground" role="status">جاري تحميل الصفحة...</div>}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

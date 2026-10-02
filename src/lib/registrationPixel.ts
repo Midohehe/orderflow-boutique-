@@ -1,17 +1,22 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAppSettings } from "@/lib/appSettings";
 import { initializePlatformPixel } from "@/lib/platformPixel";
+import type { User } from "@supabase/supabase-js";
 
 let inflight: Promise<void> | null = null;
+const completed = new Set<string>();
+const retryAfter = new Map<string, number>();
 
-export function sendCompletedRegistration(): Promise<void> {
+export function sendCompletedRegistration(user: User): Promise<void> {
+  if (completed.has(user.id) || (retryAfter.get(user.id) ?? 0) > Date.now()) return Promise.resolve();
+  if (!window.location.pathname.startsWith("/dashboard")) return Promise.resolve();
   if (inflight) return inflight;
-  inflight = send().catch(() => {}).finally(() => { inflight = null; });
+  retryAfter.set(user.id, Date.now() + 60_000);
+  inflight = send(user).catch(() => {}).finally(() => { inflight = null; });
   return inflight;
 }
 
-async function send() {
-  const { data: { user } } = await supabase.auth.getUser();
+async function send(user: User) {
   if (!user?.email_confirmed_at || !user.user_metadata.platform_signup
       || user.user_metadata.sub_user || user.app_metadata.account_type === "courier") return;
   const path = window.location.pathname;
@@ -26,6 +31,8 @@ async function send() {
   }
   if (!window.fbq?.callMethod) return;
   const { data: eventId, error } = await supabase.rpc("claim_platform_registration_event");
-  if (error || !eventId) return;
+  if (error) return;
+  completed.add(user.id);
+  if (!eventId) return;
   window.fbq("trackSingle", id, "CompleteRegistration", { status: true }, { eventID: eventId });
 }

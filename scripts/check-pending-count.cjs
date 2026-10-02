@@ -27,9 +27,7 @@ class Query {
     return Promise.resolve({data,count:matches.length,error:this.table === "orders" ? failure : null}).then(resolve,reject);
   }
 }
-const supabase = {from:table=>new Query(table),rpc:name=>Promise.resolve({
-  data:name==="orders_status_counts" ? [{status:"pending",cnt:11},{status:"shipped",cnt:3}] : [],
-})};
+const supabase = {from:table=>new Query(table),rpc:()=>Promise.resolve({ data:{statusCounts:{pending:rows.filter(row=>row.store_id==='store-a' && !row.is_deleted && row.status==='pending' && [null,'LY','ly'].includes(row.country_code)).length,shipped:3},confirmationCounts:{},deletedCount:0},error:null })};
 function load(file, imports) {
   const source = ts.transpileModule(fs.readFileSync(path.join(__dirname,"../src/lib",file),"utf8"),{
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020},

@@ -5,7 +5,6 @@ import {
 } from "@/lib/carrierMappingsForStore";
 import { fetchShippedCarrierCounts } from "@/lib/deliveryStatsRpc";
 import { fetchMissedOrdersCount } from "@/lib/missedOrders";
-import { fetchOrdersTabCount } from "@/lib/ordersQuery";
 
 const STICKER_COLS =
   "page_width_mm, page_height_mm, font_size, header_text, footer_text, show_barcode, show_logo, fields";
@@ -41,13 +40,9 @@ export async function fetchOrdersPageMeta(
     stickerRes,
     headerRes,
     walletRes,
-    statusCountsRes,
-    confirmCountsRes,
-    deletedCountRes,
+    countsRes,
     carrierCounts,
     missedCount,
-    pendingCount,
-    courierCount,
   ] = await Promise.all([
     supabase.from("store_settings").select("currency_symbol").eq("store_id", storeId).maybeSingle(),
     fetchMergedCarrierMappingRows(storeId, ownerId),
@@ -57,17 +52,9 @@ export async function fetchOrdersPageMeta(
     ownerId
       ? supabase.from("wallets").select("balance").eq("user_id", ownerId).maybeSingle()
       : Promise.resolve({ data: null } as { data: null }),
-    supabase.rpc("orders_status_counts", { _store_id: storeId }),
-    supabase.rpc("orders_confirmation_counts", { _store_id: storeId }),
-    supabase
-      .from("orders")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId)
-      .eq("is_deleted", true),
+    supabase.rpc("orders_page_counts", { _store_id: storeId }),
     fetchShippedCarrierCounts(storeId, ownerId),
     fetchMissedOrdersCount(storeId),
-    fetchOrdersTabCount(storeId, "pending"),
-    fetchOrdersTabCount(storeId, "with_courier"),
   ]);
 
   const statusMappings = carrierMappingsFromRows(mergedMappings);
@@ -77,19 +64,9 @@ export async function fetchOrdersPageMeta(
     if (p?.id && p?.name) productsMap[p.id] = p.name;
   });
 
-  const statusCounts: Record<string, number> = {};
-  (statusCountsRes.data as Array<{ status: string; cnt: number }> | null)?.forEach((r) => {
-    statusCounts[String(r.status)] = Number(r.cnt) || 0;
-  });
-
-  // The status RPC includes foreign orders; the pending tab only lists domestic orders.
-  statusCounts.pending = pendingCount;
-  statusCounts.with_courier = courierCount;
-
-  const confirmationCounts: Record<string, number> = {};
-  (confirmCountsRes.data as Array<{ confirmation_status: string; cnt: number }> | null)?.forEach((r) => {
-    confirmationCounts[String(r.confirmation_status ?? "unconfirmed")] = Number(r.cnt) || 0;
-  });
+  if (countsRes.error) throw countsRes.error;
+  const counts = countsRes.data as { statusCounts: Record<string, number>; confirmationCounts: Record<string, number>; deletedCount: number };
+  const { statusCounts, confirmationCounts } = counts;
 
   return {
     currencySymbol: currencyRes.data?.currency_symbol ?? null,
@@ -100,7 +77,7 @@ export async function fetchOrdersPageMeta(
     statusCounts,
     carrierCounts,
     confirmationCounts,
-    deletedCount: deletedCountRes.count ?? 0,
+    deletedCount: counts.deletedCount ?? 0,
     missedCount,
     statusMappings,
   };

@@ -70,7 +70,7 @@ const Inventory = () => {
     const { data, error } = await q.eq("store_id", activeStoreId);
     if (error) toast({ title: "خطأ", description: error.message, variant: "destructive" });
     else {
-      const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: null });
+      const { data: costs } = await (supabase as any).rpc("get_owner_product_costs", { _product_ids: (data || []).map(product => product.id) });
       const cmap = new Map<string, number>((costs || []).map((c: any) => [c.id, Number(c.purchase_price || 0)]));
       setProducts(((data || []) as any[]).map((p) => ({ ...p, purchase_price: cmap.get(p.id) ?? 0 })) as ProductRow[]);
     }
