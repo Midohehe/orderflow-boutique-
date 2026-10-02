@@ -24,6 +24,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to="/" replace />;
   }
 
+  if (user.app_metadata?.account_type === "courier") return <Navigate to="/courier" replace />;
+
   // Only block when we explicitly know the account is deactivated.
   // A missing profile (transient fetch error / sub-user edge case) should NOT
   // trigger the "subscription expired" screen, since we use per-order billing.

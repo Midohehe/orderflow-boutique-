@@ -98,6 +98,7 @@ const AITrainingSettings = lazy(() => import("./pages/AITrainingSettings"));
 const StickerDesigner = lazy(() => import("./pages/StickerDesigner"));
 
 const PrintBarcodes = lazy(() => import("./pages/PrintBarcodes"));
+const CourierPortal = lazy(() => import("./pages/CourierPortal"));
 const Couriers = lazy(() => import("./pages/Couriers"));
 const CourierSettlements = lazy(() => import("./pages/CourierSettlements"));
 const TutorialVideos = lazy(() => import("./pages/TutorialVideos"));
@@ -196,6 +197,7 @@ const DashboardRoutes = () => (
 
       <Route path="/" element={<Home />} />
 
+      <Route path="/courier" element={<CourierPortal />} />
       <Route path="/login" element={<Login />} />
 
       <Route path="/auth/confirm" element={<AuthConfirm />} />

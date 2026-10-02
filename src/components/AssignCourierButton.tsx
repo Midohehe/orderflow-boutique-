@@ -29,7 +29,7 @@ export function AssignCourierButton({ storeId, orderIds, onDone }: { storeId: st
     <Button disabled={!storeId || !orderIds.length} onClick={() => setOpen(true)}><Truck className="w-4 h-4 ml-2" />إضافة لمندوب ({orderIds.length})</Button>
     <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}><DialogContent dir="rtl">
       <DialogTitle>إضافة الطلبات لمندوب</DialogTitle>
-      <DialogDescription>سيتم ربط {orderIds.length} طلب بالمندوب وتثبيت سعر التوصيل الحالي. الطلبات قيد الانتظار ستنتقل إلى تم الشحن.</DialogDescription>
+      <DialogDescription>سيتم ربط {orderIds.length} طلب بالمندوب وتثبيت سعر التوصيل الحالي. الطلبات ستنتقل إلى لدى مندوب، وسيُنشأ كود باتش موحّد لهذه المجموعة.</DialogDescription>
       {isLoading ? <p>جاري تحميل المناديب...</p> : isError ? <Button onClick={() => void refetch()}>إعادة تحميل المناديب</Button> : <>
         <select aria-label="اختيار المندوب" className="w-full border rounded-md p-2 bg-background" value={courierId} disabled={busy} onChange={e => setCourierId(e.target.value)}>
           <option value="">اختر المندوب</option>{data.filter(row => row.active).map(row => <option key={row.id} value={row.id}>{row.name} — توصيل {row.delivery_fee}</option>)}

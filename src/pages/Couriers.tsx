@@ -1,3 +1,5 @@
+import { CourierAccountDialog } from "@/components/CourierAccountDialog";
+import { useUserContext } from "@/hooks/useUserContext";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -20,6 +22,7 @@ export default function Couriers() {
 function CourierList({ storeId }: { storeId: string | null }) {
   const { data: rows = [], isLoading, isError, refetch } = useCouriers(storeId);
   const cache = useQueryClient();
+  const { isSubUser, isAdmin } = useUserContext();
   const [form, setForm] = useState<{ id?: string; name: string; phone: string; fee: string; active: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   async function save(event: React.FormEvent) {
@@ -49,6 +52,7 @@ function CourierList({ storeId }: { storeId: string | null }) {
       <h2 className="font-bold text-lg">{row.name} {!row.active && <span className="text-muted-foreground text-sm">(غير نشط)</span>}</h2>
       <p dir="ltr" className="text-right">{row.phone || "—"}</p><p>سعر التوصيل: <strong>{row.delivery_fee}</strong></p>
       <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setForm({ id: row.id, name: row.name, phone: row.phone, fee: String(row.delivery_fee), active: row.active })}>تعديل / إعدادات الأسعار</Button>
+        {(!isSubUser || isAdmin) && <CourierAccountDialog courierId={row.id} />}
         <Button asChild><Link to={`/dashboard/courier-settlements?courier=${row.id}`}>طلبات وتسوية المندوب</Link></Button></div>
     </CardContent></Card>)}</div>
     <Dialog open={!!form} onOpenChange={open => { if (!open && !busy) setForm(null); }}><DialogContent dir="rtl"><DialogTitle>{form?.id ? "إعدادات المندوب" : "إضافة مندوب"}</DialogTitle><DialogDescription>السعر بعملة المتجر وينطبق على جميع المناطق.</DialogDescription>

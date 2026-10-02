@@ -43,3 +43,6 @@ project_id = "sukehkrhvasfnoheyvvx"
     verify_jwt = false
   [functions.extract-order-from-image]
     verify_jwt = true
+
+[functions.courier-account]
+verify_jwt = false

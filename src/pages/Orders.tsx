@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot, Globe, UserX } from "lucide-react";
+import { courierSubStatuses, batchLabel, type CourierSubStatus } from "@/lib/courierStatus";
 import { AssignCourierButton } from "@/components/AssignCourierButton";
 import { PageHeader } from "@/components/PageHeader";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
@@ -78,7 +79,8 @@ interface Order {
   product_id?: string | null;
   price: number;
   shipping_fee?: number;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received" | "unpacked";
+  courier_orders?: { assigned_at: string; sub_status: string; courier_batches: { code: number } | null } | null;
+  status: "with_courier" | "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received" | "unpacked";
   created_at: string;
   selected_color?: string;
   selected_size?: string;
@@ -146,6 +148,7 @@ const statusLabels: Record<Order["status"], string> = {
   pending: "قيد الانتظار",
   processing: "قيد المعالجة",
   shipped: "جاري التوصيل",
+  with_courier: "لدى مندوب",
   delivered: "تم الاستلام",
   cancelled: "ملغي",
   settled: "تم استلام القيمة المالية",
@@ -157,6 +160,7 @@ const statusColors: Record<Order["status"], string> = {
   pending: "bg-warning text-warning-foreground",
   processing: "bg-primary text-primary-foreground",
   shipped: "bg-accent text-accent-foreground",
+  with_courier: "bg-violet-100 text-violet-800",
   delivered: "bg-success text-success-foreground",
   cancelled: "bg-destructive text-destructive-foreground",
   settled: "bg-success text-success-foreground",
@@ -1698,6 +1702,11 @@ const Orders = () => {
                 {order.locked_insufficient_balance && (
                   <Badge variant="destructive" className="gap-1">🔒 محظور — رصيد غير كافٍ</Badge>
                 )}
+                {order.courier_orders && <div className="text-xs text-muted-foreground flex flex-wrap gap-2">
+                  <span>{courierSubStatuses[order.courier_orders.sub_status as CourierSubStatus]}</span>
+                  <span>تاريخ الإسناد: {new Date(order.courier_orders.assigned_at).toLocaleString("ar-LY")}</span>
+                  <span>الباتش: {batchLabel(order.courier_orders.courier_batches?.code)}</span>
+                </div>}
                 {order.insufficient_stock && (
                   <Badge variant="destructive" className="gap-1">⚠ مخزون غير كافٍ</Badge>
                 )}
@@ -2204,6 +2213,7 @@ const Orders = () => {
             <span className="text-[11px] sm:text-xs font-medium leading-tight">من خارج ليبيا</span>
             <span className="text-[11px] sm:text-xs font-bold">({foreignOrders.length})</span>
           </TabsTrigger>
+          <TabsTrigger value="with_courier" className="py-2"><Truck className="w-4 h-4 ml-1" />لدى مندوب ({serverStatusCounts.with_courier ?? 0})</TabsTrigger>
           <TabsTrigger value="shipped" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Truck className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[11px] sm:text-xs font-medium leading-tight">جاري التوصيل</span>
@@ -2643,6 +2653,12 @@ const Orders = () => {
           })()}
         </TabsContent>
 
+        <TabsContent value="with_courier" className="space-y-4">
+          {orderTab === "with_courier" && (() => {
+            const p = paginate(orders, "with_courier", tabTotal);
+            return <><Button asChild variant="outline"><Link to="/dashboard/courier-settlements">تسوية المناديب وتغيير الحالات الفرعية</Link></Button>{p.items.map(order => renderOrderCard(order, true))}{!p.items.length && <p>لا توجد طلبات لدى مندوب.</p>}<Pager p={p} /></>;
+          })()}
+        </TabsContent>
         <TabsContent value="delivered" className="space-y-4">
           {deliveredOrders.length === 0 ? (
             renderEmptyState(

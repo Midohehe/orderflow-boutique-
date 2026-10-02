@@ -47,6 +47,7 @@ export async function fetchOrdersPageMeta(
     carrierCounts,
     missedCount,
     pendingCount,
+    courierCount,
   ] = await Promise.all([
     supabase.from("store_settings").select("currency_symbol").eq("store_id", storeId).maybeSingle(),
     fetchMergedCarrierMappingRows(storeId, ownerId),
@@ -66,6 +67,7 @@ export async function fetchOrdersPageMeta(
     fetchShippedCarrierCounts(storeId, ownerId),
     fetchMissedOrdersCount(storeId),
     fetchOrdersTabCount(storeId, "pending"),
+    fetchOrdersTabCount(storeId, "with_courier"),
   ]);
 
   const statusMappings = carrierMappingsFromRows(mergedMappings);
@@ -82,6 +84,7 @@ export async function fetchOrdersPageMeta(
 
   // The status RPC includes foreign orders; the pending tab only lists domestic orders.
   statusCounts.pending = pendingCount;
+  statusCounts.with_courier = courierCount;
 
   const confirmationCounts: Record<string, number> = {};
   (confirmCountsRes.data as Array<{ confirmation_status: string; cnt: number }> | null)?.forEach((r) => {

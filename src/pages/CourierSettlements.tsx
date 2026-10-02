@@ -1,3 +1,4 @@
+import { courierSubStatuses, batchLabel, type CourierSubStatus } from "@/lib/courierStatus";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,10 +38,12 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
   const [action, setAction] = useState<"deliver" | "settle" | "return" | null>(null);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState(false);
+  const [subFilter, setSubFilter] = useState("");
+  const [newSub, setNewSub] = useState<CourierSubStatus>("follow_up");
   const orders = useQuery({ queryKey: ["courier-orders", storeId, courierId], queryFn: async () => {
     const rows = [];
     for (let offset = 0; ; offset += 500) {
-      const { data, error } = await supabase.from("courier_orders").select("*, orders(id, order_code, customer_name, phone, city, product_name, status)")
+      const { data, error } = await supabase.from("courier_orders").select("*, courier_batches(code), orders(id, order_code, customer_name, phone, city, product_name, status)")
         .eq("store_id", storeId).eq("courier_id", courierId).order("assigned_at", { ascending: false }).order("order_id").range(offset, offset + 499);
       if (error) throw error;
       rows.push(...data);
@@ -63,11 +66,26 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
   } });
   const rows = orders.data || [];
   const open = rows.filter(row => ["assigned", "delivered"].includes(row.state));
-  const picked = open.filter(row => selected.includes(row.order_id));
+  const visible = (history ? rows : open).filter(row => !subFilter || row.sub_status === subFilter);
+  const visibleOpen = visible.filter(row => ["assigned", "delivered"].includes(row.state));
+  const picked = visibleOpen.filter(row => selected.includes(row.order_id));
   const gross = picked.reduce((sum, row) => sum + Number(row.cod_amount), 0);
   const fees = picked.reduce((sum, row) => sum + Number(row.delivery_fee), 0);
   const net = gross - fees;
   const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(item => item !== id) : current.length < 500 ? [...current, id] : current);
+  async function updateSub() {
+    if (!picked.length || busy) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("update_courier_sub_status", { _order_ids: picked.map(row => row.order_id), _sub_status: newSub });
+      if (error) throw error;
+      setSelected([]);
+      await cache.invalidateQueries({ queryKey: ["courier-orders", storeId, courierId] });
+      await cache.invalidateQueries({ queryKey: ["orders-page", storeId] });
+      toast({ title: "تم تحديث الحالة الفرعية" });
+    } catch (error) { toast({ title: "تعذّر تغيير الحالة", description: (error as { message?: string }).message, variant: "destructive" }); }
+    finally { setBusy(false); }
+  }
   async function process() {
     if (!action || busy || !picked.length || (action === "settle" && !safeId)) return;
     setBusy(true);
@@ -88,21 +106,28 @@ function CourierLedger({ storeId, courierId }: { storeId: string; courierId: str
       <div className="grid sm:grid-cols-3 gap-3"><p>التحصيل: <strong>{money(gross)}</strong></p><p>أجرة المندوب: <strong>{money(fees)}</strong></p><p>الصافي للخزينة: <strong>{money(net)}</strong></p></div>
       <p className="text-sm text-muted-foreground">المبالغ بعملة المتجر. التحصيل يشمل قيمة المنتجات وتوصيل العميل. الأجرة هي السعر المثبت عند إسناد الطلب. المرتجع بدون رسوم.</p>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={!picked.length || busy || picked.some(row => row.state === "delivered")} onClick={() => setAction("deliver")}>تحويل إلى تم التسليم</Button>
-        <Button disabled={!picked.length || busy} onClick={() => setAction("settle")}>تسليم واستلام تسوية</Button>
-        <Button variant="outline" disabled={!picked.length || busy} onClick={() => setAction("return")}>استلام مرتجع</Button>
+        <Button disabled={!picked.length || busy || picked.some(row => row.state === "delivered" || row.sub_status !== "delivered_by_courier")} onClick={() => setAction("deliver")}>تحويل إلى تم التسليم</Button>
+        <Button disabled={!picked.length || busy || picked.some(row => row.sub_status !== "delivered_by_courier")} onClick={() => setAction("settle")}>تسليم واستلام تسوية</Button>
+        <Button variant="outline" disabled={!picked.length || busy || picked.some(row => row.sub_status !== "returned_by_courier")} onClick={() => setAction("return")}>استلام مرتجع</Button>
       </div>
     </CardContent></Card>
+    <p className="text-sm text-muted-foreground">التسليم والتسوية متاحان فقط لحالة «تم التسليم لدى المندوب»، واستلام المرتجع فقط لحالة «راجع لدى المندوب».</p>
+    <div className="flex flex-wrap gap-2">
+      <select aria-label="فلتر الحالة الفرعية" className="border rounded-md bg-background p-2" value={subFilter} onChange={e => { setSubFilter(e.target.value); setSelected([]); }}><option value="">كل الحالات الفرعية</option>{Object.entries(courierSubStatuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
+      <select aria-label="الحالة الفرعية الجديدة" className="border rounded-md bg-background p-2" value={newSub} disabled={busy} onChange={e => setNewSub(e.target.value as CourierSubStatus)}>{Object.entries(courierSubStatuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
+      <Button variant="outline" disabled={busy || !picked.length} onClick={() => void updateSub()}>تغيير الحالة الفرعية للمحدد</Button>
+      <Button variant="outline" disabled={orders.isFetching} onClick={() => void orders.refetch()}>تحديث الطلبات</Button>
+    </div>
     <label className="flex gap-2"><input type="checkbox" checked={history} onChange={e => setHistory(e.target.checked)} />عرض كل الطلبات بما فيها المسددة والمرتجعات ({rows.length})</label>
     <div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm text-right"><thead className="bg-muted"><tr>
-      <th className="p-3"><input aria-label="تحديد الطلبات المفتوحة (حتى 500)" type="checkbox" disabled={busy || !open.length} checked={open.length > 0 && open.slice(0, 500).every(row => selected.includes(row.order_id))} onChange={e => setSelected(e.target.checked ? open.slice(0, 500).map(row => row.order_id) : [])} /></th>
-      {["الطلب", "العميل", "المنطقة", "المنتج", "التحصيل", "أجرة التوصيل", "الحالة"].map(label => <th className="p-3 whitespace-nowrap" key={label}>{label}</th>)}</tr></thead>
-      <tbody>{(history ? rows : open).map(row => <tr key={row.order_id} className="border-t">
+      <th className="p-3"><input aria-label="تحديد الطلبات المفتوحة (حتى 500)" type="checkbox" disabled={busy || !visibleOpen.length} checked={visibleOpen.length > 0 && visibleOpen.slice(0, 500).every(row => selected.includes(row.order_id))} onChange={e => setSelected(e.target.checked ? visibleOpen.slice(0, 500).map(row => row.order_id) : [])} /></th>
+      {["الطلب", "العميل", "المنطقة", "المنتج", "التحصيل", "أجرة التوصيل", "الحالة", "الحالة الفرعية", "تاريخ الإسناد", "كود الباتش"].map(label => <th className="p-3 whitespace-nowrap" key={label}>{label}</th>)}</tr></thead>
+      <tbody>{visible.map(row => <tr key={row.order_id} className="border-t">
         <td className="p-3"><input aria-label={`تحديد الطلب ${row.orders?.order_code || row.order_id}`} type="checkbox" disabled={busy || !["assigned", "delivered"].includes(row.state)} checked={selected.includes(row.order_id)} onChange={() => toggle(row.order_id)} /></td>
         <td className="p-3">{row.orders?.order_code || row.order_id.slice(0, 8)}</td><td className="p-3">{row.orders?.customer_name}<div dir="ltr">{row.orders?.phone}</div></td><td className="p-3">{row.orders?.city}</td><td className="p-3">{row.orders?.product_name}</td>
-        <td className="p-3">{money(Number(row.cod_amount))}</td><td className="p-3">{money(Number(row.delivery_fee))}</td><td className="p-3 whitespace-nowrap">{states[row.state]}</td>
+        <td className="p-3">{money(Number(row.cod_amount))}</td><td className="p-3">{money(Number(row.delivery_fee))}</td><td className="p-3 whitespace-nowrap">{states[row.state]}</td><td className="p-3 whitespace-nowrap">{courierSubStatuses[row.sub_status as CourierSubStatus]}</td><td className="p-3 whitespace-nowrap">{new Date(row.assigned_at).toLocaleString("ar-LY")}</td><td className="p-3" dir="ltr">{batchLabel(row.courier_batches?.code)}</td>
       </tr>)}</tbody></table></div>
-    {!orders.isLoading && !orders.isError && !(history ? rows : open).length && <p>لا توجد طلبات في هذه القائمة.</p>}
+    {!orders.isLoading && !orders.isError && !visible.length && <p>لا توجد طلبات في هذه القائمة.</p>}
     <h2 className="font-bold text-lg">سجل التسويات والمرتجعات</h2>
     {receipts.isError && <Button onClick={() => void receipts.refetch()}>إعادة تحميل السجل</Button>}
     {receipts.data?.map(row => <Card key={row.id}><CardContent className="p-4 flex flex-wrap gap-4 text-sm"><span>{row.action === "settle" ? "تسوية مالية" : "استلام مرتجع"}</span><span>{new Date(row.created_at).toLocaleString("ar-LY")}</span><span>{row.order_count} طلب</span><span>تحصيل: {money(Number(row.gross))}</span><span>أجرة: {money(Number(row.fees))}</span><strong>صافي: {money(Number(row.net))}</strong><span>{safes.data?.find(safe => safe.id === row.safe_id)?.name || "—"}</span></CardContent></Card>)}
