@@ -1,0 +1,32 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const assert = require('node:assert/strict');
+const js = ts.transpileModule(fs.readFileSync('src/lib/platformPixel.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+function setup(path='/') {
+ const scripts=[];
+ const context={exports:{},window:{location:{pathname:path}},document:{createElement:()=>({}),head:{appendChild:s=>scripts.push(s)}}};
+ vm.runInNewContext(js,context);
+ return {...context, scripts, api:context.exports};
+}
+const c=setup();
+c.api.trackPlatformPageView('invalid','a');
+assert.equal(c.scripts.length,0);
+c.api.trackPlatformPageView('123456789','a');
+c.api.trackPlatformPageView('123456789','a');
+assert.equal(c.scripts.length,1);
+assert.equal(c.window.fbq.queue.filter(x=>x[0]==='init').length,1);
+assert.equal(c.window.fbq.queue.filter(x=>x[0]==='trackSingle').length,1);
+c.window.location.pathname='/login';
+c.api.trackPlatformPageView('123456789','b');
+assert.equal(c.window.fbq.queue.filter(x=>x[0]==='trackSingle').length,2);
+assert.equal(c.api.needsPixelDocumentReset('/p/test'),true);
+assert.equal(c.api.needsPixelDocumentReset('/dashboard'),true);
+assert.equal(c.api.needsPixelDocumentReset('/login'),false);
+const p=setup('/p/test');
+p.api.trackPlatformPageView('123456789','a');
+assert.equal(p.scripts.length,0);
+p.window.fbq=()=>{};
+assert.equal(p.api.needsPixelDocumentReset('/login'),true);
+assert.equal(p.api.needsPixelDocumentReset('/p/test'),false);
+console.log('Platform pixel checks passed: immediate load, deduplicated views, navigation, invalid IDs, merchant isolation.');

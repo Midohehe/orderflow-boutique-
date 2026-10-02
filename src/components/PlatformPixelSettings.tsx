@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { invalidateAppSettingsCache } from "@/lib/appSettings";
 
 export default function PlatformPixelSettings({ settingsId }: { settingsId: string | null }) {
   const [pixelId, setPixelId] = useState("");
@@ -43,6 +44,7 @@ export default function PlatformPixelSettings({ settingsId }: { settingsId: stri
         .eq("id", settingsId).select("id").single();
       if (error) throw error;
       setPixelId(value);
+      invalidateAppSettingsCache();
       toast({ title: "تم حفظ رقم بكسل المنصة" });
     } catch {
       toast({ title: "تعذّر حفظ رقم البكسل", description: "حاول مرة أخرى.", variant: "destructive" });
@@ -59,7 +61,7 @@ export default function PlatformPixelSettings({ settingsId }: { settingsId: stri
       <Input id="platform-facebook-pixel" dir="ltr" inputMode="numeric" maxLength={20}
         placeholder="123456789012345" value={pixelId} disabled={!loaded || saving}
         onChange={(event) => setPixelId(event.target.value)} />
-      <p className="text-sm text-muted-foreground">يمكنك مسح الحقل لإزالة الرقم المحفوظ. حفظ الرقم وحده لا يفعّل تتبّع التسجيلات.</p>
+      <p className="text-sm text-muted-foreground">يُرسل البكسل زيارات الصفحة الرئيسية وصفحة التسجيل. يمكنك مسح الرقم لإيقافه للزيارات الجديدة. تتبّع اكتمال التسجيل غير مفعّل بعد.</p>
       {loadError && <p role="alert" className="text-sm text-destructive">تعذّر تحميل إعدادات البكسل. أعد تحميل الصفحة للمحاولة مجددًا.</p>}
       <Button onClick={save} disabled={!loaded || saving}>{saving ? "جارٍ الحفظ..." : "حفظ رقم البكسل"}</Button>
     </CardContent>

@@ -21,6 +21,7 @@ import { EasyOrdersEnabledProvider } from "@/hooks/useEasyOrdersEnabled";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 import { fetchAppSettings } from "@/lib/appSettings";
+import { isPlatformMarketingPath, needsPixelDocumentReset, trackPlatformPageView } from "@/lib/platformPixel";
 
 import Login from "./pages/Login";
 
@@ -347,7 +348,23 @@ const DashboardRoutes = () => (
 
 const AppShell = () => {
 
-  const { pathname } = useLocation();
+  const { pathname, key } = useLocation();
+  const resetPixelDocument = needsPixelDocumentReset(pathname);
+
+  useEffect(() => {
+    if (resetPixelDocument) {
+      window.location.reload();
+      return;
+    }
+    if (!isPlatformMarketingPath(pathname)) return;
+    let active = true;
+    fetchAppSettings().then((settings) => {
+      if (active && settings?.platform_facebook_pixel_id) {
+        trackPlatformPageView(settings.platform_facebook_pixel_id, key);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [pathname, key, resetPixelDocument]);
 
   const publicPerf = isPublicPerformancePath(pathname);
 
@@ -365,6 +382,7 @@ const AppShell = () => {
 
 
 
+  if (resetPixelDocument) return null;
   if (publicPerf) {
 
     return (

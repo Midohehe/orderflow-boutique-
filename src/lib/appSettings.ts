@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface AppSettingsRow {
   id: string;
+  platform_facebook_pixel_id?: string | null;
   system_name?: string | null;
   order_fee?: number | null;
   wallet_enabled?: boolean | null;
@@ -21,7 +22,7 @@ export async function fetchAppSettings(force = false): Promise<AppSettingsRow | 
 
   inflight = supabase
     .from("app_settings")
-    .select("id, system_name, order_fee, wallet_enabled, subscription_currency, shipping_endpoint")
+    .select("id, system_name, order_fee, wallet_enabled, subscription_currency, shipping_endpoint, platform_facebook_pixel_id")
     .limit(1)
     .maybeSingle()
     .then(({ data, error }) => {
