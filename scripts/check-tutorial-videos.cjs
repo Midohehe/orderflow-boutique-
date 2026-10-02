@@ -1,0 +1,41 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const ts = require('typescript');
+const vm = require('node:vm');
+const context = { exports: {}, URL };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/tutorialVideo.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
+const parse = context.exports.tutorialSource;
+assert.equal(parse('https://youtu.be/abcdefghijk?t=1').url, 'https://www.youtube-nocookie.com/embed/abcdefghijk');
+assert.equal(parse('https://www.youtube.com/shorts/abcdefghijk').kind, 'youtube');
+assert.equal(parse('https://example.com/demo.mp4?token=x').kind, 'video');
+for (const url of ['javascript:alert(1)', 'http://example.com/a.mp4', 'https://youtube.com.evil.example/watch?v=abcdefghijk', 'https://youtube.com/watch?v=bad', 'https://user:password@example.com/a.mp4']) assert.throws(() => parse(url));
+console.log('Video URL validation passed');
+const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+(async () => {
+  const db = new PGlite();
+  await db.exec(`CREATE ROLE authenticated; CREATE SCHEMA auth; CREATE SCHEMA storage;
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('test.user_id', true),'')::uuid $$;
+    CREATE FUNCTION public.has_role(uuid, text) RETURNS boolean LANGUAGE sql AS $$ SELECT $1 = '00000000-0000-0000-0000-000000000001'::uuid $$;
+    CREATE TABLE storage.buckets(id text PRIMARY KEY, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+    CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(), bucket_id text);
+    ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+    GRANT USAGE ON SCHEMA public, auth, storage TO authenticated;
+    GRANT ALL ON storage.objects TO authenticated;`);
+  await db.exec(fs.readFileSync('supabase/migrations/20261002120000_tutorial_videos.sql', 'utf8').replace(/^\uFEFF/, ''));
+  await db.exec(`SET ROLE authenticated; SET test.user_id='00000000-0000-0000-0000-000000000001';
+    INSERT INTO tutorial_videos(title,video_url) VALUES ('Test','https://example.com/video.mp4');
+    INSERT INTO storage.objects(bucket_id) VALUES ('tutorial-videos');`);
+  for (const user of ['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003']) {
+    await db.exec(`SET test.user_id='${user}'`);
+    assert.equal((await db.query('SELECT * FROM tutorial_videos')).rows.length, 1);
+    assert.equal((await db.query('SELECT * FROM storage.objects')).rows.length, 1);
+    await assert.rejects(db.exec("INSERT INTO tutorial_videos(title,video_url) VALUES ('Unauthorized','https://example.com/a.mp4')"));
+    await assert.rejects(db.exec("INSERT INTO storage.objects(bucket_id) VALUES ('tutorial-videos')"));
+    assert.equal((await db.query("UPDATE tutorial_videos SET title='Changed' RETURNING id")).rows.length, 0);
+    assert.equal((await db.query('DELETE FROM tutorial_videos RETURNING id')).rows.length, 0);
+  }
+  await db.exec("SET test.user_id='00000000-0000-0000-0000-000000000001'");
+  assert.equal((await db.query('DELETE FROM tutorial_videos RETURNING id')).rows.length, 1);
+  await db.close();
+  console.log('Database permissions: all stores read; only admin adds/updates/deletes');
+})().catch(error => { console.error(error); process.exitCode = 1; });
