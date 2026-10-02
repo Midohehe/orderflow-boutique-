@@ -1,9 +1,6 @@
-// Syncs carrier (shipping company) status for all shipped orders by querying
-// Turbo / Accurate GraphQL `shipment(id)` for each order's shipping_id.
-// Returns the distinct status codes encountered so the user can label them.
+// Resumable shipment synchronization with bounded batches and persistent progress.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { carrierCodeToOrderStatus } from "../_shared/carrier-order-status.ts";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -46,242 +43,129 @@ function buildComposite(statusCode: string | null, deliveryTypeCode: any, return
   return base;
 }
 
+const JOB_COLUMNS = "id,store_id,total,processed,updated,failed,state,codes,errors,last_error,started_at,updated_at,locked_until";
+const json = (body: unknown, status=200) => new Response(JSON.stringify(body), {status,headers:{...corsHeaders,"Content-Type":"application/json"}});
+const boundedFetch: typeof fetch = (input, init={}) => fetch(input, {...init,signal: init.signal ? AbortSignal.any([init.signal,AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)});
+// Reuse short-lived carrier sessions across batches on the same worker.
+// Tokens remain server-side and are never included in job progress responses.
+const carrierSessions = new Map<string, { token: string; expiresAt: number }>();
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if(req.method === "OPTIONS") return new Response(null,{headers:corsHeaders});
+  if(req.method !== "POST") return json({error:"Method not allowed"},405);
+  let admin: ReturnType<typeof createClient> | undefined;
+  let storeId: string | undefined, jobId: string | undefined, leaseId: string | undefined;
   try {
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const bearer=req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
+    if(!bearer) return json({error:"Unauthorized"},401);
+    admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{global:{fetch:boundedFetch}});
+    const {data:auth,error:authError}=await admin.auth.getUser(bearer);
+    if(authError || !auth.user) return json({error:"Unauthorized"},401);
+    const scoped=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{global:{fetch:boundedFetch,headers:{Authorization:`Bearer ${bearer}`}}});
+    const body=await req.json().catch(()=>null);
+    storeId=body?.store_id;
+    if(!storeId || !/^[0-9a-f-]{36}$/i.test(storeId)) return json({error:"store_id مطلوب"},400);
+    const {data:store,error:storeError}=await admin.from("stores").select("id,owner_id").eq("id",storeId).maybeSingle();
+    if(storeError) throw storeError;
+    if(!store || store.owner_id!==auth.user.id) return json({error:"المزامنة متاحة لصاحب المتجر فقط"},403);
+    const action=body?.action;
+    if(!["status","start","batch"].includes(action)) return json({error:"حدّث الصفحة لتشغيل المزامنة الجديدة مع عرض التقدّم"},409);
+    if(action==="status") {
+      const {data,error}=await admin.from("carrier_sync_jobs").select(JOB_COLUMNS).eq("store_id",storeId).maybeSingle();
+      if(error) throw error;
+      return json({ok:true,job:data});
     }
-    const ownerId = userData.user.id;
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    // Require a specific store — sync runs per store, not for all stores at once.
-    let storeId: string | null = null;
-    let rawBody = "";
-    try {
-      rawBody = await req.text();
-      if (rawBody) {
-        const body = JSON.parse(rawBody);
-        storeId = body?.store_id ?? null;
-      }
-    } catch (e) {
-      console.error("sync-carrier-statuses body parse error", e, "raw=", rawBody);
+    if(action==="start") {
+      const {data,error}=await admin.rpc("start_carrier_sync",{_store_id:storeId});
+      if(error) throw error;
+      return json({ok:true,job:data});
     }
-    if (!storeId) {
-      console.warn("sync-carrier-statuses missing store_id, raw body=", rawBody);
-      return new Response(JSON.stringify({ error: "store_id مطلوب" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    jobId=body?.job_id;
+    if(!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) return json({error:"معرّف المزامنة مطلوب"},400);
+    const {data:claim,error:claimError}=await admin.rpc("claim_carrier_sync_batch",{_store_id:storeId,_job_id:jobId});
+    if(claimError) throw claimError;
+    if(claim.busy || claim.job.state==="completed") return json({ok:true,busy:claim.busy,job:claim.job});
+    leaseId=claim.lease_id;
+    const ids: string[]=claim.order_ids;
+    const [{data:settingsRows,error:settingsError},{data:app,error:appError},{data:orders,error:ordersError},{data:mappings,error:mappingsError}]=await Promise.all([
+      admin.from("shipping_settings").select("email,password,endpoint,updated_at").eq("owner_id",store.owner_id).eq("enabled",true).order("updated_at",{ascending:false}).limit(1),
+      admin.from("app_settings").select("shipping_endpoint").limit(1).maybeSingle(),
+      admin.from("orders").select("id,shipping_id,shipping_reference,status,is_deleted").eq("store_id",storeId).in("id",ids),
+      scoped.rpc("list_carrier_mappings_for_store",{_store_id:storeId,_owner_id:store.owner_id}),
+    ]);
+    if(settingsError || appError || ordersError || mappingsError) throw settingsError || appError || ordersError || mappingsError;
+    const settings=settingsRows?.[0];
+    if(!settings?.email || !settings?.password) throw Error("إعدادات شركة الشحن غير مكتملة. صحّحها ثم اضغط استكمال.");
+    const endpoint=app?.shipping_endpoint || settings.endpoint || "https://turboex.ly:8001/graphql";
+    const sessionKey=JSON.stringify([storeId,endpoint,settings.email,settings.updated_at]);
+    const cached=carrierSessions.get(sessionKey);
+    let token=cached && cached.expiresAt>Date.now()?cached.token:null;
+    if(!token) {
+      const login=await boundedFetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:"mutation Login($input: LoginInput!) { login(input: $input) { token } }",variables:{input:{username:settings.email,password:settings.password,rememberMe:true}}})});
+      const loginBody=await login.json().catch(()=>null);
+      token=loginBody?.data?.login?.token;
+      if(!login.ok || !token) throw Error("فشل تسجيل الدخول لشركة الشحن. راجع بيانات الربط ثم استكمل المزامنة.");
+      if(carrierSessions.size>=100) carrierSessions.delete(carrierSessions.keys().next().value!);
+      carrierSessions.set(sessionKey,{token,expiresAt:Date.now()+5*60_000});
     }
-
-    // 30-second cooldown per store
-    const COOLDOWN_MS = 30 * 1000;
-    const { data: storeRow } = await admin
-      .from("stores").select("id, owner_id, carrier_last_sync_at")
-      .eq("id", storeId).maybeSingle();
-    if (!storeRow || storeRow.owner_id !== ownerId) {
-      return new Response(JSON.stringify({ error: "متجر غير صالح" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (storeRow.carrier_last_sync_at) {
-      const elapsed = Date.now() - new Date(storeRow.carrier_last_sync_at).getTime();
-      if (elapsed < COOLDOWN_MS) {
-        const remainingSec = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
-        return new Response(JSON.stringify({
-          error: "cooldown",
-          message: `يجب الانتظار ${remainingSec} ثانية قبل إعادة المزامنة لهذا المتجر`,
-          remaining_seconds: remainingSec,
-        }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-    }
-
-    const { data: settingsRows } = await admin
-      .from("shipping_settings").select("*").eq("owner_id", ownerId).eq("enabled", true)
-      .order("updated_at", { ascending: false }).limit(1);
-    const settings = settingsRows?.[0];
-    if (!settings || !settings.email || !settings.password) {
-      return new Response(JSON.stringify({ error: "إعدادات شركة الشحن غير مكتملة" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const { data: appS } = await admin.from("app_settings").select("shipping_endpoint").maybeSingle();
-    const endpoint: string = (appS as any)?.shipping_endpoint || settings.endpoint || "https://turboex.ly:8001/graphql";
-
-    const loginRes = await fetch(endpoint, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: `mutation Login($input: LoginInput!) { login(input: $input) { token } }`,
-        variables: { input: { username: settings.email, password: settings.password, rememberMe: true } },
-      }),
-    });
-    const loginJson = await loginRes.json().catch(() => ({}));
-    const token: string | undefined = loginJson?.data?.login?.token;
-    if (!token) {
-      return new Response(JSON.stringify({ error: "فشل تسجيل الدخول لشركة الشحن" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const gql = async (query: string, variables: Record<string, unknown> = {}) => {
-      const r = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ query, variables }),
-      });
-      return await r.json().catch(() => ({}));
-    };
-
-    // Fetch orders in pages of 1000 (Supabase's per-request cap) so we cover
-    // every shipped order, not just the first 1000.
-    const PAGE_SIZE = 1000;
-    const orders: any[] = [];
-    for (let from = 0; ; from += PAGE_SIZE) {
-      const { data: page, error: oErr } = await admin
-        .from("orders")
-        .select("id, shipping_id, shipping_reference, status, carrier_status")
-        .eq("owner_id", ownerId)
-        .eq("store_id", storeId)
-        .not("shipping_id", "is", null)
-        // Manual sync covers ALL orders with a shipping_id, including delivered/settled/returned,
-        // so the user can refresh the latest carrier status for every shipment in the store.
-        .order("id", { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
-      if (oErr) {
-        return new Response(JSON.stringify({ error: oErr.message }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!page || page.length === 0) break;
-      orders.push(...page);
-      if (page.length < PAGE_SIZE) break;
-    }
-
-    // Mark this store's last sync time (before processing so concurrent calls
-    // also respect the cooldown even if processing is long).
-    await admin.from("stores")
-      .update({ carrier_last_sync_at: new Date().toISOString() })
-      .eq("id", storeId);
-
-    // Pre-load global custom mappings (managed by superadmin)
-    const { data: mappings } = await admin
-      .from("carrier_status_mappings").select("status_code, custom_label");
-    const mappingMap = new Map<string, string>();
-    (mappings || []).forEach((m: any) => mappingMap.set(String(m.status_code), m.custom_label));
-
-    const codeStats = new Map<string, { count: number; label: string; mapped: boolean }>();
-    let updated = 0;
-    let failed = 0;
-    const errors: string[] = [];
-
-    const SHIPMENT_QUERY = `query ($id: Int!) {
-      shipment(id: $id) {
-        id code refNumber notes
-        status { code name }
-        deliveryType { code name }
-        returnType { code name }
-        cancellationReason { id name }
-        collectedFees
-        deliveredAmount
-      }
-    }`;
-
-    const processOne = async (o: any) => {
-      const shipId = Number(o.shipping_id);
-      if (!Number.isFinite(shipId)) return;
-      const res = await gql(SHIPMENT_QUERY, { id: shipId });
-      const sh = res?.data?.shipment;
-      if (!sh) {
+    const mappingMap=new Map<string,string>();
+    if(!mappingsError) (mappings||[]).forEach((m: {status_code:string;custom_label:string})=>{if(m.custom_label) mappingMap.set(String(m.status_code).toUpperCase(),m.custom_label)});
+    const codes=new Map<string,{code:string;count:number;label:string;mapped:boolean}>((claim.job.codes||[]).map((c: {code:string;count:number;label:string;mapped:boolean})=>[c.code,c]));
+    const errors: string[]=[...(claim.job.errors||[])];
+    let updated=0,failed=0;
+    const shipmentQuery=`query ($id: Int!) { shipment(id: $id) { id code refNumber notes status { code name } deliveryType { code name } returnType { code name } cancellationReason { id name } collectedFees deliveredAmount } }`;
+    const processOne=async(id:string)=>{
+      const order=orders?.find((o:{id:string})=>o.id===id);
+      try {
+        if(!order || order.is_deleted) throw Error("الطلب حُذف أو لم يعد موجودًا في المتجر");
+        const shippingId=Number(order.shipping_id);
+        if(!Number.isSafeInteger(shippingId) || shippingId<=0) throw Error("معرّف الشحنة غير صالح");
+        const response=await boundedFetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({query:shipmentQuery,variables:{id:shippingId}})});
+        if(!response.ok) {
+          if(response.status===401 || response.status===403) carrierSessions.delete(sessionKey);
+          throw Error(`تعذّر الاتصال بشركة الشحن (${response.status})`);
+        }
+        const result=await response.json();
+        const shipment=result?.data?.shipment;
+        if(!shipment) throw Error("لم تُرجع شركة الشحن بيانات لهذه الشحنة");
+        const code=buildComposite(shipment.status?.code??null,shipment.deliveryType?.code,shipment.returnType?.code);
+        if(!code) throw Error("حالة الشحنة غير موجودة في رد شركة الشحن");
+        const custom=mappingMap.get(code.toUpperCase());
+        const label=custom || (STATUS_LABELS[code]?`${STATUS_LABELS[code]} (${code})`:code);
+        const payload: Record<string,unknown>={carrier_status:label,carrier_status_updated_at:new Date().toISOString(),carrier_status_raw:shipment};
+        const reason=shipment.cancellationReason?.name??shipment.cancellationReason?.id;
+        if(reason!=null && String(reason).trim()) payload.carrier_cancellation_reason_id=String(reason);
+        if(shipment.notes!=null && String(shipment.notes).trim()) payload.carrier_notes=String(shipment.notes);
+        const nextStatus=carrierCodeToOrderStatus(code);
+        if(nextStatus) payload.status=nextStatus;
+        const {error}=await admin!.from("orders").update(payload).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).select("id").single();
+        if(error) throw Error("تعذّر حفظ حالة الطلب: "+error.message);
+        if(["UPKBD","UKDB","UPKBL"].includes(code)) {
+          const stock=await boundedFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`},body:JSON.stringify({order_id:id,reason:"order_unpacked"})});
+          if(!stock.ok) throw Error("تحدثت حالة الشحنة لكن تعذّر تحديث المخزون؛ أعد المزامنة");
+          await stock.body?.cancel();
+        }
+        const stat=codes.get(code)||{code,count:0,label:STATUS_LABELS[code]||shipment.status?.name||code,mapped:!!custom};
+        codes.set(code,{...stat,count:stat.count+1});
+        updated++;
+      } catch(error) {
         failed++;
-        if (res?.errors?.[0]?.message && errors.length < 5) errors.push(res.errors[0].message);
-        return;
-      }
-      const composite = buildComposite(sh.status?.code ?? null, sh.deliveryType?.code, sh.returnType?.code);
-      if (!composite) { failed++; return; }
-
-      const customLabel = mappingMap.get(composite);
-      const label = customLabel
-        ? customLabel
-        : STATUS_LABELS[composite]
-          ? `${STATUS_LABELS[composite]} (${composite})`
-          : String(composite);
-
-      const stat = codeStats.get(composite) || {
-        count: 0,
-        label: STATUS_LABELS[composite] || sh.status?.name || composite,
-        mapped: !!customLabel,
-      };
-      stat.count += 1;
-      codeStats.set(composite, stat);
-
-      const updatePayload: Record<string, unknown> = {
-        carrier_status: label,
-        carrier_status_updated_at: new Date().toISOString(),
-        carrier_status_raw: sh,
-      };
-      const crName = sh.cancellationReason?.name ?? sh.cancellationReason?.id ?? null;
-      if (crName != null && String(crName).trim() !== "") {
-        updatePayload.carrier_cancellation_reason_id = String(crName);
-      }
-      if (sh.notes != null && String(sh.notes).trim() !== "") {
-        updatePayload.carrier_notes = String(sh.notes);
-      }
-      const upper = String(composite).toUpperCase();
-      const nextStatus = carrierCodeToOrderStatus(upper);
-      if (nextStatus) updatePayload.status = nextStatus;
-      const { error: uErr } = await admin.from("orders").update(updatePayload).eq("id", o.id);
-      if (uErr) { failed++; if (errors.length < 5) errors.push(uErr.message); return; }
-      updated++;
-
-      if (composite === "UPKBD" || composite === "UKDB" || composite === "UPKBL") {
-        try {
-          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({ order_id: o.id, reason: "order_unpacked" }),
-          });
-        } catch (e) { console.error("apply-order-stock UPKBD failed", e); }
+        const e=error as Error;
+        const message=e.name==="TimeoutError" || e.name==="AbortError"?"انتهت مهلة انتظار شركة الشحن":e.message;
+        if(errors.length<10) errors.push(`${order?.shipping_reference || id.slice(0,8)}: ${message}`);
       }
     };
-
-    // Process in parallel batches to stay well under the 150s idle timeout.
-    const CONCURRENCY = 10;
-    for (let i = 0; i < orders.length; i += CONCURRENCY) {
-      const batch = orders.slice(i, i + CONCURRENCY);
-      await Promise.all(batch.map((o) => processOne(o).catch(() => { failed++; })));
+    // Five shipments per request; every network operation has a 10s deadline.
+    for(let offset=0;offset<ids.length;offset+=5) await Promise.all(ids.slice(offset,offset+5).map(processOne));
+    const {data:job,error:finishError}=await admin.rpc("finish_carrier_sync_batch",{_store_id:storeId,_job_id:jobId,_lease_id:leaseId,_updated:updated,_failed:failed,_codes:[...codes.values()],_errors:errors});
+    if(finishError) throw finishError;
+    return json({ok:true,job});
+  } catch(error) {
+    const e=error as Error;
+    const message=e.name==="TimeoutError" || e.name==="AbortError"?"انتهت مهلة الاتصال. التقدّم محفوظ؛ اضغط استكمال للمحاولة مجددًا.":e.message || "تعذّرت المزامنة؛ أعد المحاولة";
+    if(admin && storeId && jobId && leaseId) {
+      try { await admin.from("carrier_sync_jobs").update({lease_id:null,locked_until:null,last_error:message}).eq("store_id",storeId).eq("id",jobId).eq("lease_id",leaseId); } catch { /* The expiring lease allows a later resume. */ }
     }
-
-    const codes = Array.from(codeStats.entries())
-      .map(([code, v]) => ({ code, count: v.count, label: v.label, mapped: v.mapped }))
-      .sort((a, b) => b.count - a.count);
-
-    return new Response(JSON.stringify({
-      ok: true,
-      total: orders.length,
-      updated,
-      failed,
-      codes,
-      errors,
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (e) {
-    console.error("sync-carrier-statuses error", e);
-    return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({error:message},502);
   }
 });

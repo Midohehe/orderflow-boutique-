@@ -1,0 +1,24 @@
+const fs=require('fs'),assert=require('node:assert/strict');const {PGlite}=require(process.env.PGLITE_MODULE);
+(async()=>{const db=new PGlite();const s='00000000-0000-0000-0000-000000000001';
+await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE TABLE stores(id uuid PRIMARY KEY,carrier_last_sync_at timestamptz);CREATE TABLE orders(id uuid PRIMARY KEY,store_id uuid,shipping_id bigint,is_deleted boolean DEFAULT false);INSERT INTO stores VALUES ('${s}',null);INSERT INTO orders SELECT md5(i::text)::uuid,'${s}',i,false FROM generate_series(1,1203)i;INSERT INTO orders VALUES (gen_random_uuid(),'${s}',999,true),(gen_random_uuid(),'${s}',null,false);`);
+await db.exec(fs.readFileSync('supabase/migrations/20261003110000_carrier_sync_jobs.sql','utf8'));
+const rpc=async(sql,params=[]) => (await db.query(sql,params)).rows[0].j;
+let job=await rpc('SELECT start_carrier_sync($1) j',[s]);assert.equal(job.total,1203);assert.equal(job.processed,0);assert.ok(!('order_ids' in job));
+const again=await rpc('SELECT start_carrier_sync($1) j',[s]);assert.equal(again.id,job.id);
+let claim=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[s,job.id]);assert.equal(claim.order_ids.length,5);assert.ok(claim.lease_id);
+const busy=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[s,job.id]);assert.equal(busy.busy,true);assert.ok(!busy.order_ids);
+await assert.rejects(rpc("SELECT finish_carrier_sync_batch($1,$2,$3,1,0,'[]','[]') j",[s,job.id,claim.lease_id]),/Invalid batch counters/);
+job=await rpc("SELECT finish_carrier_sync_batch($1,$2,$3,4,1,'[]','[\"test failure\"]') j",[s,job.id,claim.lease_id]);assert.equal(job.processed,5);assert.equal(job.updated,4);assert.equal(job.failed,1);
+await assert.rejects(rpc("SELECT finish_carrier_sync_batch($1,$2,$3,4,1,'[]','[]') j",[s,job.id,claim.lease_id]),/صلاحية/);
+const next=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[s,job.id]);assert.equal(next.order_ids.some(id=>claim.order_ids.includes(id)),false);
+await db.exec(`UPDATE carrier_sync_jobs SET locked_until=now()-interval '1 second'`);
+const retried=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[s,job.id]);assert.deepEqual(retried.order_ids,next.order_ids);assert.notEqual(retried.lease_id,next.lease_id);
+await assert.rejects(rpc("SELECT finish_carrier_sync_batch($1,$2,$3,5,0,'[]','[]') j",[s,job.id,next.lease_id]),/صلاحية/);
+await rpc("SELECT finish_carrier_sync_batch($1,$2,$3,5,0,'[]','[]') j",[s,job.id,retried.lease_id]);
+// Fast-forward the fixture to exercise the partial final batch and cooldown.
+await db.exec(`UPDATE carrier_sync_jobs SET processed=1200,updated=1199,failed=1`);
+claim=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[s,job.id]);assert.equal(claim.order_ids.length,3);
+job=await rpc("SELECT finish_carrier_sync_batch($1,$2,$3,3,0,'[]','[]') j",[s,job.id,claim.lease_id]);assert.equal(job.state,'completed');assert.equal(job.total,job.processed);
+await assert.rejects(rpc('SELECT start_carrier_sync($1) j',[s]),/30/);
+const perms=(await db.query("SELECT has_function_privilege('authenticated','start_carrier_sync(uuid)','EXECUTE') a,has_function_privilege('service_role','start_carrier_sync(uuid)','EXECUTE') s,has_table_privilege('authenticated','carrier_sync_jobs','SELECT') t")).rows[0];assert.deepEqual(perms,{a:false,s:true,t:false});
+console.log('PASS sync job: 1203 shipments, stable snapshot, five per batch, resume, concurrent lock, stale lease, duplicate commit, final batch, cooldown, service-only access.');await db.close();})().catch(e=>{console.error(e);process.exitCode=1});

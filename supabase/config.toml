@@ -1,6 +1,8 @@
 project_id = "sukehkrhvasfnoheyvvx"
 
 [functions]
+  [functions.sync-carrier-statuses]
+    verify_jwt = false
   [functions.apply-order-stock]
     verify_jwt = false
   [functions.auth-email-hook]

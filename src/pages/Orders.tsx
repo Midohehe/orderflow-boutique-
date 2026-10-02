@@ -1,3 +1,4 @@
+import CarrierSyncPanel from "@/components/CarrierSyncPanel";
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -196,11 +197,6 @@ const Orders = () => {
   const [shippedSearch, setShippedSearch] = useState("");
   const [shippedCarrierFilter, setShippedCarrierFilter] = useState<string>("all");
   const [shippedProductFilter, setShippedProductFilter] = useState<string>("all");
-  const [syncingCarrier, setSyncingCarrier] = useState(false);
-  const [carrierSyncResult, setCarrierSyncResult] = useState<null | {
-    total: number; updated: number; failed: number;
-    codes: Array<{ code: string; count: number; label: string; mapped: boolean }>;
-  }>(null);
   const [pendingDateFrom, setPendingDateFrom] = useState<string>("");
   const [pendingDateTo, setPendingDateTo] = useState<string>("");
   const [unpackedDateFrom, setUnpackedDateFrom] = useState<string>("");
@@ -758,54 +754,6 @@ const Orders = () => {
       queryClient.invalidateQueries({ queryKey: ["orders-page-meta", activeStoreId] }),
       queryClient.invalidateQueries({ queryKey: ["orders-delivery-stats", activeStoreId] }),
     ]);
-  };
-
-  const handleSyncCarrierStatuses = async () => {
-    if (!activeStoreId) {
-      toast({ title: "فشل المزامنة", description: "لم يتم تحديد المتجر الحالي", variant: "destructive" });
-      return;
-    }
-    setSyncingCarrier(true);
-    setCarrierSyncResult(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("sync-carrier-statuses", {
-        body: { store_id: activeStoreId },
-      });
-      if (error) {
-        // Edge function non-2xx (e.g. 429 cooldown) — try to surface the server message
-        const ctx: any = (error as any)?.context;
-        let msg = error.message;
-        try {
-          const txt = await ctx?.text?.();
-          if (txt) {
-            try {
-              const j = JSON.parse(txt);
-              if (j?.message) msg = j.message;
-              else if (j?.error) msg = j.error;
-            } catch {
-              msg = txt;
-            }
-          }
-        } catch {}
-        throw new Error(msg);
-      }
-      if (!data?.ok) throw new Error(data?.message || data?.error || "فشل المزامنة");
-      setCarrierSyncResult({
-        total: data.total ?? 0,
-        updated: data.updated ?? 0,
-        failed: data.failed ?? 0,
-        codes: data.codes ?? [],
-      });
-      toast({
-        title: "تمت المزامنة",
-        description: `تم تحديث ${data.updated} طلب من أصل ${data.total}`,
-      });
-      await fetchOrders();
-    } catch (e: any) {
-      toast({ title: "فشل المزامنة", description: e.message, variant: "destructive" });
-    } finally {
-      setSyncingCarrier(false);
-    }
   };
 
   const handleStatusChange = async (orderId: string, newStatus: Order["status"]) => {
@@ -2548,17 +2496,8 @@ const Orders = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleSyncCarrierStatuses}
-                  disabled={syncingCarrier}
-                  className="gap-2"
-                >
-                  {syncingCarrier ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  مزامنة حالات الشحن
-                </Button>
               </div>
+              <div className="mt-3"><CarrierSyncPanel storeId={activeStoreId} onUpdated={() => { void fetchOrders(); }} /></div>
               <div className="mt-3 flex flex-wrap items-center gap-3 border-t pt-3">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -2602,39 +2541,6 @@ const Orders = () => {
                   لتعديل بيانات الستيكر، اذهب إلى "تصميم ستيكر الشحن" من القائمة.
                 </span>
               </div>
-              {carrierSyncResult && (
-                <div className="mt-4 border-t pt-4 space-y-2">
-                  <div className="text-sm text-muted-foreground">
-                    تم فحص {carrierSyncResult.total} طلب — تحديث {carrierSyncResult.updated} — فشل {carrierSyncResult.failed}
-                  </div>
-                  {carrierSyncResult.codes.length === 0 ? (
-                    <div className="text-sm">لم يتم استرجاع أي حالات.</div>
-                  ) : (
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold">الأكواد المسترجعة من شركة الشحن:</div>
-                      <div className="flex flex-wrap gap-2">
-                        {carrierSyncResult.codes.map((c) => (
-                          <Badge
-                            key={c.code}
-                            variant={c.mapped ? "default" : "secondary"}
-                            className="text-xs"
-                            title={c.label}
-                          >
-                            <span className="font-mono">{c.code}</span>
-                            <span className="mx-1">·</span>
-                            <span>{c.label}</span>
-                            <span className="mx-1">·</span>
-                            <span>{c.count}</span>
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-2">
-                        الأكواد بلون أزرق فاتح ليس لها تسمية مخصصة — يمكنك إضافتها من إعدادات شركة الشحن.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
           {shippedOrders.length === 0 ? (
