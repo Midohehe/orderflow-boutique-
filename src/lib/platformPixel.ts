@@ -13,14 +13,13 @@ let lastView: string | null = null;
 
 // A fresh document keeps the platform and merchants' independent pixel queues apart.
 export function needsPixelDocumentReset(path: string): boolean {
-  return isPlatformMarketingPath(path)
+  return isPlatformMarketingPath(path) || path.startsWith("/dashboard") || path === "/auth/confirm"
     ? Boolean(window.fbq && !platformPixelLoaded)
     : platformPixelLoaded;
 }
 
-export function trackPlatformPageView(id: string, navigationKey: string): void {
-  if (!/^\d{5,20}$/.test(id)) return;
-  if (!isPlatformMarketingPath(window.location.pathname)) return;
+export function initializePlatformPixel(id: string): boolean {
+  if (!/^\d{5,20}$/.test(id)) return false;
   if (!window.fbq) {
     const pixel: Pixel = Object.assign(function (...args: unknown[]) {
       if (pixel.callMethod) pixel.callMethod(...args);
@@ -35,12 +34,18 @@ export function trackPlatformPageView(id: string, navigationKey: string): void {
     script.src = "https://connect.facebook.net/en_US/fbevents.js";
     document.head.appendChild(script);
   }
-  if (!platformPixelLoaded) return;
+  if (!platformPixelLoaded) return false;
   if (initializedId !== id) {
     window.fbq("set", "autoConfig", false, id);
     window.fbq("init", id);
     initializedId = id;
   }
+  return true;
+}
+
+export function trackPlatformPageView(id: string, navigationKey: string): void {
+  if (!isPlatformMarketingPath(window.location.pathname)) return;
+  if (!initializePlatformPixel(id)) return;
   const view = `${id}:${navigationKey}`;
   if (lastView === view) return;
   window.fbq("trackSingle", id, "PageView");

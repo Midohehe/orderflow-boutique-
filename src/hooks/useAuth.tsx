@@ -1,6 +1,8 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { sendCompletedRegistration } from "@/lib/registrationPixel";
+import { useLocation } from "react-router-dom";
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +22,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (user?.email_confirmed_at) void sendCompletedRegistration();
+  }, [user?.id, user?.email_confirmed_at, pathname]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -57,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       options: {
         emailRedirectTo: redirectUrl,
         data: {
+          platform_signup: true,
           ...(username ? { username } : {}),
           ...(fullName ? { full_name: fullName } : {}),
         },

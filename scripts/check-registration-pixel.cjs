@@ -1,0 +1,10 @@
+const fs=require('fs');const assert=require('node:assert/strict');const {PGlite}=require(process.env.PGLITE_MODULE);
+(async()=>{const db=new PGlite();await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('test.uid',true),'')::uuid $$; CREATE TABLE auth.users(id uuid PRIMARY KEY,email_confirmed_at timestamptz,raw_user_meta_data jsonb DEFAULT '{}',raw_app_meta_data jsonb DEFAULT '{}'); INSERT INTO auth.users VALUES ('00000000-0000-0000-0000-000000000001',now(),'{}','{}');`);
+await db.exec(fs.readFileSync('supabase/migrations/20261002220000_registration_pixel_event.sql','utf8'));
+await db.exec(`INSERT INTO auth.users VALUES ('00000000-0000-0000-0000-000000000002',null,'{"platform_signup":true}','{}'),('00000000-0000-0000-0000-000000000003',now(),'{"platform_signup":true,"sub_user":true}','{}'),('00000000-0000-0000-0000-000000000004',now(),'{"platform_signup":true}','{"account_type":"courier"}'); SET test.uid='00000000-0000-0000-0000-000000000002';`);
+assert.equal((await db.query('SELECT count(*)::int AS n FROM platform_registration_events')).rows[0].n,1);
+assert.equal((await db.query('SELECT claim_platform_registration_event() AS id')).rows[0].id,null);
+await db.exec("UPDATE auth.users SET email_confirmed_at=now() WHERE id=auth.uid()");
+assert.ok((await db.query('SELECT claim_platform_registration_event() AS id')).rows[0].id);
+assert.equal((await db.query('SELECT claim_platform_registration_event() AS id')).rows[0].id,null);
+console.log('Registration checks passed: confirmation required, one claim, old accounts and couriers excluded.');await db.close();})().catch(e=>{console.error(e);process.exitCode=1});

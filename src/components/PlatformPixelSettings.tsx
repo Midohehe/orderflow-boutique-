@@ -61,7 +61,7 @@ export default function PlatformPixelSettings({ settingsId }: { settingsId: stri
       <Input id="platform-facebook-pixel" dir="ltr" inputMode="numeric" maxLength={20}
         placeholder="123456789012345" value={pixelId} disabled={!loaded || saving}
         onChange={(event) => setPixelId(event.target.value)} />
-      <p className="text-sm text-muted-foreground">يُرسل البكسل زيارات الصفحة الرئيسية وصفحة التسجيل. يمكنك مسح الرقم لإيقافه للزيارات الجديدة. تتبّع اكتمال التسجيل غير مفعّل بعد.</p>
+      <p className="text-sm text-muted-foreground">يُرسل البكسل زيارات الصفحة الرئيسية وصفحة التسجيل واكتمال تسجيل الحسابات الجديدة بعد تأكيد البريد. يمكنك مسح الرقم لإيقاف التتبّع للزيارات الجديدة.</p>
       {loadError && <p role="alert" className="text-sm text-destructive">تعذّر تحميل إعدادات البكسل. أعد تحميل الصفحة للمحاولة مجددًا.</p>}
       <Button onClick={save} disabled={!loaded || saving}>{saving ? "جارٍ الحفظ..." : "حفظ رقم البكسل"}</Button>
     </CardContent>

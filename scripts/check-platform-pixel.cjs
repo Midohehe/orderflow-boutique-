@@ -21,7 +21,7 @@ c.window.location.pathname='/login';
 c.api.trackPlatformPageView('123456789','b');
 assert.equal(c.window.fbq.queue.filter(x=>x[0]==='trackSingle').length,2);
 assert.equal(c.api.needsPixelDocumentReset('/p/test'),true);
-assert.equal(c.api.needsPixelDocumentReset('/dashboard'),true);
+assert.equal(c.api.needsPixelDocumentReset('/dashboard'),false);
 assert.equal(c.api.needsPixelDocumentReset('/login'),false);
 const p=setup('/p/test');
 p.api.trackPlatformPageView('123456789','a');
