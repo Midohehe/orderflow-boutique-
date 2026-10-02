@@ -80,6 +80,13 @@ const baseMenuGroups = [
     ],
   },
   {
+    label: "المناديب",
+    items: [
+      { icon: Users, label: "إضافة مندوب", path: "/dashboard/couriers", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Wallet, label: "تسوية المناديب", path: "/dashboard/courier-settlements", external: false, adminOnly: false, dynamicStore: false },
+    ],
+  },
+  {
     label: "الشحن",
     items: [
       { icon: Truck, label: "شركة الشحن", path: "/dashboard/shipping", external: false, adminOnly: false, dynamicStore: false },

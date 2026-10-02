@@ -1,0 +1,119 @@
+import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Wallet } from "lucide-react";
+import { useStoreContext } from "@/hooks/useStoreContext";
+import { useCouriers } from "@/hooks/useCouriers";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
+
+const states: Record<string, string> = { assigned: "مع المندوب", delivered: "تم التسليم — بانتظار التسوية", settled: "تم استلام التسوية", returned: "تم استلام المرتجع" };
+const money = (n: number) => n.toLocaleString("ar-LY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export default function CourierSettlements() {
+  const { activeStoreId } = useStoreContext();
+  return <SettlementStore key={activeStoreId} storeId={activeStoreId} />;
+}
+function SettlementStore({ storeId }: { storeId: string | null }) {
+  const [params, setParams] = useSearchParams();
+  const couriers = useCouriers(storeId);
+  const courierId = params.get("courier") || "";
+  return <div dir="rtl" className="space-y-6">
+    <PageHeader icon={Wallet} title="تسوية المناديب" description="تسجيل التسليم واستلام التحصيل في الخزينة أو استلام المرتجعات." />
+    <select aria-label="المندوب" className="border rounded-md bg-background p-2 w-full max-w-md" value={courierId} disabled={couriers.isLoading} onChange={e => setParams({ courier: e.target.value })}>
+      <option value="">اختر المندوب</option>{couriers.data?.map(row => <option key={row.id} value={row.id}>{row.name}{row.active ? "" : " (غير نشط)"}</option>)}
+    </select>
+    {couriers.isError && <Button onClick={() => void couriers.refetch()}>تعذّر تحميل المناديب — أعد المحاولة</Button>}
+    {storeId && couriers.data?.some(row => row.id === courierId) && <CourierLedger key={courierId} storeId={storeId} courierId={courierId} />}
+  </div>;
+}
+function CourierLedger({ storeId, courierId }: { storeId: string; courierId: string }) {
+  const cache = useQueryClient();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [safeId, setSafeId] = useState("");
+  const [action, setAction] = useState<"deliver" | "settle" | "return" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState(false);
+  const orders = useQuery({ queryKey: ["courier-orders", storeId, courierId], queryFn: async () => {
+    const rows = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from("courier_orders").select("*, orders(id, order_code, customer_name, phone, city, product_name, status)")
+        .eq("store_id", storeId).eq("courier_id", courierId).order("assigned_at", { ascending: false }).order("order_id").range(offset, offset + 499);
+      if (error) throw error;
+      rows.push(...data);
+      if (data.length < 500) return rows;
+    }
+  } });
+  const safes = useQuery({ queryKey: ["courier-safes", storeId], queryFn: async () => {
+    const { data, error } = await supabase.from("safes").select("id,name").eq("store_id", storeId).order("name");
+    if (error) throw error;
+    return data;
+  } });
+  const receipts = useQuery({ queryKey: ["courier-receipts", storeId, courierId], queryFn: async () => {
+    const rows = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from("courier_receipts").select("*").eq("store_id", storeId).eq("courier_id", courierId).order("created_at", { ascending: false }).order("id").range(offset, offset + 499);
+      if (error) throw error;
+      rows.push(...data);
+      if (data.length < 500) return rows;
+    }
+  } });
+  const rows = orders.data || [];
+  const open = rows.filter(row => ["assigned", "delivered"].includes(row.state));
+  const picked = open.filter(row => selected.includes(row.order_id));
+  const gross = picked.reduce((sum, row) => sum + Number(row.cod_amount), 0);
+  const fees = picked.reduce((sum, row) => sum + Number(row.delivery_fee), 0);
+  const net = gross - fees;
+  const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(item => item !== id) : current.length < 500 ? [...current, id] : current);
+  async function process() {
+    if (!action || busy || !picked.length || (action === "settle" && !safeId)) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("process_courier_orders", { _courier_id: courierId, _order_ids: picked.map(row => row.order_id), _action: action, ...action === "settle" ? { _safe_id: safeId } : {} });
+      if (error) throw error;
+      toast({ title: action === "settle" ? "تم استلام التسوية في الخزينة" : action === "return" ? "تم استلام المرتجع" : "تم تسجيل التسليم" });
+      setAction(null); setSelected([]);
+      await Promise.all(["courier-orders", "courier-receipts", "orders-page", "orders-page-meta", "orders-delivery-stats", "courier-safes"].map(key => cache.invalidateQueries({ queryKey: [key, storeId] })));
+    } catch (error) { toast({ title: "لم تتم العملية", description: (error as { message?: string }).message || "أعد تحميل الطلبات وحاول مرة أخرى", variant: "destructive" }); }
+    finally { setBusy(false); }
+  }
+  return <div className="space-y-5">
+    {orders.isLoading && <p>جاري تحميل الطلبات...</p>}
+    {orders.isError && <Button onClick={() => void orders.refetch()}>تعذّر تحميل الطلبات — أعد المحاولة</Button>}
+    <Card><CardContent className="p-5 space-y-4">
+      <p>طلبات مفتوحة: <strong>{open.length}</strong> | المحدد: <strong>{picked.length}</strong></p>
+      <div className="grid sm:grid-cols-3 gap-3"><p>التحصيل: <strong>{money(gross)}</strong></p><p>أجرة المندوب: <strong>{money(fees)}</strong></p><p>الصافي للخزينة: <strong>{money(net)}</strong></p></div>
+      <p className="text-sm text-muted-foreground">المبالغ بعملة المتجر. التحصيل يشمل قيمة المنتجات وتوصيل العميل. الأجرة هي السعر المثبت عند إسناد الطلب. المرتجع بدون رسوم.</p>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={!picked.length || busy || picked.some(row => row.state === "delivered")} onClick={() => setAction("deliver")}>تحويل إلى تم التسليم</Button>
+        <Button disabled={!picked.length || busy} onClick={() => setAction("settle")}>تسليم واستلام تسوية</Button>
+        <Button variant="outline" disabled={!picked.length || busy} onClick={() => setAction("return")}>استلام مرتجع</Button>
+      </div>
+    </CardContent></Card>
+    <label className="flex gap-2"><input type="checkbox" checked={history} onChange={e => setHistory(e.target.checked)} />عرض كل الطلبات بما فيها المسددة والمرتجعات ({rows.length})</label>
+    <div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm text-right"><thead className="bg-muted"><tr>
+      <th className="p-3"><input aria-label="تحديد الطلبات المفتوحة (حتى 500)" type="checkbox" disabled={busy || !open.length} checked={open.length > 0 && open.slice(0, 500).every(row => selected.includes(row.order_id))} onChange={e => setSelected(e.target.checked ? open.slice(0, 500).map(row => row.order_id) : [])} /></th>
+      {["الطلب", "العميل", "المنطقة", "المنتج", "التحصيل", "أجرة التوصيل", "الحالة"].map(label => <th className="p-3 whitespace-nowrap" key={label}>{label}</th>)}</tr></thead>
+      <tbody>{(history ? rows : open).map(row => <tr key={row.order_id} className="border-t">
+        <td className="p-3"><input aria-label={`تحديد الطلب ${row.orders?.order_code || row.order_id}`} type="checkbox" disabled={busy || !["assigned", "delivered"].includes(row.state)} checked={selected.includes(row.order_id)} onChange={() => toggle(row.order_id)} /></td>
+        <td className="p-3">{row.orders?.order_code || row.order_id.slice(0, 8)}</td><td className="p-3">{row.orders?.customer_name}<div dir="ltr">{row.orders?.phone}</div></td><td className="p-3">{row.orders?.city}</td><td className="p-3">{row.orders?.product_name}</td>
+        <td className="p-3">{money(Number(row.cod_amount))}</td><td className="p-3">{money(Number(row.delivery_fee))}</td><td className="p-3 whitespace-nowrap">{states[row.state]}</td>
+      </tr>)}</tbody></table></div>
+    {!orders.isLoading && !orders.isError && !(history ? rows : open).length && <p>لا توجد طلبات في هذه القائمة.</p>}
+    <h2 className="font-bold text-lg">سجل التسويات والمرتجعات</h2>
+    {receipts.isError && <Button onClick={() => void receipts.refetch()}>إعادة تحميل السجل</Button>}
+    {receipts.data?.map(row => <Card key={row.id}><CardContent className="p-4 flex flex-wrap gap-4 text-sm"><span>{row.action === "settle" ? "تسوية مالية" : "استلام مرتجع"}</span><span>{new Date(row.created_at).toLocaleString("ar-LY")}</span><span>{row.order_count} طلب</span><span>تحصيل: {money(Number(row.gross))}</span><span>أجرة: {money(Number(row.fees))}</span><strong>صافي: {money(Number(row.net))}</strong><span>{safes.data?.find(safe => safe.id === row.safe_id)?.name || "—"}</span></CardContent></Card>)}
+    <Dialog open={!!action} onOpenChange={value => { if (!value && !busy) setAction(null); }}><DialogContent dir="rtl"><DialogTitle>تأكيد {action === "settle" ? "استلام التسوية" : action === "return" ? "استلام المرتجع" : "التسليم"}</DialogTitle>
+      <DialogDescription>عدد الطلبات: {picked.length}. {action === "return" ? "سيتم تسجيل استلام المرتجع وإعادة الكميات المخصومة للمخزون، بدون حركة مالية." : action === "deliver" ? "سيتم تسجيل التسليم فقط، ويبقى التحصيل لدى المندوب حتى استلام التسوية." : "سيتم تسجيل تسليم الطلبات وإيداع الصافي في الخزينة في عملية واحدة."}</DialogDescription>
+      {action === "settle" && <><p>التحصيل {money(gross)} − أجرة المندوب {money(fees)} = <strong>{money(net)}</strong></p>{net < 0 && <p className="text-destructive">الأجرة أكبر من التحصيل؛ ستُخصم قيمة الفرق من الخزينة.</p>}
+        <select aria-label="خزينة استلام التسوية" className="border rounded-md p-2 bg-background" disabled={busy || safes.isLoading} value={safeId} onChange={e => setSafeId(e.target.value)}><option value="">اختر الخزينة</option>{safes.data?.map(safe => <option value={safe.id} key={safe.id}>{safe.name}</option>)}</select>
+        {safes.isError && <Button onClick={() => void safes.refetch()}>إعادة تحميل الخزائن</Button>}
+        {!safes.isLoading && !safes.isError && !safes.data?.length && <p>أضف خزينة لهذا المتجر من تبويب المالية أولًا.</p>}
+      </>}
+      <Button disabled={busy || !picked.length || (action === "settle" && !safes.data?.some(safe => safe.id === safeId))} onClick={() => void process()}>{busy ? "جاري التنفيذ..." : "تأكيد"}</Button>
+    </DialogContent></Dialog>
+  </div>;
+}

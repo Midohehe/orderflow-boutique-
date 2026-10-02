@@ -1,0 +1,99 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+const id = n => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+(async () => {
+  const db = new PGlite();
+  await db.exec(`
+    CREATE ROLE authenticated; CREATE ROLE anon; CREATE SCHEMA auth;
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('test.user_id',true),'')::uuid $$;
+    CREATE TABLE stores(id uuid PRIMARY KEY,owner_id uuid);
+    CREATE FUNCTION has_store_access(uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT EXISTS(SELECT 1 FROM stores WHERE id=$1 AND owner_id=auth.uid()) $$;
+    CREATE TABLE orders(id uuid PRIMARY KEY,store_id uuid,owner_id uuid,price numeric,shipping_fee numeric DEFAULT 0,quantity integer DEFAULT 1,product_id uuid,
+      status text DEFAULT 'pending',is_deleted boolean DEFAULT false,locked_insufficient_balance boolean DEFAULT false,shipped_to_company boolean DEFAULT false,
+      settlement_received boolean DEFAULT false,settlement_received_at timestamptz,updated_at timestamptz DEFAULT now());
+    CREATE TABLE safes(id uuid PRIMARY KEY,store_id uuid,owner_id uuid,balance numeric DEFAULT 0,updated_at timestamptz DEFAULT now());
+    CREATE TABLE safe_movements(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),safe_id uuid REFERENCES safes(id),store_id uuid,owner_id uuid,amount numeric,movement_type text,reference_id text,notes text);
+    CREATE TABLE products(id uuid PRIMARY KEY,store_id uuid,stock integer,variant_stock jsonb);
+    CREATE TABLE stock_movements(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),order_id uuid,store_id uuid,owner_id uuid,product_id uuid,product_name text,variant_key text,warehouse_code text,qty integer,unit_price numeric,reason text);
+    CREATE UNIQUE INDEX stock_once ON stock_movements(order_id,reason,coalesce(variant_key,''),coalesce(warehouse_code,''),coalesce(product_id,'00000000-0000-0000-0000-000000000000'::uuid));
+    GRANT USAGE ON SCHEMA public,auth TO authenticated; GRANT SELECT,UPDATE ON orders TO authenticated;
+    INSERT INTO stores VALUES('${id(10)}','${id(1)}'),('${id(20)}','${id(2)}');
+    INSERT INTO safes(id,store_id,owner_id) VALUES('${id(30)}','${id(10)}','${id(1)}'),('${id(40)}','${id(20)}','${id(2)}');
+    INSERT INTO products VALUES('${id(50)}','${id(10)}',8,'{"red":3}');
+  `);
+  function existingFunction(file, name) {
+    const sql = fs.readFileSync(`supabase/migrations/${file}`, 'utf8');
+    const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
+    assert.ok(start >= 0);
+    return sql.slice(start, sql.indexOf('$$;', start) + 3);
+  }
+  await db.exec(existingFunction('20260619173000_allow_shipped_to_settled.sql', 'validate_order_status_transition'));
+  await db.exec(existingFunction('20260524163458_6d31fd31-4ec5-4c59-ba98-122fc383d468.sql', 'sync_safe_balance'));
+  await db.exec(`CREATE TRIGGER validate_status BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION validate_order_status_transition();
+    CREATE TRIGGER balance AFTER INSERT OR UPDATE OR DELETE ON safe_movements FOR EACH ROW EXECUTE FUNCTION sync_safe_balance();`);
+  await db.exec(fs.readFileSync('supabase/migrations/20261002150000_couriers.sql', 'utf8').replace(/^\uFEFF/, ''));
+  const query = (sql, args) => db.query(sql, args);
+  const scalar = async sql => (await query(sql)).rows[0].value;
+  const asUser = async n => db.exec(`SET ROLE authenticated; SET test.user_id='${id(n)}'`);
+  const order = async (n, store = 10, extra = '') => {
+    await db.exec(`RESET ROLE; INSERT INTO orders(id,store_id,owner_id,price,shipping_fee,quantity) VALUES('${id(n)}','${id(store)}','${id(store === 10 ? 1 : 2)}',100,15,3); ${extra}`);
+    await asUser(1);
+  };
+  const assign = ids => query('SELECT assign_courier_orders($1,$2::uuid[])', [id(60), ids.map(id)]);
+  const process = (ids, action, safe = 30) => query('SELECT process_courier_orders($1,$2::uuid[],$3,$4) AS value', [id(60), ids.map(id), action, id(safe)]);
+  await asUser(1);
+  await query('INSERT INTO couriers(id,store_id,name,delivery_fee) VALUES($1,$2,$3,10)', [id(60), id(10), 'Courier']);
+  await assert.rejects(query('INSERT INTO couriers(store_id,name) VALUES($1,$2)', [id(20), 'Intruder']));
+  for (const n of [100,101,102,103,104,105,106,107]) await order(n);
+  await order(200,20);
+  await assert.rejects(assign([100,200]));
+  assert.equal(await scalar('SELECT count(*)::int AS value FROM courier_orders'), 0);
+  await assert.rejects(assign([100,999]));
+  assert.equal(await scalar('SELECT count(*)::int AS value FROM courier_orders'), 0);
+  await assign([100,101]);
+  await query('UPDATE couriers SET delivery_fee=20 WHERE id=$1', [id(60)]);
+  assert.equal(Number(await scalar('SELECT max(delivery_fee) AS value FROM courier_orders')), 10);
+  await assert.rejects(assign([100]));
+  await assert.rejects(query("UPDATE orders SET price=999 WHERE id=$1", [id(100)]));
+  await assert.rejects(query("UPDATE orders SET status='settled',settlement_received=true WHERE id=$1", [id(100)]));
+  await assert.rejects(process([100], 'settle', 40));
+  await process([100], 'deliver');
+  const settled = (await process([100,101], 'settle')).rows[0].value;
+  assert.equal(settled.gross, 230); // price is subtotal, never multiplied by quantity
+  assert.equal(settled.fees, 20);
+  assert.equal(settled.net, 210);
+  await assert.rejects(process([100], 'settle'));
+  await assert.rejects(process([100], 'return'));
+  await db.exec('RESET ROLE');
+  assert.equal(Number(await scalar(`SELECT balance AS value FROM safes WHERE id='${id(30)}'`)), 210);
+  await asUser(2);
+  assert.equal(await scalar('SELECT count(*)::int AS value FROM courier_orders'), 0);
+  await assert.rejects(process([101], 'settle'));
+  await asUser(1);
+  await assign([102,103,104,105,106,107]);
+  await assert.rejects(query('UPDATE courier_orders SET cod_amount=999'));
+  await db.exec(`RESET ROLE; INSERT INTO stock_movements(order_id,store_id,owner_id,product_id,product_name,variant_key,qty,reason) VALUES('${id(102)}','${id(10)}','${id(1)}','${id(50)}','Product','red',-2,'order_created');`);
+  await asUser(1);
+  await process([102], 'return');
+  await assert.rejects(process([102], 'return'));
+  await db.exec('RESET ROLE');
+  assert.equal(await scalar(`SELECT stock AS value FROM products WHERE id='${id(50)}'`), 10);
+  assert.equal(await scalar(`SELECT (variant_stock->>'red')::int AS value FROM products WHERE id='${id(50)}'`), 5);
+  assert.equal(Number(await scalar(`SELECT balance AS value FROM safes WHERE id='${id(30)}'`)), 210);
+  // Simulate a financial validation failure: order and receipt writes must roll back.
+  await db.exec(`CREATE FUNCTION reject_movement() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'closed period'; END $$;
+    CREATE TRIGGER reject_movement BEFORE INSERT ON safe_movements FOR EACH ROW EXECUTE FUNCTION reject_movement();`);
+  await asUser(1);
+  await assert.rejects(process([103], 'settle'));
+  assert.equal(await scalar(`SELECT state AS value FROM courier_orders WHERE order_id='${id(103)}'`), 'assigned');
+  assert.equal(await scalar("SELECT count(*)::int AS value FROM courier_receipts WHERE action='settle'"), 1);
+  await db.exec('RESET ROLE; DROP TRIGGER reject_movement ON safe_movements');
+  await asUser(1);
+  const race = await Promise.allSettled([process([104], 'settle'), process([104], 'settle')]);
+  assert.equal(race.filter(result => result.status === 'fulfilled').length, 1);
+  await assert.rejects(process([105,100], 'settle'));
+  assert.equal(await scalar(`SELECT state AS value FROM courier_orders WHERE order_id='${id(105)}'`), 'assigned');
+  await db.close();
+  console.log('Couriers: isolation, snapshots, assignment rollback, safe isolation, COD totals, duplicate settlements, returns/stock, transaction rollback and repeated calls passed');
+})().catch(error => { console.error(error); process.exitCode = 1; });
