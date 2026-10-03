@@ -3,88 +3,42 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, KeyRound, Power, Save, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, Save, Settings as SettingsIcon, Users, SlidersHorizontal, Store, ShieldCheck, CreditCard } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import OpeningBalanceSettings from "@/components/OpeningBalanceSettings";
 import PlatformPixelSettings from "@/components/PlatformPixelSettings";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 const AdminCards = lazy(() => import("./AdminCards"));
 const AdminStores = lazy(() => import("./AdminStores"));
 const PermissionGroups = lazy(() => import("./PermissionGroups"));
+const AdminUserDirectory = lazy(() => import("@/components/AdminUserDirectory"));
+const pending = <div role="status" className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /><span className="sr-only">جاري التحميل</span></div>;
 
-interface ManagedUser {
-  user_id: string;
-  username: string;
-  full_name: string | null;
-  email: string | null;
-  is_active: boolean;
-  roles: string[];
-}
-
-const Settings = () => {
+export default function Settings() {
   const { isAdmin, loading: ctxLoading } = useUserContext();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    email: "", password: "", username: "", full_name: "",
-  });
-  const [resetPwd, setResetPwd] = useState<{ user_id: string; password: string } | null>(null);
   const [systemName, setSystemName] = useState("");
   const [systemNameId, setSystemNameId] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [orderFee, setOrderFee] = useState("0");
   const [walletEnabled, setWalletEnabled] = useState(false);
   const [savingWallet, setSavingWallet] = useState(false);
-
-  const callApi = async (action: string, payload: any = {}) => {
-    const { data, error } = await supabase.functions.invoke("admin-manage-users", {
-      body: { action, ...payload },
-    });
-    if (error) throw new Error(error.message);
-    if (data?.error) throw new Error(data.error);
-    return data;
-  };
-
-  const refresh = async () => {
-    setLoading(true);
-    try {
-      const data = await callApi("list");
-      setUsers(data.users || []);
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState("");
   useEffect(() => {
-    if (!ctxLoading && isAdmin) {
-      refresh();
-      (async () => {
-        const { data: appData } = await supabase.from("app_settings").select("id, system_name, order_fee, wallet_enabled").limit(1).maybeSingle();
-        if (appData) {
-          setSystemName(appData.system_name || "");
-          setSystemNameId(appData.id);
-          setOrderFee(String((appData as { order_fee?: number }).order_fee ?? 0));
-          setWalletEnabled(Boolean((appData as { wallet_enabled?: boolean }).wallet_enabled));
-        }
-      })();
-    } else if (!ctxLoading) setLoading(false);
-  }, [ctxLoading, isAdmin]);
-
+    if (ctxLoading || !isAdmin) return;
+    let active = true;
+    void supabase.from("app_settings").select("id,system_name,order_fee,wallet_enabled").limit(1).maybeSingle().then(({data,error}) => {
+      if (!active) return;
+      if (error) setSettingsError(error.message);
+      else if (data) { setSystemName(data.system_name || ""); setSystemNameId(data.id); setOrderFee(String(data.order_fee ?? 0)); setWalletEnabled(Boolean(data.wallet_enabled)); }
+      setSettingsLoading(false);
+    });
+    return () => { active = false; };
+  }, [ctxLoading,isAdmin]);
   const saveSystemName = async () => {
     setSavingName(true);
     try {
@@ -97,84 +51,22 @@ const Settings = () => {
         setSystemNameId(data.id);
       }
       toast({ title: "تم", description: "تم حفظ اسم النظام" });
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "خطأ", description: e instanceof Error ? e.message : "تعذّر الحفظ", variant: "destructive" });
     } finally { setSavingName(false); }
   };
 
-  const handleCreate = async () => {
-    if (!form.email || !form.password || !form.username) {
-      toast({ title: "خطأ", description: "البريد، كلمة المرور، واسم المستخدم مطلوبة", variant: "destructive" });
-      return;
-    }
-    setCreating(true);
-    try {
-      await callApi("create", form);
-      toast({ title: "تم", description: "تم إنشاء المستخدم بنجاح" });
-      setForm({ email: "", password: "", username: "", full_name: "" });
-      refresh();
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
-    } finally {
-      setCreating(false);
-    }
-  };
 
-  const handleReset = async () => {
-    if (!resetPwd) return;
-    try {
-      await callApi("reset_password", { user_id: resetPwd.user_id, new_password: resetPwd.password });
-      toast({ title: "تم", description: "تم تغيير كلمة المرور" });
-      setResetPwd(null);
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
-    }
-  };
-
-  const handleToggle = async (u: ManagedUser) => {
-    try {
-      await callApi("toggle_active", { user_id: u.user_id, is_active: !u.is_active });
-      refresh();
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
-    }
-  };
-
-  const handleDelete = async (user_id: string) => {
-    try {
-      await callApi("delete", { user_id });
-      toast({ title: "تم", description: "تم حذف المستخدم" });
-      refresh();
-    } catch (e: any) {
-      toast({ title: "خطأ", description: e.message, variant: "destructive" });
-    }
-  };
-
-  if (ctxLoading || loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  }
-  if (!isAdmin) {
-    return <div className="p-6 text-center text-muted-foreground">هذا القسم مخصص للأدمن فقط.</div>;
-  }
-
-  return (
-    <div className="space-y-6" dir="rtl">
-      <PageHeader
-        icon={SettingsIcon}
-        title="الإعدادات"
-        description="إدارة المستخدمين، كروت الشحن، المتاجر والصلاحيات"
-        iconGradient="from-slate-600 to-slate-800"
-      />
-
-      <Tabs defaultValue="users" dir="rtl" className="w-full">
-        <TabsList className="flex flex-wrap h-auto">
-          <TabsTrigger value="users">المستخدمون</TabsTrigger>
-          <TabsTrigger value="cards">كروت الشحن</TabsTrigger>
-          <TabsTrigger value="stores">المتاجر</TabsTrigger>
-          <TabsTrigger value="permissions">الصلاحيات</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users" className="space-y-6 mt-4">
+  if (ctxLoading) return pending;
+  if (!isAdmin) return <div className="p-6 text-center text-muted-foreground">هذا القسم مخصص للسوبر أدمن فقط.</div>;
+  return <div className="space-y-6" dir="rtl">
+    <PageHeader icon={SettingsIcon} title="إدارة المنصة" description="إدارة حسابات المستخدمين والمتاجر وإعدادات وصلة." />
+    <Tabs defaultValue="users" dir="rtl">
+      <TabsList className="h-auto flex flex-wrap justify-start gap-1 bg-muted/50 p-1.5 rounded-xl">
+        {[{value:"users",label:"المستخدمون",icon:Users},{value:"stores",label:"المتاجر",icon:Store},{value:"permissions",label:"الصلاحيات",icon:ShieldCheck},{value:"cards",label:"كروت الشحن",icon:CreditCard},{value:"general",label:"الإعدادات العامة",icon:SlidersHorizontal}].map(tab => <TabsTrigger key={tab.value} value={tab.value} className="gap-2 py-2.5 rounded-lg"><tab.icon className="h-4 w-4" />{tab.label}</TabsTrigger>)}
+      </TabsList>
+      <TabsContent value="users" className="mt-6"><Suspense fallback={pending}><AdminUserDirectory /></Suspense></TabsContent>
+      <TabsContent value="general" className="mt-6 space-y-6">{settingsLoading ? pending : settingsError ? <p role="alert" className="text-destructive">تعذّر تحميل الإعدادات: {settingsError}</p> : <>
           <OpeningBalanceSettings settingsId={systemNameId} />
           <PlatformPixelSettings settingsId={systemNameId} />
           <Card>
@@ -212,7 +104,7 @@ const Settings = () => {
           <Button onClick={async () => {
             setSavingWallet(true);
             try {
-              const payload: any = { order_fee: Number(orderFee) || 0, wallet_enabled: walletEnabled, updated_at: new Date().toISOString() };
+              const payload = { order_fee: Number(orderFee) || 0, wallet_enabled: walletEnabled, updated_at: new Date().toISOString() };
               if (systemNameId) {
                 const { error } = await supabase.from("app_settings").update(payload).eq("id", systemNameId);
                 if (error) throw error;
@@ -222,8 +114,8 @@ const Settings = () => {
                 setSystemNameId(data.id);
               }
               toast({ title: "تم", description: "تم حفظ إعدادات المحفظة" });
-            } catch (e: any) {
-              toast({ title: "خطأ", description: e.message, variant: "destructive" });
+            } catch (e: unknown) {
+              toast({ title: "خطأ", description: e instanceof Error ? e.message : "تعذّر الحفظ", variant: "destructive" });
             } finally { setSavingWallet(false); }
           }} disabled={savingWallet}>
             {savingWallet ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
@@ -232,97 +124,10 @@ const Settings = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5" /> إضافة مستخدم جديد</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2"><Label>البريد الإلكتروني</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="space-y-2"><Label>كلمة المرور</Label><PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
-          <div className="space-y-2"><Label>اسم المستخدم (للمتجر)</Label><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") })} placeholder="ahmed" /></div>
-          <div className="space-y-2"><Label>الاسم الكامل (اختياري)</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
-          <div className="md:col-span-2">
-            <Button onClick={handleCreate} disabled={creating} className="w-full">
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "إنشاء المستخدم"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>المستخدمون ({users.length})</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {users.map((u) => {
-            const isAdminUser = u.roles.includes("admin");
-            return (
-              <div key={u.user_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold">{u.username}</span>
-                    {isAdminUser && <Badge variant="default">أدمن</Badge>}
-                    {!u.is_active && <Badge variant="destructive">معطّل</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{u.email}</p>
-                </div>
-                {!isAdminUser && (
-                  <div className="flex flex-wrap gap-2">
-                    <Dialog open={resetPwd?.user_id === u.user_id} onOpenChange={(o) => !o && setResetPwd(null)}>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="outline" onClick={() => setResetPwd({ user_id: u.user_id, password: "" })}>
-                          <KeyRound className="w-4 h-4 ml-1" /> كلمة المرور
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent dir="rtl">
-                        <DialogHeader><DialogTitle>تغيير كلمة المرور</DialogTitle></DialogHeader>
-                        <PasswordInput value={resetPwd?.password || ""} onChange={(e) => setResetPwd((p) => p ? { ...p, password: e.target.value } : null)} placeholder="كلمة مرور جديدة" />
-                        <Button onClick={handleReset}>حفظ</Button>
-                      </DialogContent>
-                    </Dialog>
-
-                    <Button size="sm" variant="outline" onClick={() => handleToggle(u)}>
-                      <Power className="w-4 h-4 ml-1" /> {u.is_active ? "تعطيل" : "تفعيل"}
-                    </Button>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="destructive"><Trash2 className="w-4 h-4" /></Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent dir="rtl">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>حذف المستخدم؟</AlertDialogTitle>
-                          <AlertDialogDescription>سيتم حذف الحساب وجميع بياناته نهائياً.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(u.user_id)}>حذف</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-        </TabsContent>
-
-        <TabsContent value="cards" className="mt-4">
-          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-            <AdminCards />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="stores" className="mt-4">
-          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-            <AdminStores />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="permissions" className="mt-4">
-          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-            <PermissionGroups />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
-
-export default Settings;
+      </>}</TabsContent>
+      <TabsContent value="stores" className="mt-6"><Suspense fallback={pending}><AdminStores /></Suspense></TabsContent>
+      <TabsContent value="permissions" className="mt-6"><Suspense fallback={pending}><PermissionGroups /></Suspense></TabsContent>
+      <TabsContent value="cards" className="mt-6"><Suspense fallback={pending}><AdminCards /></Suspense></TabsContent>
+    </Tabs>
+  </div>;
+}
