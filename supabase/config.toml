@@ -48,3 +48,7 @@ project_id = "sukehkrhvasfnoheyvvx"
 
 [functions.courier-account]
 verify_jwt = false
+
+# The handler validates the bearer token and the caller's admin role.
+[functions.admin-manage-users]
+verify_jwt = false
