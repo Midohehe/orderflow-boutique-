@@ -48,7 +48,7 @@ export default function Home() {
             صفحات هبوط، طلبات، شحنات، ومحاسبة دقيقة — كل ذلك من لوحة تحكم واحدة بأسلوب يحترم وقتك.
           </p>
           <div className="mt-10 flex items-center justify-center gap-3">
-            <Link to="/login">
+            <Link to="/register">
               <Button size="lg" className="h-11 px-6 rounded-md font-medium bg-foreground hover:bg-foreground/90 text-background gap-2">
                 ابدأ الآن
                 <ArrowLeft className="w-4 h-4" />
@@ -96,9 +96,9 @@ export default function Home() {
             متجرك يستحق نظامًا <span className="italic text-accent text-slate-400">هادئًا</span> وجادًا.
           </h2>
           <div className="mt-8">
-            <Link to="/login">
+            <Link to="/register">
               <Button size="lg" className="h-11 px-7 rounded-md font-medium bg-foreground hover:bg-foreground/90 text-background gap-2">
-                تسجيل الدخول
+                أنشئ متجرك الآن
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>

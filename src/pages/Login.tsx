@@ -13,23 +13,11 @@ import { clearSavedLogin, loadSavedLogin, saveLogin } from "@/lib/loginRemember"
 import { fetchAppSettings } from "@/lib/appSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { normalizeContactPhone, isValidContactPhone } from "@/lib/contactPhone";
+import { storeRegistrationSchema as signUpSchema } from "@/lib/storeRegistration";
 
 const signInSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صالح"),
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
-});
-
-const signUpSchema = z.object({
-  email: z.string().email("البريد الإلكتروني غير صالح"),
-  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
-  username: z
-    .string()
-    .min(3, "اسم المستخدم 3 أحرف على الأقل")
-    .max(30, "اسم المستخدم طويل جداً")
-    .regex(/^[a-zA-Z0-9_]+$/, "يسمح بحروف إنجليزية وأرقام و _ فقط"),
-  fullName: z.string().min(2, "الاسم الكامل قصير جداً").max(80),
-  phone: z.string().transform(normalizeContactPhone).refine(isValidContactPhone, "أدخل رقم هاتف صحيحًا من 7 إلى 15 رقمًا"),
 });
 
 const Login = () => {
@@ -107,7 +95,8 @@ const Login = () => {
     }
     setIsLoading(true);
     try {
-      const { error, needsEmailConfirmation } = await signUp(email, password, username, fullName, result.data.phone);
+      const data = result.data;
+      const { error, needsEmailConfirmation } = await signUp(data.email, data.password, data.username, data.fullName, data.phone);
       if (error) {
         let message = "حدث خطأ أثناء إنشاء الحساب";
         const m = error.message.toLowerCase();

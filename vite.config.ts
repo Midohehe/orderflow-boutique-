@@ -35,7 +35,7 @@ export default defineConfig(() => ({
         ],
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/courier(?:\/|$)/,/^\/~oauth/, /^\/api/, /supabase/, /^\/p\//, /^\/store/],
+        navigateFallbackDenylist: [/^\/(?:courier|register)(?:\/|$)/,/^\/~oauth/, /^\/api/, /supabase/, /^\/p\//, /^\/store/],
         // Cache route code on demand instead of downloading every dashboard page on entry.
         globPatterns: ["**/*.{css,html,svg,png,ico,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
@@ -49,7 +49,7 @@ export default defineConfig(() => ({
             },
           },
             {
-              urlPattern: ({ url, request }) => request.mode === "navigate" && /^\/courier(?:\/|$)/.test(url.pathname),
+              urlPattern: ({ url, request }) => request.mode === "navigate" && /^\/(?:courier|register)(?:\/|$)/.test(url.pathname),
               handler: "NetworkOnly",
             },
           {

@@ -14,13 +14,14 @@ const modules={
   'react-router-dom':{useLocation:()=>({pathname:'/login'})},
   '@tanstack/react-query':{useQueryClient:()=>({clear(){}})},
   '@/lib/contactPhone':phones.exports,
+  '@/lib/platformAttribution':{readPlatformAttribution:()=>({utm_source:'facebook',utm_campaign:'store_signup'})},
 };
 const context={exports:{},require:name=>{if(!modules[name])throw Error(name);return modules[name]},window:{location:{origin:'https://example.test'}}};
 vm.runInNewContext(compile('src/hooks/useAuth.tsx'),context);
 (async()=>{
   const provider=context.exports.AuthProvider({children:null});
   const result=await provider.props.value.signUp('owner@example.test','test-only-password','fixture_store','Test Owner','٠٩١ ٢٣٤-٥٦٧٨');
-  assert.equal(payload.options.data.contact_phone,'0912345678');assert.equal(payload.options.data.platform_signup,true);assert.equal(payload.options.data.username,'fixture_store');assert.equal(payload.options.data.full_name,'Test Owner');assert.equal(payload.options.emailRedirectTo,'https://example.test/auth/confirm');assert.equal(result.needsEmailConfirmation,true);assert.equal('phone' in payload,false,'Contact number must not change Auth login/OTP behavior');
+  assert.equal(payload.options.data.contact_phone,'0912345678');assert.equal(payload.options.data.platform_signup,true);assert.equal(payload.options.data.username,'fixture_store');assert.equal(payload.options.data.full_name,'Test Owner');assert.equal(payload.options.data.signup_attribution.utm_source,'facebook');assert.equal(payload.options.emailRedirectTo,'https://example.test/auth/confirm');assert.equal(result.needsEmailConfirmation,true);assert.equal('phone' in payload,false,'Contact number must not change Auth login/OTP behavior');
   const userHelpers={exports:{},require:()=>({})};vm.runInNewContext(compile('src/lib/adminUsers.ts'),userHelpers);
   const {emailStatus}=userHelpers.exports;assert.equal(emailStatus({email:'x@example.test',email_confirmed_at:'2026-10-01',status:'disabled'}),'confirmed');assert.equal(emailStatus({email:'x@example.test',email_confirmed_at:null,status:'disabled'}),'unconfirmed');assert.equal(emailStatus({email:null,email_confirmed_at:'2026-10-01'}),'not_applicable');
   console.log('PASS: Arabic/Persian phone normalization; invalid values; signup contact persistence; email confirmation flow and Pixel metadata preserved; independent email confirmation status.');

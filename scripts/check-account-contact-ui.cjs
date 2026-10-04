@@ -4,6 +4,7 @@ const React=require(path.join(deps,'react'));const original=Module._load;Module.
 const {act,create}=require(path.join(deps,'react-test-renderer'));
 const compile=p=>ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 const phoneModule={exports:{}};vm.runInNewContext(compile('supabase/functions/_shared/contact-phone.ts'),phoneModule);
+const registrationModule={exports:{},require:n=>n==='zod'?require('zod'):phoneModule.exports};vm.runInNewContext(compile('src/lib/storeRegistration.ts'),registrationModule);
 const helperModule={exports:{},require:()=>({})};vm.runInNewContext(compile('src/lib/adminUsers.ts'),helperModule);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 const wrap=p=>React.createElement('div',p,p.children);
@@ -20,6 +21,7 @@ const imports={
   'lucide-react':new Proxy({},{get:()=>()=>null}),
   '@/hooks/use-toast':{toast:()=>{}},
   '@/lib/contactPhone':phoneModule.exports,
+  '@/lib/storeRegistration':registrationModule.exports,
   '@/lib/adminUsers':{...helperModule.exports,manageAdminUser:async(action,payload)=>{sent={action,payload}}},
 };
 const uiNames={Button:host('button'),Input:host('input'),PasswordInput:host('input'),Label:host('label'),Dialog:p=>p.open?React.createElement(React.Fragment,null,p.children):null};

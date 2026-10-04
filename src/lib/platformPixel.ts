@@ -1,3 +1,5 @@
+import { isPlatformSignupPath } from "./publicPaths";
+
 type Pixel = ((...args: unknown[]) => void) & {
   callMethod?: (...args: unknown[]) => void;
   queue: unknown[][];
@@ -6,7 +8,7 @@ type Pixel = ((...args: unknown[]) => void) & {
   version: string;
 };
 
-export const isPlatformMarketingPath = (path: string) => path === "/" || path === "/login";
+export const isPlatformMarketingPath = (path: string) => path === "/" || path === "/login" || isPlatformSignupPath(path);
 let platformPixelLoaded = false;
 let initializedId: string | null = null;
 let lastView: string | null = null;

@@ -22,6 +22,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 
 import { fetchAppSettings } from "@/lib/appSettings";
 import { isPlatformMarketingPath, needsPixelDocumentReset, trackPlatformPageView } from "@/lib/platformPixel";
+import { capturePlatformAttribution } from "@/lib/platformAttribution";
 
 import Login from "./pages/Login";
 
@@ -33,7 +34,9 @@ import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 import PublicRoutes from "./PublicRoutes";
 
-import { isPublicPerformancePath } from "@/lib/publicPaths";
+import { isPublicPerformancePath, isPlatformSignupPath } from "@/lib/publicPaths";
+
+const Register = lazy(() => import("./pages/Register"));
 
 
 
@@ -348,7 +351,7 @@ const DashboardRoutes = () => (
 
 const AppShell = () => {
 
-  const { pathname, key } = useLocation();
+  const { pathname, key, search } = useLocation();
   const resetPixelDocument = needsPixelDocumentReset(pathname);
 
   useEffect(() => {
@@ -357,6 +360,7 @@ const AppShell = () => {
       return;
     }
     if (!isPlatformMarketingPath(pathname)) return;
+    capturePlatformAttribution(search);
     let active = true;
     fetchAppSettings().then((settings) => {
       if (active && settings?.platform_facebook_pixel_id) {
@@ -364,7 +368,7 @@ const AppShell = () => {
       }
     }).catch(() => {});
     return () => { active = false; };
-  }, [pathname, key, resetPixelDocument]);
+  }, [pathname, key, search, resetPixelDocument]);
 
   const publicPerf = isPublicPerformancePath(pathname);
 
@@ -373,16 +377,21 @@ const AppShell = () => {
   useEffect(() => {
 
     if (publicPerf) return;
-
+    let active = true;
     fetchAppSettings().then((data) => {
-      document.title = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
+      if (active) document.title = (data?.system_name || "منصة وصلة").trim() || "منصة وصلة";
     }).catch(() => {});
-
+    return () => { active = false; };
   }, [publicPerf]);
 
 
 
   if (resetPixelDocument) return null;
+  if (isPlatformSignupPath(pathname)) {
+    return <QueryClientProvider client={queryClient}><AuthProvider>
+      <Suspense fallback={<PageFallback />}><Register /></Suspense>
+    </AuthProvider></QueryClientProvider>;
+  }
   if (publicPerf) {
 
     return (

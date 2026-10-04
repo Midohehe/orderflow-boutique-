@@ -5,6 +5,7 @@ import { sendCompletedRegistration } from "@/lib/registrationPixel";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { normalizeContactPhone } from "@/lib/contactPhone";
+import { readPlatformAttribution } from "@/lib/platformAttribution";
 
 interface AuthContextType {
   user: User | null;
@@ -64,6 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, username?: string, fullName?: string, phone?: string) => {
     const redirectUrl = `${window.location.origin}/auth/confirm`;
+    const attribution = readPlatformAttribution();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -74,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ...(username ? { username } : {}),
           ...(fullName ? { full_name: fullName } : {}),
           ...(phone ? { contact_phone: normalizeContactPhone(phone) } : {}),
+          ...(attribution ? { signup_attribution: attribution } : {}),
         },
       },
     });
