@@ -4,13 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { sendCompletedRegistration } from "@/lib/registrationPixel";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { normalizeContactPhone } from "@/lib/contactPhone";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, username?: string, fullName?: string) => Promise<{
+  signUp: (email: string, password: string, username?: string, fullName?: string, phone?: string) => Promise<{
     error: Error | null;
     needsEmailConfirmation: boolean;
   }>;
@@ -61,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   };
 
-  const signUp = async (email: string, password: string, username?: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, username?: string, fullName?: string, phone?: string) => {
     const redirectUrl = `${window.location.origin}/auth/confirm`;
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -72,6 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           platform_signup: true,
           ...(username ? { username } : {}),
           ...(fullName ? { full_name: fullName } : {}),
+          ...(phone ? { contact_phone: normalizeContactPhone(phone) } : {}),
         },
       },
     });

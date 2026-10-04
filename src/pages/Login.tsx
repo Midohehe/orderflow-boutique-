@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Lock, Mail, Rocket, User, AtSign, CheckCircle2, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Lock, Mail, Rocket, User, AtSign, CheckCircle2, Eye, EyeOff, ArrowRight, Phone } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { clearSavedLogin, loadSavedLogin, saveLogin } from "@/lib/loginRemember";
 import { fetchAppSettings } from "@/lib/appSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { normalizeContactPhone, isValidContactPhone } from "@/lib/contactPhone";
 
 const signInSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صالح"),
@@ -28,6 +29,7 @@ const signUpSchema = z.object({
     .max(30, "اسم المستخدم طويل جداً")
     .regex(/^[a-zA-Z0-9_]+$/, "يسمح بحروف إنجليزية وأرقام و _ فقط"),
   fullName: z.string().min(2, "الاسم الكامل قصير جداً").max(80),
+  phone: z.string().transform(normalizeContactPhone).refine(isValidContactPhone, "أدخل رقم هاتف صحيحًا من 7 إلى 15 رقمًا"),
 });
 
 const Login = () => {
@@ -36,6 +38,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
   const [systemName, setSystemName] = useState("منصة صلة");
@@ -97,14 +100,14 @@ const Login = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = signUpSchema.safeParse({ email, password, username, fullName });
+    const result = signUpSchema.safeParse({ email, password, username, fullName, phone });
     if (!result.success) {
       toast({ title: "خطأ في البيانات", description: result.error.errors[0].message, variant: "destructive" });
       return;
     }
     setIsLoading(true);
     try {
-      const { error, needsEmailConfirmation } = await signUp(email, password, username, fullName);
+      const { error, needsEmailConfirmation } = await signUp(email, password, username, fullName, result.data.phone);
       if (error) {
         let message = "حدث خطأ أثناء إنشاء الحساب";
         const m = error.message.toLowerCase();
@@ -321,6 +324,14 @@ const Login = () => {
                       <Input id="username" type="text" placeholder="my_store" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} className="pr-10 text-left" dir="ltr" required />
                     </div>
                     <p className="text-xs text-muted-foreground">سيكون رابط متجرك: /store/{username || "my_store"}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-phone">رقم هاتف صاحب المتجر</Label>
+                    <div className="relative">
+                      <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input id="signup-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={32} placeholder="0912345678 أو +218912345678" value={phone} onChange={(e) => setPhone(e.target.value)} className="pr-10 text-left" dir="ltr" required aria-describedby="signup-phone-help" />
+                    </div>
+                    <p id="signup-phone-help" className="text-xs text-muted-foreground">رقم للتواصل مع إدارة المنصة، ولا يظهر لزوار متجرك.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email-up">البريد الإلكتروني</Label>

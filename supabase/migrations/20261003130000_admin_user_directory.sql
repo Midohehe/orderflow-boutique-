@@ -2,7 +2,7 @@
 CREATE OR REPLACE FUNCTION public.admin_user_directory(
   _search text DEFAULT '', _kind text DEFAULT 'all', _status text DEFAULT 'all',
   _link text DEFAULT 'all', _sort text DEFAULT 'newest', _page integer DEFAULT 1,
-  _page_size integer DEFAULT 25
+  _page_size integer DEFAULT 25, _email_status text DEFAULT 'all'
 ) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE result jsonb; page_size integer := greatest(1, least(coalesce(_page_size,25),100));
@@ -12,7 +12,8 @@ BEGIN
   END IF;
   IF _kind NOT IN ('all','admin','owner','staff','courier','unassigned')
     OR _status NOT IN ('all','active','disabled','unconfirmed')
-    OR _link NOT IN ('all','linked','unlinked') OR _sort NOT IN ('newest','oldest','last_sign_in') THEN
+    OR _link NOT IN ('all','linked','unlinked') OR _sort NOT IN ('newest','oldest','last_sign_in')
+    OR _email_status NOT IN ('all','confirmed','unconfirmed','not_applicable') THEN
     RAISE EXCEPTION 'فلتر غير صالح';
   END IF;
   WITH relationships AS MATERIALIZED (
@@ -37,6 +38,7 @@ BEGIN
     SELECT u.id user_id, coalesce(a.username,p.username,nullif(u.raw_user_meta_data->>'username',''),split_part(u.email,'@',1),'') username,
       coalesce(c.name,m.display_name,p.full_name,nullif(u.raw_user_meta_data->>'full_name','')) full_name,
       CASE WHEN u.email LIKE '%@couriers.wasla.invalid' THEN NULL ELSE u.email END email,
+      left(coalesce(nullif(trim(u.raw_user_meta_data->>'contact_phone'),''),nullif(trim(c.phone),'')),32) phone,
       u.created_at, u.last_sign_in_at, u.email_confirmed_at,
       CASE WHEN public.has_role(u.id,'admin') THEN 'admin' WHEN a.user_id IS NOT NULL THEN 'courier'
         WHEN m.id IS NOT NULL THEN 'staff' WHEN EXISTS(SELECT 1 FROM public.stores s WHERE s.owner_id=u.id) THEN 'owner'
@@ -56,8 +58,11 @@ BEGIN
     WHERE u.deleted_at IS NULL
   ), filtered AS MATERIALIZED (
     SELECT * FROM base WHERE (_kind='all' OR kind=_kind) AND (_status='all' OR status=_status)
+    AND (_email_status='all' OR (_email_status='confirmed' AND email IS NOT NULL AND email_confirmed_at IS NOT NULL)
+      OR (_email_status='unconfirmed' AND email IS NOT NULL AND email_confirmed_at IS NULL)
+      OR (_email_status='not_applicable' AND email IS NULL))
     AND (_link='all' OR (_link='linked' AND jsonb_array_length(stores)>0) OR (_link='unlinked' AND jsonb_array_length(stores)=0))
-    AND (coalesce(trim(_search),'')='' OR strpos(lower(concat_ws(' ',username,full_name,email,store_search)),lower(left(trim(_search),120)))>0)
+    AND (coalesce(trim(_search),'')='' OR strpos(lower(concat_ws(' ',username,full_name,email,phone,store_search)),lower(left(trim(_search),120)))>0)
   ), totals AS (SELECT count(*) total FROM filtered), paging AS (
     SELECT total, least(greatest(coalesce(_page,1),1),greatest(1,ceil(total::numeric/page_size)::integer)) page FROM totals
   ), selected AS (
@@ -78,5 +83,5 @@ BEGIN
   RETURN result;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.admin_user_directory(text,text,text,text,text,integer,integer) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.admin_user_directory(text,text,text,text,text,integer,integer) TO authenticated;
+REVOKE ALL ON FUNCTION public.admin_user_directory(text,text,text,text,text,integer,integer,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.admin_user_directory(text,text,text,text,text,integer,integer,text) TO authenticated;

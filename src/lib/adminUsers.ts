@@ -7,7 +7,7 @@ export interface UserStoreLink {
   relation: "owner" | "staff" | "courier"; group_name: string | null;
 }
 export interface DirectoryUser {
-  user_id: string; username: string; full_name: string | null; email: string | null;
+  user_id: string; username: string; full_name: string | null; email: string | null; phone: string | null;
   created_at: string; last_sign_in_at: string | null; email_confirmed_at: string | null;
   kind: AccountKind; status: "active" | "disabled" | "unconfirmed";
   has_profile: boolean; profile_active: boolean | null; permission_group: string | null; stores: UserStoreLink[];
@@ -17,12 +17,12 @@ export interface DirectoryResult {
   summary: { total: number; active: number; owners: number; staff: number; couriers: number; unlinked: number };
 }
 export interface DirectoryFilters {
-  search: string; kind: string; status: string; link: string; sort: string; page: number;
+  search: string; kind: string; status: string; link: string; sort: string; page: number; emailStatus: string;
 }
 export async function fetchAdminUsers(filters: DirectoryFilters, signal: AbortSignal): Promise<DirectoryResult> {
   const { data, error } = await supabase.rpc("admin_user_directory", {
     _search: filters.search, _kind: filters.kind, _status: filters.status, _link: filters.link,
-    _sort: filters.sort, _page: filters.page, _page_size: 25,
+    _sort: filters.sort, _page: filters.page, _page_size: 25, _email_status: filters.emailStatus,
   }).abortSignal(AbortSignal.any([signal, AbortSignal.timeout(25_000)]));
   if (error) throw new Error(error.message);
   return data as unknown as DirectoryResult;
@@ -38,3 +38,5 @@ export const accountLabels: Record<AccountKind, string> = {
   admin: "سوبر أدمن", owner: "مالك متجر", staff: "موظف", courier: "مندوب", unassigned: "حساب بدون متجر",
 };
 export const statusLabels = { active: "نشط", disabled: "معطّل", unconfirmed: "بانتظار تأكيد البريد" };
+export const emailStatusLabels = { confirmed: "البريد مؤكّد", unconfirmed: "البريد غير مؤكّد", not_applicable: "بدون بريد إلكتروني" };
+export const emailStatus = (user: Pick<DirectoryUser, "email" | "email_confirmed_at">) => !user.email ? "not_applicable" : user.email_confirmed_at ? "confirmed" : "unconfirmed";

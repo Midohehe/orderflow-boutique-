@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { normalizeContactPhone, isValidContactPhone } from "../_shared/contact-phone.ts";
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 Deno.serve(async (req) => {
@@ -23,12 +24,14 @@ Deno.serve(async (req) => {
     if (action === "create") {
       const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
       const email = typeof body.email === "string" ? body.email.trim() : "";
+      const phone = normalizeContactPhone(body.phone);
+      if (!isValidContactPhone(phone)) return json({ error: "أدخل رقم هاتف صحيحًا من 7 إلى 15 رقمًا" }, 400);
       if (!/^[a-z0-9_-]{3,50}$/.test(username) || !email || typeof body.password !== "string" || body.password.length < 8 || body.password.length > 128) return json({ error: "اسم المستخدم والبريد وكلمة مرور من 8 إلى 128 حرفًا مطلوبة" }, 400);
       const { data: existing, error: lookupError } = await admin.from("profiles").select("user_id").eq("username", username).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) return json({ error: "اسم المستخدم مستخدم بالفعل" }, 409);
       const { error } = await admin.auth.admin.createUser({ email, password: body.password, email_confirm: true,
-        user_metadata: { username, full_name: typeof body.full_name === "string" ? body.full_name.trim().slice(0,120) : null } });
+        user_metadata: { username, contact_phone: phone, full_name: typeof body.full_name === "string" ? body.full_name.trim().slice(0,120) : null } });
       if (error) throw error;
       // The auth trigger creates profile, default store and role atomically. Do not insert them twice.
       return json({ ok: true });
