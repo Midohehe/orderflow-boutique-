@@ -1,39 +1,48 @@
 const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
 const source=fs.readFileSync('supabase/functions/sync-carrier-statuses/index.ts','utf8').replace(/^import .*\r?\n/gm,'');
 const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+const mapping={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('supabase/functions/_shared/carrier-order-status.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,mapping);
 const storeId='00000000-0000-0000-0000-000000000001',jobId='00000000-0000-0000-0000-000000000002';
 async function run(options={}) {
- let handler,finish,release,remote=0,claims=0;const updates=[];
+ let handler,finish,release,remote=0,claims=0,stockCalls=0;const updates=[],syncedIds=[],reads=[];
  const ids=['1','2','3','4','5'];
- const job={id:jobId,total:5,processed:0,updated:0,failed:0,state:'running',codes:[],errors:[]};
+ const job={id:jobId,total:5,processed:0,updated:0,failed:0,skipped:0,state:'running',codes:[],errors:[]};
+ const rows=ids.map(id=>({id,store_id:storeId,shipping_id:id==='5'?'invalid':Number(id),shipping_reference:'REF-'+id,status:options.statuses?.[id]||'shipped',is_deleted:!!options.deleted?.includes(id)}));
  const admin={auth:{getUser:async()=>({data:{user:options.unauthorized?null:{id:'owner'}},error:null})},rpc:async(name,input)=>{
    if(name==='list_carrier_mappings_for_store')return {data:[{status_code:'DTR',custom_label:'DELIVERED'}]};
    if(name==='start_carrier_sync')return {data:job};
    if(name==='claim_carrier_sync_batch'){claims++;return {data:{busy:!!options.busy,job,lease_id:'lease',order_ids:ids}}}
-   if(name==='finish_carrier_sync_batch'){finish=input;return {data:{...job,processed:5,state:'completed',updated:input._updated,failed:input._failed}}}
+   if(name==='finish_carrier_sync_batch'){finish=input;return {data:{...job,processed:5,state:'completed',updated:input._updated,failed:input._failed,skipped:input._skipped}}}
    throw Error(name);
  },from:table=>{let payload,filters={};const b={select:()=>b,eq:(k,v)=>{filters[k]=v;return b},in:()=>b,order:()=>b,limit:()=>b,maybeSingle:()=>b,single:()=>b,update:p=>{payload=p;return b},then:(resolve,reject)=>{
    let data=null,error=null;
    if(table==='stores')data={id:storeId,owner_id:options.foreign?'other':'owner'};
    if(table==='shipping_settings')data=[{email:'mock-user',password:'mock-password',endpoint:'https://carrier.test/graphql'}];
    if(table==='app_settings')data={shipping_endpoint:'https://carrier.test/graphql'};
-   if(table==='orders'&&!payload)data=ids.map(id=>({id,shipping_id:id==='5'?'invalid':Number(id),shipping_reference:'REF-'+id,status:'shipped',is_deleted:false}));
-   if(table==='orders'&&payload){updates.push({id:filters.id,payload});data={id:filters.id};if(filters.id==='3')error={message:'write denied'};}
+   if(table==='orders'&&!payload){reads.push({...filters});data=rows.filter(row=>options.ignoreReadFilters||Object.entries(filters).every(([k,v])=>row[k]===v)).map(row=>({...row}));}
+   if(table==='orders'&&payload){
+     assert.equal(filters.status,'shipped','Every write must still target shipped orders');assert.equal(filters.is_deleted,false);assert.ok('shipping_id' in filters);
+     const row=rows.find(r=>r.id===filters.id);
+     if(row&&Object.entries(filters).every(([k,v])=>row[k]===v)){updates.push({id:filters.id,payload});data={id:filters.id};if(filters.id==='3'&&!options.noWriteFailure)error={message:'write denied'};else Object.assign(row,payload);}
+   }
    if(table==='carrier_sync_jobs'&&payload)release=payload;
    return Promise.resolve({data,error}).then(resolve,reject);
  }};return b}};
  const fetch=async(url,init)=>{
    assert.ok(init.signal,'All external requests require deadlines');remote++;
    const body=JSON.parse(init.body);
+   if(url.endsWith('/apply-order-stock')){stockCalls++;return new Response(JSON.stringify({ok:!options.stockFail,errors:options.stockErrors?['stock error']:[]}),{status:options.stockFail?500:200});}
    if(body.query.includes('mutation Login')) return new Response(JSON.stringify(options.loginFail?{errors:[{}]}:{data:{login:{token:'mock-token'}}}),{status:200});
    const id=String(body.variables.id);
-   if(id==='2')return new Response(JSON.stringify({data:{shipment:null}}));
+   syncedIds.push(id);
+   if(options.concurrent?.[id])Object.assign(rows.find(row=>row.id===id),options.concurrent[id]);
+   if(id==='2'&&!options.noCarrierFailure)return new Response(JSON.stringify({data:{shipment:null}}));
    if(id==='4'&&options.timeout){const e=new Error('Timed out');e.name='TimeoutError';throw e;}
-   return new Response(JSON.stringify({data:{shipment:{status:{code:'DTR',name:'Delivered'}}}}));
+   return new Response(JSON.stringify({data:{shipment:{status:{code:options.code||'DTR',name:'Carrier status'}}}}));
  };
- vm.runInNewContext(js,{exports:{},createClient:()=>admin,carrierCodeToOrderStatus:()=>null,Deno:{env:{get:()=> 'mock'},serve:f=>{handler=f}},fetch,Response,AbortSignal,Map,Date,Number,Error,console});
+ vm.runInNewContext(js,{exports:{},createClient:()=>admin,carrierCodeToOrderStatus:mapping.exports.carrierCodeToOrderStatus,Deno:{env:{get:()=> 'mock'},serve:f=>{handler=f}},fetch,Response,AbortSignal,Map,Date,Number,Error,console});
  const request=new Request('https://edge.test/',{method:'POST',headers:options.noAuth?{}:{Authorization:'Bearer mock'},body:JSON.stringify({store_id:storeId,action:options.action||'batch',job_id:jobId})});
- const response=await handler(request);return {status:response.status,body:await response.json(),finish,release,remote,claims,updates};
+ const response=await handler(request);return {status:response.status,body:await response.json(),finish,release,remote,claims,updates,syncedIds,reads,rows,stockCalls};
 }
 (async()=>{
  let r=await run({noAuth:true});assert.equal(r.status,401);assert.equal(r.remote,0);
@@ -43,5 +52,14 @@ async function run(options={}) {
  r=await run({timeout:true});assert.equal(r.finish._failed,4);assert.ok(r.finish._errors.some(x=>x.includes('مهلة')));
  r=await run({loginFail:true});assert.equal(r.status,502);assert.equal(r.release.lease_id,null);assert.equal(r.finish,undefined);
  r=await run({action:'start'});assert.equal(r.body.job.total,5);assert.equal(r.remote,0);
- console.log('PASS Edge sync: auth, store isolation, busy lease, bounded requests, successful writes, invalid IDs, carrier failures, write failures, timeout, login recovery, no automatic delivered settlement.');
+ const nonShipped={'2':'delivered','3':'pending','4':'returned_received','5':'with_courier'};
+ r=await run({statuses:nonShipped});assert.deepEqual(r.syncedIds,['1']);assert.equal(r.finish._updated,1);assert.equal(r.finish._skipped,4);assert.equal(r.finish._failed,0);assert.equal(r.reads[0].status,'shipped');
+ r=await run({statuses:nonShipped,ignoreReadFilters:true});assert.deepEqual(r.syncedIds,['1'],'Server-side guard must also reject stale/non-shipped rows');assert.equal(r.finish._skipped,4);
+ r=await run({statuses:{...nonShipped,'1':'unpacked'},loginFail:true});assert.equal(r.remote,0,'No carrier login if the whole batch left shipped');assert.equal(r.finish._skipped,5);assert.equal(r.finish._failed,0);
+ r=await run({statuses:nonShipped,concurrent:{'1':{status:'delivered'}},code:'UPKBD'});assert.equal(r.updates.length,0);assert.equal(r.stockCalls,0);assert.equal(r.finish._skipped,5);assert.equal(r.rows[0].status,'delivered');
+ r=await run({statuses:nonShipped,concurrent:{'1':{shipping_id:999}}});assert.equal(r.updates.length,0);assert.equal(r.finish._skipped,5);
+ r=await run({statuses:nonShipped,deleted:['1']});assert.equal(r.remote,0);assert.equal(r.finish._skipped,5);
+ for(const options of [{stockFail:true},{stockErrors:true}]){r=await run({...options,statuses:nonShipped,code:'UPKBD'});assert.equal(r.rows[0].status,'shipped','Stock failures must remain eligible for retry');assert.equal(r.finish._failed,1);assert.equal(r.finish._updated,0);}
+ r=await run({statuses:nonShipped,code:'UPKBD'});assert.equal(r.stockCalls,1);assert.equal(r.rows[0].status,'unpacked');assert.equal(r.updates[0].payload.status,undefined);assert.equal(r.updates[1].payload.status,'unpacked');assert.equal(r.finish._updated,1);
+ console.log('PASS Edge sync: shipped-only reads and carrier calls; stale-job skips; conditional status/shipment writes; no stock writes for skipped orders; unpacking failures retryable; auth/isolation/leases/timeouts preserved; no automatic delivered settlement.');
 })().catch(e=>{console.error(e);process.exitCode=1});

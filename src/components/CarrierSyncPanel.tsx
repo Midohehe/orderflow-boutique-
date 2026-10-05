@@ -54,7 +54,7 @@ export default function CarrierSyncPanel({ storeId, onUpdated }: { storeId: stri
         }
       }
       if (!valid()) return;
-      if (latest?.state === "completed") setMessage(latest.total === 0 ? "لا توجد شحنات مرتبطة بشركة الشحن في هذا المتجر." : latest.failed ? "انتهت المزامنة مع وجود أخطاء موضّحة أدناه." : "اكتملت المزامنة بنجاح.");
+      if (latest?.state === "completed") setMessage(latest.total === 0 ? "لا توجد طلبات بحالة «جاري التوصيل» مرتبطة بشركة الشحن في هذا المتجر." : latest.failed ? "انتهت المزامنة مع وجود أخطاء موضّحة أدناه." : "اكتملت المزامنة بنجاح.");
       else if (stop.current) setMessage("توقّفت المزامنة مؤقتًا. يمكنك استكمالها من نفس المكان.");
       onUpdated();
     } catch (e) {
@@ -79,13 +79,14 @@ export default function CarrierSyncPanel({ storeId, onUpdated }: { storeId: stri
         {running ? `جاري المزامنة${job ? ` (${job.processed}/${job.total})` : ""}` : job?.state === "running" ? "استكمال مزامنة الشحنات" : "مزامنة حالات الشحن"}
       </Button>
       {running && <Button type="button" variant="outline" disabled={pausing} onClick={() => { stop.current = true; setPausing(true); setMessage("سيتم الإيقاف بعد انتهاء الدفعة الحالية..."); }}>إيقاف مؤقت</Button>}
-      <span className="text-xs text-muted-foreground">تشمل كل شحنات المتجر المرتبطة بشركة الشحن، بجميع حالاتها، عدا الطلبات المحذوفة.</span>
+      <span className="text-xs text-muted-foreground">تتم المزامنة فقط للطلبات التي حالتها «جاري التوصيل» في وصلة والمرتبطة بشركة الشحن، باستثناء الطلبات المحذوفة.</span>
     </div>
     {(running || job || error) && <div className="rounded-lg border p-3 space-y-2">
       <p role="status" aria-live="polite" className="text-sm">{message || (job?.state === "running" ? "مزامنة غير مكتملة — اضغط استكمال لمتابعتها." : "نتيجة آخر مزامنة")}</p>
       {job && <>
         <div role="progressbar" aria-label="تقدّم مزامنة الشحنات" aria-valuemin={0} aria-valuemax={job.total || 1} aria-valuenow={job.processed} className="h-2 rounded bg-muted overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${percent}%` }} /></div>
-        <div className="flex flex-wrap gap-4 text-sm"><span>تم فحص <strong>{job.processed}</strong> من <strong>{job.total}</strong></span><span>تم تحديثه: <strong>{job.updated}</strong></span><span>فشل: <strong>{job.failed}</strong></span><span>متبقي: <strong>{job.total-job.processed}</strong></span></div>
+        <div className="flex flex-wrap gap-4 text-sm"><span>تم فحص <strong>{job.processed}</strong> من <strong>{job.total}</strong></span><span>تم تحديثه: <strong>{job.updated}</strong></span><span>فشل: <strong>{job.failed}</strong></span>{(job.skipped ?? 0) > 0 && <span>تم تجاوز: <strong>{job.skipped}</strong></span>}<span>متبقي: <strong>{job.total-job.processed}</strong></span></div>
+        {(job.skipped ?? 0) > 0 && <p className="text-xs text-muted-foreground">تم تجاوز طلبات تغيّرت حالتها أو بيانات شحنتها أثناء المزامنة، دون احتسابها كأخطاء.</p>}
         <p className="text-xs text-muted-foreground">«تم تحديثه» يعني استلام حالة الشحنة وحفظها، حتى لو كانت نفس الحالة السابقة.</p>
         {job.codes.length > 0 && <div className="flex flex-wrap gap-2">{job.codes.map(code => <Badge key={code.code} variant="secondary">{code.label} ({code.count})</Badge>)}</div>}
         {job.errors.length > 0 && <details><summary className="text-sm cursor-pointer">تفاصيل الأخطاء (أول {job.errors.length})</summary><ul className="text-sm space-y-1 mt-2">{job.errors.map((item, i) => <li key={i}>{item}</li>)}</ul></details>}

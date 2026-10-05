@@ -1,7 +1,8 @@
 const fs=require('fs'),assert=require('node:assert/strict');const {PGlite}=require(process.env.PGLITE_MODULE);
 (async()=>{const db=new PGlite();const s='00000000-0000-0000-0000-000000000001';
-await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE TABLE stores(id uuid PRIMARY KEY,carrier_last_sync_at timestamptz);CREATE TABLE orders(id uuid PRIMARY KEY,store_id uuid,shipping_id bigint,is_deleted boolean DEFAULT false);INSERT INTO stores VALUES ('${s}',null);INSERT INTO orders SELECT md5(i::text)::uuid,'${s}',i,false FROM generate_series(1,1203)i;INSERT INTO orders VALUES (gen_random_uuid(),'${s}',999,true),(gen_random_uuid(),'${s}',null,false);`);
+await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE TABLE stores(id uuid PRIMARY KEY,carrier_last_sync_at timestamptz);CREATE TABLE orders(id uuid PRIMARY KEY,store_id uuid,shipping_id bigint,is_deleted boolean DEFAULT false,status text DEFAULT 'shipped');INSERT INTO stores VALUES ('${s}',null);INSERT INTO orders(id,store_id,shipping_id,is_deleted) SELECT md5(i::text)::uuid,'${s}',i,false FROM generate_series(1,1203)i;INSERT INTO orders(id,store_id,shipping_id,is_deleted) VALUES (gen_random_uuid(),'${s}',999,true),(gen_random_uuid(),'${s}',null,false);INSERT INTO orders(id,store_id,shipping_id,status) SELECT gen_random_uuid(),'${s}',999,status FROM unnest(ARRAY['pending','delivered','settled','cancelled','returned_received','unpacked','with_courier']) status;`);
 await db.exec(fs.readFileSync('supabase/migrations/20261003110000_carrier_sync_jobs.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261005120000_carrier_sync_shipped_only.sql','utf8'));
 const rpc=async(sql,params=[]) => (await db.query(sql,params)).rows[0].j;
 let job=await rpc('SELECT start_carrier_sync($1) j',[s]);assert.equal(job.total,1203);assert.equal(job.processed,0);assert.ok(!('order_ids' in job));
 const again=await rpc('SELECT start_carrier_sync($1) j',[s]);assert.equal(again.id,job.id);
@@ -21,4 +22,23 @@ claim=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[s,job.id]);assert.eq
 job=await rpc("SELECT finish_carrier_sync_batch($1,$2,$3,3,0,'[]','[]') j",[s,job.id,claim.lease_id]);assert.equal(job.state,'completed');assert.equal(job.total,job.processed);
 await assert.rejects(rpc('SELECT start_carrier_sync($1) j',[s]),/30/);
 const perms=(await db.query("SELECT has_function_privilege('authenticated','start_carrier_sync(uuid)','EXECUTE') a,has_function_privilege('service_role','start_carrier_sync(uuid)','EXECUTE') s,has_table_privilege('authenticated','carrier_sync_jobs','SELECT') t")).rows[0];assert.deepEqual(perms,{a:false,s:true,t:false});
-console.log('PASS sync job: 1203 shipments, stable snapshot, five per batch, resume, concurrent lock, stale lease, duplicate commit, final batch, cooldown, service-only access.');await db.close();})().catch(e=>{console.error(e);process.exitCode=1});
+const finishPerms=(await db.query("SELECT has_function_privilege('authenticated','finish_carrier_sync_batch(uuid,uuid,uuid,integer,integer,jsonb,jsonb,integer)','EXECUTE') a,has_function_privilege('service_role','finish_carrier_sync_batch(uuid,uuid,uuid,integer,integer,jsonb,jsonb,integer)','EXECUTE') s")).rows[0];assert.deepEqual(finishPerms,{a:false,s:true});
+// An old all-status snapshot must narrow safely on resume, retaining completed work.
+const legacyStore='00000000-0000-0000-0000-000000000003',emptyStore='00000000-0000-0000-0000-000000000004';
+const oid=n=>`90000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+await db.exec(`INSERT INTO stores VALUES ('${legacyStore}',null),('${emptyStore}',null);
+INSERT INTO orders VALUES ('${oid(1)}','${legacyStore}',1,false,'delivered'),('${oid(2)}','${legacyStore}',2,false,'shipped'),('${oid(3)}','${legacyStore}',3,false,'shipped'),('${oid(4)}','${legacyStore}',4,false,'pending'),('${oid(5)}','${legacyStore}',5,true,'shipped'),('${oid(6)}','${legacyStore}',null,false,'shipped'),('${oid(7)}','${s}',7,false,'shipped');
+INSERT INTO carrier_sync_jobs(store_id,order_ids,total,processed,updated) VALUES ('${legacyStore}',ARRAY[${[1,2,3,4,5,6,7].map(n=>`'${oid(n)}'::uuid`).join(',')}],7,1,1);`);
+let legacy=await rpc('SELECT start_carrier_sync($1) j',[legacyStore]);
+claim=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[legacyStore,legacy.id]);assert.equal(claim.job.total,3);assert.equal(claim.job.processed,1);assert.deepEqual(claim.order_ids,[oid(2),oid(3)]);
+await db.exec(`UPDATE orders SET status='delivered' WHERE id='${oid(3)}'`);
+let locked=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[legacyStore,legacy.id]);assert.equal(locked.busy,true);assert.equal(locked.job.total,3,'Live lease must not be resized');
+await assert.rejects(rpc("SELECT finish_carrier_sync_batch($1,$2,$3,1,0,'[]','[]',-1) j",[legacyStore,legacy.id,claim.lease_id]),/Invalid batch/);
+legacy=await rpc("SELECT finish_carrier_sync_batch($1,$2,$3,1,0,'[]','[]',1) j",[legacyStore,legacy.id,claim.lease_id]);assert.equal(legacy.processed,3);assert.equal(legacy.updated,2);assert.equal(legacy.failed,0);assert.equal(legacy.skipped,1);assert.equal(legacy.state,'completed');
+let empty=await rpc('SELECT start_carrier_sync($1) j',[emptyStore]);assert.equal(empty.total,0);assert.equal(empty.state,'completed');
+// A previously eligible order can leave shipped before claim; no carrier batch is needed.
+await db.exec(`INSERT INTO orders VALUES ('${oid(8)}','${emptyStore}',8,false,'shipped'); UPDATE carrier_sync_jobs SET updated_at=now()-interval '31 seconds' WHERE store_id='${emptyStore}'`);
+empty=await rpc('SELECT start_carrier_sync($1) j',[emptyStore]);assert.equal(empty.total,1);
+await db.exec(`UPDATE orders SET status='returned_received' WHERE id='${oid(8)}'`);
+claim=await rpc('SELECT claim_carrier_sync_batch($1,$2) j',[emptyStore,empty.id]);assert.equal(claim.job.state,'completed');assert.equal(claim.job.total,0);assert.equal(claim.lease_id,null);assert.equal(claim.order_ids.length,0);
+console.log('PASS sync job: only shipped snapshots; legacy resume narrowed without losing progress; changed/deleted/foreign orders excluded; live leases protected; skipped counts; empty scope; bounded batches/cooldown/service-only access.');await db.close();})().catch(e=>{console.error(e);process.exitCode=1});

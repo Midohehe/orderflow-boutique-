@@ -7,6 +7,7 @@ export interface CarrierSyncJob {
   processed: number;
   updated: number;
   failed: number;
+  skipped?: number;
   state: "running" | "completed";
   last_error: string | null;
   updated_at: string;

@@ -43,7 +43,7 @@ function buildComposite(statusCode: string | null, deliveryTypeCode: any, return
   return base;
 }
 
-const JOB_COLUMNS = "id,store_id,total,processed,updated,failed,state,codes,errors,last_error,started_at,updated_at,locked_until";
+const JOB_COLUMNS = "id,store_id,total,processed,updated,failed,skipped,state,codes,errors,last_error,started_at,updated_at,locked_until";
 const json = (body: unknown, status=200) => new Response(JSON.stringify(body), {status,headers:{...corsHeaders,"Content-Type":"application/json"}});
 const boundedFetch: typeof fetch = (input, init={}) => fetch(input, {...init,signal: init.signal ? AbortSignal.any([init.signal,AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000)});
 // Reuse short-lived carrier sessions across batches on the same worker.
@@ -90,10 +90,16 @@ Deno.serve(async (req) => {
     const [{data:settingsRows,error:settingsError},{data:app,error:appError},{data:orders,error:ordersError},{data:mappings,error:mappingsError}]=await Promise.all([
       admin.from("shipping_settings").select("email,password,endpoint,updated_at").eq("owner_id",store.owner_id).eq("enabled",true).order("updated_at",{ascending:false}).limit(1),
       admin.from("app_settings").select("shipping_endpoint").limit(1).maybeSingle(),
-      admin.from("orders").select("id,shipping_id,shipping_reference,status,is_deleted").eq("store_id",storeId).in("id",ids),
+      admin.from("orders").select("id,shipping_id,shipping_reference,status,is_deleted").eq("store_id",storeId).eq("status","shipped").eq("is_deleted",false).in("id",ids),
       scoped.rpc("list_carrier_mappings_for_store",{_store_id:storeId,_owner_id:store.owner_id}),
     ]);
-    if(settingsError || appError || ordersError || mappingsError) throw settingsError || appError || ordersError || mappingsError;
+    if(ordersError) throw ordersError;
+    if(!orders?.some((order:{status:string;is_deleted:boolean;shipping_id:unknown})=>order.status==="shipped" && !order.is_deleted && order.shipping_id!=null)) {
+      const {data:job,error}=await admin.rpc("finish_carrier_sync_batch",{_store_id:storeId,_job_id:jobId,_lease_id:leaseId,_updated:0,_failed:0,_skipped:ids.length,_codes:claim.job.codes||[],_errors:claim.job.errors||[]});
+      if(error) throw error;
+      return json({ok:true,job});
+    }
+    if(settingsError || appError || mappingsError) throw settingsError || appError || mappingsError;
     const settings=settingsRows?.[0];
     if(!settings?.email || !settings?.password) throw Error("إعدادات شركة الشحن غير مكتملة. صحّحها ثم اضغط استكمال.");
     const endpoint=app?.shipping_endpoint || settings.endpoint || "https://turboex.ly:8001/graphql";
@@ -112,12 +118,12 @@ Deno.serve(async (req) => {
     if(!mappingsError) (mappings||[]).forEach((m: {status_code:string;custom_label:string})=>{if(m.custom_label) mappingMap.set(String(m.status_code).toUpperCase(),m.custom_label)});
     const codes=new Map<string,{code:string;count:number;label:string;mapped:boolean}>((claim.job.codes||[]).map((c: {code:string;count:number;label:string;mapped:boolean})=>[c.code,c]));
     const errors: string[]=[...(claim.job.errors||[])];
-    let updated=0,failed=0;
+    let updated=0,failed=0,skipped=0;
     const shipmentQuery=`query ($id: Int!) { shipment(id: $id) { id code refNumber notes status { code name } deliveryType { code name } returnType { code name } cancellationReason { id name } collectedFees deliveredAmount } }`;
     const processOne=async(id:string)=>{
       const order=orders?.find((o:{id:string})=>o.id===id);
       try {
-        if(!order || order.is_deleted) throw Error("الطلب حُذف أو لم يعد موجودًا في المتجر");
+        if(!order || order.is_deleted || order.status!=="shipped" || order.shipping_id==null) { skipped++; return; }
         const shippingId=Number(order.shipping_id);
         if(!Number.isSafeInteger(shippingId) || shippingId<=0) throw Error("معرّف الشحنة غير صالح");
         const response=await boundedFetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({query:shipmentQuery,variables:{id:shippingId}})});
@@ -137,13 +143,18 @@ Deno.serve(async (req) => {
         if(reason!=null && String(reason).trim()) payload.carrier_cancellation_reason_id=String(reason);
         if(shipment.notes!=null && String(shipment.notes).trim()) payload.carrier_notes=String(shipment.notes);
         const nextStatus=carrierCodeToOrderStatus(code);
-        if(nextStatus) payload.status=nextStatus;
-        const {error}=await admin!.from("orders").update(payload).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).select("id").single();
+        // Keep unpacked orders eligible for retry until their stock update succeeds.
+        if(nextStatus && nextStatus!=="unpacked") payload.status=nextStatus;
+        const {data:saved,error}=await admin!.from("orders").update(payload).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).eq("status","shipped").eq("shipping_id",order.shipping_id).select("id").maybeSingle();
         if(error) throw Error("تعذّر حفظ حالة الطلب: "+error.message);
+        if(!saved) { skipped++; return; } // Status or shipment changed while the carrier request was in flight.
         if(["UPKBD","UKDB","UPKBL"].includes(code)) {
           const stock=await boundedFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`},body:JSON.stringify({order_id:id,reason:"order_unpacked"})});
-          if(!stock.ok) throw Error("تحدثت حالة الشحنة لكن تعذّر تحديث المخزون؛ أعد المزامنة");
-          await stock.body?.cancel();
+          const stockResult=await stock.json().catch(()=>null);
+          if(!stock.ok || !stockResult?.ok || stockResult.errors?.length) throw Error("تمت قراءة حالة الشحنة لكن تعذّر تحديث المخزون؛ أعد المزامنة");
+          const {data:unpacked,error:unpackError}=await admin!.from("orders").update({status:"unpacked"}).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).eq("status","shipped").eq("shipping_id",order.shipping_id).eq("carrier_status_updated_at",payload.carrier_status_updated_at).select("id").maybeSingle();
+          if(unpackError) throw Error("تعذّر حفظ حالة التفريغ؛ أعد المزامنة");
+          if(!unpacked) { skipped++; return; }
         }
         const stat=codes.get(code)||{code,count:0,label:STATUS_LABELS[code]||shipment.status?.name||code,mapped:!!custom};
         codes.set(code,{...stat,count:stat.count+1});
@@ -157,7 +168,7 @@ Deno.serve(async (req) => {
     };
     // Five shipments per request; every network operation has a 10s deadline.
     for(let offset=0;offset<ids.length;offset+=5) await Promise.all(ids.slice(offset,offset+5).map(processOne));
-    const {data:job,error:finishError}=await admin.rpc("finish_carrier_sync_batch",{_store_id:storeId,_job_id:jobId,_lease_id:leaseId,_updated:updated,_failed:failed,_codes:[...codes.values()],_errors:errors});
+    const {data:job,error:finishError}=await admin.rpc("finish_carrier_sync_batch",{_store_id:storeId,_job_id:jobId,_lease_id:leaseId,_updated:updated,_failed:failed,_skipped:skipped,_codes:[...codes.values()],_errors:errors});
     if(finishError) throw finishError;
     return json({ok:true,job});
   } catch(error) {
