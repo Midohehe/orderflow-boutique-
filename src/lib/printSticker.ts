@@ -1,3 +1,5 @@
+import { findCurrency } from "./currencies";
+
 export type StickerField = {
   key: string;
   label: string;
@@ -51,6 +53,7 @@ export const DEFAULT_STICKER_SETTINGS: StickerSettings = {
 };
 
 export type StickerOrder = {
+  currency_code?: string | null;
   id: string;
   customer_name?: string | null;
   phone?: string | null;
@@ -92,7 +95,7 @@ const renderValue = (key: string, order: StickerOrder, currencySymbol: string, s
     case "created_at":
       return order.created_at ? new Date(order.created_at).toLocaleString("ar-AE") : "";
     case "price":
-      return order.price != null ? `${order.price} ${currencySymbol}` : "";
+      return order.price != null ? `${order.price} ${findCurrency(order.currency_code)?.symbol || currencySymbol}` : "";
     case "shipping_reference":
       return order.shipping_reference || "";
     default:

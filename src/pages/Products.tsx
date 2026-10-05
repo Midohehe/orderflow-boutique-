@@ -1,3 +1,4 @@
+import { findCurrency } from "@/lib/currencies";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1001,6 +1002,7 @@ const Products = () => {
   });
 
   const validateLp = (lp: LandingPageFormData): string | null => {
+    if (lp.currencyCode && !findCurrency(lp.currencyCode)) return "يرجى اختيار عملة صحيحة";
     if (!lp.productId) return "يرجى اختيار المنتج المرتبط";
     if (!lp.title.trim()) return "يرجى إدخال العنوان";
     if (!lp.slug.trim()) return "يرجى إدخال الرابط (slug)";
@@ -1023,6 +1025,7 @@ const Products = () => {
         subtitle: newLp.subtitle.trim() || null,
         description: newLp.description || "",
         images: newLp.images || [],
+        currency_code: newLp.currencyCode || null,
         price: newLp.price ? parseFloat(newLp.price) : null,
         original_price: newLp.originalPrice ? parseFloat(newLp.originalPrice) : null,
         upsell_enabled: !!newLp.upsellEnabled,
@@ -1238,6 +1241,7 @@ const Products = () => {
       subtitle: d.subtitle || "",
       description: d.description || "",
       images: d.images || [],
+      currencyCode: d.currency_code || "",
       price: d.price != null ? String(d.price) : "",
       originalPrice: d.original_price != null ? String(d.original_price) : "",
       upsellEnabled: !!d.upsell_enabled,
@@ -1291,6 +1295,7 @@ const Products = () => {
         subtitle: editLp.subtitle.trim() || null,
         description: editLp.description || "",
         images: editLp.images || [],
+        currency_code: editLp.currencyCode || null,
         price: editLp.price ? parseFloat(editLp.price) : null,
         original_price: editLp.originalPrice ? parseFloat(editLp.originalPrice) : null,
         upsell_enabled: !!editLp.upsellEnabled,

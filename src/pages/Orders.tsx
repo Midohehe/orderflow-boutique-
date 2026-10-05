@@ -1,3 +1,4 @@
+import { findCurrency } from "@/lib/currencies";
 import CarrierSyncPanel from "@/components/CarrierSyncPanel";
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
@@ -79,6 +80,7 @@ interface Order {
   product_name: string;
   product_id?: string | null;
   price: number;
+  currency_code?: string | null;
   shipping_fee?: number;
   courier_orders?: { assigned_at: string; sub_status: string; courier_batches: { code: number } | null } | null;
   status: "with_courier" | "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received" | "unpacked";
@@ -132,7 +134,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
+const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, currency_code, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -1490,6 +1492,7 @@ const Orders = () => {
 
   const toStickerOrder = (o: Order, items?: StickerVariantItem[]): StickerOrder => ({
     id: o.id,
+    currency_code: o.currency_code,
     customer_name: o.customer_name,
     phone: o.phone,
     address: o.address,
@@ -1618,6 +1621,7 @@ const Orders = () => {
   );
 
   const renderOrderCard = (order: Order, showCheckbox: boolean = false, duplicateCount: number = 0) => {
+    const orderCurrencySymbol = findCurrency(order.currency_code)?.symbol || currencySymbol;
     const productTotal = orderProductTotal(order);
     const shippingFee = orderShippingFee(order);
     const orderTotal = orderCollectableTotal(order);
@@ -1690,7 +1694,7 @@ const Orders = () => {
                 {hasDeliveryFee && (
                   <Badge className="bg-sky-500/15 text-sky-800 dark:text-sky-200 border border-sky-500/30 gap-1">
                     <Truck className="w-3 h-3" />
-                    نوع التوصيل: {order.city} (+{shippingFee} {currencySymbol})
+                    نوع التوصيل: {order.city} (+{shippingFee} {orderCurrencySymbol})
                   </Badge>
                 )}
               </div>
@@ -1715,17 +1719,17 @@ const Orders = () => {
                 {hasDeliveryFee ? (
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                     <span className="text-muted-foreground">
-                      المنتجات: <span className="font-semibold text-foreground">{productTotal} {currencySymbol}</span>
+                      المنتجات: <span className="font-semibold text-foreground">{productTotal} {orderCurrencySymbol}</span>
                     </span>
                     <span className="text-sky-700 dark:text-sky-300">
-                      التوصيل: <span className="font-semibold">+{shippingFee} {currencySymbol}</span>
+                      التوصيل: <span className="font-semibold">+{shippingFee} {orderCurrencySymbol}</span>
                     </span>
                     <span className="text-primary font-bold text-base">
-                      الإجمالي: {orderTotal} {currencySymbol}
+                      الإجمالي: {orderTotal} {orderCurrencySymbol}
                     </span>
                   </div>
                 ) : (
-                  <span className="text-primary font-bold">{productTotal} {currencySymbol}</span>
+                  <span className="text-primary font-bold">{productTotal} {orderCurrencySymbol}</span>
                 )}
                 {Array.isArray(order.upsell_offers) && order.upsell_offers.length > 0 && (
                   <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1">

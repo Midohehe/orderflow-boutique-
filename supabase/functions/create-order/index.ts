@@ -1,5 +1,6 @@
 // Public edge function to create an order with server-side price recomputation.
 // Prevents clients from spoofing the price written to the database.
+import { resolveLandingCurrency } from "../_shared/currencies.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { customerCityForMatching } from "../_shared/customerCityForMatching.ts";
 
@@ -394,16 +395,19 @@ Deno.serve(async (req) => {
     // no upsell — period.
     let upsellEnabled = false;
     let upsellOffers: any[] = [];
+    let landingCurrencyCode: string | null = null;
     let orderFormPresetId: string | null = null;
     const landingSlug = s(body.landing_slug ?? "", 200);
     if (landingSlug) {
-      const { data: lp } = await supabase
+      const { data: lp, error: landingError } = await supabase
         .from("landing_pages")
-        .select("price, upsell_enabled, upsell_offers, order_form_preset_id")
+        .select("price, currency_code, upsell_enabled, upsell_offers, order_form_preset_id")
         .eq("slug", landingSlug)
         .eq("product_id", product.id)
         .maybeSingle();
+      if (landingError) throw landingError;
       if (lp) {
+        landingCurrencyCode = lp.currency_code ?? null;
         orderFormPresetId = (lp as { order_form_preset_id?: string | null }).order_form_preset_id ?? null;
         if (lp.price !== null && lp.price !== undefined && Number(lp.price) > 0) {
           totalPrice = Number(lp.price) * quantity;
@@ -422,6 +426,14 @@ Deno.serve(async (req) => {
     }
 
     const storeId = (product as { store_id?: string | null }).store_id ?? null;
+    // Resolve the authoritative currency from the matched page and its store,
+    // never from a currency supplied by the browser. Preserve it on the order.
+    let currencyQuery = supabase.from("store_settings")
+      .select("currency_code, currency_symbol").eq("owner_id", product.owner_id);
+    if (storeId) currencyQuery = currencyQuery.eq("store_id", storeId);
+    const { data: currencySettings, error: currencyError } = await currencyQuery.limit(1).maybeSingle();
+    if (currencyError) throw currencyError;
+    const orderCurrency = resolveLandingCurrency(landingCurrencyCode, currencySettings);
     const acceptedOfferId = s(body.accepted_offer_id ?? "", 64) || null;
     let offerWaivesShipping = false;
     let offerExtraItems: OfferLine[] = [];
@@ -531,6 +543,7 @@ Deno.serve(async (req) => {
       governorate: governorate || null,
       product_id: product.id,
       product_name: orderProductName,
+      currency_code: orderCurrency.currency_code,
       price: totalPrice,
       shipping_fee: shippingFee,
       quantity,
@@ -725,6 +738,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: true,
+        ...orderCurrency,
         price: totalPrice,
         shipping_fee: shippingFee,
         total: totalPrice + shippingFee,

@@ -9,30 +9,7 @@ import { SectionCard } from "@/components/SectionCard";
 import { PageHeader } from "@/components/PageHeader";
 import { useUserContext } from "@/hooks/useUserContext";
 
-const currencies = [
-  { code: "AED", name: "درهم إماراتي", symbol: "د.إ" },
-  { code: "SAR", name: "ريال سعودي", symbol: "ر.س" },
-  { code: "EGP", name: "جنيه مصري", symbol: "ج.م" },
-  { code: "KWD", name: "دينار كويتي", symbol: "د.ك" },
-  { code: "BHD", name: "دينار بحريني", symbol: "د.ب" },
-  { code: "QAR", name: "ريال قطري", symbol: "ر.ق" },
-  { code: "OMR", name: "ريال عماني", symbol: "ر.ع" },
-  { code: "JOD", name: "دينار أردني", symbol: "د.أ" },
-  { code: "LBP", name: "ليرة لبنانية", symbol: "ل.ل" },
-  { code: "IQD", name: "دينار عراقي", symbol: "د.ع" },
-  { code: "SYP", name: "ليرة سورية", symbol: "ل.س" },
-  { code: "YER", name: "ريال يمني", symbol: "ر.ي" },
-  { code: "LYD", name: "دينار ليبي", symbol: "د.ل" },
-  { code: "TND", name: "دينار تونسي", symbol: "د.ت" },
-  { code: "DZD", name: "دينار جزائري", symbol: "د.ج" },
-  { code: "MAD", name: "درهم مغربي", symbol: "د.م" },
-  { code: "SDG", name: "جنيه سوداني", symbol: "ج.س" },
-  { code: "USD", name: "دولار أمريكي", symbol: "$" },
-  { code: "EUR", name: "يورو", symbol: "€" },
-  { code: "GBP", name: "جنيه إسترليني", symbol: "£" },
-  { code: "TRY", name: "ليرة تركية", symbol: "₺" },
-  { code: "INR", name: "روبية هندية", symbol: "₹" },
-];
+import { currencies } from "@/lib/currencies";
 
 const CurrencySettings = () => {
   const [selectedCurrency, setSelectedCurrency] = useState("AED");
@@ -96,7 +73,7 @@ const CurrencySettings = () => {
       <PageHeader icon={Coins} title="إعدادات العملة" description="اختر العملة المستخدمة في متجرك" iconGradient="from-amber-500 to-orange-500" />
 
       <div className="grid lg:grid-cols-2 gap-5">
-        <SectionCard icon={DollarSign} title="عملة المتجر" description="ستظهر بها كل الأسعار" iconColor="bg-emerald-500">
+        <SectionCard icon={DollarSign} title="عملة المتجر" description="العملة الافتراضية للأسعار؛ يمكن تخصيص عملة مختلفة لكل صفحة هبوط" iconColor="bg-emerald-500">
           <div className="space-y-2">
             <Label className="font-semibold">العملة</Label>
             <Select value={selectedCurrency} onValueChange={setSelectedCurrency}>

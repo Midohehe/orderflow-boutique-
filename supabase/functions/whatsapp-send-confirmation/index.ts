@@ -1,4 +1,5 @@
 // Sends the order confirmation WhatsApp message. Service-role; called from create-order or manually.
+import { resolveLandingCurrency } from "../_shared/currencies.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { sendText, sendConfirmationTemplate, isConfigured, getProvider, resolveSendSettings } from "../_shared/wa-providers.ts";
 
@@ -55,8 +56,11 @@ Deno.serve(async (req) => {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-    const { data: store } = await supabase.from("store_settings")
-      .select("currency_symbol").eq("owner_id", order.owner_id).maybeSingle();
+    let storeQuery = supabase.from("store_settings")
+      .select("currency_code, currency_symbol").eq("owner_id", order.owner_id);
+    if (order.store_id) storeQuery = storeQuery.eq("store_id", order.store_id);
+    const { data: store } = await storeQuery.limit(1).maybeSingle();
+    const currency = resolveLandingCurrency(order.currency_code, store);
 
     const productsLine = `${order.product_name}${order.selected_color ? " - " + order.selected_color : ""}${order.selected_size ? " - " + order.selected_size : ""} × ${order.quantity}`;
 
@@ -65,7 +69,7 @@ Deno.serve(async (req) => {
       .replaceAll("{order_id}", String(order.id).slice(0, 8))
       .replaceAll("{products}", productsLine)
       .replaceAll("{total}", String(order.price))
-      .replaceAll("{currency}", store?.currency_symbol || "");
+      .replaceAll("{currency}", currency.currency_symbol);
 
     // Upsert conversation
     const { data: convExisting } = await supabase.from("whatsapp_conversations")

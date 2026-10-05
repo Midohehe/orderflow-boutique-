@@ -1,3 +1,4 @@
+import { resolveLandingCurrency } from "@/lib/currencies";
 import { useEffect, useMemo, useState } from "react";
 import { Puck } from "@measured/puck";
 import "@measured/puck/puck.css";
@@ -27,12 +28,28 @@ const PuckBuilder = () => {
   const [landingMeta, setLandingMeta] = useState<{ slug: string; title: string } | null>(null);
   const [templateName, setTemplateName] = useState<string>("");
 
+  const [currencySymbol, setCurrencySymbol] = useState("د.ل");
+  useEffect(() => {
+    let cancelled = false;
+    const ownerId = activeStore?.owner_id || profile?.user_id;
+    if (!ownerId) return;
+    let settingsQuery = supabase.from("store_settings").select("currency_code, currency_symbol").eq("owner_id", ownerId);
+    if (storeId) settingsQuery = settingsQuery.eq("store_id", storeId);
+    Promise.all([
+      settingsQuery.limit(1).maybeSingle(),
+      landingId ? supabase.from("landing_pages").select("currency_code").eq("id", landingId).maybeSingle() : Promise.resolve({ data: null }),
+    ]).then(([settings, landing]) => {
+      if (!cancelled) setCurrencySymbol(resolveLandingCurrency(landing.data?.currency_code, settings.data).currency_symbol);
+    });
+    return () => { cancelled = true; };
+  }, [storeId, activeStore?.owner_id, profile?.user_id, landingId]);
+
   const ctx: PuckContext = useMemo(() => ({
     ownerId: activeStore?.owner_id || profile?.user_id,
     storeId,
     username: activeStore?.slug,
-    currencySymbol: "د.ل",
-  }), [activeStore, profile, storeId]);
+    currencySymbol,
+  }), [activeStore, profile, storeId, currencySymbol]);
 
   const config = useMemo(() => buildPuckConfig(ctx), [ctx]);
 

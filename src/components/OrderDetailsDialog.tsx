@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { findCurrency } from "@/lib/currencies";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -608,6 +609,7 @@ export const OrderDetailsDialog = ({ orderId, open, onOpenChange, onSaved }: Pro
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h4 className="font-semibold text-foreground">منتجات الطلب ({items.length})</h4>
+                  {data.currency_code && <span className="text-xs text-muted-foreground">عملة الطلب: {findCurrency(data.currency_code)?.name || data.currency_code} ({data.currency_code})</span>}
                   <span className="text-xs text-muted-foreground">
                     إجمالي القطع: <span className="font-semibold text-foreground">{items.reduce((s, it) => s + (Number(it.quantity) || 0), 0)}</span>
                     {" · "}

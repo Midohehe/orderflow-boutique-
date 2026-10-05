@@ -2,6 +2,7 @@
 // before React hydrates. Designed to be invoked by a Cloudflare Worker
 // on the custom domain (e.g. was-la.com) that routes /p/* here and
 // proxies everything else to the deployed SPA origin.
+import { resolveLandingCurrency } from "../_shared/currencies.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   extractPuckHero,
@@ -251,6 +252,7 @@ function buildAboveFold(
 // flash. JSON is embedded in a <script type="application/json"> tag; we only
 // need to neutralize "<" so the tag can't be terminated early.
 function buildSeedJson(input: {
+  landingCurrencyCode?: string | null;
   slug: string;
   username: string | null;
   ownerId: string | null;
@@ -269,7 +271,8 @@ function buildSeedJson(input: {
   const p = input.product || {};
   const sc = p.size_chart;
   const seed = {
-    v: 2,
+    v: 3,
+    landingCurrencyCode: input.landingCurrencyCode ?? null,
     slug: input.slug,
     username: input.username,
     ownerId: input.ownerId,
@@ -561,7 +564,7 @@ Deno.serve(async (req) => {
     const landingQuery = supabase
       .from("landing_pages")
       .select(
-        "id, product_id, store_id, title, subtitle, slug, description, images, price, original_price, owner_id, is_visible, puck_data, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, faqs, size_chart, order_form_preset_id",
+        "id, product_id, store_id, title, subtitle, slug, description, images, price, original_price, currency_code, owner_id, is_visible, puck_data, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, faqs, size_chart, order_form_preset_id",
       )
       .eq("slug", slug)
       .eq("is_visible", true);
@@ -645,14 +648,15 @@ Deno.serve(async (req) => {
     storeExtras.button_text = formConfig.button_text || storeExtras.button_text;
     storeExtras.confirmation_enabled = formConfig.confirmation_enabled;
     storeExtras.confirmation_message = formConfig.confirmation_message;
-    const currency = storeExtras.currency_symbol;
+    const effectiveStore = { ...storeExtras, ...resolveLandingCurrency(landing?.currency_code, storeExtras) };
+    const currency = effectiveStore.currency_symbol;
     const themeTokens = parseThemeTokens(storeExtras.theme_tokens);
     const themeCustomCss = storeExtras.theme_custom_css;
 
     const pageUrl = `https://${publicHost}${targetPath}`;
     const shell = absolutizeAssets(await getShell());
     const themeCss = themeTokensToSsrCssFromTokens(themeTokens, "#root", themeCustomCss);
-    const headInjection = buildHead(product, currency, pageUrl, platformName, publicHost) + `<style id="ssr-theme">${themeCss}</style>`;
+    const headInjection = buildHead(product, effectiveStore.currency_code, pageUrl, platformName, publicHost) + `<style id="ssr-theme">${themeCss}</style>`;
     const bodyInjection = puckHasRenderableContent(puckData)
       ? renderPuckToHtml(puckData)
       : buildAboveFold(product, currency, storeExtras.button_text, formFields as any[], puckHero, publicHost, hasApprovedStandardDesign(shell), header);
@@ -667,7 +671,8 @@ Deno.serve(async (req) => {
       ownerId: product.owner_id ?? ownerId ?? null,
       storeId: productStoreId,
       product,
-      store: storeExtras,
+      store: effectiveStore,
+      landingCurrencyCode: landing?.currency_code ?? null,
       formFields,
       deliveryPrices,
       pixelSettings,

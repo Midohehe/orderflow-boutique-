@@ -1,3 +1,4 @@
+import { resolveLandingCurrency } from "@/lib/currencies";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -329,6 +330,7 @@ function setToCache(key: string, data: any) {
 // (incl. the order form) on its first paint — no "shell → loading form → page"
 // double load. Parsed once; consumed only when it matches the current slug.
 interface LandingSsrSeed {
+  landingCurrencyCode?: string | null;
   v: number;
   slug: string;
   username: string | null;
@@ -380,11 +382,12 @@ const LandingPage = () => {
     if (username && seed.username && seed.username !== username) return null;
     return seed;
   }, [slug, username, isPreviewMode]);
-  // Only a v2+ seed carries ALL read data (theme, description, reviews, pixels,
+  // A v3+ seed also includes the effective per-page currency. Older seeds
+  // must revalidate before showing prices. It carries all read data (theme,
   // header, platform name). For such seeds we fully trust them and skip the
   // per-visit read queries. Older/partial seeds still hydrate the first paint
   // but fall back to the normal fetch so nothing renders stale during deploys.
-  const seedTrusted = !!ssrSeed && (ssrSeed.v ?? 1) >= 2 && !isPreviewMode;
+  const seedTrusted = !!ssrSeed && (ssrSeed.v ?? 1) >= 3 && !isPreviewMode;
   const seededFirstRunRef = useRef(!!ssrSeed);
 
   const [product, setProduct] = useState<Product | null>(ssrSeed?.product ?? null);
@@ -437,13 +440,20 @@ const LandingPage = () => {
     governorate: string;
     address: string;
   } | null>(null);
-  const [storeSettings, setStoreSettings] = useState<StoreSettings>({
+  const [landingCurrencyCode, setLandingCurrencyCode] = useState<string | null>(ssrSeed?.landingCurrencyCode ?? null);
+  const [currencyLoading, setCurrencyLoading] = useState(!seedTrusted);
+  const [currencyError, setCurrencyError] = useState(false);
+  const [baseStoreSettings, setStoreSettings] = useState<StoreSettings>({
     currency_symbol: ssrSeed?.store?.currency_symbol ?? "د.ل",
     currency_code: ssrSeed?.store?.currency_code ?? "LYD",
     button_text: ssrSeed?.store?.button_text ?? "اطلب الآن - الدفع عند الاستلام",
     theme_tokens: parseThemeTokens(ssrSeed?.store?.theme_tokens ?? null),
     theme_custom_css: ssrSeed?.store?.theme_custom_css ?? null,
   });
+  const storeSettings = useMemo(() => ({
+    ...baseStoreSettings,
+    ...resolveLandingCurrency(landingCurrencyCode, baseStoreSettings),
+  }), [baseStoreSettings, landingCurrencyCode]);
   const [formData, setFormData] = useState<Record<string, string>>(() =>
     ssrSeed?.formFields?.length ? ensureFormFieldKeys({}, ssrSeed.formFields) : {}
   );
@@ -894,6 +904,10 @@ const LandingPage = () => {
       // We keep exactly ONE live read — current stock — so availability stays
       // accurate, plus the page_view write. Everything else is already in state.
       if (seedTrusted && ssrSeed) {
+        setCurrencyLoading(false);
+        setCurrencyError(false);
+        setLandingCurrencyCode(ssrSeed.landingCurrencyCode ?? null);
+        setStoreSettings({ ...ssrSeed.store, theme_tokens: parseThemeTokens(ssrSeed.store.theme_tokens ?? null) });
         setLoading(false);
         setFormFieldsLoaded(true);
         setStrictStockEnabled(!!ssrSeed.strictStock);
@@ -996,7 +1010,10 @@ const LandingPage = () => {
         setStrictStockEnabled(false);
 
         // Owner-scoped caches will be read after we resolve the product owner.
-        let loadedCurrency = "AED";
+        setCurrencyLoading(true);
+        setCurrencyError(false);
+        setLandingCurrencyCode(null);
+        let loadedCurrency = "LYD";
 
         // Cached product for instant render
         const productCacheKey = CACHE_KEYS.PRODUCT + (username || '_') + slug;
@@ -1024,15 +1041,18 @@ const LandingPage = () => {
         // ابحث عن صفحة هبوط بهذا الـ slug، فإن وُجدت نأخذ المنتج المرتبط ونطبّق إعدادات الصفحة
         const landingPromise = supabase
           .from("landing_pages")
-          .select("id, product_id, store_id, owner_id, slug, title, subtitle, images, price, original_price, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart, order_form_preset_id")
+          .select("id, product_id, store_id, owner_id, slug, title, subtitle, images, price, original_price, currency_code, upsell_enabled, upsell_title, upsell_offers, order_form_on_top, show_quantity, is_visible, faqs, size_chart, order_form_preset_id")
           .eq("slug", slug)
           .maybeSingle();
 
         const [profileRes, landingRes, storeBySlugRes] = await Promise.all([profilePromise, landingPromise, storeBySlugPromise]);
         if ((landingRes as any).error) {
-          console.error("landing_pages fetch:", (landingRes as any).error);
+          throw (landingRes as any).error;
         }
         const landingPage: any = landingRes && (landingRes as any).data ? (landingRes as any).data : null;
+        if (ac.signal.aborted) return;
+        setLandingCurrencyCode(landingPage?.currency_code ?? null);
+        loadedCurrency = resolveLandingCurrency(landingPage?.currency_code).currency_code;
         const storeBySlug: any = storeBySlugRes && (storeBySlugRes as any).data ? (storeBySlugRes as any).data : null;
 
         // إن وُجدت صفحة هبوط: نأخذ المنتج بمعرّفه. وإلا نرجع للسلوك القديم (slug في products).
@@ -1241,7 +1261,8 @@ const LandingPage = () => {
             setConfirmationEnabled(cachedStoreSettings.confirmation_enabled);
             setConfirmationMessage(cachedStoreSettings.confirmation_message || "");
           }
-          loadedCurrency = cachedStoreSettings.currency_code;
+          loadedCurrency = resolveLandingCurrency(landingPage?.currency_code, cachedStoreSettings).currency_code;
+          setCurrencyLoading(false);
         }
         if (cachedFormFields) {
           const normalized = normalizePublicFormFields(cachedFormFields as FormField[]);
@@ -1255,7 +1276,7 @@ const LandingPage = () => {
           }
         }
 
-        if (cachedPixelSettings) {
+        if (cachedPixelSettings && cachedStoreSettings) {
           deferMarketingPixels(() =>
             initializePixels(
               cachedPixelSettings as PixelSettings,
@@ -1293,6 +1314,8 @@ const LandingPage = () => {
 
         Promise.all([pixelPromise, formConfigPromise, storePromise, stockPolicyPromise])
           .then(([pixelResult, formConfigResult, storeSettingsResult, stockPolicyResult]) => {
+          if (ac.signal.aborted) return;
+          if (storeSettingsResult.error && !cachedStoreSettings) throw storeSettingsResult.error;
           if (!formConfigResult.error && formConfigResult.config) {
             const fields = normalizePublicFormFields(formConfigResult.config.fields) as FormField[];
             setFormFields(fields);
@@ -1318,13 +1341,14 @@ const LandingPage = () => {
             setStrictStockEnabled(false);
           }
 
-          const currencySymbol = storeSettingsResult.data?.currency_symbol;
-          const currencyCode = storeSettingsResult.data?.currency_code;
+          const rawCurrency = resolveLandingCurrency(null, storeSettingsResult.data || cachedStoreSettings);
+          const currencySymbol = rawCurrency.currency_symbol;
+          const currencyCode = rawCurrency.currency_code;
           const buttonText = formConfigResult.config?.buttonText || "اطلب الآن - الدفع عند الاستلام";
-          if (storeSettingsResult.data || formConfigResult.config) {
-            loadedCurrency = currencyCode || loadedCurrency;
+          {
+            loadedCurrency = resolveLandingCurrency(landingPage?.currency_code, rawCurrency).currency_code;
             const nextStore = {
-              currency_symbol: currencySymbol || storeSettings.currency_symbol || "د.ل",
+              currency_symbol: currencySymbol || "د.ل",
               currency_code: currencyCode || "LYD",
               button_text: buttonText,
               theme_tokens: parseThemeTokens((storeSettingsResult.data as { theme_tokens?: unknown } | null)?.theme_tokens),
@@ -1341,6 +1365,7 @@ const LandingPage = () => {
             });
             setToCache(storeKey, nextStore);
           }
+          setCurrencyLoading(false);
 
           if (pixelResult.data) {
             setToCache(pixelKey, pixelResult.data);
@@ -1366,11 +1391,17 @@ const LandingPage = () => {
           }
         })
           .catch((err) => {
+            if (ac.signal.aborted) return;
             console.error("landing settings fetch:", err);
+            setCurrencyError(!cachedStoreSettings);
+            setCurrencyLoading(false);
             setFormFieldsLoaded(true);
           });
       } catch (error) {
+        if (ac.signal.aborted) return;
         console.error("Error loading data:", error);
+        setCurrencyError(true);
+        setCurrencyLoading(false);
         setLoading(false);
       }
     };
@@ -1690,9 +1721,7 @@ const LandingPage = () => {
     window.snaptr('track', 'PAGE_VIEW');
   };
 
-  const trackPurchaseEvent = () => {
-    const currencyCode = toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol);
-    const productValue = orderTotalDisplay;
+  const trackPurchaseEvent = (currencyCode: string, productValue: number) => {
     const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     // Persist for thank-you page fallback dedup
     try {
@@ -1956,8 +1985,8 @@ const LandingPage = () => {
         throw new Error(mapCreateOrderError(String((data as { error: string }).error)));
       }
 
-      // Track purchase event (pixels + internal analytics)
-      trackPurchaseEvent();
+      // Internal analytics records the successful order; marketing events below
+      // use the authoritative amount and currency returned by checkout.
       trackAnalyticsEvent("purchase", slug || "", ownerId || null, storeId || null).then(({ error }) => {
         if (error) console.error("purchase tracking:", error);
       });
@@ -1995,12 +2024,16 @@ const LandingPage = () => {
           ? Number((data as any).price)
           : orderProductSubtotal;
 
+      const checkoutCurrency = resolveLandingCurrency(
+        (data as { currency_code?: string } | null)?.currency_code, storeSettings,
+      );
+      trackPurchaseEvent(checkoutCurrency.currency_code, orderPrice);
       thankYouPayloadRef.current = {
         productName: product?.name,
         price: productPriceOnly,
         shippingFee: shippingFeeFromServer,
-        currencySymbol: storeSettings.currency_symbol,
-        currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
+        currencySymbol: checkoutCurrency.currency_symbol,
+        currencyCode: checkoutCurrency.currency_code,
         productId: product?.id,
         quantity,
         customerName: customer_name,
@@ -2036,8 +2069,8 @@ const LandingPage = () => {
               productName: product?.name,
               price: orderPrice,
               shippingFee: shippingFeeFromServer,
-              currencySymbol: storeSettings.currency_symbol,
-              currencyCode: toISOCurrency(storeSettings.currency_code, storeSettings.currency_symbol),
+              currencySymbol: checkoutCurrency.currency_symbol,
+              currencyCode: checkoutCurrency.currency_code,
               productId: product?.id,
               quantity,
               customerName: customer_name,
@@ -2162,7 +2195,14 @@ const LandingPage = () => {
     }
   };
 
-  if (loading && !product) {
+  if (currencyError) {
+    return <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6" dir="rtl">
+      <p>تعذر تحميل بيانات الصفحة. يرجى المحاولة مرة أخرى.</p>
+      <Button onClick={() => window.location.reload()}>إعادة المحاولة</Button>
+    </div>;
+  }
+
+  if ((loading && !product) || (currencyLoading && product)) {
     if (ssrBootRef.current && hasLandingSsrShell()) {
       return null;
     }

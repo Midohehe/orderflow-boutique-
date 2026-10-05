@@ -1,3 +1,4 @@
+import { findCurrency } from "@/lib/currencies";
 import { normalizeColorImages } from "@/lib/colorImages";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadImageFromUrl, isHttpImageUrl } from "@/lib/imageStorage";
@@ -41,6 +42,7 @@ export interface ExportProduct {
 }
 
 export interface ExportLandingPage {
+  currency_code?: string | null;
   id?: string;
   product_id?: string;
   slug?: string;
@@ -318,6 +320,7 @@ export async function importLandingPagesFromExport(
           .replace(/-+/g, "-") ||
         "landing";
       const slug = uniqueSlug(baseSlug, slugSet);
+      if (lp.currency_code && !findCurrency(lp.currency_code)) throw new Error("عملة صفحة الهبوط غير مدعومة");
       const images = await uploadImages(lp.images, ctx.ownerId, ctx.storeId);
 
       const { error } = await supabase.from("landing_pages").insert({
@@ -329,6 +332,7 @@ export async function importLandingPagesFromExport(
         subtitle: lp.subtitle?.trim() || null,
         description: lp.description || "",
         images,
+        currency_code: lp.currency_code || null,
         price: lp.price != null ? Number(lp.price) : null,
         original_price: lp.original_price != null ? Number(lp.original_price) : null,
         upsell_enabled: !!lp.upsell_enabled,

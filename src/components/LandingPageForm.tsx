@@ -6,6 +6,8 @@ import ImageUpload from "@/components/ImageUpload";
 import RichTextEditor from "@/components/RichTextEditor";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Tag, FileText, ImageIcon, DollarSign, TrendingUp, Eye, Package, HelpCircle, Trash2, LayoutTemplate, Ruler, Plus, ArrowUp, ArrowDown } from "lucide-react";
+import { currencies } from "@/lib/currencies";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 const SectionCard = ({
@@ -44,6 +46,7 @@ export interface LandingPageFormData {
   images: string[];
   price: string;
   originalPrice: string;
+  currencyCode: string;
   upsellEnabled: boolean;
   upsellTitle?: string;
   upsellOffers: Array<{ quantity: string; price: string; label: string }>;
@@ -71,6 +74,7 @@ export const emptyLandingPageData: LandingPageFormData = {
   images: [],
   price: "",
   originalPrice: "",
+  currencyCode: "",
   upsellEnabled: false,
   upsellTitle: "",
   upsellOffers: [],
@@ -226,7 +230,20 @@ const LandingPageForm = ({
       </SectionCard>
 
       {/* التسعير */}
-      <SectionCard icon={DollarSign} title="التسعير" description="اتركه فارغًا لاستخدام سعر المنتج" iconColor="bg-emerald-500">
+      <SectionCard icon={DollarSign} title="التسعير" description="اترك السعر فارغًا لاستخدام سعر المنتج" iconColor="bg-emerald-500">
+        <div className="space-y-2">
+          <Label htmlFor="landing-currency" className="font-semibold">عملة صفحة الهبوط</Label>
+          <Select value={data.currencyCode || "store_default"} onValueChange={(value) => update("currencyCode", value === "store_default" ? "" : value)}>
+            <SelectTrigger id="landing-currency" dir="rtl"><SelectValue /></SelectTrigger>
+            <SelectContent dir="rtl">
+              <SelectItem value="store_default">عملة المتجر الافتراضية</SelectItem>
+              {currencies.map((currency) => (
+                <SelectItem key={currency.code} value={currency.code}>{currency.name} ({currency.code}) — {currency.symbol}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">تُطبق على هذه الصفحة فقط. الأسعار والعروض ورسوم التوصيل تُستخدم كما هي دون تحويل بسعر صرف؛ تأكد من إدخال القيم المناسبة للعملة المختارة.</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-semibold">سعر العرض</Label>
