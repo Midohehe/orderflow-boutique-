@@ -19,6 +19,8 @@ export interface OrdersPageMeta {
   carrierCounts: Record<string, number>;
   confirmationCounts: Record<string, number>;
   deletedCount: number;
+  foreignCount: number;
+  pendingCountryCounts: Record<string, number>;
   missedCount: number;
   statusMappings: Array<{
     status_code: string;
@@ -65,7 +67,7 @@ export async function fetchOrdersPageMeta(
   });
 
   if (countsRes.error) throw countsRes.error;
-  const counts = countsRes.data as { statusCounts: Record<string, number>; confirmationCounts: Record<string, number>; deletedCount: number };
+  const counts = countsRes.data as { statusCounts: Record<string, number>; confirmationCounts: Record<string, number>; deletedCount: number; foreignCount: number; pendingCountryCounts: Record<string, number> };
   const { statusCounts, confirmationCounts } = counts;
 
   return {
@@ -78,6 +80,8 @@ export async function fetchOrdersPageMeta(
     carrierCounts,
     confirmationCounts,
     deletedCount: counts.deletedCount ?? 0,
+    foreignCount: counts.foreignCount ?? 0,
+    pendingCountryCounts: counts.pendingCountryCounts ?? {},
     missedCount,
     statusMappings,
   };

@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export const ORDER_LIST_COLS =
-  "id, shipping_provider, currency_code, customer_name, phone, address, city, governorate, product_name, product_id, price, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code, courier_orders(assigned_at, sub_status, courier_batches(code))";
+  "id, shipping_provider, currency_code, customer_name, phone, address, city, governorate, product_name, product_id, price, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_review_required, country_code, courier_orders(assigned_at, sub_status, courier_batches(code))";
 
 export type OrderTab =
   | "pending"
@@ -16,6 +16,7 @@ export type OrderTab =
   | "deleted";
 
 export interface OrdersPageFilters {
+  countryCode?: string;
   productName?: string;
   confirmationStatus?: string;
   prepStatus?: string;
@@ -38,10 +39,10 @@ function applyTabFilter(q: OrdersQuery, tab: OrderTab): OrdersQuery {
   }
   const next = q.eq("is_deleted", false);
   if (tab === "pending") {
-    return next.eq("status", "pending").or("country_code.is.null,country_code.eq.LY,country_code.eq.ly");
+    return next.eq("status", "pending").eq("country_review_required", false);
   }
   if (tab === "foreign") {
-    return next.not("country_code", "is", null).neq("country_code", "LY").neq("country_code", "ly");
+    return next.eq("status", "pending").eq("country_review_required", true);
   }
   if (tab === "delivered") {
     return next.in("status", ["delivered", "settled"]);
@@ -75,6 +76,12 @@ export async function fetchOrdersPage(
     .order("created_at", { ascending: false });
 
   q = applyTabFilter(q, tab);
+
+  if (filters.countryCode === 'unknown') q = q.or('country_code.is.null,country_code.eq.""');
+  else if (filters.countryCode && filters.countryCode !== 'all') {
+    if (!/^[A-Z]{2}$/.test(filters.countryCode)) throw Error('رمز الدولة غير صالح');
+    q = q.ilike('country_code', filters.countryCode);
+  }
 
   if (filters.productName && filters.productName !== "all") {
     q = q.eq("product_name", filters.productName);

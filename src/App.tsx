@@ -61,6 +61,7 @@ const OrderFormSettings = lazy(() => import("./pages/OrderFormSettings"));
 const ThankYouSettings = lazy(() => import("./pages/ThankYouSettings"));
 
 const CurrencySettings = lazy(() => import("./pages/CurrencySettings"));
+const CountrySettings = lazy(() => import("./pages/CountrySettings"));
 const ThemeSettings = lazy(() => import("./pages/ThemeSettings"));
 
 const FinancialAccounts = lazy(() => import("./pages/FinancialAccounts"));
@@ -285,6 +286,7 @@ const DashboardRoutes = () => (
         <Route path="thank-you" element={<ThankYouSettings />} />
 
         <Route path="currency" element={<CurrencySettings />} />
+        <Route path="countries" element={<CountrySettings />} />
         <Route path="theme" element={<ThemeSettings />} />
 
         <Route path="header" element={<HeaderSettings />} />

@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
-  Video, Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2, ClipboardList, ScanLine,
+  Globe, Video, Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2, ClipboardList, ScanLine,
   LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun, ShieldCheck, Megaphone, TrendingUp, BarChart3, Palette, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ const baseMenuGroups = [
       { icon: FileText, label: "نموذج الطلب", path: "/dashboard/order-form", external: false, adminOnly: false, dynamicStore: false },
       { icon: Heart, label: "صفحة الشكر", path: "/dashboard/thank-you", external: false, adminOnly: false, dynamicStore: false },
       { icon: DollarSign, label: "العملة", path: "/dashboard/currency", external: false, adminOnly: false, dynamicStore: false },
+      { icon: Globe, label: "دول المتجر", path: "/dashboard/countries", external: false, adminOnly: false, dynamicStore: false, ownerOnly: true },
       { icon: Palette, label: "متجر الثيمات", path: "/dashboard/theme", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "قوالب صفحات الهبوط", path: "/dashboard/landing-templates", external: false, adminOnly: false, dynamicStore: false },

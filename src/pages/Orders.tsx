@@ -14,6 +14,9 @@ import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, D
 import { courierSubStatuses, batchLabel, type CourierSubStatus } from "@/lib/courierStatus";
 import { AssignCourierButton } from "@/components/AssignCourierButton";
 import { CodNetworkShippingButton } from "@/components/CodNetworkShippingButton";
+import { AcceptCountryOrdersButton } from "@/components/AcceptCountryOrdersButton";
+import { OrderCountryFilter } from "@/components/OrderCountryFilter";
+import { countryName } from "@/lib/countries";
 import { PageHeader } from "@/components/PageHeader";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
@@ -116,6 +119,7 @@ interface Order {
   insufficient_stock?: boolean;
   upsell_offers?: any[] | null;
   country_code?: string | null;
+  country_review_required?: boolean;
 }
 
 type ConfirmationStatus = "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled";
@@ -136,7 +140,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, shipping_provider, customer_name, phone, address, city, product_name, product_id, price, currency_code, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
+const ORDER_SELECT_COLS = "id, shipping_provider, customer_name, phone, address, city, product_name, product_id, price, currency_code, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_review_required, country_code";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -193,6 +197,7 @@ const Orders = () => {
   const [shipping, setShipping] = useState(false);
   const [shipProgress, setShipProgress] = useState<{ done: number; total: number } | null>(null);
   const [productFilter, setProductFilter] = useState<string>("all");
+  const [pendingCountryFilter, setPendingCountryFilter] = useState('all');
   const [shippingMode, setShippingMode] = useState<"included" | "excluded">("excluded");
   const [openableMode, setOpenableMode] = useState<"yes" | "no">("yes");
   const [shippingOptionsOpen, setShippingOptionsOpen] = useState(false);
@@ -235,6 +240,7 @@ const Orders = () => {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const PAGE_SIZE = 50;
   const [pageMap, setPageMap] = useState<Record<string, number>>({});
+  useEffect(() => { setSelectedOrders([]); setPendingCountryFilter('all'); setPageMap({}); }, [activeStoreId]);
   const getPage = (key: string) => pageMap[key] || 1;
   const setPage = (key: string, p: number) => setPageMap((prev) => ({ ...prev, [key]: p }));
   const paginate = <T,>(arr: T[], key: string, serverTotal?: number) => {
@@ -559,6 +565,7 @@ const Orders = () => {
     if (orderTab === "pending") {
       return {
         productName: productFilter,
+        countryCode: pendingCountryFilter,
         confirmationStatus: confirmationFilter,
         prepStatus: prepFilter,
         deliveryType: deliveryTypeFilter,
@@ -583,6 +590,7 @@ const Orders = () => {
   }, [
     orderTab,
     productFilter,
+    pendingCountryFilter,
     confirmationFilter,
     prepFilter,
     deliveryTypeFilter,
@@ -683,7 +691,7 @@ const Orders = () => {
       });
       setConfirmationCounts(c);
     }
-    setServerStatusCounts(meta.statusCounts);
+    setServerStatusCounts({ ...meta.statusCounts, foreign: meta.foreignCount });
     setDeletedCount(meta.deletedCount);
     setMissedCount(meta.missedCount ?? 0);
     setProductsMap(meta.productsMap);
@@ -1134,6 +1142,7 @@ const Orders = () => {
     setExtracting(true);
     try {
       const exportFilters: OrdersPageFilters = {
+        countryCode: pendingCountryFilter,
         productName: productFilter,
         confirmationStatus: confirmationFilter,
         prepStatus: prepFilter,
@@ -1665,10 +1674,10 @@ const Orders = () => {
                 {order.insufficient_stock && (
                   <Badge variant="destructive" className="gap-1">⚠ مخزون غير كافٍ</Badge>
                 )}
-                {order.country_code && order.country_code.toUpperCase() !== "LY" && (
-                  <Badge variant="destructive" className="gap-1 bg-orange-600 hover:bg-orange-600">
+                {order.country_code && (
+                  <Badge variant="outline" className={`gap-1 ${order.country_review_required ? 'border-orange-500 text-orange-600' : ''}`}>
                     <Globe className="w-3 h-3" />
-                    من خارج ليبيا ({order.country_code})
+                    {countryName(order.country_code)} ({order.country_code.toUpperCase()})
                   </Badge>
                 )}
                 {(() => {
@@ -2148,6 +2157,7 @@ const Orders = () => {
         value={orderTab}
         onValueChange={(v) => {
           setOrderTab(v as OrderTab);
+          setSelectedOrders([]);
           setPage(v, 1);
           if (v === "missed") {
             void queryClient.invalidateQueries({ queryKey: ["orders-page", activeStoreId, "missed"] });
@@ -2169,8 +2179,8 @@ const Orders = () => {
           </TabsTrigger>
           <TabsTrigger value="foreign" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-600 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
             <Globe className="w-5 h-5 sm:w-4 sm:h-4" />
-            <span className="text-[11px] sm:text-xs font-medium leading-tight">من خارج ليبيا</span>
-            <span className="text-[11px] sm:text-xs font-bold">({foreignOrders.length})</span>
+            <span className="text-[11px] sm:text-xs font-medium leading-tight">خارج دول المتجر</span>
+            <span className="text-[11px] sm:text-xs font-bold">({serverStatusCounts.foreign ?? 0})</span>
           </TabsTrigger>
           <TabsTrigger value="with_courier" className="py-2"><Truck className="w-4 h-4 ml-1" />لدى مندوب ({serverStatusCounts.with_courier ?? 0})</TabsTrigger>
           <TabsTrigger value="shipped" className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-2 rounded-lg border border-border/50 bg-card shadow-sm data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:border-transparent transition-all">
@@ -2231,6 +2241,7 @@ const Orders = () => {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+                    <OrderCountryFilter value={pendingCountryFilter} counts={ordersMetaQuery.data?.pendingCountryCounts || {}} onChange={code => { setPendingCountryFilter(code); setSelectedOrders([]); setPage('pending', 1); }} />
                     <Select value={productFilter} onValueChange={(v) => { setProductFilter(v); setSelectedOrders([]); }}>
                       <SelectTrigger className="w-full sm:w-52">
                         <SelectValue placeholder="فلتر حسب المنتج" />
@@ -2404,7 +2415,7 @@ const Orders = () => {
 
         <TabsContent value="missed" className="space-y-4">
           <Card className="card-shadow border-violet-500/40 bg-violet-500/5">
-            <CardContent className="p-3 flex items-center gap-2 text-sm">
+            <CardContent className="p-3 flex flex-wrap items-center gap-2 text-sm">
               <UserX className="w-5 h-5 text-violet-600 shrink-0" />
               <span>
                 زبائن ملأوا نموذج الطلب ووصلوا لنافذة التأكيد ثم ضغطوا «إلغاء» — لم يُسجَّل طلب فعلي، لكن بياناتهم محفوظة لمتابعة الجادين منهم.
@@ -2432,14 +2443,19 @@ const Orders = () => {
             <CardContent className="p-3 flex items-center gap-2 text-sm">
               <Globe className="w-5 h-5 text-orange-600" />
               <span>
-                هذه طلبات وردت من عناوين IP خارج ليبيا. راجعها قبل التأكيد أو الشحن — قد تكون من زبائن يستخدمون VPN أو طلبات وهمية.
+                طلبات من دول غير مفعّلة للمتجر، وتحتاج مراجعة. حدّد الطلبات لنقلها إلى قيد الانتظار مع الاحتفاظ بدولتها. الدولة حسب موقع الزائر وقد تختلف عن عنوان التوصيل.
               </span>
+              <Button asChild variant="link" size="sm"><Link to="/dashboard/countries">إعداد دول المتجر</Link></Button>
             </CardContent>
           </Card>
+          <Card><CardContent className="p-4 flex flex-wrap justify-between items-center gap-3">
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={foreignOrders.length > 0 && foreignOrders.every(order => selectedOrders.includes(order.id))} onCheckedChange={() => toggleSelectAll(foreignOrders.map(order => order.id))} />تحديد كل الطلبات في الصفحة ({foreignOrders.length})</label>
+            <AcceptCountryOrdersButton key={activeStoreId} storeId={activeStoreId} orderIds={selectedOrders.filter(id => foreignOrders.some(order => order.id === id))} onDone={count => { setSelectedOrders([]); setPage('foreign', 1); void fetchOrders(); toast({ title: 'تم النقل', description: `تم نقل ${count} طلب إلى قيد الانتظار مع الاحتفاظ بالدولة` }); }} />
+          </CardContent></Card>
           {foreignOrders.length === 0 ? (
             renderEmptyState(
               <Globe className="w-16 h-16 text-muted-foreground mb-4" />,
-              "لا توجد طلبات من خارج ليبيا"
+              "لا توجد طلبات تحتاج مراجعة الدولة"
             )
           ) : (() => {
             const p = paginate(foreignOrders, "foreign", orderTab === "foreign" ? tabTotal : undefined);
