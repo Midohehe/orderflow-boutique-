@@ -18,6 +18,15 @@ assert.throws(()=>codItems([{...line,sku:''}],55),/SKU/);
 assert.throws(()=>codItems([line],NaN),/مبلغ/);
 assert.notEqual(variantKey({selected_color:'red',selected_size:'L'}),variantKey({selected_color:'red',selected_size:'S'}));
 assert.ok(!codError({message:'invalid fixture-secret-token'},422,'fixture-secret-token').includes('fixture-secret-token'));
+const detailed=codError({message:'Bad Request',code:20012,errors:{'items.0.sku':['SKU unavailable']},request:{token:'fixture-secret-token'}},400,'fixture-secret-token');
+assert.match(detailed,/HTTP 400/);assert.match(detailed,/20012/);assert.match(detailed,/items\.0\.sku: SKU unavailable/);assert.ok(!detailed.includes('fixture-secret-token'));
+assert.match(codError({error:{message:'Invalid product'}},422),/Invalid product/);
+assert.ok(!codError({message:'<b>Denied<\/b> Bearer private-token'},400).includes('private-token'));
+assert.equal(helper.exports.codHasErrorCode({errors:[{code:40049}]},40049),true);
+assert.equal(helper.exports.codHasErrorCode({message:'40049'},40049),false);
+const nestedLead=helper.exports.codRemoteLead({status:'success',data:{id:51,phone:'0501234567',original_payload:{name:'Customer'},items:{data:[]},drop_items:{data:[{quantity:1,price:'85.00',drop_product:{data:{sku:'DROP-SKU'}}}]}}});
+assert.equal(nestedLead.total,85);assert.equal(nestedLead.items[0].sku,'DROP-SKU');
+assert.ok(Number.isNaN(helper.exports.codRemoteLead({status:'success',data:{id:51,phone:'0501234567',original_payload:{}}}).total));
 let state,handler;
 function reset() {
   state={access:true,admin:false,auth:true,enabled:true,calls:[],mode:'success',finishError:false,shipment:null,
@@ -38,8 +47,12 @@ const db={auth:{getUser:async()=>({data:{user:state.auth?{id:id(1)}:null},error:
   if(name==='save_cod_network_settings')return {data:null,error:null};
   if(name==='claim_cod_network_order') {
     if(state.shipment&&['sent','sending','uncertain'].includes(state.shipment.state)) return {data:{state:state.shipment.state==='sent'?'sent':'uncertain',reference:state.shipment.reference},error:null};
-    state.shipment={state:'sending',attempt_id:id(90),request_payload:args._payload,started_at:'2026-01-01T00:00:00Z'};
+    state.shipment={resource_type:state.shipment?.resource_type||'order',state:'sending',attempt_id:id(90),request_payload:args._payload,started_at:'2026-01-01T00:00:00Z'};
     return {data:{state:'claimed',attempt_id:id(90)},error:null};
+  }
+  if(name==='set_cod_network_lead_attempt') {
+    if(state.switchError)return {data:false,error:null};
+    state.shipment={...state.shipment,resource_type:'lead',request_payload:args._payload};return {data:true,error:null};
   }
   if(name==='finish_cod_network_order') {
     if(state.finishError)return {data:false,error:null};
@@ -53,6 +66,15 @@ vm.runInNewContext(compile('supabase/functions/cod-network/index.ts'),{
   Deno:{env:{get:name=>name==='SUPABASE_SERVICE_ROLE_KEY'?'service':'anon'},serve:fn=>handler=fn},
   fetch:async(url,options)=>{
     state.calls.push({url,options});
+    if(state.mode.startsWith('drop')&&url.endsWith('/orders'))return Response.json({status:'error',message:'Bad Request',errors:[{code:40049,message:'Cannot create order with drop product.',severity:'warning'}]},{status:400});
+    if(state.mode.startsWith('drop')&&url.includes('/leads')){
+      if(state.mode==='drop-timeout'&&options.method==='POST')throw Error('timeout');
+      if(state.mode==='drop-reject'&&options.method==='POST')return Response.json({message:'Invalid phone'},{status:400});
+      if(state.mode==='drop-missing-id')return Response.json({status:'success',data:{}},{status:201});
+      const payload=state.shipment.request_payload;
+      const original_payload=state.mode==='drop-wrong-items'?{...payload,items:[{sku:'OTHER',price:55,quantity:1}]}:payload;
+      return Response.json({status:'success',data:{id:51,phone:payload.phone,original_payload}},{status:options.method==='POST'?201:200});
+    }
     if(state.mode==='timeout')throw Error('timeout');
     if(state.mode==='reject')return Response.json({status:'error',message:'Unknown SKU; fixture-secret-token'},{status:422});
     if(state.mode==='500')return Response.json({status:'error'},{status:500});
@@ -97,5 +119,17 @@ async function send(values={}) {
   }
   reset();state.finishError=true;assert.equal((await send()).status,400);assert.equal(state.shipment.state,'sending');
   assert.equal((await run('send',{order_id:id(10)})).status,409);assert.equal(posts().length,1);
+  reset();state.mode='drop-success';const lead=await send();assert.equal(lead.body.ok,true);assert.equal(lead.body.reference,'LEAD-51');assert.equal(lead.body.resource_type,'lead');assert.match(lead.body.warning,/بانتظار/);
+  assert.equal(posts().length,2);assert.ok(posts()[1].url.endsWith('/leads'));assert.equal(state.shipment.resource_type,'lead');
+  const leadPayload=JSON.parse(posts()[1].options.body);assert.equal(leadPayload.name,'عميل');assert.equal(leadPayload.address,'شارع 1، حي، Riyadh');assert.equal(leadPayload.full_name,undefined);assert.equal(leadPayload.country,'SA');assert.equal(leadPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),5500);
+  assert.equal((await run('send',{order_id:id(10)})).body.already_sent,true);assert.equal(posts().length,2);
+  for(const mode of ['drop-timeout','drop-missing-id']) {
+    reset();state.mode=mode;assert.equal((await send()).status,409);assert.equal(state.shipment.resource_type,'lead');assert.equal(state.shipment.state,'uncertain');
+    assert.equal((await send()).status,409);assert.equal(posts().length,2);
+    state.mode='drop-wrong-items';assert.equal((await run('reconcile',{order_id:id(10),remote_id:'51'})).status,400);
+    state.mode='drop-success';assert.equal((await run('reconcile',{order_id:id(10),remote_id:'51'})).body.ok,true);assert.ok(state.calls.at(-2).url.endsWith('/leads/51?include=items,drop_items'));assert.equal(posts().length,2);
+  }
+  reset();state.mode='drop-reject';assert.equal((await send()).status,400);assert.equal(state.shipment.state,'failed');state.mode='drop-success';assert.equal((await send()).body.ok,true);assert.equal(posts().length,3,'corrected lead retries directly without another order POST');
+  reset();state.mode='drop-success';state.switchError=true;assert.equal((await send()).status,409);assert.equal(posts().length,1,'do not POST lead unless destination is persisted');
   console.log('PASS COD Network: exact COD rounding and 100-unit chunks, SKU validation, API v2 contract, auth/admin/store isolation, disabled stores, secret masking, currency/revision guards, server-owned amounts, duplicate prevention, explicit retry and ambiguous-send reconciliation. No network requests performed.');
 })().catch(error=>{console.error(error);process.exitCode=1});

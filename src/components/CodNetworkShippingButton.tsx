@@ -75,7 +75,7 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
   return <>
     <Button variant="outline" disabled={disabled || !storeId || !orderIds.length || busy || preparing} onClick={() => void prepare()}><Send className="w-4 h-4 ml-2" />إرسال لشركة سعودي نيتورك ({orderIds.length})</Button>
     <Dialog open={open} onOpenChange={value => { if (!busy && !preparing) setOpen(value); }}><DialogContent dir="rtl" className="max-w-3xl max-h-[90dvh] overflow-y-auto">
-      <DialogTitle>إرسال الطلبات إلى سعودي نيتورك</DialogTitle><DialogDescription>راجع العميل والعنوان ورموز SKU من حساب الشركة. مبلغ التحصيل يشمل توصيل الطلب، ويُرسل بالدفع عند الاستلام. الحد الأقصى 50 طلبًا في الدفعة.</DialogDescription>
+      <DialogTitle>إرسال الطلبات إلى سعودي نيتورك</DialogTitle><DialogDescription>راجع العميل والعنوان ورموز SKU من حساب الشركة. مبلغ التحصيل يشمل توصيل الطلب، ويُرسل بالدفع عند الاستلام. منتجات الدروبشيبينغ تُسجّل لدى الشركة كطلبات بانتظار التأكيد (Leads). الحد الأقصى 50 طلبًا في الدفعة.</DialogDescription>
       {preparing && <p role="status" className="flex gap-2"><Loader2 className="w-4 h-4 animate-spin" />جاري تجهيز الطلبات…</p>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {drafts.map(draft => {
@@ -95,6 +95,7 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
             {uncertain && <div className="space-y-2 bg-muted/40 p-3 rounded-md"><p className="text-xs">إذا وجدت الطلب في حساب الشركة، أدخل معرّفه الرقمي لربطه دون إنشاء شحنة ثانية. يُتحقق من الهاتف ومبلغ التحصيل. متاح بعد دقيقتين من المحاولة.</p><div className="flex gap-2"><Input aria-label={`رقم طلب الشركة ${draft.order_code}`} dir="ltr" placeholder="معرّف الطلب الرقمي لدى الشركة" value={remoteIds[draft.id] || ''} disabled={busy} onChange={event => setRemoteIds(previous => ({ ...previous, [draft.id]: event.target.value }))} /><Button variant="outline" disabled={busy || !remoteIds[draft.id]} onClick={() => void reconcile(draft)}>تحقق واربط</Button></div></div>}
           </>}
           {result?.warning && <p className="text-amber-600 text-sm">{result.warning}</p>}{result?.error && <p role="alert" className="text-destructive text-sm">{result.error}</p>}
+          {sent && !result?.warning && draft.shipment?.resource_type === 'lead' && <p className="text-amber-600 text-sm">طلب دروبشيبينغ مسجّل لدى الشركة (Lead)، بانتظار تأكيد الشركة وتجهيزه للشحن.</p>}
         </div>;
       })}
       {!!drafts.length && <><label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} />حفظ ربط رموز المنتجات للمرات القادمة</label><p role="status" className="text-sm">جاهز للإرسال: {ready.length} من {drafts.length}{progress.total > 0 && ` · تمت معالجة ${progress.done} من ${progress.total}`}</p><Button disabled={busy || preparing || !ready.length || !!error} onClick={() => void send()}>{busy ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Send className="w-4 h-4 ml-2" />}{busy ? `جاري الإرسال ${progress.done} / ${progress.total}` : `تأكيد إرسال ${ready.length} طلب`}</Button></>}

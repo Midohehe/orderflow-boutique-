@@ -10,7 +10,7 @@ export interface CodDraft {
   id: string; order_code: string; updated_at: string; currency_code: string; review_key: string;
   full_name: string; phone: string; address: string; city: string; area: string;
   country: string; total: number; items: CodLine[]; issue?: string;
-  shipment?: { state: string; reference: string | null; error_message: string | null } | null;
+  shipment?: { state: string; reference: string | null; error_message: string | null; resource_type?: 'order' | 'lead' } | null;
 }
 export interface CodEdits {
   full_name?: string; phone?: string; address?: string; city?: string; area?: string;
@@ -82,12 +82,54 @@ export function codRemoteOrder(value: unknown): { id: string; reference: string;
   if (!/^\d+$/.test(id) || id === '0') return null;
   return { id, reference: String(data.tracking_number || data.reference || id), phone: String(data.customer_phone || ''), total: Number(data.total) };
 }
+/** Drop products are rejected by POST /orders (40049) and use POST /leads. */
+export function buildCodLeadPayload(order: ReturnType<typeof buildCodPayload>) {
+  return { phone: order.phone, name: order.full_name, country: order.country,
+    address: [...new Set([order.address, order.area, order.city].filter(Boolean))].join('، '), items: order.items };
+}
+export function codHasErrorCode(value: unknown, code: number, depth = 0): boolean {
+  if (!value || typeof value !== 'object' || depth > 5) return false;
+  if (Array.isArray(value)) return value.some(entry => codHasErrorCode(entry, code, depth + 1));
+  const body = value as Record<string, unknown>;
+  return String(body.code) === String(code) || ['errors', 'error', 'details'].some(key => codHasErrorCode(body[key], code, depth + 1));
+}
+export function codRemoteLead(value: unknown): { id: string; reference: string; phone: string; total: number; items: Array<{ sku: string; quantity: number; price: number }> } | null {
+  const result = value as { status?: string; data?: Record<string, unknown> } | null;
+  if (result?.status !== 'success' || !result.data) return null;
+  const data = result.data, id = String(data.id ?? '');
+  if (!/^[1-9]\d*$/.test(id)) return null;
+  let original = data.original_payload;
+  if (typeof original === 'string') { try { original = JSON.parse(original); } catch { original = null; } }
+  const related = (value: unknown): unknown[] => Array.isArray(value) ? value : value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data) ? (value as { data: unknown[] }).data : [];
+  const included = [...related(data.items), ...related(data.drop_items)];
+  const rows = included.length ? included : related((original as { items?: unknown } | null)?.items);
+  const items = rows.map(value => {
+    const row = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+    const relation = (row.drop_product || row.product) as { data?: { sku?: unknown } } | undefined;
+    return { sku: String(row.sku || relation?.data?.sku || ''), quantity: Number(row.quantity), price: row.price == null ? NaN : Number(row.price) };
+  });
+  const valid = items.length > 0 && items.every(item => item.sku && Number.isInteger(item.quantity) && item.quantity > 0 && Number.isFinite(item.price) && item.price >= 0);
+  return { id, reference: `LEAD-${id}`, phone: String(data.phone || ''), items,
+    total: valid ? items.reduce((sum, item) => sum + item.quantity * item.price, 0) : NaN };
+}
 export function codError(value: unknown, status: number, token = ''): string {
   if (status === 401 || status === 403) return 'رفضت الشركة رمز API Token؛ راجع إعدادات الربط مع السوبر أدمن';
   if (status === 429) return 'تم تجاوز عدد الطلبات المسموح به؛ حاول لاحقًا';
-  const body = value as { message?: unknown } | null;
-  // Never reflect tokens, full responses, or HTML/proxy errors to the UI.
-  const safe = typeof body?.message === 'string' ? (token ? body.message.split(token).join('[محجوب]') : body.message) : '';
-  const message = safe.replace(/Bearer\s+\S+/gi, '[محجوب]').slice(0, 300);
-  return message ? `رفضت الشركة الطلب: ${message}` : `تعذر إرسال الطلب إلى الشركة (HTTP ${status})`;
+  if (codHasErrorCode(value, 40049)) return 'المنتج من نوع دروبشيبينغ؛ يجب إرساله إلى الشركة كطلب بانتظار التأكيد (Lead)، وليس كشحنة مباشرة (رمز 40049)';
+  const body = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const clean = (text: string) => (token ? text.split(token).join('[محجوب]') : text)
+    .replace(/Bearer\s+\S+/gi, '[محجوب]').replace(/<[^>]*>/g, '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 300);
+  const details: string[] = [];
+  // Read only error fields, never reflect the full response/customer snapshot.
+  const collect = (entry: unknown, field = '', depth = 0) => {
+    if (depth > 4 || details.length >= 5) return;
+    if (typeof entry === 'string') { const message = clean(entry); if (message) details.push(field ? `${clean(field)}: ${message}` : message); }
+    else if (Array.isArray(entry)) entry.slice(0, 5).forEach(item => collect(item, field, depth + 1));
+    else if (entry && typeof entry === 'object') Object.entries(entry).slice(0, 10).forEach(([key, item]) => collect(item, key === 'message' ? field : key, depth + 1));
+  };
+  if (typeof body.message === 'string') collect(body.message);
+  collect(body.errors); collect(body.error); collect(body.details);
+  const code = (typeof body.code === 'string' || typeof body.code === 'number') && /^\d{3,8}$/.test(String(body.code)) ? clean(String(body.code)) : '';
+  const message = [...new Set(details)].join(' — ').slice(0, 450);
+  return `رفضت الشركة الطلب (HTTP ${status}${code ? `، رمز ${code}` : ''}): ${message || 'لم ترسل الشركة سببًا تفصيليًا للرفض؛ راجع بيانات العميل وSKU وتوفر المنتج في بلد التوصيل'}`;
 }

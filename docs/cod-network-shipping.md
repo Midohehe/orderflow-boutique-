@@ -20,6 +20,9 @@ Verified on 2026-10-06 from the [official Seller v2 documentation](https://devel
 - `POST /orders`: `full_name`, `phone`, `country`, `address`, `city`, `area`, `pay_mode: cod`, `items: [{sku, quantity, price}]`.
 - Success includes `status: success`, `data.id`, and a reference/tracking number. No undocumented external-reference or idempotency field is sent.
 - `GET /orders?limit=1&fields=id` tests connection; `GET /orders/{id}` reconciles an uncertain attempt.
+- A definitive `HTTP 400` with structured error code `40049` means the product is a drop product. The same reserved attempt switches to `POST /leads`, with `phone`, `name`, `country`, the combined delivery address and unchanged `items`. The destination and payload are saved before the second call. No other failure triggers this fallback. Corrected failed leads retry the lead endpoint directly.
+- Leads are referenced as `LEAD-<id>` and shown as awaiting company confirmation, with carrier status `COD_NETWORK_LEAD_NEW`. They appear in the shipping workflow because the company has accepted them; this is not confirmation of physical dispatch or delivery. Reconciliation uses `GET /leads/{id}` and matches phone, exact amount, SKU and quantities. Lead and order IDs have separate namespaces.
+- Rejections display the HTTP status, provider code and nested validation messages with token masking, rather than only “Bad Request”.
 - Invalid/expired authorization is reported for the admin to replace the token. Tokens are never returned to the UI after saving and never logged.
 
 ## Reliability and isolation
@@ -41,3 +44,5 @@ Local, isolated tests (no carrier orders created):
 - Production Vite build and lint of the new TypeScript files. The repository-wide TypeScript check retains the existing 36 diagnostics; this feature adds none.
 
 Release order: apply `20261006120000_cod_network_shipping.sql`, deploy `cod-network` with `verify_jwt=false` (the handler validates bearer authentication itself), then deploy updated `ship-orders`, `carrier-webhook`, `sync-return-shipments`, `sync-settlement-shipments`, and publish the frontend. Preserve existing JWT settings for the legacy functions. A real end-to-end shipment still needs valid company credentials and an explicitly selected real order.
+
+Drop-product fix: apply `20261006180000_cod_network_drop_leads.sql`, deploy only `cod-network`, then publish the updated UI. The migration preserves existing orders and attempts and restricts the new attempt-routing RPC to `service_role`.

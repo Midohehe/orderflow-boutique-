@@ -340,6 +340,7 @@ const Orders = () => {
 
   const displayCarrierStatus = (order: Order): string => {
     if (order.shipping_provider === 'cod_network' && order.carrier_status === 'COD_NETWORK_NEW') return 'تم الإرسال إلى سعودي نيتورك';
+    if (order.shipping_provider === 'cod_network' && order.carrier_status === 'COD_NETWORK_LEAD_NEW') return 'سعودي نيتورك — بانتظار تأكيد الشركة (دروبشيبينغ)';
     const code = extractStatusCode(order);
     if (code && statusMap[code]) return statusMap[code];
     return order.carrier_status || "في انتظار تحديث من شركة الشحن";

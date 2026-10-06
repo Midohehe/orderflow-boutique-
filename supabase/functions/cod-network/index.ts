@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { findCurrency, resolveLandingCurrency } from '../_shared/currencies.ts';
-import { COD_NETWORK_BASE, buildCodPayload, sameCodPhone, codError, codRemoteOrder, variantKey, type CodDraft, type CodEdits, type CodLine } from '../_shared/cod-network.ts';
+import { COD_NETWORK_BASE, buildCodPayload, buildCodLeadPayload, codHasErrorCode, codRemoteLead, sameCodPhone, codError, codRemoteOrder, variantKey, type CodDraft, type CodEdits, type CodLine } from '../_shared/cod-network.ts';
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -17,7 +17,7 @@ async function loadDrafts(db: Client, storeId: string, ids: string[], config: Co
   const orders = await db.from('orders').select('id,store_id,updated_at,order_code,customer_name,phone,address,city,governorate,product_id,product_name,price,shipping_fee,quantity,selected_color,selected_size,selected_product_code,currency_code,status,is_deleted,locked_insufficient_balance,shipping_reference,shipping_id,shipping_provider').eq('store_id', storeId).in('id', ids);
   const [items, shipments, currency] = await Promise.all([
     db.from('order_items').select('id,order_id,product_id,product_name,quantity,price,selected_color,selected_size,selected_product_code').eq('store_id', storeId).in('order_id', ids).order('id'),
-    db.from('cod_network_shipments').select('order_id,state,reference,error_message').eq('store_id', storeId).in('order_id', ids),
+    db.from('cod_network_shipments').select('order_id,state,reference,error_message,resource_type').eq('store_id', storeId).in('order_id', ids),
     db.from('store_settings').select('currency_code,currency_symbol').eq('store_id', storeId).limit(1).maybeSingle(),
   ]);
   for (const result of [orders, items, shipments, currency]) if (result.error) throw result.error;
@@ -113,7 +113,7 @@ Deno.serve(async req => {
       return json({ drafts: await loadDrafts(db, storeId, ids, config), config });
     }
     if (!uuid(body.order_id)) return json({ error: 'رقم الطلب غير صالح' }, 400);
-    const previous = await db.from('cod_network_shipments').select('state,attempt_id,reference,request_payload,started_at').eq('store_id', storeId).eq('order_id', body.order_id).maybeSingle();
+    const previous = await db.from('cod_network_shipments').select('state,attempt_id,reference,request_payload,started_at,resource_type').eq('store_id', storeId).eq('order_id', body.order_id).maybeSingle();
     if (previous.error) throw previous.error;
     if (previous.data?.state === 'sent') return json({ ok: true, already_sent: true, reference: previous.data.reference });
     if (body.action === 'reconcile') {
@@ -121,13 +121,18 @@ Deno.serve(async req => {
       if (!saved || !['sending','uncertain'].includes(saved.state) || Date.now() - Date.parse(saved.started_at) < 120_000) return json({ error: 'انتظر انتهاء محاولة الإرسال قبل ربط الطلب' }, 409);
       const remoteId = String(body.remote_id || '');
       if (!/^[1-9]\d{0,19}$/.test(remoteId)) return json({ error: 'أدخل معرّف الطلب الرقمي من حساب الشركة' }, 400);
-      const result = await remote(await tokenFor(db, storeId), '/orders/' + remoteId);
-      const order = codRemoteOrder(result.body);
+      const isLead = saved.resource_type === 'lead';
+      const result = await remote(await tokenFor(db, storeId), (isLead ? '/leads/' : '/orders/') + remoteId + (isLead ? '?include=items,drop_items' : ''));
+      const order = isLead ? codRemoteLead(result.body) : codRemoteOrder(result.body);
       const expected = saved.request_payload as ReturnType<typeof buildCodPayload>;
       const total = expected.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       if (result.status !== 200 || !order || !sameCodPhone(order.phone, expected.phone, expected.country) || !Number.isFinite(order.total) || Math.abs(order.total - total) > 0.011) return json({ error: 'تعذر التحقق: رقم الهاتف أو مبلغ التحصيل لا يطابق الطلب. راجع رقم طلب الشركة' }, 400);
+      if (isLead) {
+        const grouped = (items: Array<{ sku: string; quantity: number }>) => JSON.stringify([...items.reduce((map, item) => map.set(item.sku, (map.get(item.sku) || 0) + item.quantity), new Map<string, number>())].sort());
+        if (grouped(codRemoteLead(result.body)!.items) !== grouped(expected.items)) return json({ error: 'منتجات طلب الشركة أو كمياتها لا تطابق الطلب' }, 400);
+      }
       await finish(db, body.order_id, saved.attempt_id, 'sent', order.id, order.reference, null);
-      return json({ ok: true, reference: order.reference });
+      return json({ ok: true, reference: order.reference, resource_type: isLead ? 'lead' : 'order' });
     }
     if (body.action !== 'send') return json({ error: 'عملية غير معروفة' }, 400);
     if (previous.data && ['sending','uncertain'].includes(previous.data.state)) return json({ error: 'نتيجة الإرسال السابق غير مؤكدة. تحقق من حساب الشركة ثم استخدم ربط الطلب برقم الشركة؛ لن نكرر الإرسال تلقائيًا', uncertain: true }, 409);
@@ -137,28 +142,42 @@ Deno.serve(async req => {
     const edits: CodEdits = body.edits && typeof body.edits === 'object' ? body.edits : {};
     const payload = buildCodPayload(draft, edits, config.currency_code);
     const token = await tokenFor(db, storeId);
-    const claim = await db.rpc('claim_cod_network_order', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: payload });
+    let isLead = previous.data?.resource_type === 'lead';
+    let outbound: ReturnType<typeof buildCodPayload> | ReturnType<typeof buildCodLeadPayload> = isLead ? buildCodLeadPayload(payload) : payload;
+    const claim = await db.rpc('claim_cod_network_order', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: outbound });
     if (claim.error) throw claim.error;
     if (claim.data.state === 'sent') return json({ ok: true, already_sent: true, reference: claim.data.reference });
     if (claim.data.state !== 'claimed') return json({ error: 'توجد محاولة إرسال سابقة تحتاج تحققًا قبل الإعادة', uncertain: true }, 409);
     const attemptId = claim.data.attempt_id;
     let result;
-    try { result = await remote(token, '/orders', payload); }
+    try {
+      result = await remote(token, isLead ? '/leads' : '/orders', outbound);
+      // Only this explicit no-order-created rejection permits a single fallback.
+      // A timeout, generic rejection or ambiguous success never triggers a POST.
+      if (!isLead && result.status === 400 && codHasErrorCode(result.body, 40049)) {
+        outbound = buildCodLeadPayload(payload);
+        const switched = await db.rpc('set_cod_network_lead_attempt', { _order_id: draft.id, _attempt_id: attemptId, _payload: outbound });
+        if (switched.error || switched.data !== true) throw Error('Unable to persist lead destination');
+        isLead = true;
+        result = await remote(token, '/leads', outbound);
+      }
+    }
     catch {
       const message = 'انقطع الاتصال أثناء الإرسال؛ قد تكون الشركة استلمت الطلب. تحقق من حساب الشركة واربط رقم الطلب قبل أي إعادة إرسال';
       await finish(db, draft.id, attemptId, 'uncertain', null, null, message);
       return json({ error: message, uncertain: true }, 409);
     }
-    const sent = codRemoteOrder(result.body);
+    const sent = isLead ? codRemoteLead(result.body) : codRemoteOrder(result.body);
     if (result.status >= 200 && result.status < 300 && sent) {
-      const warning = Number.isFinite(sent.total) && Math.abs(sent.total - draft.total) > 0.011 ? 'تم الإرسال، لكن إجمالي الشركة مختلف؛ راجع مبلغ التحصيل في حساب الشركة' : null;
+      const warning = Number.isFinite(sent.total) && Math.abs(sent.total - draft.total) > 0.011 ? 'تم الإرسال، لكن إجمالي الشركة مختلف؛ راجع مبلغ التحصيل في حساب الشركة'
+        : isLead ? 'تم تسجيل طلب الدروبشيبينغ لدى الشركة (Lead)، وهو بانتظار تأكيد الشركة وتجهيزه للشحن' : null;
       await finish(db, draft.id, attemptId, 'sent', sent.id, sent.reference, warning);
       if (body.remember_skus === true) {
         const links = draft.items.filter(item => item.product_id).map(item => ({ store_id: storeId, product_id: item.product_id!, variant_key: item.variant_key, sku: String(edits.skus?.[item.id] ?? item.sku).trim() }));
         const distinct = [...new Map(links.map(link => [link.product_id + link.variant_key, link])).values()];
         if (distinct.length) await db.from('cod_network_sku_links').upsert(distinct, { onConflict: 'store_id,product_id,variant_key' });
       }
-      return json({ ok: true, reference: sent.reference, warning });
+      return json({ ok: true, reference: sent.reference, warning, resource_type: isLead ? 'lead' : 'order' });
     }
     const definiteFailure = [400,401,403,404,405,413,415,422,429].includes(result.status);
     const message = definiteFailure ? codError(result.body, result.status, token) : 'رد الشركة غير مؤكد؛ تحقق من حساب الشركة واربط الطلب برقم الشركة قبل إعادة المحاولة';
