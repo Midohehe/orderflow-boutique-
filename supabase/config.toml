@@ -52,3 +52,7 @@ verify_jwt = false
 # The handler validates the bearer token and the caller's admin role.
 [functions.admin-manage-users]
 verify_jwt = false
+
+# Handler verifies the bearer token, store access and admin-only configuration.
+[functions.cod-network]
+verify_jwt = false

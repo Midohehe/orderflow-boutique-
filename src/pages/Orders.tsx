@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Phone, MapPin, Calendar, Loader2, Clock, Truck, CheckCircle, XCircle, Download, Trash2, Send, ImagePlus, Search, Eye, Plus, RefreshCw, PackageOpen, PhoneCall, PhoneOff, CalendarClock, MessageCircle, BarChart3, ShieldCheck, ShieldAlert, Hash, EyeOff, Undo2, Archive, RotateCcw, Printer, ShoppingCart, Bot, Globe, UserX } from "lucide-react";
 import { courierSubStatuses, batchLabel, type CourierSubStatus } from "@/lib/courierStatus";
 import { AssignCourierButton } from "@/components/AssignCourierButton";
+import { CodNetworkShippingButton } from "@/components/CodNetworkShippingButton";
 import { PageHeader } from "@/components/PageHeader";
 import { printStickers, DEFAULT_STICKER_SETTINGS, type StickerSettings, type StickerOrder } from "@/lib/printSticker";
 import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
@@ -81,6 +82,7 @@ interface Order {
   product_id?: string | null;
   price: number;
   currency_code?: string | null;
+  shipping_provider?: string | null;
   shipping_fee?: number;
   courier_orders?: { assigned_at: string; sub_status: string; courier_batches: { code: number } | null } | null;
   status: "with_courier" | "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "settled" | "returned_received" | "unpacked";
@@ -134,7 +136,7 @@ const CONFIRMATION_BADGE_CLASS: Record<ConfirmationStatus, string> = {
   cancelled: "bg-destructive text-destructive-foreground",
 };
 
-const ORDER_SELECT_COLS = "id, customer_name, phone, address, city, product_name, product_id, price, currency_code, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
+const ORDER_SELECT_COLS = "id, shipping_provider, customer_name, phone, address, city, product_name, product_id, price, currency_code, shipping_fee, status, created_at, selected_color, selected_size, selected_product_code, quantity, shipping_included, shipping_reference, order_code, matched_zone_name, matched_area_name, shipping_error, link_error, carrier_status, carrier_status_updated_at, carrier_status_raw, carrier_cancellation_reason_id, carrier_notes, confirmation_status, confirmation_notes, confirmation_attempts, postponed_until, confirmed_at, is_deleted, locked_insufficient_balance, insufficient_stock, prep_status, upsell_offers, country_code";
 
 const PREP_LABELS: Record<string, string> = {
   pending: "قيد الانتظار",
@@ -331,6 +333,7 @@ const Orders = () => {
   };
 
   const displayCarrierStatus = (order: Order): string => {
+    if (order.shipping_provider === 'cod_network' && order.carrier_status === 'COD_NETWORK_NEW') return 'تم الإرسال إلى سعودي نيتورك';
     const code = extractStatusCode(order);
     if (code && statusMap[code]) return statusMap[code];
     return order.carrier_status || "في انتظار تحديث من شركة الشحن";
@@ -1741,6 +1744,7 @@ const Orders = () => {
                     كود الشحنة: {order.order_code}
                   </Badge>
                 )}
+                {order.shipping_provider === 'cod_network' && <Badge variant="outline">سعودي نيتورك</Badge>}
                 {order.shipping_reference && (
                   <Badge className={carrierStatusClass(order)}>
                     حالة شركة التوصيل: {displayCarrierStatus(order)}
@@ -2136,7 +2140,10 @@ const Orders = () => {
       </>
       )}
 
-      <AssignCourierButton storeId={activeStoreId} orderIds={selectedOrders} onDone={() => { setSelectedOrders([]); void fetchOrders(); }} />
+      <div className="flex gap-2 flex-wrap">
+        <AssignCourierButton storeId={activeStoreId} orderIds={selectedOrders} onDone={() => { setSelectedOrders([]); void fetchOrders(); }} />
+        <CodNetworkShippingButton storeId={activeStoreId} orderIds={selectedOrders} disabled={shipping} onDone={() => { setSelectedOrders([]); void fetchOrders(); }} />
+      </div>
       <Tabs
         value={orderTab}
         onValueChange={(v) => {

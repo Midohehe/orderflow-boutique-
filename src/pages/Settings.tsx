@@ -17,6 +17,7 @@ const AdminStores = lazy(() => import("./AdminStores"));
 const PermissionGroups = lazy(() => import("./PermissionGroups"));
 const AdminUserDirectory = lazy(() => import("@/components/AdminUserDirectory"));
 const PlatformSignupEditor = lazy(() => import("@/components/PlatformSignupEditor"));
+const CodNetworkAdminSettings = lazy(() => import("@/components/CodNetworkAdminSettings"));
 const pending = <div role="status" className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin" /><span className="sr-only">جاري التحميل</span></div>;
 
 export default function Settings() {
@@ -64,9 +65,10 @@ export default function Settings() {
     <PageHeader icon={SettingsIcon} title="إدارة المنصة" description="إدارة حسابات المستخدمين والمتاجر وإعدادات وصلة." />
     <Tabs defaultValue="users" dir="rtl">
       <TabsList className="h-auto flex flex-wrap justify-start gap-1 bg-muted/50 p-1.5 rounded-xl">
-        {[{value:"users",label:"المستخدمون",icon:Users},{value:"stores",label:"المتاجر",icon:Store},{value:"permissions",label:"الصلاحيات",icon:ShieldCheck},{value:"cards",label:"كروت الشحن",icon:CreditCard},{value:"signup-page",label:"صفحة تسجيل المتجر",icon:Globe},{value:"general",label:"الإعدادات العامة",icon:SlidersHorizontal}].map(tab => <TabsTrigger key={tab.value} value={tab.value} className="gap-2 py-2.5 rounded-lg"><tab.icon className="h-4 w-4" />{tab.label}</TabsTrigger>)}
+        {[{value:"users",label:"المستخدمون",icon:Users},{value:"stores",label:"المتاجر",icon:Store},{value:"shipping-integrations",label:"شركات الشحن",icon:Globe},{value:"permissions",label:"الصلاحيات",icon:ShieldCheck},{value:"cards",label:"كروت الشحن",icon:CreditCard},{value:"signup-page",label:"صفحة تسجيل المتجر",icon:Globe},{value:"general",label:"الإعدادات العامة",icon:SlidersHorizontal}].map(tab => <TabsTrigger key={tab.value} value={tab.value} className="gap-2 py-2.5 rounded-lg"><tab.icon className="h-4 w-4" />{tab.label}</TabsTrigger>)}
       </TabsList>
       <TabsContent value="users" className="mt-6"><Suspense fallback={pending}><AdminUserDirectory /></Suspense></TabsContent>
+      <TabsContent value="shipping-integrations" className="mt-6"><Suspense fallback={pending}><CodNetworkAdminSettings /></Suspense></TabsContent>
       <TabsContent value="signup-page" className="mt-6"><Suspense fallback={pending}><PlatformSignupEditor /></Suspense></TabsContent>
       <TabsContent value="general" className="mt-6 space-y-6">{settingsLoading ? pending : settingsError ? <p role="alert" className="text-destructive">تعذّر تحميل الإعدادات: {settingsError}</p> : <>
           <OpeningBalanceSettings settingsId={systemNameId} />

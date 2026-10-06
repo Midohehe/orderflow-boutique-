@@ -18,6 +18,7 @@ export function normalizeCarrierDisplayLabel(
   statusMap: Record<string, string> = {},
 ): string {
   const trimmed = (raw || "").trim();
+  if (trimmed === 'COD_NETWORK_NEW') return 'تم الإرسال إلى سعودي نيتورك';
   if (!trimmed || trimmed === "null" || trimmed === "undefined") return "بدون حالة";
 
   const match = trimmed.match(/^(.*?)\s*\(([^)]+)\)\s*$/);

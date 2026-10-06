@@ -424,6 +424,12 @@ Deno.serve(async (req) => {
     // Process orders concurrently with a bounded pool to avoid hammering the carrier API.
     const CONCURRENCY = 6;
     const processOrder = async (o: any) => {
+      // A separate carrier must never receive a COD Network order, even on retry.
+      const access = await supabase.rpc("has_store_access", { _store_id: o.store_id });
+      if (access.error || access.data !== true || o.shipping_provider === "cod_network") {
+        results.push({ id: o.id, ok: false, error: "الطلب غير متاح لهذه الشركة أو لا تملك صلاحية المتجر" });
+        return;
+      }
       const ownerId = o.owner_id ?? userData.user.id;
       let zoneId: number | undefined = o.matched_zone_id ?? undefined;
       let areaId: number | undefined = o.matched_area_id ?? undefined;
@@ -674,6 +680,11 @@ Deno.serve(async (req) => {
 
 
       try {
+        const reservation = await admin.rpc("reserve_legacy_shipping_order", { _order_id: o.id });
+        if (reservation.error || reservation.data !== true) {
+          results.push({ id: o.id, ok: false, error: "الطلب مرتبط بسعودي نيتورك؛ تعذر إرساله إلى شركة أخرى" });
+          return;
+        }
         const j = await gql(saveMutation, { input });
         const created = j?.data?.saveShipment;
         if (created && (created.code || created.id)) {
@@ -704,7 +715,7 @@ Deno.serve(async (req) => {
           }
           console.error("saveShipment failed", o.id, j);
           results.push({ id: o.id, ok: false, error: errMsg });
-          await admin.from("orders").update({ shipping_error: errMsg }).eq("id", o.id);
+          await admin.from("orders").update({ shipping_error: errMsg, shipping_provider: null }).eq("id", o.id).eq("shipping_provider", "turbo").is("shipping_id", null).is("shipping_reference", null);
         }
       } catch (e) {
         const errMsg = (e as Error).message;

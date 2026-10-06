@@ -214,7 +214,8 @@ Deno.serve(async (req) => {
     let q = supabase
       .from("orders")
       .update(updatePayload)
-      .eq("owner_id", profile.user_id);
+      .eq("owner_id", profile.user_id)
+      .or("shipping_provider.is.null,shipping_provider.eq.turbo");
     // Prefer matching by shipment internal id, fallback to reference/code.
     if (shipmentId) q = q.eq("shipping_id", shipmentId);
     else q = q.eq("shipping_reference", ref!);

@@ -169,6 +169,7 @@ Deno.serve(async (req) => {
     if (refs.length) {
       const { data: ordersByRef } = await admin
         .from("orders").select("id, shipping_reference, shipping_id")
+        .or("shipping_provider.is.null,shipping_provider.eq.turbo")
         .eq("owner_id", settlement.owner_id)
         .or(`shipping_reference.in.(${refs.map((r) => `"${r}"`).join(",")}),shipping_id.in.(${refs.map((r) => `"${r}"`).join(",")})`);
       for (const o of ordersByRef || []) {
@@ -179,6 +180,7 @@ Deno.serve(async (req) => {
     if (codes.length) {
       const { data: ordersByCode } = await admin
         .from("orders").select("id, shipping_reference, shipping_id")
+        .or("shipping_provider.is.null,shipping_provider.eq.turbo")
         .eq("owner_id", settlement.owner_id)
         .or(`shipping_id.in.(${codes.map((c) => `"${c}"`).join(",")}),shipping_reference.in.(${codes.map((c) => `"${c}"`).join(",")})`);
       for (const o of ordersByCode || []) {
@@ -189,7 +191,7 @@ Deno.serve(async (req) => {
     // Also direct refNumber may equal order.id prefix (12 chars uppercase)
     if (refs.length) {
       const { data: allOrders } = await admin
-        .from("orders").select("id").eq("owner_id", settlement.owner_id);
+        .from("orders").select("id").or("shipping_provider.is.null,shipping_provider.eq.turbo").eq("owner_id", settlement.owner_id);
       const byPrefix = new Map<string, string>();
       for (const o of allOrders || []) {
         byPrefix.set(o.id.slice(0, 12).toUpperCase(), o.id);
