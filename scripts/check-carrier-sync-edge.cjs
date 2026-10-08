@@ -71,6 +71,7 @@ async function run(options={}) {
  r=await run({statuses:nonShipped,idLookupMissing:true});assert.equal(r.finish._updated,1);assert.equal(r.finish._failed,0);
  r=await run({statuses:nonShipped,corruptId:true});assert.equal(r.finish._updated,1);assert.equal(r.rows[0].shipping_id,'1');
  r=await run({statuses:nonShipped,idLookupMissing:true,codeLookupFail:true});assert.equal(r.finish._failed,1);assert.equal(r.updates.length,0);
+ r=await run({statuses:nonShipped,legacy:true,codeLookupFail:true});assert.equal(r.finish._failed,1);assert.equal(r.updates.length,0,'A legacy barcode must not match an unrelated internal ID with the same number');
  r=await run({statuses:nonShipped,mismatch:true});assert.equal(r.finish._failed,1);assert.equal(r.updates.length,0);
  r=await run({statuses:nonShipped,graphqlError:true});assert.equal(r.finish._failed,1);assert.match(r.finish._errors[0],/Carrier permission denied/);
  r=await run({statuses:nonShipped,legacy:true,stockFail:true,code:'UPKBD'});assert.equal(r.rows[0].shipping_id,'1');assert.equal(r.rows[0].status,'shipped');assert.equal(r.finish._failed,1);

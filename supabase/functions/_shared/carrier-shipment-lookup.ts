@@ -29,7 +29,7 @@ export async function resolveCarrierShipment(
     const actualId = Number(shipment.id);
     if (!Number.isSafeInteger(actualId) || actualId <= 0) throw Error('لم ترجع الشركة معرّفًا داخليًا صالحًا للشحنة');
     const matches = 'code' in key ? String(shipment.code).trim() === key.code
-      : actualId === key.id && (!reference || [shipment.code, shipment.refNumber, String(actualId)].includes(reference));
+      : actualId === key.id && (!reference || [shipment.code, shipment.refNumber].includes(reference));
     if (matches) return shipment;
     mismatched = true;
   }
