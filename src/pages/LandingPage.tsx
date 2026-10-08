@@ -1,3 +1,4 @@
+import { createCheckoutAttempt, withCheckoutTimeout } from "@/lib/checkoutAttempt";
 import { resolveLandingCurrency } from "@/lib/currencies";
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense, memo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -330,6 +331,7 @@ function setToCache(key: string, data: any) {
 // (incl. the order form) on its first paint — no "shell → loading form → page"
 // double load. Parsed once; consumed only when it matches the current slug.
 interface LandingSsrSeed {
+  deferredDescription?: { productId: string; landingPageId: string | null } | null;
   landingCurrencyCode?: string | null;
   v: number;
   slug: string;
@@ -461,6 +463,9 @@ const LandingPage = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedUpsellIndex, setSelectedUpsellIndex] = useState<number | null>(null);
   const [sanitizedDescription, setSanitizedDescription] = useState<string>("");
+  const descriptionPlaceholderRef = useRef<HTMLDivElement>(null);
+  const [descriptionStatus, setDescriptionStatus] = useState<'waiting' | 'loading' | 'ready' | 'error'>(ssrSeed?.deferredDescription ? 'waiting' : 'ready');
+  const [descriptionRetry, setDescriptionRetry] = useState(0);
   const checkoutTrackedRef = useRef(false);
   const pendingCheckoutRef = useRef<{
     mergedFormData: Record<string, string>;
@@ -471,6 +476,9 @@ const LandingPage = () => {
     address: string;
   } | null>(null);
   const missedLoggedRef = useRef(false);
+  const checkoutAttemptRef = useRef(createCheckoutAttempt());
+  const submitOrderInFlightRef = useRef(false);
+  const lastCheckoutTokenRef = useRef<string | null>(null);
   const pageViewTrackedRef = useRef(false);
   const formFieldsRef = useRef<FormField[]>([]);
   const productRef = useRef<Product | null>(null);
@@ -773,17 +781,17 @@ const LandingPage = () => {
           console.error("append offer skipped: missing order_id");
           showToast("تنبيه", "تعذر ربط العرض بالطلب، تواصل مع الدعم إن تكرر", "destructive");
         } else {
-          const { data, error } = await supabase.functions.invoke("create-order", {
-            body: {
-              append_to_order_id: orderId,
-              accepted_offer_id: runtimeOffer.id,
-            },
-          });
+          const offerBody = {append_to_order_id:orderId,accepted_offer_id:runtimeOffer.id,checkout_token:lastCheckoutTokenRef.current};
+          const requestId = await checkoutAttemptRef.current.requestId(offerBody);
+          const {data,error} = await withCheckoutTimeout(signal => supabase.functions.invoke('create-order',{
+            body:{...offerBody,request_id:requestId},signal,
+          }));
           if (error || (data && typeof data === "object" && (data as any).error)) {
             console.error("append offer failed", error, data);
             const msg = await getEdgeFunctionErrorMessage(error, data);
             showToast("خطأ", msg || "تعذر إضافة العرض للطلب", "destructive");
-          } else if (data && typeof data === "object") {
+          } else if (data?.ok && data.order_id === orderId) {
+            checkoutAttemptRef.current.acknowledge();
             const payload = thankYouPayloadRef.current || {};
             const items = Array.isArray((data as any).items) ? (data as any).items : [];
             const offerLines = Array.isArray((data as any).offer_lines)
@@ -1444,6 +1452,41 @@ const LandingPage = () => {
     };
   }, [product?.name]);
 
+  // Large pasted descriptions can contain megabytes of inline images. Keep
+  // them off the initial HTML and fetch them when the customer approaches it.
+  useEffect(() => {
+    const deferred = ssrSeed?.deferredDescription;
+    if (!deferred) { setDescriptionStatus('ready'); return; }
+    const controller = new AbortController();
+    let started = false;
+    setDescriptionStatus('waiting');
+    const load = async () => {
+      if (started || controller.signal.aborted) return;
+      started = true; setDescriptionStatus('loading');
+      try {
+        let description = '';
+        if (deferred.landingPageId) {
+          const {data,error} = await supabase.from('landing_pages').select('description').eq('id',deferred.landingPageId).eq('product_id',deferred.productId).abortSignal(controller.signal).maybeSingle();
+          if (error) throw error;
+          description = data?.description || '';
+        }
+        if (!description) {
+          const {data,error} = await supabase.from('products').select('description').eq('id',deferred.productId).abortSignal(controller.signal).maybeSingle();
+          if (error) throw error;
+          description = data?.description || '';
+        }
+        if (controller.signal.aborted) return;
+        setProduct(prev => prev?.id === deferred.productId ? {...prev,description} : prev);
+        setDescriptionStatus('ready');
+      } catch { if (!controller.signal.aborted) setDescriptionStatus('error'); }
+    };
+    const target = descriptionPlaceholderRef.current;
+    const observer = typeof IntersectionObserver !== 'undefined' && target
+      ? new IntersectionObserver(entries => { if(entries.some(entry=>entry.isIntersecting)){observer?.disconnect();void load();} },{rootMargin:'600px'}) : null;
+    if (observer && target) observer.observe(target); else void load();
+    return () => {controller.abort();observer?.disconnect();};
+  }, [ssrSeed, descriptionRetry]);
+
   // Sanitize description in background, after main render
   useEffect(() => {
     if (!product?.description) {
@@ -1721,8 +1764,8 @@ const LandingPage = () => {
     window.snaptr('track', 'PAGE_VIEW');
   };
 
-  const trackPurchaseEvent = (currencyCode: string, productValue: number) => {
-    const eventID = `purchase_${product?.id || 'p'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const trackPurchaseEvent = (currencyCode: string, productValue: number, orderId: string) => {
+    const eventID = 'purchase_' + orderId;
     // Persist for thank-you page fallback dedup
     try {
       sessionStorage.setItem('last_purchase_event', JSON.stringify({
@@ -1914,6 +1957,8 @@ const LandingPage = () => {
       address: string;
     },
   ) => {
+    if (submitOrderInFlightRef.current) return;
+    submitOrderInFlightRef.current = true;
     const { customer_name, phone: normalizedPhone, city, governorate, address } = resolved;
     setIsSubmitting(true);
 
@@ -1957,8 +2002,7 @@ const LandingPage = () => {
       }
 
       const bumpOfferId = selectedBumpOfferIds[0] || null;
-      const { data, error } = await supabase.functions.invoke("create-order", {
-        body: {
+      const requestBody = {
           customer_name,
           phone: normalizedPhone,
           address,
@@ -1973,9 +2017,11 @@ const LandingPage = () => {
           upsell_index: selectedUpsellIndex,
           landing_slug: slug,
           accepted_offer_id: acceptedOfferId || bumpOfferId,
-          ...getAttribution(),
-        },
-      });
+      };
+      const requestId = await checkoutAttemptRef.current.requestId(requestBody);
+      const {data,error} = await withCheckoutTimeout(signal => supabase.functions.invoke('create-order',{
+        body:{...requestBody,...getAttribution(),request_id:requestId},signal,
+      }));
 
       if (error) {
         const raw = await getEdgeFunctionErrorMessage(error, data);
@@ -1984,6 +2030,12 @@ const LandingPage = () => {
       if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
         throw new Error(mapCreateOrderError(String((data as { error: string }).error)));
       }
+
+      if (!data?.ok || typeof data.order_id !== 'string' || !data.order_id) {
+        throw new Error('تعذر التأكد من حفظ الطلب. أعد المحاولة بنفس البيانات؛ لن يتكرر طلبك.');
+      }
+      checkoutAttemptRef.current.acknowledge();
+      lastCheckoutTokenRef.current = requestId;
 
       // Internal analytics records the successful order; marketing events below
       // use the authoritative amount and currency returned by checkout.
@@ -2027,7 +2079,8 @@ const LandingPage = () => {
       const checkoutCurrency = resolveLandingCurrency(
         (data as { currency_code?: string } | null)?.currency_code, storeSettings,
       );
-      trackPurchaseEvent(checkoutCurrency.currency_code, orderPrice);
+      try { trackPurchaseEvent(checkoutCurrency.currency_code, orderPrice, orderIdFromServer); }
+      catch { console.error('Marketing tracking failed after successful checkout'); }
       thankYouPayloadRef.current = {
         productName: product?.name,
         price: productPriceOnly,
@@ -2117,6 +2170,7 @@ const LandingPage = () => {
             : "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى";
       showToast("خطأ", msg, "destructive");
     } finally {
+      submitOrderInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -2742,6 +2796,12 @@ const LandingPage = () => {
   );
   const productDescriptionSlot = (
     <>
+        {ssrSeed?.deferredDescription && descriptionStatus !== 'ready' && (
+          <div ref={descriptionPlaceholderRef} className="mt-12 min-h-40 rounded-3xl bg-white p-6 text-center" role="status">
+            {descriptionStatus === 'error' ? <><p>تعذر تحميل تفاصيل المنتج.</p><Button type="button" variant="outline" onClick={()=>setDescriptionRetry(n=>n+1)}>إعادة المحاولة</Button></>
+              : <p>جاري تحميل تفاصيل المنتج...</p>}
+          </div>
+        )}
         {/* وصف تفاصيل السلعة ومميزاتها */}
         {product.description && sanitizedDescription && (
           <section data-wasla-section="description" className="mt-12 sm:mt-20 overflow-hidden bg-white p-6 sm:p-10 rounded-3xl shadow-[0_15px_45px_rgba(0,0,0,0.03)] border border-slate-100/80">
@@ -3014,14 +3074,10 @@ const LandingPage = () => {
       <div data-wasla-section="sticky" className="fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-slate-100/80 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         <div className="flex items-center gap-4 max-w-md mx-auto">
           <div className="flex flex-col shrink-0">
+            <span className="text-xs text-slate-500">إجمالي الطلب</span>
             <span className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
-              {product.price} {storeSettings.currency_symbol}
+              {orderTotalDisplay.toFixed(2)} {storeSettings.currency_symbol}
             </span>
-            {product.original_price && Number(product.original_price) > Number(product.price) && (
-              <span className="text-xs text-slate-400 line-through leading-none">
-                {product.original_price} {storeSettings.currency_symbol}
-              </span>
-            )}
           </div>
           <Button
             type="button"

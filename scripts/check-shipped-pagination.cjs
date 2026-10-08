@@ -1,0 +1,25 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {PGlite}=require(process.env.PGLITE_MODULE||'../../test-deps/node_modules/@electric-sql/pglite');
+const store='00000000-0000-0000-0000-000000000001',owner='00000000-0000-0000-0000-000000000002';
+function extract(file,name){const sql=fs.readFileSync(file,'utf8'),start=sql.indexOf('CREATE OR REPLACE FUNCTION public.'+name+'(');assert.ok(start>=0);return sql.slice(start,sql.indexOf('$$;',start)+3);}
+(async()=>{const db=new PGlite();await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE SCHEMA auth;
+ CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT '${owner}'::uuid $$;
+ CREATE FUNCTION has_store_access(uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT $1='${store}'::uuid $$;
+ CREATE TABLE stores(id uuid,owner_id uuid);INSERT INTO stores VALUES('${store}','${owner}');
+ CREATE TABLE carrier_status_mappings(owner_id uuid,store_id uuid,status_code text,custom_label text,category text);
+ CREATE TABLE user_roles(user_id uuid,role text);
+ INSERT INTO carrier_status_mappings VALUES('${owner}','${store}','DEX','متابعة','in_progress'),('${owner}','${store}','DTR','تم التسليم','delivered');
+ CREATE TABLE orders(id uuid DEFAULT gen_random_uuid(),store_id uuid,status text,is_deleted boolean DEFAULT false,product_name text,carrier_status text,carrier_status_raw jsonb,created_at timestamptz DEFAULT now(),order_code text,shipping_reference text,phone text,customer_name text);
+ INSERT INTO orders(store_id,status,product_name,carrier_status,carrier_status_raw,order_code) SELECT '${store}','shipped','Product','متابعة','{"shipmentStatusCode":"DEX"}',g::text FROM generate_series(1,60) g;
+ INSERT INTO orders(store_id,status,product_name,carrier_status,carrier_status_raw,order_code,created_at) SELECT '${store}','shipped','Product','تم التسليم','{"shipmentStatusCode":"DTR"}',g::text,now()+interval '1 day' FROM generate_series(61,120) g;
+ INSERT INTO orders(store_id,status,product_name,order_code) VALUES('${store}','shipped','Product','code,100%_\\test');`);
+ const base='supabase/migrations/20260610120000_orders_delivery_stats_rpc.sql';for(const name of ['_carrier_label_alias','_order_extract_carrier_code','_order_carrier_display_label'])await db.exec(extract(base,name));
+ await db.exec(extract('supabase/migrations/20260618120000_carrier_mappings_user_only.sql','_merged_carrier_mappings'));
+ await db.exec(fs.readFileSync('supabase/migrations/20261008161000_shipped_filter_before_pagination.sql','utf8'));
+ const page=async(filter,offset=0,search=null)=>(await db.query('SELECT orders_shipped_filtered_page($1,$2,$3,null,$4,50) AS result',[store,filter,search,offset])).rows[0].result;
+ const one=await page('label:متابعة'),two=await page('DEX',50);assert.equal(one.total,60);assert.equal(one.rows.length,50);assert.equal(two.total,60);assert.equal(two.rows.length,10);assert.equal(new Set([...one.rows,...two.rows].map(r=>r.id)).size,60);
+ assert.equal((await page('__all_delivered__')).total,60);assert.equal((await page('__none__')).total,1);assert.equal((await page('all',0,'code,100%_\\test')).total,1);assert.equal((await page('DEX',0,'20')).total,1);
+ await assert.rejects(db.query("SELECT orders_shipped_filtered_page('00000000-0000-0000-0000-000000000003','all')"),/Access denied/);
+ assert.equal((await db.query("SELECT has_function_privilege('anon','orders_shipped_filtered_page(uuid,text,text,text,integer,integer)','EXECUTE') AS allowed")).rows[0].allowed,false);
+ console.log('PASS shipped filters before pagination: matches beyond first page, stable ties, correct totals, labels/codes/delivered/none, literal punctuation search and store isolation.');await db.close();
+})().catch(e=>{console.error(e.message);process.exitCode=1});

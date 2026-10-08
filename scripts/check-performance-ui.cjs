@@ -25,12 +25,14 @@ function Harness(){return React.createElement(QueryClientProvider,{client},Array
 const tick=()=>new Promise(resolve=>setTimeout(resolve,25));
 (async()=>{
 let root;await act(async()=>{root=create(React.createElement(Harness));await tick();});
+for(let attempt=0;attempt<20 && seen?.effectiveOwnerId!=='owner';attempt++)await act(tick);
 assert.equal(requests.length,3,'Eight consumers must share three account requests');
 assert.equal(seen.effectiveOwnerId,'owner');
 await act(async()=>{user={...user};root.update(React.createElement(Harness));await tick();});
 assert.equal(requests.length,3,'Token/user object refresh must not refetch account data');
 member={id:'member-row',owner_id:'owner',group_id:'group'};
 await act(async()=>{user={id:'member-user',app_metadata:{}};root.update(React.createElement(Harness));await tick();});
+for(let attempt=0;attempt<20 && !seen?.isSubUser;attempt++)await act(tick);
 assert.equal(requests.length,9);
 assert.equal(seen.isSubUser,true);assert.equal(seen.hasPermission('orders'),true);assert.equal(seen.hasPermission('products'),true);assert.equal(seen.hasPermission('admin'),false);
 await act(async()=>{user=null;root.update(React.createElement(Harness));await tick();});
@@ -47,7 +49,7 @@ const setters=[...new Set(body.match(/\bset[A-Z]\w+/g))];
 let renders=0;
 const meta={confirmationCounts:{},statusCounts:{pending:1},deletedCount:0,productsMap:{},statusMappings:[],carrierCounts:{}};
 const ordersRes={kind:'orders',data:[{id:'1'}],total:1};
-const globals={React,useMemo:React.useMemo,useEffect:React.useEffect,ordersMetaQuery:{isLoading:false,data:meta},ordersDataQuery:{isLoading:false,data:ordersRes},activeStoreId:'store',orderTab:'pending',effectiveOwnerId:'owner',buildIndexesFromDbMappings:()=>({statusMap:{},labelOrderMap:{},statusCategoryMap:{},labelCategoryMap:{}}),toast:()=>{},DEFAULT_STICKER_SETTINGS:{fields:[]},console};
+const globals={React,useMemo:React.useMemo,useEffect:React.useEffect,PAGE_SIZE:50,tabPage:1,ordersMetaQuery:{isLoading:false,data:meta},ordersDataQuery:{isLoading:false,data:ordersRes},activeStoreId:'store',orderTab:'pending',effectiveOwnerId:'owner',buildIndexesFromDbMappings:()=>({statusMap:{},labelOrderMap:{},statusCategoryMap:{},labelCategoryMap:{}}),toast:()=>{},DEFAULT_STICKER_SETTINGS:{fields:[]},console};
 const script=ts.transpileModule(`function Subject(){onRender();${setters.map(s=>`const [,${s}]=React.useState(null);`).join('\n')}${body}return null;} exports.Subject=Subject;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const ex={};vm.runInNewContext(script,{...globals,exports:ex,onRender:()=>{if(++renders>12) throw Error('Orders hydration render loop');}});
 await act(async()=>{root=create(React.createElement(ex.Subject));});

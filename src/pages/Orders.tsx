@@ -578,6 +578,7 @@ const Orders = () => {
       return {
         search: shippedSearch || undefined,
         productName: shippedProductFilter,
+        carrierFilter: shippedCarrierFilter,
       };
     }
     if (orderTab === "unpacked") {
@@ -599,12 +600,17 @@ const Orders = () => {
     pendingDateTo,
     shippedSearch,
     shippedProductFilter,
+    shippedCarrierFilter,
     unpackedSearch,
     unpackedDateFrom,
     unpackedDateTo,
   ]);
 
   const tabPage = getPage(orderTab);
+  useEffect(() => {
+    setPageMap(previous => previous[orderTab] === 1 ? previous : { ...previous, [orderTab]: 1 });
+    setSelectedOrders([]);
+  }, [activeStoreId, orderTab, tabFilters]);
 
   const ordersMetaQuery = useQuery({
     queryKey: ["orders-page-meta", activeStoreId, effectiveOwnerId],
@@ -631,7 +637,10 @@ const Orders = () => {
       ),
   });
 
-  const ordersDataQuery = useQuery({
+  const ordersDataQuery = useQuery<
+    | { data: MissedOrder[]; total: number; kind: "missed" }
+    | { data: Order[]; total: number; kind: "orders" }
+  >({
     queryKey: ["orders-page", activeStoreId, orderTab, tabPage, tabFilters],
     enabled: !!activeStoreId,
     staleTime: 30_000,
@@ -644,7 +653,7 @@ const Orders = () => {
         }));
       }
       return fetchOrdersPage(activeStoreId!, orderTab, tabPage, PAGE_SIZE, tabFilters).then(({ rows, total }) => ({
-        data: rows,
+        data: rows as unknown as Order[],
         total,
         kind: "orders" as const,
       }));
@@ -662,17 +671,25 @@ const Orders = () => {
 
   // Hydrate local state from query result so existing mutation logic keeps working
   useEffect(() => {
-    if (!activeStoreId) { setOrders([]); setLoading(false); return; }
+    if (!activeStoreId) { setOrders([]); setMissedOrders([]); setTabTotal(0); setLoading(false); return; }
     if (ordersQuery.isLoading) { setLoading(true); return; }
     if (ordersQuery.error) {
       console.error("Error fetching orders:", ordersQuery.error);
       const msg = ordersQuery.error instanceof Error ? ordersQuery.error.message : "حدث خطأ أثناء تحميل الطلبات";
       toast({ title: "خطأ", description: msg, variant: "destructive" });
+      setOrders([]);
+      setMissedOrders([]);
+      setTabTotal(0);
       setLoading(false);
       return;
     }
     const d = ordersQuery.data;
     if (!d) return;
+    const lastPage = Math.max(1, Math.ceil(Number(d.ordersRes.total) / PAGE_SIZE));
+    if (tabPage > lastPage) {
+      setPageMap(previous => ({ ...previous, [orderTab]: lastPage }));
+      return;
+    }
     if (orderTab === "missed" && d.ordersRes.kind === "missed") {
       setMissedOrders((d.ordersRes.data || []) as MissedOrder[]);
       setOrders([]);
@@ -733,7 +750,7 @@ const Orders = () => {
 
     setServerCarrierCounts(meta.carrierCounts || {});
     setLoading(false);
-  }, [activeStoreId, ordersQuery.data, ordersQuery.isLoading, ordersQuery.error]);
+  }, [activeStoreId, ordersQuery.data, ordersQuery.isLoading, ordersQuery.error, orderTab, tabPage]);
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -1304,35 +1321,7 @@ const Orders = () => {
 
   const pendingOrders = orderTab === "pending" ? orders : [];
   const foreignOrders = orderTab === "foreign" ? orders : [];
-  const shippedOrders =
-    orderTab === "shipped"
-      ? orders.filter((o) => {
-          if (shippedCarrierFilter !== "all") {
-            const code = extractStatusCode(o);
-            const label = getCarrierFilterLabel(o);
-            if (shippedCarrierFilter === "__none__") {
-              if (o.carrier_status?.trim()) return false;
-            } else if (shippedCarrierFilter === ALL_DELIVERIES_FILTER_VALUE) {
-              if (
-                !orderMatchesAllDeliveriesFilter({
-                  carrierStatus: o.carrier_status,
-                  label,
-                  statusCode: code,
-                  deliveredLabels: allDeliveriesLabelSet,
-                })
-              ) {
-                return false;
-              }
-            } else if (shippedCarrierFilter.startsWith("label:")) {
-              const wanted = shippedCarrierFilter.slice("label:".length);
-              if (label !== wanted) return false;
-            } else if (code !== shippedCarrierFilter) {
-              return false;
-            }
-          }
-          return true;
-        })
-      : [];
+  const shippedOrders = orderTab === "shipped" ? orders : [];
   const deliveredOrders = orderTab === "delivered" ? orders : [];
   const cancelledOrders = orderTab === "cancelled" ? orders : [];
   const returnedReceivedOrders = orderTab === "returned_received" ? orders : [];
@@ -1347,26 +1336,7 @@ const Orders = () => {
         search: shippedSearch || undefined,
         productName: shippedProductFilter !== "all" ? shippedProductFilter : undefined,
       };
-      let rows = (await fetchAllOrdersForExport(activeStoreId, "shipped", exportFilters)) as Order[];
-      if (shippedCarrierFilter !== "all") {
-        rows = rows.filter((o) => {
-          const code = extractStatusCode(o);
-          const label = getCarrierFilterLabel(o);
-          if (shippedCarrierFilter === "__none__") return !o.carrier_status?.trim();
-          if (shippedCarrierFilter === ALL_DELIVERIES_FILTER_VALUE) {
-            return orderMatchesAllDeliveriesFilter({
-              carrierStatus: o.carrier_status,
-              label,
-              statusCode: code,
-              deliveredLabels: allDeliveriesLabelSet,
-            });
-          }
-          if (shippedCarrierFilter.startsWith("label:")) {
-            return label === shippedCarrierFilter.slice("label:".length);
-          }
-          return code === shippedCarrierFilter;
-        });
-      }
+      const rows = (await fetchAllOrdersForExport(activeStoreId, "shipped", { ...exportFilters, carrierFilter: shippedCarrierFilter })) as Order[];
       if (rows.length === 0) {
         toast({
           title: "تنبيه",
@@ -2743,7 +2713,7 @@ const Orders = () => {
               "لا توجد مرتجعات مؤكدة"
             )
           ) : (() => {
-            const p = paginate(returnedReceivedOrders, "returned", orderTab === "returned_received" ? tabTotal : undefined);
+            const p = paginate(returnedReceivedOrders, "returned_received", orderTab === "returned_received" ? tabTotal : undefined);
             return (
               <div className="space-y-4">
                 {p.items.map((order) => renderOrderCard(order))}

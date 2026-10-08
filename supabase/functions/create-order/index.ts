@@ -1,5 +1,6 @@
 // Public edge function to create an order with server-side price recomputation.
 // Prevents clients from spoofing the price written to the database.
+import { checkoutFingerprint } from "../_shared/checkout-request.ts";
 import { resolveLandingCurrency } from "../_shared/currencies.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { customerCityForMatching } from "../_shared/customerCityForMatching.ts";
@@ -11,6 +12,8 @@ const corsHeaders = {
 };
 
 interface OrderPayload {
+  request_id?: string;
+  checkout_token?: string;
   product_id?: string;
   quantity?: number;
   customer_name?: string;
@@ -124,8 +127,14 @@ function generateFallbackOrderCode(): string {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  if (req.method !== "POST") return new Response(null, {status:405,headers:corsHeaders});
   try {
     const body = (await req.json()) as OrderPayload;
+    const requestId = body.request_id || crypto.randomUUID();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
+      return new Response(JSON.stringify({error:'invalid_request_id'}),{status:400,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    }
+    const fingerprint = await checkoutFingerprint(body as unknown as Record<string,unknown>);
 
     // Capture client IP & user-agent (used for both real & rejected orders).
     const clientIp =
@@ -161,6 +170,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    const {data: receipt, error: receiptError} = await supabase.from('checkout_requests').select('fingerprint,response').eq('request_id',requestId).maybeSingle();
+    if (receiptError) throw receiptError;
+    if (receipt) {
+      if (receipt.fingerprint !== fingerprint) return new Response(JSON.stringify({error:'checkout_request_conflict'}),{status:409,headers:{...corsHeaders,'Content-Type':'application/json'}});
+      return new Response(JSON.stringify({...receipt.response,replayed:true}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
+    }
 
     // ── Post-purchase: append offer lines to an existing order ──────────────
     const appendOrderId = s(body.append_to_order_id ?? "", 64) || null;
@@ -201,110 +217,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      const addAmount = lines.reduce((s, l) => s + l.price * l.quantity, 0);
-      const basePrice = Number((existing as { price?: number }).price) || 0;
-      const newPrice = Number((basePrice + addAmount).toFixed(2));
-      let shippingFee = Number((existing as { shipping_fee?: number }).shipping_fee) || 0;
-      if (waivesShipping) shippingFee = 0;
-
-      const mainName = String((existing as { product_name?: string }).product_name || "");
-      const offerNames = lines.map((l) => l.product_name).join(" + ");
-      const combinedName = offerNames
-        ? (mainName.includes(offerNames) ? mainName : `${mainName} + ${offerNames}`)
-        : mainName;
-
-      const itemRows = lines.map((l) => ({
-        order_id: appendOrderId,
-        owner_id: (existing as { owner_id: string }).owner_id,
-        store_id: storeId,
-        product_id: l.product_id,
-        product_name: l.product_name,
-        quantity: l.quantity,
-        price: l.price,
-        selected_color: null,
-        selected_size: null,
-        selected_product_code: null,
-      }));
-
-      const { error: itemsErr } = await supabase.from("order_items").insert(itemRows);
-      if (itemsErr) {
-        console.error("append offer items failed", itemsErr);
-        return new Response(JSON.stringify({ error: "Could not add offer items" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const { error: updErr } = await supabase
-        .from("orders")
-        .update({
-          price: newPrice,
-          shipping_fee: shippingFee,
-          product_name: combinedName.slice(0, 500),
-          quantity: Math.max(1, Number((existing as { quantity?: number }).quantity) || 1) +
-            lines.reduce((n, l) => n + l.quantity, 0),
-        })
-        .eq("id", appendOrderId);
-
-      if (updErr) {
-        console.error("append offer order update failed", updErr);
-        return new Response(JSON.stringify({ error: "Could not update order" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Stock for appended products
-      try {
-        const baseUrl = Deno.env.get("SUPABASE_URL")!;
-        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        await fetch(`${baseUrl}/functions/v1/apply-order-stock`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify({ order_id: appendOrderId, reason: "offer_accepted" }),
-        });
-      } catch (e) {
-        console.error("apply-order-stock after offer append failed", e);
-      }
-
-      let mainImage: string | null = null;
-      const mainProductId = (existing as { product_id?: string }).product_id;
-      if (mainProductId) {
-        const { data: mainProd } = await supabase
-          .from("products")
-          .select("images")
-          .eq("id", mainProductId)
-          .maybeSingle();
-        const imgs = (mainProd as { images?: unknown } | null)?.images;
-        if (Array.isArray(imgs) && imgs.length) mainImage = String(imgs[0]);
-      }
-
-      const mainQty = Number((existing as { quantity?: number }).quantity) || 1;
-      const mainLine = {
-        product_id: mainProductId,
-        product_name: mainName.split(" + ")[0] || mainName,
-        quantity: mainQty,
-        price: basePrice,
-        image: mainImage,
-      };
-
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          appended: true,
-          order_id: appendOrderId,
-          price: newPrice,
-          shipping_fee: shippingFee,
-          total: newPrice + shippingFee,
-          offer_lines: lines,
-          items: [mainLine, ...lines],
-          accepted_offer_id: appendOfferId,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      const {data:committed,error:commitError}=await supabase.rpc('commit_checkout_offer',{
+        _request_id:requestId,_fingerprint:fingerprint,_parent_request_id:body.checkout_token || null,
+        _order_id:appendOrderId,_offer_id:appendOfferId,_items:lines,_waives_shipping:waivesShipping,
+      });
+      if(commitError || !committed?.ok) return new Response(JSON.stringify({error:'تعذر إضافة العرض؛ الطلب الأصلي محفوظ'}),{status:409,headers:{...corsHeaders,'Content-Type':'application/json'}});
+      // Items, totals and stock have already committed together.
+      return new Response(JSON.stringify(committed),{headers:{...corsHeaders,'Content-Type':'application/json'}});
     }
 
     const product_id = s(body.product_id, 64);
@@ -333,6 +252,7 @@ Deno.serve(async (req) => {
       .from("products")
       .select("id, name, price, is_visible, owner_id, store_id, upsell_enabled, upsell_offers, colors, sizes")
       .eq("id", product_id)
+      .is("deleted_at", null)
       .maybeSingle();
 
     if (pErr || !product || !product.is_visible) {
@@ -401,15 +321,16 @@ Deno.serve(async (req) => {
     if (landingSlug) {
       const { data: lp, error: landingError } = await supabase
         .from("landing_pages")
-        .select("price, currency_code, upsell_enabled, upsell_offers, order_form_preset_id")
+        .select("price, currency_code, is_visible, upsell_enabled, upsell_offers, order_form_preset_id")
         .eq("slug", landingSlug)
         .eq("product_id", product.id)
         .maybeSingle();
       if (landingError) throw landingError;
       if (lp) {
+        if (lp.is_visible === false) return new Response(JSON.stringify({error:'Product unavailable'}),{status:404,headers:{...corsHeaders,'Content-Type':'application/json'}});
         landingCurrencyCode = lp.currency_code ?? null;
         orderFormPresetId = (lp as { order_form_preset_id?: string | null }).order_form_preset_id ?? null;
-        if (lp.price !== null && lp.price !== undefined && Number(lp.price) > 0) {
+        if (lp.price !== null && lp.price !== undefined && Number(lp.price) >= 0) {
           totalPrice = Number(lp.price) * quantity;
         }
         upsellEnabled = !!lp.upsell_enabled;
@@ -523,9 +444,8 @@ Deno.serve(async (req) => {
 
     if (offerWaivesShipping) shippingFee = 0;
 
-    // Insert the order immediately with no city match. City matching (AI) and
-    // stock/WhatsApp side-effects run in the background so the client can
-    // navigate to the thank-you page without waiting on slow AI calls.
+    // Commit the complete checkout before acknowledging success. City matching
+    // and notifications can continue after the order, items and stock are safe.
     const orderCode = generateFallbackOrderCode();
 
     const offerNameSuffix = offerExtraItems.length
@@ -533,7 +453,7 @@ Deno.serve(async (req) => {
       : "";
     const orderProductName = `${product.name}${offerNameSuffix}`.slice(0, 500);
 
-    const { data: insertedOrder, error: iErr } = await supabase.from("orders").insert({
+    const orderData = {
       owner_id: (product as any).owner_id,
       store_id: (product as any).store_id ?? null,
       customer_name: customer_name || "بدون اسم",
@@ -546,7 +466,7 @@ Deno.serve(async (req) => {
       currency_code: orderCurrency.currency_code,
       price: totalPrice,
       shipping_fee: shippingFee,
-      quantity,
+      quantity: quantity + offerExtraItems.reduce((sum, line) => sum + line.quantity, 0),
       status: "pending",
       selected_color: s(body.selected_color ?? "", 200) || null,
       selected_size: s(body.selected_size ?? "", 200) || null,
@@ -567,17 +487,28 @@ Deno.serve(async (req) => {
       fbclid: s(body.fbclid ?? "", 500) || null,
       landing_slug: s(body.landing_slug ?? landingSlug ?? "", 200) || null,
       order_code: orderCode,
-    }).select("id").single();
-
-    if (iErr) {
-      const errMsg = String((iErr as { message?: string })?.message || iErr);
-      console.error("order insert failed", iErr);
-      await logRejected(`db_insert_failed: ${(iErr as { code?: string })?.code || ""} ${errMsg}`.slice(0, 500));
-      return new Response(JSON.stringify({ error: "Could not create order" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    };
+    const mainSubtotal = Number((totalPrice-offerExtraItems.reduce((sum,line)=>sum+line.price*line.quantity,0)).toFixed(2));
+    const unitPrice = Number((mainSubtotal/quantity).toFixed(2));
+    const incoming = Array.isArray(body.items) && body.items.length ? body.items : [{color:body.selected_color,size:body.selected_size,product_code:body.selected_product_code,quantity}];
+    if (incoming.some(it=>!Number.isInteger(Number(it.quantity ?? 1)) || Number(it.quantity ?? 1)<=0) || incoming.reduce((sum,it)=>sum+Number(it.quantity ?? 1),0)!==quantity) {
+      return new Response(JSON.stringify({error:'invalid_item_quantity'}),{status:400,headers:{...corsHeaders,'Content-Type':'application/json'}});
     }
+    const itemRows = incoming.map(it=>({product_id:product.id,product_name:product.name,quantity:Number(it.quantity ?? 1),price:unitPrice,
+      selected_color:s(it.color ?? '',200)||null,selected_size:s(it.size ?? '',200)||null,selected_product_code:s(it.product_code ?? '',200)||null}));
+    for (const extra of offerExtraItems) itemRows.push({product_id:extra.product_id,product_name:extra.product_name,quantity:extra.quantity,price:extra.price,selected_color:null,selected_size:null,selected_product_code:null});
+    const responseItems = [{product_id:product.id,product_name:product.name,quantity,price:mainSubtotal},
+      ...offerExtraItems.map(line => ({ ...line, price: Number((line.price * line.quantity).toFixed(2)) }))];
+    const {data: committed,error: iErr} = await supabase.rpc('commit_public_checkout',{
+      _request_id:requestId,_fingerprint:fingerprint,_order:orderData,_items:itemRows,
+      _response:{...orderCurrency,price:totalPrice,shipping_fee:shippingFee,total:totalPrice+shippingFee,accepted_offer_id:acceptedOfferId,items:responseItems},
+    });
+    if (iErr || !committed?.ok || !committed.order_id) {
+      console.error('Atomic checkout failed',iErr?.code);
+      return new Response(JSON.stringify({error:iErr?.message?.includes('checkout_request_conflict')?'checkout_request_conflict':'Could not create order'}),{status:iErr?.message?.includes('checkout_request_conflict')?409:503,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    }
+    if (committed.replayed) return new Response(JSON.stringify(committed),{headers:{...corsHeaders,'Content-Type':'application/json'}});
+    const insertedOrder = {id:committed.order_id};
 
     // Background tasks — do not block the HTTP response.
     if (insertedOrder?.id) {
@@ -590,65 +521,6 @@ Deno.serve(async (req) => {
       };
 
       const background = (async () => {
-        // 0) Persist per-piece order_items in the background so the client
-        // gets an immediate response. The main `orders` row is already saved.
-        try {
-          const incoming = Array.isArray(body.items) ? body.items! : [];
-          const unitPrice = quantity > 0 ? Number((totalPrice / quantity).toFixed(2)) : Number(product.price) || 0;
-          const rows: any[] = [];
-          if (incoming.length > 0) {
-            for (const it of incoming) {
-              rows.push({
-                order_id: orderId,
-                owner_id: (product as any).owner_id,
-                store_id: (product as any).store_id ?? null,
-                product_id: product.id,
-                product_name: product.name,
-                quantity: Math.max(1, Math.floor(Number(it.quantity) || 1)),
-                price: unitPrice,
-                selected_color: s(it.color ?? "", 200) || null,
-                selected_size: s(it.size ?? "", 200) || null,
-                selected_product_code: s(it.product_code ?? "", 200) || null,
-              });
-            }
-          } else if (quantity > 1) {
-            for (let i = 0; i < quantity; i++) {
-              rows.push({
-                order_id: orderId,
-                owner_id: (product as any).owner_id,
-                store_id: (product as any).store_id ?? null,
-                product_id: product.id,
-                product_name: product.name,
-                quantity: 1,
-                price: unitPrice,
-                selected_color: s(body.selected_color ?? "", 200) || null,
-                selected_size: s(body.selected_size ?? "", 200) || null,
-                selected_product_code: s(body.selected_product_code ?? "", 200) || null,
-              });
-            }
-          }
-          for (const extra of offerExtraItems) {
-            rows.push({
-              order_id: orderId,
-              owner_id: (product as any).owner_id,
-              store_id: (product as any).store_id ?? null,
-              product_id: extra.product_id,
-              product_name: extra.product_name,
-              quantity: extra.quantity,
-              price: extra.price,
-              selected_color: null,
-              selected_size: null,
-              selected_product_code: null,
-            });
-          }
-          if (rows.length > 0) {
-            const { error: itErr } = await supabase.from("order_items").insert(rows);
-            if (itErr) console.error("order_items insert failed", itErr);
-          }
-        } catch (e) {
-          console.error("order_items persistence error", e);
-        }
-
         // 1) Match city from what the customer wrote (governorate + address),
         // not the delivery zone (داخل/خارج طرابلس).
         try {
@@ -669,16 +541,7 @@ Deno.serve(async (req) => {
           }
         } catch (e) { console.error("match-city failed", e); }
 
-        // 2) Apply stock decrement.
-        try {
-          await fetch(`${baseUrl}/functions/v1/apply-order-stock`, {
-            method: "POST",
-            headers: authHeaders,
-            body: JSON.stringify({ order_id: orderId, reason: "order_created" }),
-          });
-        } catch (e) { console.error("apply-order-stock failed", e); }
-
-        // 3) WhatsApp confirmation.
+        // 2) WhatsApp confirmation. Stock was committed with the checkout.
         try {
           await fetch(`${baseUrl}/functions/v1/whatsapp-send-confirmation`, {
           method: "POST",
@@ -687,7 +550,7 @@ Deno.serve(async (req) => {
           });
         } catch (e) { console.error("wa-confirm failed", e); }
 
-        // 4) Push notification to store owner.
+        // 3) Push notification to store owner.
         try {
           await fetch(`${baseUrl}/functions/v1/send-push`, {
             method: "POST",
@@ -715,40 +578,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const mainUnit = quantity > 0
-      ? Number(((totalPrice - offerExtraItems.reduce((s, l) => s + l.price * l.quantity, 0)) / quantity).toFixed(2))
-      : Number(product.price) || 0;
-    const responseItems = [
-      {
-        product_id: product.id,
-        product_name: product.name,
-        quantity,
-        price: Number((mainUnit * quantity).toFixed(2)),
-      },
-      ...offerExtraItems.map((l) => ({
-        product_id: l.product_id,
-        product_name: l.product_name,
-        quantity: l.quantity,
-        price: l.price,
-        original_price: l.original_price,
-        image: l.image,
-      })),
-    ];
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        ...orderCurrency,
-        price: totalPrice,
-        shipping_fee: shippingFee,
-        total: totalPrice + shippingFee,
-        order_id: insertedOrder?.id ?? null,
-        accepted_offer_id: acceptedOfferId,
-        items: responseItems,
-      }),
-      {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify(committed), {headers:{...corsHeaders,'Content-Type':'application/json'}});
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: "Bad request" }), {

@@ -200,7 +200,14 @@ export function mapCreateOrderError(code: string): string {
       return "رقم الهاتف مطلوب";
     case "invalid_delivery_city":
       return "يرجى اختيار مدينة توصيل صالحة";
+    case "invalid_item_quantity":
+      return "يرجى التأكد من عدد القطع والخيارات المحددة";
+    case "checkout_request_conflict":
+      return "تغيّرت بيانات المحاولة السابقة. راجع بياناتك ثم أعد المحاولة";
+    case "Could not create order":
+      return "تعذر حفظ الطلب الآن. أعد المحاولة بنفس البيانات";
     default:
+      if (/[\u0600-\u06ff]/.test(code)) return code.slice(0,250);
       return "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى";
   }
 }

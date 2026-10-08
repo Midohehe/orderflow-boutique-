@@ -16,6 +16,7 @@ export type OrderTab =
   | "deleted";
 
 export interface OrdersPageFilters {
+  carrierFilter?: string;
   countryCode?: string;
   productName?: string;
   confirmationStatus?: string;
@@ -69,11 +70,23 @@ export async function fetchOrdersPage(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  if (tab === 'shipped' && filters.carrierFilter && filters.carrierFilter !== 'all') {
+    const { data, error } = await supabase.rpc('orders_shipped_filtered_page', {
+      _store_id: storeId, _filter: filters.carrierFilter, _search: filters.search?.trim() || null,
+      _product_name: filters.productName && filters.productName !== 'all' ? filters.productName : null,
+      _offset: from, _limit: pageSize,
+    });
+    if (error) throw error;
+    const result = data as { rows: Record<string, unknown>[]; total: number };
+    return { rows: result.rows, total: Number(result.total) };
+  }
+
   let q = supabase
     .from("orders")
     .select(ORDER_LIST_COLS, { count: "exact" })
     .eq("store_id", storeId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
   q = applyTabFilter(q, tab);
 
@@ -104,8 +117,9 @@ export async function fetchOrdersPage(
     q = q.lte("created_at", `${filters.dateTo}T23:59:59.999`);
   }
   if (filters.search?.trim()) {
-    const s = `%${filters.search.trim()}%`;
-    q = q.or(`shipping_reference.ilike.${s},phone.ilike.${s},customer_name.ilike.${s}`);
+    const term = filters.search.trim().replace(/\\/g, '\\\\').replace(/[%_]/g, '\\$&').replace(/"/g, '\\"');
+    const s = `"%${term}%"`;
+    q = q.or(`order_code.ilike.${s},shipping_reference.ilike.${s},phone.ilike.${s},customer_name.ilike.${s}`);
   }
 
   const { data, error, count } = await q.range(from, to);

@@ -252,6 +252,7 @@ function buildAboveFold(
 // flash. JSON is embedded in a <script type="application/json"> tag; we only
 // need to neutralize "<" so the tag can't be terminated early.
 function buildSeedJson(input: {
+  deferredDescription?: { productId: string; landingPageId: string | null } | null;
   landingCurrencyCode?: string | null;
   slug: string;
   username: string | null;
@@ -272,6 +273,7 @@ function buildSeedJson(input: {
   const sc = p.size_chart;
   const seed = {
     v: 3,
+    deferredDescription: input.deferredDescription ?? null,
     landingCurrencyCode: input.landingCurrencyCode ?? null,
     slug: input.slug,
     username: input.username,
@@ -293,7 +295,7 @@ function buildSeedJson(input: {
       slug: input.slug,
       price: p.price != null ? String(p.price) : "",
       original_price: p.original_price != null ? String(p.original_price) : undefined,
-      description: typeof p.description === "string" ? p.description : "",
+      description: input.deferredDescription ? "" : typeof p.description === "string" ? p.description : "",
       images: Array.isArray(p.images) ? p.images : [],
       product_codes: Array.isArray(p.product_codes) ? p.product_codes : [],
       colors: Array.isArray(p.colors) ? p.colors : [],
@@ -634,7 +636,7 @@ Deno.serve(async (req) => {
     const productStoreId = (product as { store_id?: string }).store_id ?? null;
     const orderFormPresetId =
       (landing as { order_form_preset_id?: string | null } | null)?.order_form_preset_id ?? null;
-    const [storeExtras, platformName, formConfig, deliveryPrices, pixelSettings, strictStock, header] =
+    const [storeExtras, platformName, formConfig, deliveryPrices, pixelSettings, strictStock, header, shellHtml] =
       await Promise.all([
         getStoreExtras(product.owner_id, productStoreId),
         getPlatformName(),
@@ -643,6 +645,7 @@ Deno.serve(async (req) => {
         getPixelSettings(product.owner_id, productStoreId),
         getStockPolicy(product.owner_id),
         getHeaderSettings(product.owner_id, productStoreId),
+        getShell(),
       ]);
     const formFields = formConfig.fields;
     storeExtras.button_text = formConfig.button_text || storeExtras.button_text;
@@ -654,7 +657,7 @@ Deno.serve(async (req) => {
     const themeCustomCss = storeExtras.theme_custom_css;
 
     const pageUrl = `https://${publicHost}${targetPath}`;
-    const shell = absolutizeAssets(await getShell());
+    const shell = absolutizeAssets(shellHtml);
     const themeCss = themeTokensToSsrCssFromTokens(themeTokens, "#root", themeCustomCss);
     const headInjection = buildHead(product, effectiveStore.currency_code, pageUrl, platformName, publicHost) + `<style id="ssr-theme">${themeCss}</style>`;
     const bodyInjection = puckHasRenderableContent(puckData)
@@ -666,6 +669,9 @@ Deno.serve(async (req) => {
     // load instead of "shell → loading form → full page". The client revalidates
     // in the background.
     const seedJson = buildSeedJson({
+      deferredDescription: shell.includes('name="wasla-deferred-description" content="v1"') &&
+        !puckHasRenderableContent(puckData) && String(product.description || '').length > 16000
+        ? { productId: product.id, landingPageId: landing?.id || null } : null,
       slug,
       username,
       ownerId: product.owner_id ?? ownerId ?? null,

@@ -12,7 +12,7 @@ function load(file, globals = {}, imports = {}) {
   file = path.resolve(root, file);
   const module = { exports: {} };
   const context = {
-    module, exports: module.exports, console, URL, Request, Response, AbortController, setTimeout, clearTimeout,
+    module, exports: module.exports, console, URL, Request, Response, AbortController, AbortSignal, crypto:require('node:crypto').webcrypto, TextEncoder, setTimeout, clearTimeout,
     ...globals,
     require: name => {
       if (name in imports) return imports[name];
@@ -37,7 +37,10 @@ assert.equal(currency.currencies.length, 22);
 function fixture(options = {}) {
   const product = { id: 'p1', slug: 'product', name: 'Test product', price: 45, owner_id: 'o1', store_id: 's1', is_visible: true, deleted_at: null, images: [], colors: [], sizes: [] };
   const page = { id: 'lp1', product_id: 'p1', owner_id: 'o1', store_id: 's1', slug: 'page', title: 'Test page', is_visible: true, price: 25, currency_code: options.pageCurrency ?? null };
+  product.description=options.description || '';
+  if(options.hiddenPage)page.is_visible=false;
   const tables = {
+    checkout_requests: options.receipt ? [options.receipt] : [],
     products: [product], landing_pages: options.noPage ? [] : [page],
     store_settings: [{ owner_id: 'o1', store_id: 'other-store', currency_code: 'GBP', currency_symbol: '£' }, { owner_id: 'o1', store_id: 's1', currency_code: options.storeCurrency || 'LYD', currency_symbol: currency.findCurrency(options.storeCurrency || 'LYD').symbol }],
     app_settings: [{ system_name: 'Wasla' }], order_form_fields: [{ id: 'field1', store_id: 's1', enabled: true, field_key: 'delivery_city' }],
@@ -63,17 +66,26 @@ function fixture(options = {}) {
       };
       return query;
     },
-    rpc: async name => ({ data: name === 'get_public_delivery_prices' ? [{ city_name: 'Tripoli', price: 10 }] : [], error: null }),
+    rpc: async (name,input) => {
+      if(name==='get_public_order_form_fields')return {data:tables.order_form_fields,error:null};
+      if(name==='commit_public_checkout'){
+        if(options.failCommit)return {data:null,error:{code:'fixture-failure'}};
+        inserts.push({table:'orders',payload:JSON.parse(JSON.stringify(input._order))});
+        inserts.push({table:'order_items',payload:JSON.parse(JSON.stringify(input._items))});
+        return {data:{...input._response,ok:true,order_id:'test-order',replayed:false},error:null};
+      }
+      return { data: name === 'get_public_delivery_prices' ? [{ city_name: 'Tripoli', price: 10 }] : [], error: null };
+    },
   };
   return { db, reads, inserts, updates, page };
 }
 async function edge(file, options, request) {
   const data = fixture(options); let handler; const background = [];
   load(file, {
-    Deno: { env: { get: name => name === 'SUPABASE_URL' ? 'https://offline.invalid' : '' }, serve: value => { handler = value; } },
+    Deno: { env: { get: name => name === 'SUPABASE_URL' ? 'https://offline.invalid' : name==='APP_ORIGIN' && options.newShell ? 'https://offline.invalid' : '' }, serve: value => { handler = value; } },
     EdgeRuntime: { waitUntil: task => background.push(task) },
     // Stub all side effects. This test never contacts carrier, WhatsApp, or Supabase.
-    fetch: async () => new Response('{}', { status: 200 }),
+    fetch: async () => new Response(options.newShell ? '<html><head><meta name="wasla-deferred-description" content="v1" /></head><body><div id="root"></div></body></html>' : '{}', { status: 200 }),
     console: { ...console, error: () => {} },
   }, { 'https://esm.sh/@supabase/supabase-js@2.45.0': { createClient: () => data.db } });
   const response = await handler(request);
@@ -118,6 +130,21 @@ async function run() {
   assert.equal(fallback.currency_code, 'LYD'); assert.equal(fallback.price, 90);
   const failed = await edge('supabase/functions/create-order/index.ts', { failCurrency: true }, checkoutRequest());
   assert.notEqual(failed.response.status, 200); assert.equal(failed.inserts.length, 0);
+  for(const [opts,body,status] of [[{failCommit:true},{},503],[{hiddenPage:true},{},404],[{},{items:[{quantity:1}]},400]]){
+    const result=await edge('supabase/functions/create-order/index.ts',opts,checkoutRequest(body));assert.equal(result.response.status,status);assert.equal(result.inserts.length,0);assert.notEqual((await result.response.json()).ok,true);
+  }
+  const retryBody={request_id:'10000000-0000-4000-8000-000000000001'},original=await checkoutRequest(retryBody).json();
+  const fingerprint=await load('supabase/functions/_shared/checkout-request.ts').checkoutFingerprint(original);
+  const receipt={request_id:retryBody.request_id,fingerprint,response:{ok:true,order_id:'already-saved',price:38,total:48}};
+  const replay=await edge('supabase/functions/create-order/index.ts',{receipt},checkoutRequest(retryBody));assert.equal(replay.response.status,200);assert.equal((await replay.response.json()).price,38);assert.equal(replay.inserts.length,0);
+  const conflict=await edge('supabase/functions/create-order/index.ts',{receipt},checkoutRequest({...retryBody,quantity:3}));assert.equal(conflict.response.status,409);assert.equal(conflict.inserts.length,0);
+  const description='<p>Details</p><img src="data:image/png;base64,'+'a'.repeat(3_000_000)+'" />';
+  for(const newShell of [false,true]){
+    const result=await edge('supabase/functions/landing-ssr/index.ts',{description,newShell},new Request('https://offline.invalid/p/page'));
+    const html=await result.response.text(),seed=JSON.parse(html.match(/id="landing-ssr-data">([\s\S]*?)<\/script>/)[1]);
+    assert.equal(seed.product.description,newShell?'':description);assert.equal(!!seed.deferredDescription,newShell);assert.equal(seed.product.price,'25');assert.ok(seed.formFields.length);
+    if(newShell)assert.ok(Buffer.byteLength(html)<30000,'3MB description must not delay the product and checkout form');
+  }
 
   const print = load('src/lib/printSticker.ts', {}, { './currencies': currency });
   const html = print.buildStickerHtml([{ id: '1', price: 50, currency_code: 'USD' }, { id: '2', price: 30 }], print.DEFAULT_STICKER_SETTINGS, { currencySymbol: 'د.ل', storeName: 'test' });
@@ -151,7 +178,7 @@ async function run() {
   emitterContext.exports.emit('USD', 60);
   assert.equal(events.length, 4);
   for (const event of [...events, ...persisted]) { assert.equal(event.currency, 'USD'); assert.equal(event.value ?? event.price, 60); }
-  assert.ok(pageSource.includes('trackPurchaseEvent(checkoutCurrency.currency_code, orderPrice)'));
+  assert.ok(pageSource.includes('trackPurchaseEvent(checkoutCurrency.currency_code, orderPrice, orderIdFromServer)'));
   console.log('PASS landing currency: inheritance/override/reset/isolation; real checkout and SSR handlers; authoritative order snapshot and purchase pixels; quantities/shipping unchanged; imports; mixed-currency stickers; failures prevent saving.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
