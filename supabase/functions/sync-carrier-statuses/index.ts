@@ -1,6 +1,7 @@
 // Resumable shipment synchronization with bounded batches and persistent progress.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { carrierCodeToOrderStatus } from "../_shared/carrier-order-status.ts";
+import { resolveCarrierShipment } from "../_shared/carrier-shipment-lookup.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -119,40 +120,47 @@ Deno.serve(async (req) => {
     const codes=new Map<string,{code:string;count:number;label:string;mapped:boolean}>((claim.job.codes||[]).map((c: {code:string;count:number;label:string;mapped:boolean})=>[c.code,c]));
     const errors: string[]=[...(claim.job.errors||[])];
     let updated=0,failed=0,skipped=0;
-    const shipmentQuery=`query ($id: Int!) { shipment(id: $id) { id code refNumber notes status { code name } deliveryType { code name } returnType { code name } cancellationReason { id name } collectedFees deliveredAmount } }`;
+    const shipmentFields=`id code refNumber notes status { code name } deliveryType { code name } returnType { code name } cancellationReason { id name } collectedFees deliveredAmount`;
+    const lookupShipment=async(key:{id:number}|{code:string})=>{
+      const byId='id' in key;
+      const query=byId?`query ($id: Int!) { shipment(id: $id) { ${shipmentFields} } }`:`query ($code: String!) { shipment(code: $code) { ${shipmentFields} } }`;
+      const response=await boundedFetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({query,variables:key})});
+      if(!response.ok) {
+        if(response.status===401 || response.status===403) carrierSessions.delete(sessionKey);
+        throw Error(`تعذّر الاتصال بشركة الشحن (${response.status})`);
+      }
+      const result=await response.json();
+      if(result.errors?.length) throw Error('رفضت شركة الشحن قراءة الحالة: '+String(result.errors[0]?.message || 'خطأ في الاستعلام').split(token!).join('[محجوب]').slice(0,250));
+      return result?.data?.shipment || null;
+    };
     const processOne=async(id:string)=>{
       const order=orders?.find((o:{id:string})=>o.id===id);
       try {
         if(!order || order.is_deleted || order.status!=="shipped" || order.shipping_id==null) { skipped++; return; }
-        const shippingId=Number(order.shipping_id);
-        if(!Number.isSafeInteger(shippingId) || shippingId<=0) throw Error("معرّف الشحنة غير صالح");
-        const response=await boundedFetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({query:shipmentQuery,variables:{id:shippingId}})});
-        if(!response.ok) {
-          if(response.status===401 || response.status===403) carrierSessions.delete(sessionKey);
-          throw Error(`تعذّر الاتصال بشركة الشحن (${response.status})`);
-        }
-        const result=await response.json();
-        const shipment=result?.data?.shipment;
-        if(!shipment) throw Error("لم تُرجع شركة الشحن بيانات لهذه الشحنة");
+        const shipment=await resolveCarrierShipment(order,lookupShipment);
+        const resolvedShippingId=String(shipment.id);
         const code=buildComposite(shipment.status?.code??null,shipment.deliveryType?.code,shipment.returnType?.code);
         if(!code) throw Error("حالة الشحنة غير موجودة في رد شركة الشحن");
         const custom=mappingMap.get(code.toUpperCase());
         const label=custom || (STATUS_LABELS[code]?`${STATUS_LABELS[code]} (${code})`:code);
         const payload: Record<string,unknown>={carrier_status:label,carrier_status_updated_at:new Date().toISOString(),carrier_status_raw:shipment};
+        if(String(order.shipping_id)!==resolvedShippingId) payload.shipping_id=resolvedShippingId;
         const reason=shipment.cancellationReason?.name??shipment.cancellationReason?.id;
         if(reason!=null && String(reason).trim()) payload.carrier_cancellation_reason_id=String(reason);
         if(shipment.notes!=null && String(shipment.notes).trim()) payload.carrier_notes=String(shipment.notes);
         const nextStatus=carrierCodeToOrderStatus(code);
         // Keep unpacked orders eligible for retry until their stock update succeeds.
         if(nextStatus && nextStatus!=="unpacked") payload.status=nextStatus;
-        const {data:saved,error}=await admin!.from("orders").update(payload).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).eq("status","shipped").eq("shipping_id",order.shipping_id).select("id").maybeSingle();
+        let save=admin!.from("orders").update(payload).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).eq("status","shipped").eq("shipping_id",order.shipping_id);
+        if(order.shipping_reference) save=save.eq("shipping_reference",order.shipping_reference);
+        const {data:saved,error}=await save.select("id").maybeSingle();
         if(error) throw Error("تعذّر حفظ حالة الطلب: "+error.message);
         if(!saved) { skipped++; return; } // Status or shipment changed while the carrier request was in flight.
         if(["UPKBD","UKDB","UPKBL"].includes(code)) {
           const stock=await boundedFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/apply-order-stock`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`},body:JSON.stringify({order_id:id,reason:"order_unpacked"})});
           const stockResult=await stock.json().catch(()=>null);
           if(!stock.ok || !stockResult?.ok || stockResult.errors?.length) throw Error("تمت قراءة حالة الشحنة لكن تعذّر تحديث المخزون؛ أعد المزامنة");
-          const {data:unpacked,error:unpackError}=await admin!.from("orders").update({status:"unpacked"}).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).eq("status","shipped").eq("shipping_id",order.shipping_id).eq("carrier_status_updated_at",payload.carrier_status_updated_at).select("id").maybeSingle();
+          const {data:unpacked,error:unpackError}=await admin!.from("orders").update({status:"unpacked"}).eq("id",id).eq("store_id",storeId).eq("is_deleted",false).eq("status","shipped").eq("shipping_id",payload.shipping_id ?? order.shipping_id).eq("carrier_status_updated_at",payload.carrier_status_updated_at).select("id").maybeSingle();
           if(unpackError) throw Error("تعذّر حفظ حالة التفريغ؛ أعد المزامنة");
           if(!unpacked) { skipped++; return; }
         }
