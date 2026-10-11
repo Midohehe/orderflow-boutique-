@@ -34,26 +34,50 @@ export function computeMovementTotals(rows: Pick<StockMovementRow, "qty">[]) {
 /** Fetch all stock movements for a store (paginated server-side). */
 export async function fetchStoreStockMovements(
   ownerId: string,
-  storeId: string | null
+  storeId: string,
+  signal?: AbortSignal
 ): Promise<StockMovementRow[]> {
+  if (!ownerId || !storeId) throw new Error("اختر المتجر لعرض حركة المنتجات");
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
+  let timedOut = false;
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 30_000);
   const all: StockMovementRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    let q = (supabase as any)
-      .from("stock_movements")
-      .select(MOVEMENT_COLS)
-      .eq("owner_id", ownerId)
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
+  let cursor: StockMovementRow | undefined;
+  try {
+    while (true) {
+      if (controller.signal.aborted) throw new Error("تم إيقاف تحميل الحركات");
+      let q = (supabase as any)
+        .from("stock_movements")
+        .select(MOVEMENT_COLS)
+        .eq("owner_id", ownerId)
+        .eq("store_id", storeId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(PAGE_SIZE)
+        .abortSignal(controller.signal);
 
-    if (storeId) {
-      q = q.eq("store_id", storeId);
+      // A stable cursor avoids skipping/repeating movements when new rows arrive
+      // while the history is loading, including rows with identical timestamps.
+      if (cursor) {
+        q = q.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      const batch = (data as StockMovementRow[]) || [];
+      all.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+      cursor = batch[batch.length - 1];
     }
-
-    const { data, error } = await q;
-    if (error) throw error;
-    const batch = (data as StockMovementRow[]) || [];
-    all.push(...batch);
-    if (batch.length < PAGE_SIZE) break;
+    return all;
+  } catch (error) {
+    if (timedOut) throw new Error("استغرق تحميل حركة المنتجات وقتًا طويلًا. حاول مرة أخرى.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", cancel);
   }
-  return all;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import {
 import { Boxes, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStoreContext } from "@/hooks/useStoreContext";
-import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { isolateLatin } from "@/lib/bidi";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -28,6 +29,11 @@ interface ProductPrice {
   price: number;
 }
 
+const EMPTY_MOVEMENTS: MovementRow[] = [];
+const EMPTY_PRODUCTS: ProductPrice[] = [];
+const DISPLAY_PAGE_SIZE = 50;
+const movementDate = new Intl.DateTimeFormat("ar-LY", { dateStyle: "short", timeStyle: "short" });
+
 const REASON_LABEL: Record<string, string> = {
   order_created: "إنشاء طلب",
   order_unpacked: "تفريغ من شركة الشحن",
@@ -39,53 +45,46 @@ const REASON_LABEL: Record<string, string> = {
 };
 
 const StockMovements = () => {
-  const { activeStoreId } = useStoreContext();
-  const [rows, setRows] = useState<MovementRow[]>([]);
-  const [products, setProducts] = useState<ProductPrice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { activeStore, activeStoreId, loading: storeLoading } = useStoreContext();
+  const { user } = useAuth();
+  const ownerId = activeStore?.owner_id;
+  const ready = !storeLoading && !!user && !!ownerId && !!activeStoreId;
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [groupByProduct, setGroupByProduct] = useState(false);
   const [productFilter, setProductFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
 
-  const load = async () => {
-    setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) {
-      setRows([]);
-      setProducts([]);
-      setLoading(false);
-      return;
-    }
-    const { data: ownerRow } = await (supabase as any)
-      .rpc("get_effective_owner_id", { _uid: userData.user.id });
-    const effectiveOwnerId = (ownerRow as string) || userData.user.id;
-    try {
-      const [movementRows, prRes] = await Promise.all([
-        fetchStoreStockMovements(effectiveOwnerId, activeStoreId),
-        (() => {
-          let prQ = (supabase as any)
-            .from("products")
-            .select("id, price")
-            .eq("owner_id", effectiveOwnerId)
-            .limit(1000);
-          if (activeStoreId) prQ = prQ.eq("store_id", activeStoreId);
-          return prQ;
-        })(),
-      ]);
-      setRows(movementRows as MovementRow[]);
-      if (prRes.error) toast({ title: "خطأ", description: prRes.error.message, variant: "destructive" });
-      else setProducts((prRes.data as ProductPrice[]) || []);
-    } catch (err: any) {
-      toast({ title: "خطأ", description: err?.message || "تعذر تحميل حركة المنتجات", variant: "destructive" });
-      setRows([]);
-    }
-    setLoading(false);
+  const movementsQuery = useQuery({
+    queryKey: ["stock-movements", user?.id, ownerId, activeStoreId],
+    enabled: ready,
+    queryFn: ({ signal }) => fetchStoreStockMovements(ownerId!, activeStoreId!, signal),
+    retry: false,
+  });
+  const pricesQuery = useQuery({
+    queryKey: ["stock-movement-prices", user?.id, ownerId, activeStoreId],
+    enabled: ready,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase.from("products").select("id, price")
+        .eq("owner_id", ownerId!).eq("store_id", activeStoreId!).abortSignal(signal).limit(1000);
+      if (error) throw error;
+      return (data || []) as ProductPrice[];
+    },
+  });
+  const rows = ready ? movementsQuery.data ?? EMPTY_MOVEMENTS : EMPTY_MOVEMENTS;
+  const products = ready ? pricesQuery.data ?? EMPTY_PRODUCTS : EMPTY_PRODUCTS;
+  const loading = storeLoading || (ready && movementsQuery.isPending);
+  const load = () => {
+    void movementsQuery.refetch();
+    void pricesQuery.refetch();
   };
-
-  useEffect(() => { load(); }, [activeStoreId]);
+  const resetFilters = () => {
+    setReasonFilter("all"); setProductFilter("all"); setSearch(""); setFromDate(""); setToDate("");
+  };
+  useEffect(() => { resetFilters(); }, [activeStoreId]);
+  useEffect(() => { setPage(1); }, [activeStoreId, reasonFilter, productFilter, search, fromDate, toDate, groupByProduct]);
 
   const productPriceMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -155,6 +154,14 @@ const StockMovements = () => {
   }, [filtered]);
 
   const totals = useMemo(() => computeMovementTotals(filtered), [filtered]);
+  const displayCount = groupByProduct ? grouped.length : filtered.length;
+  const totalPages = Math.max(1, Math.ceil(displayCount / DISPLAY_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * DISPLAY_PAGE_SIZE;
+  const pagedRows = filtered.slice(startIndex, startIndex + DISPLAY_PAGE_SIZE);
+  const pagedGroups = grouped.slice(startIndex, startIndex + DISPLAY_PAGE_SIZE);
+  const hasFilters = reasonFilter !== "all" || productFilter !== "all" || !!search || !!fromDate || !!toDate;
+  const showTotals = ready && !loading && !movementsQuery.isError;
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
@@ -171,7 +178,7 @@ const StockMovements = () => {
             <div className="p-2 bg-red-500/10 rounded-lg"><ArrowDown className="w-5 h-5 text-red-500" /></div>
             <div>
               <p className="text-xs text-muted-foreground">إجمالي الخارج (وحدات)</p>
-              <p className="text-lg font-bold">{totals.outQty}</p>
+              <p className="text-lg font-bold">{showTotals ? totals.outQty : "—"}</p>
             </div>
           </CardContent>
         </Card>
@@ -180,7 +187,7 @@ const StockMovements = () => {
             <div className="p-2 bg-green-500/10 rounded-lg"><ArrowUp className="w-5 h-5 text-green-500" /></div>
             <div>
               <p className="text-xs text-muted-foreground">إجمالي الداخل (وحدات)</p>
-              <p className="text-lg font-bold">{totals.inQty}</p>
+              <p className="text-lg font-bold">{showTotals ? totals.inQty : "—"}</p>
             </div>
           </CardContent>
         </Card>
@@ -189,7 +196,7 @@ const StockMovements = () => {
             <div className="p-2 bg-primary/10 rounded-lg"><Boxes className="w-5 h-5 text-primary" /></div>
             <div>
               <p className="text-xs text-muted-foreground">الصافي (وحدات)</p>
-              <p className="text-lg font-bold">{totals.net}</p>
+              <p className="text-lg font-bold">{showTotals ? totals.net : "—"}</p>
             </div>
           </CardContent>
         </Card>
@@ -233,6 +240,8 @@ const StockMovements = () => {
                 <SelectItem value="return_received">استلام مرتجع</SelectItem>
                 <SelectItem value="manual_add">إضافة كميات</SelectItem>
                 <SelectItem value="manual_remove">سحب كميات</SelectItem>
+                <SelectItem value="opening_stock">كمية افتتاحية</SelectItem>
+                <SelectItem value="manual">حركة يدوية</SelectItem>
               </SelectContent>
             </Select>
             <Select value={productFilter} onValueChange={setProductFilter}>
@@ -250,14 +259,28 @@ const StockMovements = () => {
             >
               {groupByProduct ? "عرض السجل التفصيلي" : "تجميع حسب المنتج"}
             </Button>
-            <Button variant="outline" onClick={load} disabled={loading}>تحديث</Button>
+            {hasFilters && <Button variant="ghost" onClick={resetFilters}>مسح الفلاتر</Button>}
+            <Button variant="outline" onClick={load} disabled={!ready || movementsQuery.isFetching}>
+              {movementsQuery.isFetching ? "جاري التحميل..." : "تحديث"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {ready && pricesQuery.isError && (
+            <p className="mb-3 text-sm text-muted-foreground">تعذر تحميل أسعار المنتجات الحالية؛ تظهر الأسعار المحفوظة مع الحركات فقط.</p>
+          )}
           {loading ? (
-            <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+            <div className="py-12 flex justify-center gap-2" role="status"><Loader2 className="w-6 h-6 animate-spin text-primary" />جاري تحميل حركة المنتجات...</div>
+          ) : !ready ? (
+            <div className="py-10 text-center text-muted-foreground">اختر المتجر لعرض حركة المنتجات.</div>
+          ) : movementsQuery.isError ? (
+            <div className="py-10 text-center space-y-3" role="alert">
+              <p className="font-medium text-destructive">تعذر تحميل حركة المنتجات</p>
+              <p className="text-sm text-muted-foreground">{movementsQuery.error?.message || "تحقق من الاتصال وحاول مرة أخرى."}</p>
+              <Button variant="outline" onClick={load} disabled={movementsQuery.isFetching}>إعادة المحاولة</Button>
+            </div>
           ) : filtered.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground">لا توجد حركات بعد.</div>
+            <div className="py-10 text-center text-muted-foreground">{hasFilters ? "لا توجد حركات تطابق الفلاتر المحددة." : "لا توجد حركات مسجلة لهذا المتجر بعد."}</div>
           ) : groupByProduct ? (
             <div className="overflow-x-auto">
               <Table>
@@ -271,7 +294,7 @@ const StockMovements = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {grouped.map((g, i) => (
+                  {pagedGroups.map((g, i) => (
                     <TableRow key={i}>
                       <TableCell className="font-medium">{isolateLatin(g.product_name)}</TableCell>
                       <TableCell className="text-muted-foreground">{g.count}</TableCell>
@@ -310,10 +333,10 @@ const StockMovements = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((r) => (
+                  {pagedRows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {new Date(r.created_at).toLocaleString("ar-LY")}
+                        {movementDate.format(new Date(r.created_at))}
                       </TableCell>
                       <TableCell className="font-medium">{r.product_name || "—"}</TableCell>
                       <TableCell>{r.variant_key || "—"}</TableCell>
@@ -339,6 +362,18 @@ const StockMovements = () => {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {ready && !loading && !movementsQuery.isError && displayCount > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+              <p className="text-sm text-muted-foreground">
+                عرض {startIndex + 1}–{Math.min(startIndex + DISPLAY_PAGE_SIZE, displayCount)} من {displayCount} {groupByProduct ? "منتج" : "حركة"} · الإجماليات لكل النتائج المطابقة
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>السابق</Button>
+                <span className="text-sm">{currentPage} / {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>التالي</Button>
+              </div>
             </div>
           )}
         </CardContent>
