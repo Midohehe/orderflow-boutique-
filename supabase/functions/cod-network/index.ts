@@ -113,9 +113,12 @@ Deno.serve(async req => {
       return json({ drafts: await loadDrafts(db, storeId, ids, config), config });
     }
     if (!uuid(body.order_id)) return json({ error: 'رقم الطلب غير صالح' }, 400);
+    if (body.action === 'send' && body.resource_type !== undefined && !['order', 'lead'].includes(body.resource_type)) {
+      return json({ error: 'اختر نوع الإرسال: Leads أو Orders' }, 400);
+    }
     const previous = await db.from('cod_network_shipments').select('state,attempt_id,reference,request_payload,started_at,resource_type').eq('store_id', storeId).eq('order_id', body.order_id).maybeSingle();
     if (previous.error) throw previous.error;
-    if (previous.data?.state === 'sent') return json({ ok: true, already_sent: true, reference: previous.data.reference });
+    if (previous.data?.state === 'sent') return json({ ok: true, already_sent: true, reference: previous.data.reference, resource_type: previous.data.resource_type });
     if (body.action === 'reconcile') {
       const saved = previous.data;
       if (!saved || !['sending','uncertain'].includes(saved.state) || Date.now() - Date.parse(saved.started_at) < 120_000) return json({ error: 'انتظر انتهاء محاولة الإرسال قبل ربط الطلب' }, 409);
@@ -142,11 +145,14 @@ Deno.serve(async req => {
     const edits: CodEdits = body.edits && typeof body.edits === 'object' ? body.edits : {};
     const payload = buildCodPayload(draft, edits, config.currency_code);
     const token = await tokenFor(db, storeId);
-    let isLead = previous.data?.resource_type === 'lead';
+    // Explicit choices never silently change endpoint. Requests from an older UI
+    // retain the previous drop-product fallback until that client is refreshed.
+    const explicitDestination = body.resource_type !== undefined;
+    let isLead = (body.resource_type ?? previous.data?.resource_type ?? 'order') === 'lead';
     let outbound: ReturnType<typeof buildCodPayload> | ReturnType<typeof buildCodLeadPayload> = isLead ? buildCodLeadPayload(payload) : payload;
-    const claim = await db.rpc('claim_cod_network_order', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: outbound });
+    const claim = await db.rpc('claim_cod_network_dispatch', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: outbound, _resource_type: isLead ? 'lead' : 'order' });
     if (claim.error) throw claim.error;
-    if (claim.data.state === 'sent') return json({ ok: true, already_sent: true, reference: claim.data.reference });
+    if (claim.data.state === 'sent') return json({ ok: true, already_sent: true, reference: claim.data.reference, resource_type: claim.data.resource_type });
     if (claim.data.state !== 'claimed') return json({ error: 'توجد محاولة إرسال سابقة تحتاج تحققًا قبل الإعادة', uncertain: true }, 409);
     const attemptId = claim.data.attempt_id;
     let result;
@@ -154,7 +160,7 @@ Deno.serve(async req => {
       result = await remote(token, isLead ? '/leads' : '/orders', outbound);
       // Only this explicit no-order-created rejection permits a single fallback.
       // A timeout, generic rejection or ambiguous success never triggers a POST.
-      if (!isLead && result.status === 400 && codHasErrorCode(result.body, 40049)) {
+      if (!explicitDestination && !isLead && result.status === 400 && codHasErrorCode(result.body, 40049)) {
         outbound = buildCodLeadPayload(payload);
         const switched = await db.rpc('set_cod_network_lead_attempt', { _order_id: draft.id, _attempt_id: attemptId, _payload: outbound });
         if (switched.error || switched.data !== true) throw Error('Unable to persist lead destination');
@@ -170,7 +176,7 @@ Deno.serve(async req => {
     const sent = isLead ? codRemoteLead(result.body) : codRemoteOrder(result.body);
     if (result.status >= 200 && result.status < 300 && sent) {
       const warning = Number.isFinite(sent.total) && Math.abs(sent.total - draft.total) > 0.011 ? 'تم الإرسال، لكن إجمالي الشركة مختلف؛ راجع مبلغ التحصيل في حساب الشركة'
-        : isLead ? 'تم تسجيل طلب الدروبشيبينغ لدى الشركة (Lead)، وهو بانتظار تأكيد الشركة وتجهيزه للشحن' : null;
+        : isLead ? 'تم التسجيل لدى الشركة كـ Lead، بانتظار تأكيد الشركة وتجهيزه للشحن' : null;
       await finish(db, draft.id, attemptId, 'sent', sent.id, sent.reference, warning);
       if (body.remember_skus === true) {
         const links = draft.items.filter(item => item.product_id).map(item => ({ store_id: storeId, product_id: item.product_id!, variant_key: item.variant_key, sku: String(edits.skus?.[item.id] ?? item.sku).trim() }));

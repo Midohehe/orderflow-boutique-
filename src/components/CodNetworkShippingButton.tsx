@@ -1,28 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { codNetwork, buildCodPayload, type CodDraft, type CodEdits, type CodSettings } from '@/lib/codNetwork';
+import { codNetwork, buildCodPayload, type CodDraft, type CodEdits, type CodSettings, type CodResourceType } from '@/lib/codNetwork';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Send, CheckCircle2 } from 'lucide-react';
 
-type Result = { ok: boolean; reference?: string; error?: string; warning?: string | null };
+type Result = { ok: boolean; reference?: string; error?: string; warning?: string | null; resource_type?: CodResourceType };
 export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled = false }: { storeId: string | null; orderIds: string[]; onDone: () => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [preparing, setPreparing] = useState(false);
   const [drafts, setDrafts] = useState<CodDraft[]>([]), [edits, setEdits] = useState<Record<string, CodEdits>>({});
   const [results, setResults] = useState<Record<string, Result>>({}), [error, setError] = useState('');
   const [remoteIds, setRemoteIds] = useState<Record<string, string>>({}), [remember, setRemember] = useState(true);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [resourceType, setResourceType] = useState<CodResourceType>('order');
   const currentStore = useRef(storeId); currentStore.current = storeId;
   const submitting = useRef(false);
   const status = useQuery({ queryKey: ['cod-network-status', storeId], enabled: !!storeId,
     queryFn: () => codNetwork<CodSettings>('status', storeId!), staleTime: 30_000, refetchOnWindowFocus: true, retry: false });
-  useEffect(() => { setOpen(false); setDrafts([]); setEdits({}); setResults({}); setError(''); }, [storeId]);
+  useEffect(() => { setOpen(false); setDrafts([]); setEdits({}); setResults({}); setError(''); setResourceType('order'); }, [storeId]);
   async function prepare() {
     if (!storeId || !orderIds.length || submitting.current) return;
     const target = storeId;
     setOpen(true); setPreparing(true); setError(''); setDrafts([]); setResults({}); setEdits({}); setRemoteIds({}); setProgress({ done: 0, total: 0 });
+    setResourceType('order');
     try {
       const response = await codNetwork<{ drafts: CodDraft[] }>('prepare', target, { order_ids: orderIds });
       if (currentStore.current === target) setDrafts(response.drafts);
@@ -39,14 +41,14 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
   async function send() {
     if (!storeId || submitting.current || !ready.length) return;
     submitting.current = true; setBusy(true); setError('');
-    const target = storeId, batch = [...ready]; setProgress({ done: 0, total: batch.length });
+    const target = storeId, batch = [...ready], destination = resourceType; setProgress({ done: 0, total: batch.length });
     let completed = false;
     try {
       for (let index = 0; index < batch.length; index++) {
         if (currentStore.current !== target) break;
         const draft = batch[index];
         try {
-          const result = await codNetwork<Result>('send', target, { order_id: draft.id, review_key: draft.review_key, edits: edits[draft.id] || {}, remember_skus: remember });
+          const result = await codNetwork<Result>('send', target, { order_id: draft.id, review_key: draft.review_key, edits: edits[draft.id] || {}, remember_skus: remember, resource_type: destination });
           if (currentStore.current === target) setResults(previous => ({ ...previous, [draft.id]: result }));
           completed = completed || result.ok;
         } catch (failure) {
@@ -75,7 +77,21 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
   return <>
     <Button variant="outline" disabled={disabled || !storeId || !orderIds.length || busy || preparing} onClick={() => void prepare()}><Send className="w-4 h-4 ml-2" />إرسال لشركة سعودي نيتورك ({orderIds.length})</Button>
     <Dialog open={open} onOpenChange={value => { if (!busy && !preparing) setOpen(value); }}><DialogContent dir="rtl" className="max-w-3xl max-h-[90dvh] overflow-y-auto">
-      <DialogTitle>إرسال الطلبات إلى سعودي نيتورك</DialogTitle><DialogDescription>راجع العميل والعنوان ورموز SKU من حساب الشركة. مبلغ التحصيل يشمل توصيل الطلب، ويُرسل بالدفع عند الاستلام. منتجات الدروبشيبينغ تُسجّل لدى الشركة كطلبات بانتظار التأكيد (Leads). الحد الأقصى 50 طلبًا في الدفعة.</DialogDescription>
+      <DialogTitle>إرسال الطلبات إلى سعودي نيتورك</DialogTitle><DialogDescription>اختر نوع الإرسال وراجع العميل والعنوان ورموز SKU من حساب الشركة. مبلغ التحصيل يشمل توصيل الطلب. الحد الأقصى 50 طلبًا في الدفعة.</DialogDescription>
+      <fieldset disabled={busy || preparing} className="space-y-2">
+        <legend className="text-sm font-medium mb-2">إرسال الطلبات المحددة كـ</legend>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${resourceType === 'lead' ? 'border-primary bg-primary/5' : ''}`}>
+            <input type="radio" name="cod-resource-type" value="lead" checked={resourceType === 'lead'} onChange={() => setResourceType('lead')} className="mt-1" />
+            <span><span className="block font-semibold" dir="ltr">Leads</span><span className="text-sm text-muted-foreground">طلبات بانتظار تأكيد الشركة، وتشمل منتجات الدروبشيبينغ.</span></span>
+          </label>
+          <label className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${resourceType === 'order' ? 'border-primary bg-primary/5' : ''}`}>
+            <input type="radio" name="cod-resource-type" value="order" checked={resourceType === 'order'} onChange={() => setResourceType('order')} className="mt-1" />
+            <span><span className="block font-semibold" dir="ltr">Orders</span><span className="text-sm text-muted-foreground">طلبات مباشرة لدى الشركة بالدفع عند الاستلام.</span></span>
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground">يطبق الاختيار على الطلبات الجاهزة للإرسال في هذه الدفعة. الطلبات المرسلة سابقًا لا يعاد إرسالها.</p>
+      </fieldset>
       {preparing && <p role="status" className="flex gap-2"><Loader2 className="w-4 h-4 animate-spin" />جاري تجهيز الطلبات…</p>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {drafts.map(draft => {
@@ -85,7 +101,7 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
         const edit = (field: keyof CodEdits, value: string) => setEdits(previous => ({ ...previous, [draft.id]: { ...previous[draft.id], [field]: value } }));
         return <div key={draft.id} className="border rounded-xl p-4 space-y-3">
           <div className="flex justify-between gap-2 flex-wrap"><strong>الطلب {draft.order_code}</strong><span>التحصيل: {draft.total.toFixed(2)} {draft.currency_code} · {draft.country}</span></div>
-          {sent ? <p className="text-emerald-600 flex gap-2" role="status"><CheckCircle2 className="w-4 h-4" />تم الإرسال — رقم الشركة: {result?.reference || draft.shipment?.reference}</p> : <>
+          {sent ? <p className="text-emerald-600 flex gap-2" role="status"><CheckCircle2 className="w-4 h-4" />تم الإرسال كـ {(result?.resource_type || draft.shipment?.resource_type) === 'lead' ? 'Lead' : 'Order'} — رقم الشركة: {result?.reference || draft.shipment?.reference}</p> : <>
             <div className="grid sm:grid-cols-2 gap-3">{(['full_name','phone','city','area','address'] as const).map(field => {
               const label = { full_name: 'اسم العميل', phone: 'الهاتف', city: 'المدينة', area: 'المنطقة / الحي', address: 'العنوان' }[field];
               return <div key={field} className="space-y-1"><Label htmlFor={`cod-${draft.id}-${field}`}>{label}</Label><Input id={`cod-${draft.id}-${field}`} disabled={busy || uncertain} value={change[field] ?? draft[field]} onChange={event => edit(field, event.target.value)} dir={field === 'phone' ? 'ltr' : undefined} /></div>;
@@ -95,10 +111,10 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
             {uncertain && <div className="space-y-2 bg-muted/40 p-3 rounded-md"><p className="text-xs">إذا وجدت الطلب في حساب الشركة، أدخل معرّفه الرقمي لربطه دون إنشاء شحنة ثانية. يُتحقق من الهاتف ومبلغ التحصيل. متاح بعد دقيقتين من المحاولة.</p><div className="flex gap-2"><Input aria-label={`رقم طلب الشركة ${draft.order_code}`} dir="ltr" placeholder="معرّف الطلب الرقمي لدى الشركة" value={remoteIds[draft.id] || ''} disabled={busy} onChange={event => setRemoteIds(previous => ({ ...previous, [draft.id]: event.target.value }))} /><Button variant="outline" disabled={busy || !remoteIds[draft.id]} onClick={() => void reconcile(draft)}>تحقق واربط</Button></div></div>}
           </>}
           {result?.warning && <p className="text-amber-600 text-sm">{result.warning}</p>}{result?.error && <p role="alert" className="text-destructive text-sm">{result.error}</p>}
-          {sent && !result?.warning && draft.shipment?.resource_type === 'lead' && <p className="text-amber-600 text-sm">طلب دروبشيبينغ مسجّل لدى الشركة (Lead)، بانتظار تأكيد الشركة وتجهيزه للشحن.</p>}
+          {sent && !result?.warning && (result?.resource_type || draft.shipment?.resource_type) === 'lead' && <p className="text-amber-600 text-sm">مسجّل لدى الشركة كـ Lead، بانتظار تأكيد الشركة وتجهيزه للشحن.</p>}
         </div>;
       })}
-      {!!drafts.length && <><label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} />حفظ ربط رموز المنتجات للمرات القادمة</label><p role="status" className="text-sm">جاهز للإرسال: {ready.length} من {drafts.length}{progress.total > 0 && ` · تمت معالجة ${progress.done} من ${progress.total}`}</p><Button disabled={busy || preparing || !ready.length || !!error} onClick={() => void send()}>{busy ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Send className="w-4 h-4 ml-2" />}{busy ? `جاري الإرسال ${progress.done} / ${progress.total}` : `تأكيد إرسال ${ready.length} طلب`}</Button></>}
+      {!!drafts.length && <><label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} />حفظ ربط رموز المنتجات للمرات القادمة</label><p role="status" className="text-sm">جاهز للإرسال: {ready.length} من {drafts.length}{progress.total > 0 && ` · تمت معالجة ${progress.done} من ${progress.total}`}</p><Button disabled={busy || preparing || !ready.length || !!error} onClick={() => void send()}>{busy ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Send className="w-4 h-4 ml-2" />}{busy ? `جاري الإرسال ${progress.done} / ${progress.total}` : `تأكيد إرسال ${ready.length} طلب كـ ${resourceType === 'lead' ? 'Leads' : 'Orders'}`}</Button></>}
     </DialogContent></Dialog>
   </>;
 }

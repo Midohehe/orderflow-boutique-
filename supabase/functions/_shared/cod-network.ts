@@ -1,6 +1,7 @@
 // Contract: https://developer.cod.network/#seller-v2/tag/orders/POST/v2/seller/orders
 export const COD_NETWORK_BASE = 'https://api.cod.network/v2/seller';
 export const COD_NETWORK_LABEL = 'سعودي نيتورك';
+export type CodResourceType = 'order' | 'lead';
 export interface CodLine {
   id: string; product_id: string | null; product_name: string;
   selected_color?: string | null; selected_size?: string | null; selected_product_code?: string | null;
@@ -82,7 +83,7 @@ export function codRemoteOrder(value: unknown): { id: string; reference: string;
   if (!/^\d+$/.test(id) || id === '0') return null;
   return { id, reference: String(data.tracking_number || data.reference || id), phone: String(data.customer_phone || ''), total: Number(data.total) };
 }
-/** Drop products are rejected by POST /orders (40049) and use POST /leads. */
+/** Customer-confirmation leads use a different name/address schema from orders. */
 export function buildCodLeadPayload(order: ReturnType<typeof buildCodPayload>) {
   return { phone: order.phone, name: order.full_name, country: order.country,
     address: [...new Set([order.address, order.area, order.city].filter(Boolean))].join('، '), items: order.items };

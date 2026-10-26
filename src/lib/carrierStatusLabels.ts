@@ -19,6 +19,7 @@ export function normalizeCarrierDisplayLabel(
 ): string {
   const trimmed = (raw || "").trim();
   if (trimmed === 'COD_NETWORK_NEW') return 'تم الإرسال إلى سعودي نيتورك';
+  if (trimmed === 'COD_NETWORK_LEAD_NEW') return 'سعودي نيتورك — بانتظار تأكيد الشركة (Lead)';
   if (!trimmed || trimmed === "null" || trimmed === "undefined") return "بدون حالة";
 
   const match = trimmed.match(/^(.*?)\s*\(([^)]+)\)\s*$/);

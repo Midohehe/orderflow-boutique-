@@ -36,6 +36,7 @@ const click=async(tree,label)=>{const node=button(tree,label);assert.ok(node,lab
     if(action==='prepare')return {drafts:++prepared===1?[draft(1),draft(2)]:[{...draft(1),shipment:{state:'sent',reference:'COD-51'}},{...draft(2),shipment:{state:'failed',reference:null}}]};
     if(action==='send') {
       assert.equal(values.review_key,values.order_id==='order-1'?'review-1':'review-2');
+      assert.equal(values.resource_type,'order','existing default explicitly sends Orders');
       if(values.order_id==='order-1')return new Promise(resolve=>resolveSend=resolve);
       throw Error('SKU غير موجود');
     }
@@ -45,10 +46,28 @@ const click=async(tree,label)=>{const node=button(tree,label);assert.ok(node,lab
   await click(tree,'إرسال لشركة');assert.ok(text(tree).includes('تأكيد إرسال 2 طلب'));
   assert.equal(tree.root.findAllByType('input').filter(node=>node.props.type==='number').length,0,'prices and quantities are readonly');
   await click(tree,'تأكيد إرسال');assert.equal(button(tree,'جاري الإرسال').props.disabled,true);
+  assert.equal(tree.root.findByType('fieldset').props.disabled,true,'cannot change type during a batch');
   await act(async()=>resolveSend({ok:true,reference:'COD-51'}));
   assert.ok(text(tree).includes('COD-51'));assert.ok(text(tree).includes('SKU غير موجود'));assert.ok(text(tree).includes('تمت معالجة 2 من 2'));assert.equal(done,1);
   assert.ok(text(tree).includes('تأكيد إرسال 1 طلب'),'successful rows cannot be sent again');
   assert.equal(calls.filter(c=>c.action==='send').length,2);
+  await act(async()=>tree.unmount());
+  calls=[];prepared=0;
+  api=async(action,store,values)=>{
+    if(action==='prepare')return {drafts:++prepared===1?[draft(1)]:[{...draft(1),shipment:{state:'sent',reference:'LEAD-51',resource_type:'lead'}}]};
+    assert.equal(action,'send');assert.equal(values.resource_type,'lead');
+    return {ok:true,reference:'LEAD-51',resource_type:'lead'};
+  };
+  await act(async()=>{tree=create(React.createElement(Shipping,{storeId:'a',orderIds:['order-1'],onDone(){}}))});
+  await click(tree,'إرسال لشركة');
+  const choose=type=>tree.root.findAllByType('input').find(node=>node.props.type==='radio'&&node.props.value===type);
+  assert.equal(choose('order').props.checked,true);assert.equal(choose('lead').props.checked,false);
+  await act(async()=>choose('lead').props.onChange());
+  assert.ok(text(tree).includes('تأكيد إرسال 1 طلب كـ Leads'));
+  await click(tree,'تأكيد إرسال');assert.equal(calls.filter(c=>c.action==='send').length,1);
+  assert.ok(text(tree).includes('LEAD-51'));assert.ok(text(tree).includes('بانتظار تأكيد الشركة'));
+  await act(async()=>choose('order').props.onChange());
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,true,'switching type cannot resend a successful lead');
   await act(async()=>tree.unmount());
   api=async()=>({drafts:[{...draft(1),items:[{...draft(1).items[0],sku:''}]}]});
   await act(async()=>{tree=create(React.createElement(Shipping,{storeId:'a',orderIds:['order-1'],onDone(){}}))});

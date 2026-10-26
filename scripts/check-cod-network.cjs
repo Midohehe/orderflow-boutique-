@@ -45,9 +45,10 @@ const caller={rpc:async name=>({data:name==='has_role'?state.admin:state.access,
 const db={auth:{getUser:async()=>({data:{user:state.auth?{id:id(1)}:null},error:null})},from:query,rpc:async(name,args)=>{
   state.calls.push({rpc:name,args});
   if(name==='save_cod_network_settings')return {data:null,error:null};
-  if(name==='claim_cod_network_order') {
+  if(name==='claim_cod_network_dispatch') {
+    if(state.claimError)return {data:null,error:{message:'Unable to persist destination'}};
     if(state.shipment&&['sent','sending','uncertain'].includes(state.shipment.state)) return {data:{state:state.shipment.state==='sent'?'sent':'uncertain',reference:state.shipment.reference},error:null};
-    state.shipment={resource_type:state.shipment?.resource_type||'order',state:'sending',attempt_id:id(90),request_payload:args._payload,started_at:'2026-01-01T00:00:00Z'};
+    state.shipment={resource_type:args._resource_type,state:'sending',attempt_id:id(90),request_payload:args._payload,started_at:'2026-01-01T00:00:00Z'};
     return {data:{state:'claimed',attempt_id:id(90)},error:null};
   }
   if(name==='set_cod_network_lead_attempt') {
@@ -66,6 +67,10 @@ vm.runInNewContext(compile('supabase/functions/cod-network/index.ts'),{
   Deno:{env:{get:name=>name==='SUPABASE_SERVICE_ROLE_KEY'?'service':'anon'},serve:fn=>handler=fn},
   fetch:async(url,options)=>{
     state.calls.push({url,options});
+    if(options.method==='POST') {
+      assert.equal(state.shipment.resource_type,url.endsWith('/leads')?'lead':'order','destination must be durable before POST');
+      assert.deepEqual(JSON.parse(JSON.stringify(state.shipment.request_payload)),JSON.parse(options.body));
+    }
     if(state.mode.startsWith('drop')&&url.endsWith('/orders'))return Response.json({status:'error',message:'Bad Request',errors:[{code:40049,message:'Cannot create order with drop product.',severity:'warning'}]},{status:400});
     if(state.mode.startsWith('drop')&&url.includes('/leads')){
       if(state.mode==='drop-timeout'&&options.method==='POST')throw Error('timeout');
@@ -131,5 +136,33 @@ async function send(values={}) {
   }
   reset();state.mode='drop-reject';assert.equal((await send()).status,400);assert.equal(state.shipment.state,'failed');state.mode='drop-success';assert.equal((await send()).body.ok,true);assert.equal(posts().length,3,'corrected lead retries directly without another order POST');
   reset();state.mode='drop-success';state.switchError=true;assert.equal((await send()).status,409);assert.equal(posts().length,1,'do not POST lead unless destination is persisted');
+  // An explicit Lead must never first create an Order; an explicit Order never
+  // silently becomes a Lead, even for the legacy drop-product rejection code.
+  reset();state.mode='drop-success';
+  const directLead=await send({resource_type:'lead'});
+  assert.equal(directLead.body.resource_type,'lead');assert.equal(directLead.body.reference,'LEAD-51');
+  assert.equal(posts().length,1);assert.equal(posts()[0].url,'https://api.cod.network/v2/seller/leads');
+  const directPayload=JSON.parse(posts()[0].options.body);
+  assert.deepEqual(Object.keys(directPayload).sort(),['name','phone','country','address','items'].sort());
+  assert.equal(directPayload.name,'عميل');assert.equal(directPayload.phone,'0501234567');
+  assert.equal(directPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),5500);
+  assert.equal((await send({resource_type:'order'})).body.already_sent,true);assert.equal(posts().length,1);
+  reset();state.mode='drop-success';const explicitOrder=await send({resource_type:'order'});
+  assert.equal(explicitOrder.status,400);assert.match(explicitOrder.body.error,/Lead/);
+  assert.equal(posts().length,1);assert.equal(state.shipment.state,'failed');assert.equal(state.shipment.resource_type,'order');
+  assert.equal((await send({resource_type:'lead'})).body.ok,true);assert.equal(posts().length,2);
+  reset();state.mode='reject';assert.equal((await send({resource_type:'lead'})).status,400);
+  state.mode='success';assert.equal((await send({resource_type:'order'})).body.ok,true);
+  assert.equal(state.shipment.resource_type,'order');assert.ok(posts()[1].url.endsWith('/orders'));
+  reset();state.mode='drop-timeout';assert.equal((await send({resource_type:'lead'})).status,409);
+  assert.equal((await send({resource_type:'order'})).status,409);assert.equal(posts().length,1);
+  assert.equal(state.shipment.resource_type,'lead');state.mode='drop-success';
+  assert.equal((await run('reconcile',{order_id:id(10),remote_id:'51',resource_type:'order'})).body.resource_type,'lead');
+  assert.ok(state.calls.some(c=>c.url?.endsWith('/leads/51?include=items,drop_items')));
+  assert.equal(posts().length,1,'uncertain lead only reconciles through GET, regardless of current selection');
+  for(const invalid of [null,'leads','orders','',{},true]) {
+    reset();assert.equal((await send({resource_type:invalid})).status,400);assert.equal(posts().length,0);assert.equal(state.shipment,null);
+  }
+  reset();state.claimError=true;assert.equal((await send({resource_type:'lead'})).status,400);assert.equal(posts().length,0);
   console.log('PASS COD Network: exact COD rounding and 100-unit chunks, SKU validation, API v2 contract, auth/admin/store isolation, disabled stores, secret masking, currency/revision guards, server-owned amounts, duplicate prevention, explicit retry and ambiguous-send reconciliation. No network requests performed.');
 })().catch(error=>{console.error(error);process.exitCode=1});
