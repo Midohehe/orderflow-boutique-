@@ -28,6 +28,12 @@ Verified on 2026-10-06 from the [official Seller v2 documentation](https://devel
 
 ## Reliability and isolation
 
+### Complete Lead inputs (2026-10-26)
+
+The Lead request supplements the canonical `phone`, `name`, `country`, `address`, and `items` contract with the requested input keys: `original_phone` and, for every outbound item, `country_1`, `name_1`, `adress_1` (matching the seller's spelling), `url_1`, `sku_1`, `product_1`, `quantity_1`, `price_1`, `currency_1`, incrementing the suffix for subsequent items. Saudi `country_1` is `KSA`; canonical `country` remains the documented ISO code `SA`. Prices/quantities use the exact outbound allocations, including cent and 100-unit splits, and product names follow the original line across these splits. Currency and original phone come from the saved order; reviewed phone/name/address/SKU are used for shipment inputs.
+
+The page URL uses the saved order's `landing_slug`, falling back to its product slug, with the current store slug on the official platform domain. A Lead without a generated URL requires a reviewed HTTPS URL. The review key includes the generated URL so changed routing invalidates a stale review. The URL input only appears for Leads; Orders retains its existing payload. Numbered inputs are intended for the provider's `original_payload`/Inputs display; displaying extra keys must be confirmed on a real authorized shipment after release. No test Lead is created by the automated checks.
+
 - Credentials, SKU links and durable send attempts are private RLS tables. Only safe configuration metadata is readable by authorized store users. All mutations use service-only RPCs behind verified user/store/admin checks.
 - A locked parent order reserves the provider before the external POST. The legacy sender uses the same parent lock; only one provider can claim an order. Sent orders cannot be submitted twice.
 - `claim_cod_network_dispatch` wraps the original reservation and persists `resource_type` in the same transaction. A definitively rejected attempt may be retried with either selected type; an in-flight, uncertain, or successful attempt keeps its saved type and cannot be switched. Reconciliation always follows the saved endpoint, regardless of the UI's current selection. The original reservation RPC remains available for older function versions.

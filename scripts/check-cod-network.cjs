@@ -1,6 +1,6 @@
 const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict'), ts=require('typescript');
 const compile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-const helper={exports:{}}; vm.runInNewContext(compile('supabase/functions/_shared/cod-network.ts'),helper);
+const helper={exports:{},URL}; vm.runInNewContext(compile('supabase/functions/_shared/cod-network.ts'),helper);
 const currencies={exports:{}}; vm.runInNewContext(compile('supabase/functions/_shared/currencies.ts'),currencies);
 const {codItems,buildCodPayload,variantKey,codError}=helper.exports;
 assert.equal(helper.exports.sameCodPhone('٠٥٠١٢٣٤٥٦٧','+966501234567','SA'),true);
@@ -35,7 +35,7 @@ function reset() {
 const config=()=>({enabled:state.enabled,country_code:'SA',currency_code:'SAR',updated_at:'2026-10-06T11:00:00Z'});
 function query(table) {
   const filters=[], q={columns:'*',single:false,select(s){q.columns=s;return q},eq(k,v){filters.push(row=>row[k]===v);return q},in(k,v){filters.push(row=>v.includes(row[k]));return q},order(){return q},limit(){return q},maybeSingle(){q.single=true;return q},upsert(){return Promise.resolve({error:null})},then(resolve,reject){
-    const rows={store_cod_network_settings:[{store_id:id(2),...config()}],cod_network_credentials:[{store_id:id(2),api_token:'fixture-secret-token'}],orders:[state.order],order_items:[],cod_network_shipments:state.shipment?[{store_id:id(2),order_id:id(10),...state.shipment}]:[],store_settings:[{store_id:id(2),currency_code:'SAR'}],cod_network_sku_links:[]}[table];
+    const rows={stores:[{id:id(2),slug:'shop'}],products:state.noProductPage?[]:[{id:id(8),store_id:id(2),slug:'product-page'}],store_cod_network_settings:[{store_id:id(2),...config()}],cod_network_credentials:[{store_id:id(2),api_token:'fixture-secret-token'}],orders:[state.order],order_items:state.items||[],cod_network_shipments:state.shipment?[{store_id:id(2),order_id:id(10),...state.shipment}]:[],store_settings:[{store_id:id(2),currency_code:'SAR'}],cod_network_sku_links:[]}[table];
     if(!rows)throw Error(table);
     const selected=rows.filter(row=>filters.every(test=>test(row))).map(row=>q.columns==='*'?row:Object.fromEntries(q.columns.split(',').map(k=>[k,row[k]])));
     return Promise.resolve({data:q.single?(selected[0]||null):selected,error:null}).then(resolve,reject);
@@ -160,10 +160,44 @@ async function send(values={}) {
   assert.equal(directLead.body.resource_type,'lead');assert.equal(directLead.body.reference,'LEAD-51');
   assert.equal(posts().length,1);assert.equal(posts()[0].url,'https://api.cod.network/v2/seller/leads');
   const directPayload=JSON.parse(posts()[0].options.body);
-  assert.deepEqual(Object.keys(directPayload).sort(),['name','phone','country','address','items'].sort());
+  for(const key of ['name','phone','country','address','items','original_phone'])assert.ok(Object.hasOwn(directPayload,key));
+  assert.equal(directPayload.original_phone,state.order.phone);
+  for(const [index,item] of directPayload.items.entries()) {
+    const n=index+1;
+    assert.equal(directPayload[`country_${n}`],'KSA');assert.equal(directPayload[`name_${n}`],'عميل');
+    assert.equal(directPayload[`adress_${n}`],directPayload.address);assert.equal(directPayload[`url_${n}`],'https://www.was-la.com/p/shop/product-page');
+    assert.equal(directPayload[`sku_${n}`],item.sku);assert.equal(directPayload[`product_${n}`],'Product');
+    assert.equal(directPayload[`quantity_${n}`],item.quantity);assert.equal(directPayload[`price_${n}`],item.price);assert.equal(directPayload[`currency_${n}`],'SAR');
+  }
   assert.equal(directPayload.name,'عميل');assert.equal(directPayload.phone,'0501234567');
   assert.equal(directPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),5500);
   assert.equal((await send({resource_type:'order'})).body.already_sent,true);assert.equal(posts().length,1);
+  reset();state.mode='drop-success';state.order.landing_slug='campaign-page';
+  assert.equal((await send({resource_type:'lead',edits:{phone:'0507654321',currency_code:'USD',original_phone:'spoof',product_1:'spoof'}})).body.ok,true);
+  const metadata=JSON.parse(posts()[0].options.body);
+  assert.equal(metadata.url_1,'https://www.was-la.com/p/shop/campaign-page');assert.equal(metadata.phone,'0507654321');
+  assert.equal(metadata.original_phone,'0501234567');assert.equal(metadata.currency_1,'SAR');assert.equal(metadata.product_1,'Product');
+  for(const source_url of ['', 'javascript:alert(1)', 'https://user:pass@example.com/p/x', 'http://example.com/p/x']) {
+    reset();assert.equal((await send({resource_type:'lead',edits:{source_url}})).status,400);assert.equal(posts().length,0);assert.equal(state.shipment,null);
+  }
+  reset();state.noProductPage=true;assert.equal((await send({resource_type:'lead'})).status,400);assert.equal(posts().length,0);
+  state.mode='drop-success';assert.equal((await send({resource_type:'lead',edits:{source_url:'https://example.com/product'}})).body.ok,true);
+  assert.equal(JSON.parse(posts()[0].options.body).url_1,'https://example.com/product');
+  reset();state.noProductPage=true;assert.equal((await send({resource_type:'order'})).body.ok,true,'Orders does not require a landing URL');
+  reset();state.noProductPage=true;state.mode='drop-success';
+  assert.equal((await send()).status,400);assert.equal(posts().length,1);assert.equal(state.shipment.state,'failed','definitive drop rejection plus incomplete metadata is safely retryable');
+  reset();state.mode='drop-success';state.items=[
+    {...line,id:'first',order_id:id(10),store_id:id(2),product_name:'First',selected_product_code:'SKU-RED',quantity:305},
+    {...line,id:'second',order_id:id(10),store_id:id(2),product_name:'Second',selected_product_code:'SKU-RED',quantity:2},
+  ];
+  assert.equal((await send({resource_type:'lead'})).body.ok,true);
+  const many=JSON.parse(posts()[0].options.body);let firstQuantity=0,secondQuantity=0,flatCents=0;
+  for(const [index,item] of many.items.entries()) {
+    const n=index+1;assert.equal(many[`quantity_${n}`],item.quantity);assert.equal(many[`price_${n}`],item.price);
+    if(many[`product_${n}`]==='First')firstQuantity+=item.quantity;else {assert.equal(many[`product_${n}`],'Second');secondQuantity+=item.quantity;}
+    flatCents+=Math.round(many[`price_${n}`]*100)*many[`quantity_${n}`];
+  }
+  assert.equal(firstQuantity,305);assert.equal(secondQuantity,2);assert.equal(flatCents,5500);
   reset();state.mode='drop-success';const explicitOrder=await send({resource_type:'order'});
   assert.equal(explicitOrder.status,400);assert.match(explicitOrder.body.error,/Lead/);
   assert.equal(posts().length,1);assert.equal(state.shipment.state,'failed');assert.equal(state.shipment.resource_type,'order');

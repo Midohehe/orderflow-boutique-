@@ -14,7 +14,7 @@ const defaults: Config = { enabled: false, country_code: 'SA', currency_code: 'S
 async function loadDrafts(db: Client, storeId: string, ids: string[], config: Config): Promise<CodDraft[]> {
   // Read the parent revision first; item edits advance it under the same row lock
   // used by claim. A later item edit therefore invalidates this draft's revision.
-  const orders = await db.from('orders').select('id,store_id,updated_at,order_code,customer_name,phone,address,city,governorate,product_id,product_name,price,shipping_fee,quantity,selected_color,selected_size,selected_product_code,currency_code,status,is_deleted,locked_insufficient_balance,shipping_reference,shipping_id,shipping_provider').eq('store_id', storeId).in('id', ids);
+  const orders = await db.from('orders').select('id,store_id,updated_at,order_code,customer_name,phone,address,city,governorate,product_id,product_name,price,shipping_fee,quantity,selected_color,selected_size,selected_product_code,currency_code,status,is_deleted,locked_insufficient_balance,shipping_reference,shipping_id,shipping_provider,landing_slug').eq('store_id', storeId).in('id', ids);
   const [items, shipments, currency] = await Promise.all([
     db.from('order_items').select('id,order_id,product_id,product_name,quantity,price,selected_color,selected_size,selected_product_code').eq('store_id', storeId).in('order_id', ids).order('id'),
     db.from('cod_network_shipments').select('order_id,state,reference,error_message,resource_type').eq('store_id', storeId).in('order_id', ids),
@@ -23,10 +23,17 @@ async function loadDrafts(db: Client, storeId: string, ids: string[], config: Co
   for (const result of [orders, items, shipments, currency]) if (result.error) throw result.error;
   if (orders.data?.length !== ids.length) throw Error('بعض الطلبات غير موجودة أو لا تتبع المتجر المحدد');
   const productIds = [...new Set([...(orders.data as Order[]).map(o => o.product_id), ...(items.data as Item[]).map(i => i.product_id)].filter((id): id is string => !!id))];
-  const links = productIds.length ? await db.from('cod_network_sku_links').select('product_id,variant_key,sku').eq('store_id', storeId).in('product_id', productIds) : { data: [], error: null };
-  if (links.error) throw links.error;
+  const [links, store, products] = await Promise.all([
+    productIds.length ? db.from('cod_network_sku_links').select('product_id,variant_key,sku').eq('store_id', storeId).in('product_id', productIds) : { data: [], error: null },
+    db.from('stores').select('slug').eq('id', storeId).maybeSingle(),
+    productIds.length ? db.from('products').select('id,slug').eq('store_id', storeId).in('id', productIds) : { data: [], error: null },
+  ]);
+  for (const result of [links, store, products]) if (result.error) throw result.error;
   return ids.map(id => {
-    const order = (orders.data as Order[]).find(row => row.id === id)!;
+    const order = (orders.data as (Order & { landing_slug: string | null })[]).find(row => row.id === id)!;
+    const pageSlug = order.landing_slug || products.data?.find(product => product.id === order.product_id)?.slug;
+    const sourceUrl = store.data?.slug && pageSlug
+      ? `https://www.was-la.com/p/${encodeURIComponent(store.data.slug)}/${encodeURIComponent(pageSlug)}` : '';
     const saved = shipments.data?.find(row => row.order_id === id);
     const orderItems = (items.data as Item[]).filter(item => item.order_id === id);
     const source: Omit<CodLine, 'sku' | 'variant_key'>[] = orderItems.length ? orderItems : [{ ...order, id: 'main', quantity: order.quantity ?? 1, price: Number(order.price) / Math.max(1, Number(order.quantity) || 1) }];
@@ -39,11 +46,11 @@ async function loadDrafts(db: Client, storeId: string, ids: string[], config: Co
       || order.shipping_reference || order.shipping_id || (order.shipping_provider && !saved);
     return {
       id, order_code: order.order_code || id.slice(0, 12), updated_at: order.updated_at,
-      review_key: JSON.stringify([order.updated_at, config.updated_at, config.country_code, config.currency_code, resolveLandingCurrency(order.currency_code, currency.data).currency_code, orderItems]),
+      review_key: JSON.stringify([order.updated_at, config.updated_at, config.country_code, config.currency_code, resolveLandingCurrency(order.currency_code, currency.data).currency_code, orderItems, sourceUrl]),
       full_name: order.customer_name || '', phone: order.phone || '', address: order.address || '', city: order.city || '', area: order.governorate || '',
       country: config.country_code, currency_code: resolveLandingCurrency(order.currency_code, currency.data).currency_code,
       total: Math.round((Number(order.price) + Number(order.shipping_fee || 0)) * 100) / 100,
-      items: lines, shipment: saved || null, issue: blocked ? 'الطلب مقفل أو مسند للشحن أو حالته غير متاحة للإرسال' : undefined,
+      source_url: sourceUrl, items: lines, shipment: saved || null, issue: blocked ? 'الطلب مقفل أو مسند للشحن أو حالته غير متاحة للإرسال' : undefined,
     };
   });
 }
@@ -149,7 +156,7 @@ Deno.serve(async req => {
     // retain the previous drop-product fallback until that client is refreshed.
     const explicitDestination = body.resource_type !== undefined;
     let isLead = (body.resource_type ?? previous.data?.resource_type ?? 'order') === 'lead';
-    let outbound: ReturnType<typeof buildCodPayload> | ReturnType<typeof buildCodLeadPayload> = isLead ? buildCodLeadPayload(payload) : payload;
+    let outbound: ReturnType<typeof buildCodPayload> | ReturnType<typeof buildCodLeadPayload> = isLead ? buildCodLeadPayload(payload, draft, edits) : payload;
     const claim = await db.rpc('claim_cod_network_dispatch', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: outbound, _resource_type: isLead ? 'lead' : 'order' });
     if (claim.error) throw claim.error;
     if (claim.data.state === 'sent') return json({ ok: true, already_sent: true, reference: claim.data.reference, resource_type: claim.data.resource_type });
@@ -161,7 +168,12 @@ Deno.serve(async req => {
       // Only this explicit no-order-created rejection permits a single fallback.
       // A timeout, generic rejection or ambiguous success never triggers a POST.
       if (!explicitDestination && !isLead && result.status === 400 && codHasErrorCode(result.body, 40049)) {
-        outbound = buildCodLeadPayload(payload);
+        try { outbound = buildCodLeadPayload(payload, draft, edits); }
+        catch (failure) {
+          const message = failure instanceof Error ? failure.message : 'راجع بيانات الـLead';
+          await finish(db, draft.id, attemptId, 'failed', null, null, message);
+          return json({ error: message }, 400);
+        }
         const switched = await db.rpc('set_cod_network_lead_attempt', { _order_id: draft.id, _attempt_id: attemptId, _payload: outbound });
         if (switched.error || switched.data !== true) throw Error('Unable to persist lead destination');
         isLead = true;

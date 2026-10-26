@@ -10,11 +10,11 @@ export interface CodLine {
 export interface CodDraft {
   id: string; order_code: string; updated_at: string; currency_code: string; review_key: string;
   full_name: string; phone: string; address: string; city: string; area: string;
-  country: string; total: number; items: CodLine[]; issue?: string;
+  country: string; total: number; items: CodLine[]; source_url?: string; issue?: string;
   shipment?: { state: string; reference: string | null; error_message: string | null; resource_type?: 'order' | 'lead' } | null;
 }
 export interface CodEdits {
-  full_name?: string; phone?: string; address?: string; city?: string; area?: string;
+  full_name?: string; phone?: string; address?: string; city?: string; area?: string; source_url?: string;
   skus?: Record<string, string>;
 }
 export function variantKey(row: Pick<CodLine, 'selected_color' | 'selected_size' | 'selected_product_code'>): string {
@@ -92,10 +92,32 @@ export function codRemoteOrder(value: unknown): { id: string; reference: string;
   return { id, reference: String(data.tracking_number || data.reference || id), phone: String(data.customer_phone || ''), total: Number(data.total) };
 }
 /** Customer-confirmation leads use a different name/address schema from orders. */
-export function buildCodLeadPayload(order: ReturnType<typeof buildCodPayload>) {
+export function buildCodLeadPayload(order: ReturnType<typeof buildCodPayload>, draft: CodDraft, edits: CodEdits = {}) {
+  const sourceUrl = requiredText(edits.source_url ?? draft.source_url, 'رابط صفحة المنتج للـLead', 2048);
+  let url: URL;
+  try { url = new URL(sourceUrl); } catch { throw Error('أدخل رابط صفحة المنتج كاملًا للـLead'); }
+  if (url.protocol !== 'https:' || url.username || url.password) throw Error('أدخل رابط HTTPS لصفحة المنتج للـLead');
+  const address = order.address === deliveryLocation(order.area, order.city) ? order.address
+    : [...new Set([order.address, order.area, order.city].filter(Boolean))].join('، ');
+  // Numbered inputs supplement the documented contract for original_payload.
+  const inputs: Record<string, string | number> = { original_phone: draft.phone };
+  let sourceIndex = 0, allocatedQuantity = 0;
+  order.items.forEach((item, index) => {
+    const suffix = index + 1, source = draft.items[sourceIndex];
+    inputs[`country_${suffix}`] = order.country === 'SA' ? 'KSA' : order.country;
+    inputs[`name_${suffix}`] = order.full_name;
+    inputs[`adress_${suffix}`] = address;
+    inputs[`url_${suffix}`] = url.href;
+    inputs[`sku_${suffix}`] = item.sku;
+    inputs[`product_${suffix}`] = requiredText(source?.product_name, 'اسم المنتج', 1000);
+    inputs[`quantity_${suffix}`] = item.quantity;
+    inputs[`price_${suffix}`] = item.price;
+    inputs[`currency_${suffix}`] = draft.currency_code;
+    allocatedQuantity += item.quantity;
+    if (allocatedQuantity === source.quantity) { sourceIndex++; allocatedQuantity = 0; }
+  });
   return { phone: order.phone, name: order.full_name, country: order.country,
-    address: order.address === deliveryLocation(order.area, order.city) ? order.address
-      : [...new Set([order.address, order.area, order.city].filter(Boolean))].join('، '), items: order.items };
+    address, items: order.items, ...inputs };
 }
 export function codHasErrorCode(value: unknown, code: number, depth = 0): boolean {
   if (!value || typeof value !== 'object' || depth > 5) return false;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { codNetwork, buildCodPayload, type CodDraft, type CodEdits, type CodSettings, type CodResourceType } from '@/lib/codNetwork';
+import { codNetwork, buildCodPayload, buildCodLeadPayload, type CodDraft, type CodEdits, type CodSettings, type CodResourceType } from '@/lib/codNetwork';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +34,11 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
   function issue(draft: CodDraft) {
     if (draft.shipment?.state === 'sent') return 'تم إرسال هذا الطلب سابقًا';
     if (['sending','uncertain'].includes(draft.shipment?.state || '')) return 'محاولة سابقة غير مؤكدة؛ تحقق من حساب الشركة واربط رقم الطلب أدناه';
-    try { buildCodPayload(draft, edits[draft.id] || {}, status.data?.currency_code || 'SAR'); return ''; }
+    try {
+      const change = edits[draft.id] || {}, payload = buildCodPayload(draft, change, status.data?.currency_code || 'SAR');
+      if (resourceType === 'lead') buildCodLeadPayload(payload, draft, change);
+      return '';
+    }
     catch (failure) { return failure instanceof Error ? failure.message : 'راجع بيانات الطلب'; }
   }
   const ready = drafts.filter(draft => !results[draft.id]?.ok && !issue(draft));
@@ -107,6 +111,11 @@ export function CodNetworkShippingButton({ storeId, orderIds, onDone, disabled =
               return <div key={field} className="space-y-1"><Label htmlFor={`cod-${draft.id}-${field}`}>{label}</Label><Input id={`cod-${draft.id}-${field}`} disabled={busy || uncertain} value={change[field] ?? draft[field]} onChange={event => edit(field, event.target.value)} dir={field === 'phone' ? 'ltr' : undefined} aria-describedby={field === 'address' ? `cod-${draft.id}-address-help` : undefined} />{field === 'address' && <p id={`cod-${draft.id}-address-help`} className="text-xs text-muted-foreground">إذا تركته فارغًا، يُستخدم الحي والمدينة كعنوان لدى الشركة.</p>}</div>;
             })}</div>
             {draft.items.map(item => <div key={item.id} className="grid sm:grid-cols-2 gap-2 items-center border-t pt-2"><div className="text-sm">{item.product_name} — {item.quantity} قطعة <span className="text-muted-foreground">{[item.selected_color, item.selected_size].filter(Boolean).join(' / ')}</span></div><div><Label className="sr-only" htmlFor={`cod-sku-${draft.id}-${item.id}`}>SKU {item.product_name}</Label><Input id={`cod-sku-${draft.id}-${item.id}`} dir="ltr" placeholder="SKU لدى سعودي نيتورك" disabled={busy || uncertain} value={change.skus?.[item.id] ?? item.sku} onChange={event => setEdits(previous => ({ ...previous, [draft.id]: { ...previous[draft.id], skus: { ...previous[draft.id]?.skus, [item.id]: event.target.value } } }))} /></div></div>)}
+            {resourceType === 'lead' && <div className="space-y-2 border-t pt-3">
+              <Label htmlFor={`cod-${draft.id}-source-url`}>رابط صفحة المنتج للـLead</Label>
+              <Input id={`cod-${draft.id}-source-url`} type="url" dir="ltr" placeholder="https://www.was-la.com/p/..." disabled={busy || uncertain} value={change.source_url ?? draft.source_url ?? ''} onChange={event => edit('source_url', event.target.value)} />
+              <p className="text-xs text-muted-foreground">يُرسل الرابط مع الاسم والعنوان وبيانات كل منتج والعملة {draft.currency_code} والهاتف الأصلي ضمن بيانات الـLead. أضف الرابط يدويًا إذا لم يتوفر تلقائيًا.</p>
+            </div>}
             {problem && <p className="text-amber-600 text-sm">{problem}</p>}
             {uncertain && <div className="space-y-2 bg-muted/40 p-3 rounded-md"><p className="text-xs">إذا وجدت الطلب في حساب الشركة، أدخل معرّفه الرقمي لربطه دون إنشاء شحنة ثانية. يُتحقق من الهاتف ومبلغ التحصيل. متاح بعد دقيقتين من المحاولة.</p><div className="flex gap-2"><Input aria-label={`رقم طلب الشركة ${draft.order_code}`} dir="ltr" placeholder="معرّف الطلب الرقمي لدى الشركة" value={remoteIds[draft.id] || ''} disabled={busy} onChange={event => setRemoteIds(previous => ({ ...previous, [draft.id]: event.target.value }))} /><Button variant="outline" disabled={busy || !remoteIds[draft.id]} onClick={() => void reconcile(draft)}>تحقق واربط</Button></div></div>}
           </>}

@@ -3,7 +3,7 @@ const deps=process.env.REACT_TEST_DEPS||path.resolve('../test-deps/node_modules'
 const original=Module._load;Module._load=function(name,...args){return name==='react'?React:original.call(this,name,...args)};
 const {act,create}=require(path.join(deps,'react-test-renderer'));
 const compile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-const helper={exports:{},Error};vm.runInNewContext(compile('supabase/functions/_shared/cod-network.ts'),helper);
+const helper={exports:{},Error,URL};vm.runInNewContext(compile('supabase/functions/_shared/cod-network.ts'),helper);
 const money={exports:{}};vm.runInNewContext(compile('supabase/functions/_shared/currencies.ts'),money);
 const host=tag=>props=>React.createElement(tag,props,props.children);
 const wrap=host('div');let api=async()=>{},calls=[],config={enabled:true,country_code:'SA',currency_code:'SAR',has_token:true};
@@ -21,7 +21,7 @@ function load(file) {
   }};vm.runInNewContext(compile(file),context);return context.exports;
 }
 const {CodNetworkShippingButton:Shipping}=load('src/components/CodNetworkShippingButton.tsx'), Admin=load('src/components/CodNetworkAdminSettings.tsx').default;
-const draft=n=>({id:`order-${n}`,review_key:`review-${n}`,order_code:`${n}`,updated_at:'now',currency_code:'SAR',full_name:'عميل',phone:'0501234567',address:'شارع',city:'Riyadh',area:'حي',country:'SA',total:55,shipment:null,items:[{id:`item-${n}`,product_id:`product-${n}`,product_name:'منتج',quantity:3,price:15,sku:'SKU-RED',variant_key:'[]'}]});
+const draft=n=>({id:`order-${n}`,review_key:`review-${n}`,order_code:`${n}`,updated_at:'now',currency_code:'SAR',source_url:'https://www.was-la.com/p/shop/product',full_name:'عميل',phone:'0501234567',address:'شارع',city:'Riyadh',area:'حي',country:'SA',total:55,shipment:null,items:[{id:`item-${n}`,product_id:`product-${n}`,product_name:'منتج',quantity:3,price:15,sku:'SKU-RED',variant_key:'[]'}]});
 const text=tree=>JSON.stringify(tree.toJSON());
 const words=value=>Array.isArray(value)?value.map(words).join(''):typeof value==='string'||typeof value==='number'?String(value):value?.props?words(value.props.children):'';
 const button=(tree,label)=>tree.root.findAllByType('button').find(node=>words(node.props.children).includes(label));
@@ -80,6 +80,17 @@ const click=async(tree,label)=>{const node=button(tree,label);assert.ok(node,lab
   assert.equal(button(tree,'تأكيد إرسال').props.disabled,false,'whitespace address uses location');
   await act(async()=>tree.root.findByProps({id:'cod-order-1-city'}).props.onChange({target:{value:''}}));
   assert.equal(button(tree,'تأكيد إرسال').props.disabled,true,'city remains required');
+  await act(async()=>tree.unmount());
+  api=async()=>({drafts:[{...draft(1),source_url:''}]});
+  await act(async()=>{tree=create(React.createElement(Shipping,{storeId:'a',orderIds:['order-1'],onDone(){}}))});
+  await click(tree,'إرسال لشركة');assert.equal(button(tree,'تأكيد إرسال').props.disabled,false);
+  await act(async()=>choose('lead').props.onChange());
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,true,'Lead requires a complete product page URL');
+  const sourceInput=tree.root.findByProps({id:'cod-order-1-source-url'});
+  await act(async()=>sourceInput.props.onChange({target:{value:'javascript:alert(1)'}}));
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,true);
+  await act(async()=>tree.root.findByProps({id:'cod-order-1-source-url'}).props.onChange({target:{value:'https://example.com/product'}}));
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,false);
   await act(async()=>tree.unmount());
   api=async()=>({drafts:[{...draft(1),items:[{...draft(1).items[0],sku:''}]}]});
   await act(async()=>{tree=create(React.createElement(Shipping,{storeId:'a',orderIds:['order-1'],onDone(){}}))});
