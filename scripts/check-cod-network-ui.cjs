@@ -69,6 +69,18 @@ const click=async(tree,label)=>{const node=button(tree,label);assert.ok(node,lab
   await act(async()=>choose('order').props.onChange());
   assert.equal(button(tree,'تأكيد إرسال').props.disabled,true,'switching type cannot resend a successful lead');
   await act(async()=>tree.unmount());
+  api=async()=>({drafts:[{...draft(1),address:''}]});
+  await act(async()=>{tree=create(React.createElement(Shipping,{storeId:'a',orderIds:['order-1'],onDone(){}}))});
+  await click(tree,'إرسال لشركة');
+  assert.ok(text(tree).includes('العنوان (اختياري)'));
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,false,'empty address must not block Orders');
+  await act(async()=>choose('lead').props.onChange());
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,false,'empty address must not block Leads');
+  await act(async()=>tree.root.findByProps({id:'cod-order-1-address'}).props.onChange({target:{value:'  '}}));
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,false,'whitespace address uses location');
+  await act(async()=>tree.root.findByProps({id:'cod-order-1-city'}).props.onChange({target:{value:''}}));
+  assert.equal(button(tree,'تأكيد إرسال').props.disabled,true,'city remains required');
+  await act(async()=>tree.unmount());
   api=async()=>({drafts:[{...draft(1),items:[{...draft(1).items[0],sku:''}]}]});
   await act(async()=>{tree=create(React.createElement(Shipping,{storeId:'a',orderIds:['order-1'],onDone(){}}))});
   await click(tree,'إرسال لشركة');assert.ok(text(tree).includes('رمز SKU'));assert.equal(button(tree,'تأكيد إرسال').props.disabled,true);

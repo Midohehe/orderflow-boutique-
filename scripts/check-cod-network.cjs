@@ -108,6 +108,23 @@ async function send(values={}) {
   assert.equal((await run('send',{order_id:id(10),review_key:'stale'})).status,409);assert.equal(posts().length,0);
   state.order.currency_code='USD';assert.equal((await send()).status,400);assert.equal(posts().length,0);
   reset();state.order.selected_product_code='';assert.equal((await send()).status,400);assert.equal(posts().length,0);
+  for(const resource_type of ['order','lead']) {
+    for(const address of ['', '  ', '—', null]) {
+      reset();state.order.address=address;if(resource_type==='lead')state.mode='drop-success';
+      assert.equal((await send({resource_type})).body.ok,true);
+      assert.equal(posts().length,1);assert.equal(JSON.parse(posts()[0].options.body).address,'حي، Riyadh');
+      assert.equal(state.order.address,address,'fallback must not overwrite the saved customer address');
+    }
+    reset();if(resource_type==='lead')state.mode='drop-success';
+    assert.equal((await send({resource_type,edits:{address:'',city:'Jeddah',area:'Al Balad'}})).body.ok,true);
+    assert.equal(JSON.parse(posts()[0].options.body).address,'Al Balad، Jeddah','use reviewed location when existing address is cleared');
+    reset();if(resource_type==='lead')state.mode='drop-success';
+    assert.equal((await send({resource_type,edits:{address:'  Street 2  '}})).body.ok,true);
+    assert.equal(JSON.parse(posts()[0].options.body).address,resource_type==='lead'?'Street 2، حي، Riyadh':'Street 2');
+  }
+  for(const edits of [{address:123},{address:'a'.repeat(1001)},{address:'',city:''},{address:'',area:''}]) {
+    reset();assert.equal((await send({edits})).status,400);assert.equal(posts().length,0);
+  }
   reset();const sent=await send({edits:{price:1,quantity:99,country:'US',currency_code:'USD'}});
   assert.equal(sent.body.reference,'COD-51');assert.equal(posts().length,1);
   const request=posts()[0];assert.equal(request.url,'https://api.cod.network/v2/seller/orders');assert.equal(request.options.headers.Authorization,'Bearer fixture-secret-token');

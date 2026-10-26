@@ -36,6 +36,12 @@ function requiredText(value: unknown, label: string, max: number): string {
   if (typeof value !== 'string' || !value.trim() || value.trim() === '—' || value.trim().length > max) throw Error(`راجع ${label}`);
   return value.trim();
 }
+function optionalAddress(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value !== 'string' || value.trim().length > 1000) throw Error('راجع العنوان');
+  return value.trim() === '—' ? '' : value.trim();
+}
+const deliveryLocation = (area: string, city: string) => [...new Set([area, city])].join('، ');
 /** Preserve exact COD cents, including delivery and order-level discounts.
  * Splitting remainder units avoids rounding a 3-piece shipment off by one cent. */
 export function codItems(lines: CodLine[], total: number, skus: Record<string, string> = {}) {
@@ -68,11 +74,13 @@ export function buildCodPayload(draft: CodDraft, edits: CodEdits, currencyCode: 
   if (!/^\+?\d{7,15}$/.test(phone)) throw Error('راجع رقم هاتف العميل');
   const full_name = requiredText(edits.full_name ?? draft.full_name, 'اسم العميل', 200);
   if (full_name === 'بدون اسم') throw Error('أدخل اسم العميل قبل الإرسال');
+  const city = requiredText(edits.city ?? draft.city, 'المدينة', 200);
+  const area = requiredText(edits.area ?? draft.area, 'المنطقة / الحي', 200);
+  // Orders requires an address; use the reviewed location when no detail was supplied.
+  const address = optionalAddress(edits.address ?? draft.address) || deliveryLocation(area, city);
   return {
     full_name, phone, country: draft.country,
-    address: requiredText(edits.address ?? draft.address, 'العنوان', 1000),
-    city: requiredText(edits.city ?? draft.city, 'المدينة', 200),
-    area: requiredText(edits.area ?? draft.area, 'المنطقة / الحي', 200),
+    address, city, area,
     pay_mode: 'cod', items: codItems(draft.items, draft.total, edits.skus),
   };
 }
@@ -86,7 +94,8 @@ export function codRemoteOrder(value: unknown): { id: string; reference: string;
 /** Customer-confirmation leads use a different name/address schema from orders. */
 export function buildCodLeadPayload(order: ReturnType<typeof buildCodPayload>) {
   return { phone: order.phone, name: order.full_name, country: order.country,
-    address: [...new Set([order.address, order.area, order.city].filter(Boolean))].join('، '), items: order.items };
+    address: order.address === deliveryLocation(order.area, order.city) ? order.address
+      : [...new Set([order.address, order.area, order.city].filter(Boolean))].join('، '), items: order.items };
 }
 export function codHasErrorCode(value: unknown, code: number, depth = 0): boolean {
   if (!value || typeof value !== 'object' || depth > 5) return false;
