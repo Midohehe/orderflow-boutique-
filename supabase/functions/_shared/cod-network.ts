@@ -42,8 +42,8 @@ function optionalAddress(value: unknown): string {
   return value.trim() === '—' ? '' : value.trim();
 }
 const deliveryLocation = (area: string, city: string) => [...new Set([area, city])].join('، ');
-/** Preserve exact COD cents, including delivery and order-level discounts.
- * Splitting remainder units avoids rounding a 3-piece shipment off by one cent. */
+/** COD Network price is the whole line's collection amount, not a unit price.
+ * Allocate delivery/discounts in cents; quantity only describes physical pieces. */
 export function codItems(lines: CodLine[], total: number, skus: Record<string, string> = {}) {
   if (!lines.length || lines.length > 100 || !Number.isFinite(total) || total < 0 || total > 9999999) throw Error('مبلغ التحصيل أو المنتجات غير صالح');
   for (const line of lines) {
@@ -59,11 +59,13 @@ export function codItems(lines: CodLine[], total: number, skus: Record<string, s
     const share = index === lines.length - 1 ? totalCents - allocated
       : Math.floor(totalCents * (weight > 0 ? line.price * line.quantity / weight : line.quantity / count));
     allocated += share;
-    const unit = Math.floor(share / line.quantity), remainder = share % line.quantity;
-    const add = (quantity: number, cents: number) => {
-      while (quantity > 0) { const chunk = Math.min(100, quantity); result.push({ sku, quantity: chunk, price: cents / 100 }); quantity -= chunk; }
-    };
-    add(line.quantity - remainder, unit); add(remainder, unit + 1);
+    let quantity = line.quantity, remainingCents = share;
+    while (quantity > 0) {
+      const chunk = Math.min(100, quantity);
+      const cents = chunk === quantity ? remainingCents : Math.floor(share * chunk / line.quantity);
+      result.push({ sku, quantity: chunk, price: cents / 100 });
+      remainingCents -= cents; quantity -= chunk;
+    }
   });
   return result;
 }
@@ -142,7 +144,7 @@ export function codRemoteLead(value: unknown): { id: string; reference: string; 
   });
   const valid = items.length > 0 && items.every(item => item.sku && Number.isInteger(item.quantity) && item.quantity > 0 && Number.isFinite(item.price) && item.price >= 0);
   return { id, reference: `LEAD-${id}`, phone: String(data.phone || ''), items,
-    total: valid ? items.reduce((sum, item) => sum + item.quantity * item.price, 0) : NaN };
+    total: valid ? items.reduce((sum, item) => sum + item.price, 0) : NaN };
 }
 export function codError(value: unknown, status: number, token = ''): string {
   if (status === 401 || status === 403) return 'رفضت الشركة رمز API Token؛ راجع إعدادات الربط مع السوبر أدمن';

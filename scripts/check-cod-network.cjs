@@ -9,7 +9,7 @@ assert.equal(helper.exports.sameCodPhone('00966501234567','+966501234567','SA'),
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const line={id:'item',product_id:id(8),product_name:'Product',price:15,quantity:3,sku:'SKU-RED',variant_key:'[]'};
 for(const [lines,total] of [[[line],55],[[{...line,quantity:305}],100.01],[[{...line,price:0,quantity:2},{...line,id:'other',quantity:4,price:0}],0.07],[[line,{...line,id:'other',quantity:2,price:30}],99.99]]) {
-  const items=codItems(lines,total); assert.equal(items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),Math.round(total*100));
+  const items=codItems(lines,total); assert.equal(items.reduce((sum,i)=>sum+Math.round(i.price*100),0),Math.round(total*100));
   assert.equal(items.reduce((sum,i)=>sum+i.quantity,0),lines.reduce((sum,i)=>sum+i.quantity,0));
   assert.ok(items.every(i=>i.quantity>0&&i.quantity<=100&&i.price>=0));
 }
@@ -26,6 +26,11 @@ assert.equal(helper.exports.codHasErrorCode({errors:[{code:40049}]},40049),true)
 assert.equal(helper.exports.codHasErrorCode({message:'40049'},40049),false);
 const nestedLead=helper.exports.codRemoteLead({status:'success',data:{id:51,phone:'0501234567',original_payload:{name:'Customer'},items:{data:[]},drop_items:{data:[{quantity:1,price:'85.00',drop_product:{data:{sku:'DROP-SKU'}}}]}}});
 assert.equal(nestedLead.total,85);assert.equal(nestedLead.items[0].sku,'DROP-SKU');
+assert.equal(helper.exports.codRemoteLead({status:'success',data:{id:51,phone:'0501234567',items:{data:[{sku:'SKU',quantity:2,price:'149.00'}]}}}).total,149,'carrier item price is the full line total');
+for(const [quantity,total] of [[2,149],[6,594],[3,100.01],[1,99]]) {
+  const items=codItems([{...line,quantity}],total);
+  assert.equal(items.length,1);assert.equal(items[0].quantity,quantity);assert.equal(items[0].price,total);
+}
 assert.ok(Number.isNaN(helper.exports.codRemoteLead({status:'success',data:{id:51,phone:'0501234567',original_payload:{}}}).total));
 let state,handler;
 function reset() {
@@ -69,7 +74,9 @@ vm.runInNewContext(compile('supabase/functions/cod-network/index.ts'),{
     state.calls.push({url,options});
     if(options.method==='POST') {
       assert.equal(state.shipment.resource_type,url.endsWith('/leads')?'lead':'order','destination must be durable before POST');
-      assert.deepEqual(JSON.parse(JSON.stringify(state.shipment.request_payload)),JSON.parse(options.body));
+      const snapshot=JSON.parse(JSON.stringify(state.shipment.request_payload));
+      assert.equal(snapshot._wasla_price_basis,'line_total');delete snapshot._wasla_price_basis;
+      assert.deepEqual(snapshot,JSON.parse(options.body));assert.ok(!Object.hasOwn(JSON.parse(options.body),'_wasla_price_basis'));
     }
     if(state.mode.startsWith('drop')&&url.endsWith('/orders'))return Response.json({status:'error',message:'Bad Request',errors:[{code:40049,message:'Cannot create order with drop product.',severity:'warning'}]},{status:400});
     if(state.mode.startsWith('drop')&&url.includes('/leads')){
@@ -84,7 +91,8 @@ vm.runInNewContext(compile('supabase/functions/cod-network/index.ts'),{
     if(state.mode==='reject')return Response.json({status:'error',message:'Unknown SKU; fixture-secret-token'},{status:422});
     if(state.mode==='500')return Response.json({status:'error'},{status:500});
     if(options.method==='GET'&&url.endsWith('fields=id'))return Response.json({status:'success',data:[]});
-    return Response.json({status:'success',data:state.mode==='missing-id'?{}:{id:51,reference:'COD-51',customer_phone:state.mode==='wrong-phone'?'0500000000':'0501234567',total:55}},{status:options.method==='POST'?201:200});
+    const total=state.shipment?.request_payload.items.reduce((sum,item)=>sum+item.price,0)??55;
+    return Response.json({status:'success',data:state.mode==='missing-id'?{}:{id:51,reference:'COD-51',customer_phone:state.mode==='wrong-phone'?'0500000000':'0501234567',total:state.mode==='wrong-total'?total/2:total}},{status:options.method==='POST'?201:200});
   },
 });
 async function run(action,values={},authorization='Bearer fixture-session') {
@@ -109,6 +117,18 @@ async function send(values={}) {
   state.order.currency_code='USD';assert.equal((await send()).status,400);assert.equal(posts().length,0);
   reset();state.order.selected_product_code='';assert.equal((await send()).status,400);assert.equal(posts().length,0);
   for(const resource_type of ['order','lead']) {
+    reset();state.order.price=149;state.order.shipping_fee=0;state.order.quantity=2;
+    if(resource_type==='lead')state.mode='drop-success';
+    const response=await send({resource_type});assert.equal(response.body.ok,true);
+    const payload=JSON.parse(posts()[0].options.body);assert.equal(payload.items.length,1);
+    assert.equal(payload.items[0].quantity,2);assert.equal(payload.items[0].price,149);assert.ok(!response.body.warning?.includes('إجمالي الشركة مختلف'));
+    if(resource_type==='lead') {assert.equal(payload.quantity_1,2);assert.equal(payload.price_1,149);}
+  }
+  reset();state.mode='wrong-total';assert.match((await send({resource_type:'order'})).body.warning,/إجمالي الشركة مختلف/);
+  reset();state.mode='drop-success';state.shipment={state:'uncertain',resource_type:'lead',attempt_id:id(90),started_at:'2026-01-01T00:00:00Z',request_payload:{phone:'0501234567',country:'SA',items:[{sku:'SKU-RED',quantity:2,price:74.5}]}};
+  assert.equal((await run('reconcile',{order_id:id(10),remote_id:'51'})).status,400,'old unit-price intent 149 must not reconcile against carrier collection 74.5');
+  assert.equal(state.shipment.state,'uncertain');assert.equal(posts().length,0);
+  for(const resource_type of ['order','lead']) {
     for(const address of ['', '  ', '—', null]) {
       reset();state.order.address=address;if(resource_type==='lead')state.mode='drop-success';
       assert.equal((await send({resource_type})).body.ok,true);
@@ -128,7 +148,7 @@ async function send(values={}) {
   reset();const sent=await send({edits:{price:1,quantity:99,country:'US',currency_code:'USD'}});
   assert.equal(sent.body.reference,'COD-51');assert.equal(posts().length,1);
   const request=posts()[0];assert.equal(request.url,'https://api.cod.network/v2/seller/orders');assert.equal(request.options.headers.Authorization,'Bearer fixture-secret-token');
-  const payload=JSON.parse(request.options.body);assert.equal(payload.country,'SA');assert.equal(payload.pay_mode,'cod');assert.equal(payload.items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),5500);assert.equal(payload.items.reduce((sum,i)=>sum+i.quantity,0),3);
+  const payload=JSON.parse(request.options.body);assert.equal(payload.country,'SA');assert.equal(payload.pay_mode,'cod');assert.equal(payload.items.reduce((sum,i)=>sum+Math.round(i.price*100),0),5500);assert.equal(payload.items.reduce((sum,i)=>sum+i.quantity,0),3);
   assert.deepEqual(Object.keys(payload).sort(),['address','area','city','country','full_name','items','pay_mode','phone'].sort());
   assert.equal((await run('send',{order_id:id(10)})).body.already_sent,true);assert.equal(posts().length,1);
   reset();state.mode='reject';const reject=await send();assert.equal(reject.status,400);assert.equal(state.shipment.state,'failed');assert.ok(!JSON.stringify(reject).includes('fixture-secret-token'));
@@ -143,7 +163,7 @@ async function send(values={}) {
   assert.equal((await run('send',{order_id:id(10)})).status,409);assert.equal(posts().length,1);
   reset();state.mode='drop-success';const lead=await send();assert.equal(lead.body.ok,true);assert.equal(lead.body.reference,'LEAD-51');assert.equal(lead.body.resource_type,'lead');assert.match(lead.body.warning,/بانتظار/);
   assert.equal(posts().length,2);assert.ok(posts()[1].url.endsWith('/leads'));assert.equal(state.shipment.resource_type,'lead');
-  const leadPayload=JSON.parse(posts()[1].options.body);assert.equal(leadPayload.name,'عميل');assert.equal(leadPayload.address,'شارع 1، حي، Riyadh');assert.equal(leadPayload.full_name,undefined);assert.equal(leadPayload.country,'SA');assert.equal(leadPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),5500);
+  const leadPayload=JSON.parse(posts()[1].options.body);assert.equal(leadPayload.name,'عميل');assert.equal(leadPayload.address,'شارع 1، حي، Riyadh');assert.equal(leadPayload.full_name,undefined);assert.equal(leadPayload.country,'SA');assert.equal(leadPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100),0),5500);
   assert.equal((await run('send',{order_id:id(10)})).body.already_sent,true);assert.equal(posts().length,2);
   for(const mode of ['drop-timeout','drop-missing-id']) {
     reset();state.mode=mode;assert.equal((await send()).status,409);assert.equal(state.shipment.resource_type,'lead');assert.equal(state.shipment.state,'uncertain');
@@ -170,7 +190,7 @@ async function send(values={}) {
     assert.equal(directPayload[`quantity_${n}`],item.quantity);assert.equal(directPayload[`price_${n}`],item.price);assert.equal(directPayload[`currency_${n}`],'SAR');
   }
   assert.equal(directPayload.name,'عميل');assert.equal(directPayload.phone,'0501234567');
-  assert.equal(directPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100)*i.quantity,0),5500);
+  assert.equal(directPayload.items.reduce((sum,i)=>sum+Math.round(i.price*100),0),5500);
   assert.equal((await send({resource_type:'order'})).body.already_sent,true);assert.equal(posts().length,1);
   reset();state.mode='drop-success';state.order.landing_slug='campaign-page';
   assert.equal((await send({resource_type:'lead',edits:{phone:'0507654321',currency_code:'USD',original_phone:'spoof',product_1:'spoof'}})).body.ok,true);
@@ -195,7 +215,7 @@ async function send(values={}) {
   for(const [index,item] of many.items.entries()) {
     const n=index+1;assert.equal(many[`quantity_${n}`],item.quantity);assert.equal(many[`price_${n}`],item.price);
     if(many[`product_${n}`]==='First')firstQuantity+=item.quantity;else {assert.equal(many[`product_${n}`],'Second');secondQuantity+=item.quantity;}
-    flatCents+=Math.round(many[`price_${n}`]*100)*many[`quantity_${n}`];
+    flatCents+=Math.round(many[`price_${n}`]*100);
   }
   assert.equal(firstQuantity,305);assert.equal(secondQuantity,2);assert.equal(flatCents,5500);
   reset();state.mode='drop-success';const explicitOrder=await send({resource_type:'order'});

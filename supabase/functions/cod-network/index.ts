@@ -134,8 +134,10 @@ Deno.serve(async req => {
       const isLead = saved.resource_type === 'lead';
       const result = await remote(await tokenFor(db, storeId), (isLead ? '/leads/' : '/orders/') + remoteId + (isLead ? '?include=items,drop_items' : ''));
       const order = isLead ? codRemoteLead(result.body) : codRemoteOrder(result.body);
-      const expected = saved.request_payload as ReturnType<typeof buildCodPayload>;
-      const total = expected.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const expected = saved.request_payload as ReturnType<typeof buildCodPayload> & { _wasla_price_basis?: string };
+      // Historical snapshots contain unit prices; never reinterpret their intended
+      // collection amount when checking an old, uncertain shipment.
+      const total = expected.items.reduce((sum, item) => sum + item.price * (expected._wasla_price_basis === 'line_total' ? 1 : item.quantity), 0);
       if (result.status !== 200 || !order || !sameCodPhone(order.phone, expected.phone, expected.country) || !Number.isFinite(order.total) || Math.abs(order.total - total) > 0.011) return json({ error: 'تعذر التحقق: رقم الهاتف أو مبلغ التحصيل لا يطابق الطلب. راجع رقم طلب الشركة' }, 400);
       if (isLead) {
         const grouped = (items: Array<{ sku: string; quantity: number }>) => JSON.stringify([...items.reduce((map, item) => map.set(item.sku, (map.get(item.sku) || 0) + item.quantity), new Map<string, number>())].sort());
@@ -157,7 +159,9 @@ Deno.serve(async req => {
     const explicitDestination = body.resource_type !== undefined;
     let isLead = (body.resource_type ?? previous.data?.resource_type ?? 'order') === 'lead';
     let outbound: ReturnType<typeof buildCodPayload> | ReturnType<typeof buildCodLeadPayload> = isLead ? buildCodLeadPayload(payload, draft, edits) : payload;
-    const claim = await db.rpc('claim_cod_network_dispatch', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: outbound, _resource_type: isLead ? 'lead' : 'order' });
+    // Internal snapshot metadata is persisted before POST, never sent to the carrier.
+    const snapshot = () => ({ ...outbound, _wasla_price_basis: 'line_total' });
+    const claim = await db.rpc('claim_cod_network_dispatch', { _order_id: draft.id, _store_id: storeId, _actor_id: user.id, _expected_updated_at: draft.updated_at, _expected_config_updated_at: config.updated_at, _payload: snapshot(), _resource_type: isLead ? 'lead' : 'order' });
     if (claim.error) throw claim.error;
     if (claim.data.state === 'sent') return json({ ok: true, already_sent: true, reference: claim.data.reference, resource_type: claim.data.resource_type });
     if (claim.data.state !== 'claimed') return json({ error: 'توجد محاولة إرسال سابقة تحتاج تحققًا قبل الإعادة', uncertain: true }, 409);
@@ -174,7 +178,7 @@ Deno.serve(async req => {
           await finish(db, draft.id, attemptId, 'failed', null, null, message);
           return json({ error: message }, 400);
         }
-        const switched = await db.rpc('set_cod_network_lead_attempt', { _order_id: draft.id, _attempt_id: attemptId, _payload: outbound });
+        const switched = await db.rpc('set_cod_network_lead_attempt', { _order_id: draft.id, _attempt_id: attemptId, _payload: snapshot() });
         if (switched.error || switched.data !== true) throw Error('Unable to persist lead destination');
         isLead = true;
         result = await remote(token, '/leads', outbound);
