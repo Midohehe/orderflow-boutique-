@@ -28,6 +28,8 @@ import { isolateLatin } from "@/lib/bidi";
 import LandingPageForm, { emptyLandingPageData, type LandingPageFormData } from "@/components/LandingPageForm";
 import { normalizeColorImages } from "@/lib/colorImages";
 import { purgeLandingCache } from "@/lib/purgeLandingCache";
+import { useTurboProductCreation } from "@/hooks/useTurboProductCreation";
+import TurboProductExportDialog, { type TurboExportTarget } from "@/components/TurboProductExportDialog";
 import {
   parseStoreExportFile,
   importProductsFromExport,
@@ -101,6 +103,7 @@ const emptyFormData: ProductFormData = {
 interface Category { id: string; name: string; sort_order?: number }
 
 const Products = () => {
+  const [turboTarget, setTurboTarget] = useState<TurboExportTarget | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [strictStock, setStrictStock] = useState(false);
@@ -114,6 +117,8 @@ const Products = () => {
   const [editProduct, setEditProduct] = useState<ProductFormData>(emptyFormData);
   const { isAdmin, loading: userLoading, effectiveOwnerId } = useUserContext();
   const { activeStoreId, activeStore, loading: storeLoading } = useStoreContext();
+  const { enabled: turboEnabled } = useTurboProductCreation(activeStoreId);
+  useEffect(() => { setTurboTarget(null); }, [activeStoreId]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({ currency_symbol: "د.إ" });
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -295,6 +300,11 @@ const Products = () => {
   };
 
   const handleAddProduct = async () => {
+    const createInTurbo = turboEnabled && newProduct.warehouseLinked !== false && newProduct.createInTurbo !== false;
+    if (createInTurbo && (!Number.isFinite(Number(newProduct.turboWeight)) || Number(newProduct.turboWeight) <= 0 || Number(newProduct.turboWeight) > 10000)) {
+      toast({ title: "وزن المنتج مطلوب لتوربو", description: "أدخل وزن القطعة قبل إنشاء المنتج", variant: "destructive" });
+      return;
+    }
     if (!newProduct.name || !newProduct.price || !newProduct.purchasePrice) {
       toast({
         title: "حقول إلزامية ناقصة",
@@ -468,6 +478,7 @@ const Products = () => {
         category_id: newProduct.categoryId || null,
       };
       setProducts(prev => [newProductData, ...prev]);
+      if (createInTurbo && activeStoreId) setTurboTarget({ productId: data.id, storeId: activeStoreId, weight: Number(newProduct.turboWeight), auto: true });
       setNewProduct(emptyFormData);
       setIsAddOpen(false);
       toast({
@@ -543,7 +554,7 @@ const Products = () => {
         color_images: normalizeColorImages(colorsArray, editProduct.colorImages),
         sizes: sizesArray,
         variant_warehouse_codes: Object.fromEntries(
-          variantKeys.map((k) => [k, (editProduct.variantWarehouseCodes?.[k] || "").trim()]).filter(([, v]) => v)
+          (variantKeys.length ? variantKeys : ['']).map((k) => [k, (editProduct.variantWarehouseCodes?.[k] || "").trim()]).filter(([, v]) => v)
         ),
         variant_skus: variantSkusObj,
         easyorders_product_id: editProduct.easyOrdersProductId?.trim() || null,
@@ -1469,6 +1480,7 @@ const Products = () => {
                   </DialogHeader>
                   <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
                     <ProductForm
+                      allowTurboCreate
                       mode="product"
                       product={newProduct}
                       onProductChange={setNewProduct}
@@ -1726,6 +1738,7 @@ const Products = () => {
                   >
                     <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                   </Button>
+                  {turboEnabled && activeStoreId && <Button size="sm" variant="outline" onClick={() => setTurboTarget({ productId: product.id, storeId: activeStoreId })}>توربو</Button>}
                   <Button
                     size="sm"
                     className="bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all px-2 sm:px-3"
@@ -1981,6 +1994,7 @@ const Products = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <TurboProductExportDialog target={turboTarget?.storeId === activeStoreId ? turboTarget : null} onClose={() => setTurboTarget(null)} />
     </div>
   );
 };

@@ -56,3 +56,7 @@ verify_jwt = false
 # Handler verifies the bearer token, store access and admin-only configuration.
 [functions.cod-network]
 verify_jwt = false
+
+# Handler validates user and store access; credentials never reach the browser.
+[functions.create-turbo-products]
+verify_jwt = false

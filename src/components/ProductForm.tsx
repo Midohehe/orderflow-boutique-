@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStoreContext } from "@/hooks/useStoreContext";
 import { useEasyOrdersEnabled } from "@/hooks/useEasyOrdersEnabled";
+import { useTurboProductCreation } from "@/hooks/useTurboProductCreation";
 import { toast } from "@/hooks/use-toast";
 import {
   ImageIcon,
@@ -57,6 +58,8 @@ const SectionCard = ({
 );
 
 export interface ProductFormData {
+  createInTurbo?: boolean;
+  turboWeight?: string;
   name: string;
   slug: string;
   price: string;
@@ -85,6 +88,7 @@ export interface ProductFormData {
 }
 
 interface ProductFormProps {
+  allowTurboCreate?: boolean;
   product: ProductFormData;
   onProductChange: (product: ProductFormData) => void;
   onSubmit: () => void;
@@ -174,9 +178,10 @@ const TagsField = ({
   );
 };
 
-const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false }: ProductFormProps) => {
+const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading, mode = "landing", categories = [], readOnlyStock = false, allowTurboCreate = false }: ProductFormProps) => {
   const isLandingMode = mode === "landing";
   const { activeStoreId, activeStore } = useStoreContext();
+  const turbo = useTurboProductCreation(allowTurboCreate ? activeStoreId : null);
   const { enabled: eoEnabled } = useEasyOrdersEnabled();
   const updateField = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     onProductChange({ ...product, [field]: value });
@@ -628,6 +633,10 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
         </div>
       </SectionCard>
 
+      {allowTurboCreate && turbo.enabled && product.warehouseLinked !== false && <SectionCard icon={Boxes} title="إنشاء في توربو" description="ينشأ كل متغير كمنتج مستقل ويُربط بكوده تلقائيًا">
+        <div className="flex items-center justify-between gap-3"><Label htmlFor="create-in-turbo">إنشاء منتجات توربو عند الحفظ</Label><Switch id="create-in-turbo" checked={product.createInTurbo !== false} onCheckedChange={value => updateField('createInTurbo', value)} /></div>
+        {product.createInTurbo !== false && <div className="space-y-2"><Label htmlFor="product-turbo-weight">وزن القطعة حسب وحدة حساب توربو</Label><Input id="product-turbo-weight" type="number" min="0.001" step="0.001" value={product.turboWeight || ''} onChange={event => updateField('turboWeight', event.target.value)} placeholder="أدخل الوزن" /><p className="text-xs text-muted-foreground">يستخدم الوزن نفسه للمتغيرات. كمية مخزن توربو تُسجل عند الاستلام لدى الشركة.</p></div>}
+      </SectionCard>}
       {/* Pricing */}
       <SectionCard icon={DollarSign} title="التسعير" description="حدد سعر البيع وسعر التكلفة لحساب الأرباح" iconColor="bg-emerald-500">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1201,7 +1210,7 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       )}
 
       <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-background/95 backdrop-blur border-t shadow-lg">
-        <Button onClick={onSubmit} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold" disabled={isLoading || colorImageUploading}>
+        <Button onClick={onSubmit} className="w-full bg-gradient-to-l from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all py-6 text-lg font-bold" disabled={isLoading || colorImageUploading || (allowTurboCreate && turbo.loading)}>
           {isLoading ? "جاري الحفظ..." : submitText}
         </Button>
       </div>
