@@ -221,33 +221,9 @@ export default function ConfirmationCenter() {
   }, [ownerId]);
 
   // Send confirmation WhatsApp for a single order (uses server template + provider)
-  const sendConfirmMessage = useCallback(async (orderId: string): Promise<boolean> => {
-    try {
-      // optimistic pending
-      setWaByOrder(prev => ({ ...prev, [orderId]: { status: "pending", created_at: new Date().toISOString() } }));
-      const { data, error } = await supabase.functions.invoke("whatsapp-send-confirmation", {
-        body: { order_id: orderId },
-      });
-      if (error) throw error;
-      if ((data as any)?.skipped) {
-        const reason = (data as any)?.reason;
-        const description = reason === "template_required"
-          ? "WhatChimp رفض الإرسال لأن هذه المحادثة خارج نافذة 24 ساعة، والقالب المعتمد أو اسم القالب في الإعدادات غير صحيح."
-          : "إعدادات الواتساب غير مفعّلة";
-        toast({ title: "تعذر الإرسال", description, variant: "destructive" });
-        setWaByOrder(prev => { const c = { ...prev }; delete c[orderId]; return c; });
-        return false;
-      }
-      if ((data as any)?.ok) {
-        setWaByOrder(prev => ({ ...prev, [orderId]: { status: "sent", created_at: new Date().toISOString() } }));
-        return true;
-      }
-      throw new Error((data as any)?.error || "فشل الإرسال");
-    } catch (e: any) {
-      setWaByOrder(prev => ({ ...prev, [orderId]: { status: "failed", created_at: new Date().toISOString() } }));
-      toast({ title: "فشل الإرسال", description: e?.message || "خطأ", variant: "destructive" });
-      return false;
-    }
+  const sendConfirmMessage = useCallback(async (_orderId: string): Promise<boolean> => {
+    toast({ title: "واتساب معطّل", description: "تم تعطيل تكامل واتساب على المنصة" });
+    return false;
   }, []);
 
   const sendOneConfirm = async (order: Order) => {
@@ -397,18 +373,8 @@ export default function ConfirmationCenter() {
     window.location.href = `tel:${order.phone}`;
   };
 
-  const openWhatsApp = (order: Order, template?: Template) => {
-    const digits = (order.phone || "").replace(/\D/g, "");
-    if (!digits) return;
-    const body = template?.body || templates.find(t => t.is_default)?.body ||
-      `السلام عليكم ${order.customer_name || ""}، نتواصل معك لتأكيد طلبك (${order.product_name || ""}).`;
-    const text = renderTemplate(body, {
-      customer_name: order.customer_name, product_name: order.product_name,
-      price: order.price, city: order.matched_zone_name || order.city,
-      quantity: order.quantity, order_id: order.id,
-    });
-    incrementAttempt(order);
-    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(text)}`, "_blank");
+  const openWhatsApp = (_order: Order, _template?: Template) => {
+    toast({ title: "واتساب معطّل", description: "يمكنك تأكيد الطلب يدويًا أو الاتصال بالزبون" });
   };
 
   // drawer

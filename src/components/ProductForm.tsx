@@ -666,6 +666,8 @@ const ProductForm = ({ product, onProductChange, onSubmit, submitText, isLoading
       {isLandingMode && (
       <SectionCard icon={FileText} title="الوصف التفصيلي" description="أضف وصفاً غنياً مع صور وفيديوهات" iconColor="bg-indigo-500">
         <RichTextEditor
+          ownerId={activeStore?.owner_id}
+          storeId={activeStoreId}
           value={product.description}
           onChange={(value) => updateField("description", value)}
           placeholder="أضف وصف تفصيلي للمنتج مع صور وفيديوهات..."

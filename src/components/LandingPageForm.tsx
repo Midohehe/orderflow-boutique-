@@ -269,6 +269,8 @@ const LandingPageForm = ({
       {/* الوصف الثري */}
       <SectionCard icon={FileText} title="وصف الصفحة" description="محتوى منسق مع صور وفيديوهات" iconColor="bg-amber-500">
         <RichTextEditor
+          ownerId={ownerId}
+          storeId={storeId}
           value={data.description}
           onChange={(value) => update("description", value)}
           placeholder="اكتب محتوى صفحة الهبوط..."

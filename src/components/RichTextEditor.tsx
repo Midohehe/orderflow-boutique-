@@ -20,14 +20,19 @@ import {
   Type
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { uploadProductImage, uploadImageFromUrl } from "@/lib/imageStorage";
+import { toast } from "@/hooks/use-toast";
+import DOMPurify from "dompurify";
 
 interface RichTextEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  ownerId?: string | null;
+  storeId?: string | null;
 }
 
-const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) => {
+const RichTextEditor = ({ value, onChange, placeholder, ownerId, storeId }: RichTextEditorProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const isInitialized = useRef(false);
   const savedSelectionRef = useRef<Range | null>(null);
@@ -45,6 +50,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadingRef = useRef(false);
 
   // Sync external value into the editor when it differs (e.g., async load on edit,
   // or form reset). Avoid clobbering during user typing by comparing with current DOM.
@@ -238,30 +244,61 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
     }
   };
 
-  const handleImageUpload = (files: FileList | null) => {
-    if (!files) return;
-    
-    const imageFiles = Array.from(files).filter(file => file.type.startsWith("image/"));
-    const newImages: string[] = [];
-    let loadedCount = 0;
-    
-    imageFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        newImages.push(result);
-        loadedCount++;
-        
-        if (loadedCount === imageFiles.length) {
-          setPendingImages(prev => [...prev, ...newImages]);
-          setShowImageDialog(true);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files || uploadingRef.current) return;
+    if (!ownerId) {
+      toast({ title: "تعذر رفع الصور", description: "انتظر تحميل بيانات المتجر ثم حاول مجددًا", variant: "destructive" });
+      return;
+    }
+    uploadingRef.current = true;
+    const uploaded: string[] = [];
+    try {
+      for (const file of Array.from(files).filter(file => file.type.startsWith("image/"))) {
+        uploaded.push(await uploadProductImage(file, ownerId, storeId));
+      }
+    } catch {
+      toast({ title: "تعذر رفع بعض الصور", description: "حاول رفع الصور المتبقية مجددًا", variant: "destructive" });
+    } finally {
+      uploadingRef.current = false;
+      if (uploaded.length) {
+        setPendingImages(prev => [...prev, ...uploaded]);
+        setShowImageDialog(true);
+      }
+    }
   };
 
-  const insertImageWithSize = (src: string) => {
+  const handlePaste = async (event: React.ClipboardEvent<HTMLDivElement>) => {
+    const html = event.clipboardData.getData("text/html");
+    if (!html.includes("data:image/")) {
+      if (Array.from(event.clipboardData.files).some(file => file.type.startsWith("image/"))) {
+        event.preventDefault();
+        await handleImageUpload(event.clipboardData.files);
+      }
+      return;
+    }
+    event.preventDefault();
+    if (!ownerId) {
+      toast({ title: "انتظر تحميل بيانات المتجر قبل لصق الصور", variant: "destructive" });
+      return;
+    }
+    saveSelection();
+    const document = new DOMParser().parseFromString(DOMPurify.sanitize(html), "text/html");
+    try {
+      for (const image of Array.from(document.querySelectorAll("img"))) {
+        if (image.src.startsWith("data:image/")) image.src = await uploadImageFromUrl(image.src, ownerId, storeId);
+      }
+      execCommand("insertHTML", document.body.innerHTML);
+    } catch {
+      toast({ title: "تعذر رفع الصور الملصقة، حاول مجددًا", variant: "destructive" });
+    }
+  };
+
+  const insertImageWithSize = async (src: string) => {
+    if (src.startsWith("data:")) {
+      if (!ownerId) return;
+      try { src = await uploadImageFromUrl(src, ownerId, storeId); }
+      catch { toast({ title: "تعذر رفع الصورة", variant: "destructive" }); return; }
+    }
     const width = imageWidth ? `width="${imageWidth}"` : "";
     const height = imageHeight ? `height="${imageHeight}"` : "";
     const style = [];
@@ -692,6 +729,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
           ref={editorRef}
           contentEditable
           onInput={handleInput}
+          onPaste={handlePaste}
           onClick={handleEditorClick}
           onMouseUp={saveSelection}
           onKeyUp={saveSelection}

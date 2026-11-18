@@ -541,14 +541,7 @@ Deno.serve(async (req) => {
           }
         } catch (e) { console.error("match-city failed", e); }
 
-        // 2) WhatsApp confirmation. Stock was committed with the checkout.
-        try {
-          await fetch(`${baseUrl}/functions/v1/whatsapp-send-confirmation`, {
-          method: "POST",
-            headers: authHeaders,
-            body: JSON.stringify({ order_id: orderId }),
-          });
-        } catch (e) { console.error("wa-confirm failed", e); }
+        // WhatsApp integration disabled by project owner.
 
         // 3) Push notification to store owner.
         try {
