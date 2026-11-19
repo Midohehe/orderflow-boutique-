@@ -22,6 +22,8 @@ jobs:
       - run: npm run lint
         continue-on-error: true
 
+      - run: npm run typecheck
+
       - run: npm run build
         env:
           VITE_SUPABASE_PROJECT_ID: ci-placeholder

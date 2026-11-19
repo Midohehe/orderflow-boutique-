@@ -115,7 +115,7 @@ export async function fetchDeliveryStatsSummary(
   });
 
   if (!error && data) {
-    const parsed = parseDeliveryStatsRpc(data as DeliveryStatsRpcRow);
+    const parsed = parseDeliveryStatsRpc(data as unknown as DeliveryStatsRpcRow);
     if (parsed) return parsed;
   }
 

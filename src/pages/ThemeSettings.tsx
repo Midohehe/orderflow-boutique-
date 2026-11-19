@@ -182,7 +182,7 @@ const ThemeSettings = () => {
         pkg: pendingPkg,
         options: applyOptions,
       });
-      if (!result.ok) throw new Error(result.error);
+      if ("error" in result) throw new Error(result.error);
       setTokens(parseThemeTokens(pendingPkg.tokens));
       setCustomCss(pendingPkg.customCss || "");
       setPackageId(pendingPkg.id);

@@ -20,11 +20,13 @@ export async function fetchAppSettings(force = false): Promise<AppSettingsRow | 
   if (!force && cache && Date.now() - cacheAt < TTL_MS) return cache;
   if (!force && inflight) return inflight;
 
-  inflight = supabase
-    .from("app_settings")
-    .select("id, system_name, order_fee, wallet_enabled, subscription_currency, shipping_endpoint, platform_facebook_pixel_id")
-    .limit(1)
-    .maybeSingle()
+  inflight = Promise.resolve(
+    supabase
+      .from("app_settings")
+      .select("id, system_name, order_fee, wallet_enabled, subscription_currency, shipping_endpoint, platform_facebook_pixel_id")
+      .limit(1)
+      .maybeSingle(),
+  )
     .then(({ data, error }) => {
       inflight = null;
       if (error) throw error;

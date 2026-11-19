@@ -103,9 +103,9 @@ interface Order {
   matched_area_id?: number | null;
   shipping_error?: string | null;
   link_error?: string | null;
-  carrier_status?: string | null;
+  carrier_status: string | null;
   carrier_status_updated_at?: string | null;
-  carrier_status_raw?: any;
+  carrier_status_raw: any;
   carrier_cancellation_reason_id?: string | null;
   carrier_notes?: string | null;
   confirmation_status?: "unconfirmed" | "confirmed" | "no_answer" | "postponed" | "cancelled" | null;
@@ -1168,7 +1168,7 @@ const Orders = () => {
         dateFrom: pendingDateFrom || undefined,
         dateTo: pendingDateTo || undefined,
       };
-      const pendingExport = (await fetchAllOrdersForExport(activeStoreId, "pending", exportFilters)) as Order[];
+      const pendingExport = (await fetchAllOrdersForExport(activeStoreId, "pending", exportFilters)) as unknown as Order[];
       if (pendingExport.length === 0) {
       toast({
         title: "تنبيه",
@@ -1336,7 +1336,7 @@ const Orders = () => {
         search: shippedSearch || undefined,
         productName: shippedProductFilter !== "all" ? shippedProductFilter : undefined,
       };
-      const rows = (await fetchAllOrdersForExport(activeStoreId, "shipped", { ...exportFilters, carrierFilter: shippedCarrierFilter })) as Order[];
+      const rows = (await fetchAllOrdersForExport(activeStoreId, "shipped", { ...exportFilters, carrierFilter: shippedCarrierFilter })) as unknown as Order[];
       if (rows.length === 0) {
         toast({
           title: "تنبيه",

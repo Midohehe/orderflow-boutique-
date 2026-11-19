@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import type { ThemeApplyOptions, ThemePackage } from "./types";
 
 export async function applyThemePackage(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   params: {
     ownerId: string;
     storeId: string;
@@ -32,7 +33,7 @@ export async function applyThemePackage(
 
   if (options.applyStoreHome && pkg.storeHome) {
     const { data: existing } = await supabase
-      .from("store_page_layouts" as never)
+      .from("store_page_layouts")
       .select("id")
       .eq("store_id", storeId)
       .eq("page_key", "home")
@@ -48,7 +49,7 @@ export async function applyThemePackage(
 
     if (existing?.id) {
       const { error } = await supabase
-        .from("store_page_layouts" as never)
+        .from("store_page_layouts")
         .update(payload as never)
         .eq("id", existing.id);
       if (error) return { ok: false, error: error.message };
@@ -61,14 +62,14 @@ export async function applyThemePackage(
   if (options.applyLandingTemplates && pkg.landingTemplates?.length) {
     if (options.replaceExistingTemplates) {
       await supabase
-        .from("landing_page_templates" as never)
+        .from("landing_page_templates")
         .delete()
         .eq("store_id", storeId);
     }
 
     let hasDefault = false;
     const { data: existingTemplates } = await supabase
-      .from("landing_page_templates" as never)
+      .from("landing_page_templates")
       .select("id, is_default")
       .eq("store_id", storeId);
     hasDefault = (existingTemplates || []).some((t: { is_default?: boolean }) => t.is_default);
@@ -76,7 +77,7 @@ export async function applyThemePackage(
     for (const tpl of pkg.landingTemplates) {
       const isDefault = tpl.isDefault && !hasDefault;
       if (isDefault) hasDefault = true;
-      const { error } = await supabase.from("landing_page_templates" as never).insert({
+      const { error } = await supabase.from("landing_page_templates").insert({
         name: tpl.name,
         store_id: storeId,
         owner_id: ownerId,

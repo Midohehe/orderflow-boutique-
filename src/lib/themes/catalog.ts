@@ -344,7 +344,7 @@ const AURA_MENS_TOKENS = {
 };
 
 function pkg(
-  partial: Omit<ThemePackage, "version" | "storeHome" | "productLanding"> & {
+  partial: Omit<ThemePackage, "version"> & {
     storeHomeOpts?: Parameters<typeof buildStoreHomeLayout>[1];
     productOpts?: Parameters<typeof buildProductLandingLayout>[1];
     extraLanding?: ThemePackage["landingTemplates"];

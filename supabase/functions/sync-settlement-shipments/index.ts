@@ -55,8 +55,10 @@ Deno.serve(async (req) => {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { data: isMember } = await admin.rpc("is_member_of", { _owner_id: settlement.owner_id });
-    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: uid, _role: "admin" });
+    // Authorization helpers depend on auth.uid(), so call them with the
+    // user-scoped client rather than the service-role client.
+    const { data: isMember } = await supabase.rpc("is_member_of", { _owner_id: settlement.owner_id });
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: uid, _role: "admin" });
     if (!isMember && !isAdmin && settlement.owner_id !== ownerId) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },

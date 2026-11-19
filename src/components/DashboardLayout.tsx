@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { 
   Globe, Video, Package, ShoppingCart, LogOut, Menu, X, FileText, Crosshair, Heart, Trash2, ClipboardList, ScanLine,
-  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, MessageCircle, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun, ShieldCheck, Megaphone, TrendingUp, BarChart3, Palette, Sparkles
+  LayoutDashboard, DollarSign, Calculator, Store, LayoutTemplate, Truck, Settings as SettingsIcon, UserCircle, Wallet, Undo2, Boxes, ArrowLeftRight, Receipt, ShoppingBag, Printer, ChevronDown, ChevronLeft, Shield, Users, Moon, Sun, ShieldCheck, Megaphone, TrendingUp, BarChart3, Palette, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -73,8 +73,6 @@ const baseMenuGroups = [
       { icon: LayoutTemplate, label: "هيدر المتجر", path: "/dashboard/header", external: false, adminOnly: false, dynamicStore: false },
       { icon: LayoutTemplate, label: "قوالب صفحات الهبوط", path: "/dashboard/landing-templates", external: false, adminOnly: false, dynamicStore: false },
       { icon: Sparkles, label: "منشئ العروض", path: "/dashboard/offers", external: false, adminOnly: false, dynamicStore: false },
-      { icon: MessageCircle, label: "WhatsApp", path: "/dashboard/whatsapp", external: false, adminOnly: false, dynamicStore: false },
-      { icon: MessageCircle, label: "تدريب مساعد WhatsApp", path: "/dashboard/ai-training", external: false, adminOnly: false, dynamicStore: false },
       { icon: Crosshair, label: "إعلانات فيسبوك", path: "/dashboard/facebook-ads", external: false, adminOnly: false, dynamicStore: false },
       { icon: Crosshair, label: "أداء إعلانات فيسبوك", path: "/dashboard/facebook-performance", external: false, adminOnly: false, dynamicStore: false },
       { icon: Users, label: "المستخدمون الفرعيون", path: "/dashboard/members", external: false, adminOnly: false, dynamicStore: false, ownerOnly: true },

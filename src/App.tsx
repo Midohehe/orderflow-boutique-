@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from "react-router-dom";
 
 import { Loader2 } from "lucide-react";
 
@@ -97,8 +97,6 @@ const HeaderSettings = lazy(() => import("./pages/HeaderSettings"));
 const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
 
 const WhatsAppPage = lazy(() => import("./pages/WhatsAppPage"));
-
-const AITrainingSettings = lazy(() => import("./pages/AITrainingSettings"));
 
 const StickerDesigner = lazy(() => import("./pages/StickerDesigner"));
 
@@ -313,7 +311,7 @@ const DashboardRoutes = () => (
 
         <Route path="whatsapp" element={<WhatsAppPage />} />
 
-        <Route path="ai-training" element={<AITrainingSettings />} />
+        <Route path="ai-training" element={<Navigate to="/dashboard/whatsapp" replace />} />
 
         <Route path="sticker-designer" element={<StickerDesigner />} />
 

@@ -136,11 +136,11 @@ interface FormField {
   id: string;
   field_key: string;
   label: string;
-  placeholder: string;
+  placeholder?: string;
   field_type: string;
   required: boolean;
-  enabled: boolean;
-  sort_order: number;
+  enabled?: boolean;
+  sort_order?: number;
 }
 
 interface StoreSettings {
